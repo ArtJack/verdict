@@ -1,0 +1,31 @@
+[project]
+name = "verdict-mcp"
+version = "0.2.0"
+description = "Read-only MCP server over Verdict QA state: verdicts, findings, flaky quarantine, run history."
+readme = "README.md"
+license = { file = "LICENSE" }
+requires-python = ">=3.10"
+dependencies = ["mcp[cli]>=1.27,<2"]
+
+[project.urls]
+Homepage = "https://github.com/ArtJack/verdict"
+
+[project.scripts]
+verdict-mcp = "verdict_mcp.server:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/verdict_mcp"]
+
+[dependency-groups]
+dev = ["pytest>=8"]
+
+[tool.pytest.ini_options]
+# Only the MCP server's own tests. eval/fixtures/pricer contains INTENTIONALLY
+# failing seeded tests (the agent's answer-key fixture) and must never be
+# collected by the project suite.
+testpaths = ["tests"]
+addopts = "-q"
