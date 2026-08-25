@@ -51,16 +51,16 @@ Scope: 2c67f47..b4e2943 (4 commits, 16 files) · run 4 (delta)
 Isolation check: pass (no .env present; no live service touched)
 
 Findings — REGRESSED first:
-REGRESSED  PRICER-F-002  Major/P1  round_cents uses banker's rounding again (pricer.py:17)
+REGRESSED  PRICER-F-002  Critical/P0  round_cents uses banker's rounding again (pricer.py:17)
                          resolved 08-19, reintroduced by b4e2943 — this forces the verdict
-NEW        PRICER-F-007  Major/P1  quarantine graveyard: test_listable_at_floor_exactly
+NEW        PRICER-F-007  Major/P1     quarantine graveyard: test_listable_at_floor_exactly
                          skipped 114 days with no expiry — it is the test that would catch F-001
-STILL_OPEN PRICER-F-001  Major/P1  age 6d  is_listable rejects a price exactly at the floor
+STILL_OPEN PRICER-F-001  Critical/P0  age 6d  is_listable rejects a price exactly at the floor
 FLAKY      test_bulk_discount_applies — fails 3/6 runs with no code change; quarantined
            until 2026-09-07, excluded from this verdict, listed until re-evaluated
 
 Delta gates: tests 213 → 213 · duration +0.4% · coverage on changed files: no decrease
-Release blockers: PRICER-F-002
+Release blockers: PRICER-F-002 (regressed), PRICER-F-001
 Not tested: concurrency under parallel checkout — no harness present
 Fix order: 1) F-002  2) F-001 (unskip its test first, watch it fail red)  3) F-007 expiry
 Artifact: .qa/reports/2026-08-24-pricer-review.md

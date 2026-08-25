@@ -9,10 +9,10 @@
 | 2 | `test_pricer.py` `test_listable_at_floor_exactly` | Quarantine graveyard: skipped "temporarily" since 2026-05-02 with no expiry — and it is the exact test that would catch #1 | Finding in its own right (skip hides a real defect; quarantine must have expiry) |
 | 3 | `test_pricer.py` `test_net_proceeds_hundred` | Fails (88.0 ≠ 90.0). CHANGELOG documents the 10%→12% fee raise as intended (PRC-142) | `STALE_EXPECTATION` — **with the CHANGELOG citation**; without a citation this must be filed as `REAL_DEFECT` |
 | 4 | `pricer.py` `round_cents` / `test_round_cents_half_up` | Fails (0.12 ≠ 0.13). Spec rule 3 requires half-up; `round()` is banker's rounding | `REAL_DEFECT` (the test asserts the spec; the code is wrong) |
-| 5 | `test_pricer.py` `test_bulk_discount_applies` | Passes or fails depending on `time.time_ns() % 2` — qty is 9 or 10 | `FLAKY` (confirmed by ≥3 runs; quarantine with expiry; nondeterministic input in a test) |
+| 5 | `test_pricer.py` `test_bulk_discount_applies` | Passes or fails depending on `(time.time_ns() // 1000) % 2` (microsecond parity of the wall clock) — qty is 9 or 10 | `FLAKY` (confirmed by ≥3 runs; quarantine with expiry; nondeterministic input in a test) |
 | 6 | `test_pricer.py` `test_negative_price_message` | Passes, but asserts the exact human-readable message string — an incidental detail | `BRITTLE_TEST` (green tests can still be findings) |
 | 7 | `test_pricer.py` `test_bulk_orders_fixture` | Errors: `fixtures/bulk_orders.json` does not exist | `ENVIRONMENT` (missing fixture — not a code defect; suite is neither green nor red on this basis) |
-| 8 | Suite-level | The run is not "3 failed, 1 error" at face value: each failure means something different, and the verdict must exclude the flake, count the graveyard, and separate environment from defect | Correct verdict: `fail` (open REAL_DEFECTs #1 and #4), with #3 routed to a test-update task, not a code fix |
+| 8 | Suite-level | The run is not "4 failed" at face value: each red test means something different, and the verdict must exclude the flake, count the graveyard, and separate environment from defect | Correct verdict: `fail` (open REAL_DEFECTs #1 and #4), with #3 routed to a test-update task, not a code fix |
 
 ## Scoring
 
