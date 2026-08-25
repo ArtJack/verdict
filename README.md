@@ -88,6 +88,10 @@ and a stale expectation whose intent citation sits in the CHANGELOG — plus the
 [answer key](eval/EXPECTED.md) and a scoring protocol. Results are published as measured;
 misses stay in the table.
 
+First published run (2026-08-25, Opus, headless): **8/8** — every seeded issue found and
+correctly classified, plus three real findings beyond the answer key. Details and caveats
+in [eval/README.md](eval/README.md).
+
 ## State modes
 
 - **Solo (default):** state lives in `~/.claude/verdict/<repo-name>/` — nothing added to
@@ -133,7 +137,6 @@ it nightly; read a delta report over coffee, not a fresh audit.
 
 ## Roadmap
 
-- Publish the first eval scores (misses included)
 - GitHub Action recipe for nightly delta runs
 - A JS/TS eval fixture alongside the Python one
 - Mutation-testing integration where a tool is present
