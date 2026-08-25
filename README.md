@@ -78,6 +78,7 @@ Artifact: .qa/reports/2026-08-24-pricer-review.md
 | Can edit your code | nothing stops it | no `Edit` tool + write-scope hook |
 | "No bugs found!" | frequently | never — coverage, gaps, and residual risk instead |
 | Tested itself | — | seeded-defect eval with a published answer key ([eval/](eval/)) |
+| State consumable by other tools | — | `verdict-mcp`: read-only MCP server over the state — works from Cursor, Codex, CI, any MCP client |
 
 ## The tested tester
 
@@ -111,6 +112,40 @@ versioned, forward-compatible, human-readable JSON.
 | `/qa-regression` | Regression checklist: changed area → adjacent flows → integrations |
 | `/qa-release` | Release gate with the four-verdict contract |
 | `/qa-bug` | Turn a symptom/log/complaint into a classified, structured bug report |
+
+## The tester's memory, over MCP (optional)
+
+Verdict's state isn't locked inside the agent. `verdict-mcp` is a small **read-only** MCP
+server over the same state files, so anything that speaks MCP can consult your QA memory —
+an orchestrator gating a merge, a Cursor or Codex session, a CI step commenting a PR:
+
+| Tool | Returns |
+|---|---|
+| `get_verdict(project)` | last verdict, release blockers, report path, not-tested list |
+| `get_findings(project, status)` | `open` (default), `all`, or `NEW / STILL_OPEN / RESOLVED / REGRESSED` — REGRESSED ranked first |
+| `get_quarantine(project)` | the flaky ledger, each entry with a computed `expired` flag |
+| `get_history(project)` | run-over-run trend parsed from the report INDEX |
+| `list_projects()` / `get_state(project)` | everything with a baseline / the raw state |
+
+```
+claude mcp add verdict -- uvx --from git+https://github.com/ArtJack/verdict verdict-mcp
+```
+
+`project` is a key from the solo root (`~/.claude/verdict/`, override with `VERDICT_HOME`)
+or a repo path in team mode (resolves `<repo>/.qa/`). Every tool carries a read-only
+annotation and the server never writes — **the tester's memory is public API; the tester's
+pen is not.** Needs `uv` (or `pipx install "git+https://github.com/ArtJack/verdict"`); the
+plugin itself still has zero dependencies and works without the server.
+
+## Give your tester project eyes (bring your own MCPs)
+
+The agent ships with core tools only, but the frontmatter is an extension point: copy
+`agents/verdict.md` into your project's `.claude/agents/` and add your project's MCP tools
+(database, staging API, browser) to its `tools:` list. The agent's §0 isolation rules
+govern how it may use them — read-only facts, never mutations, `blocked` when it cannot
+verify. This pattern is battle-tested: the private ancestor of this agent runs nightly
+with eleven read-only marketplace-database tools, which is exactly how it caught a live
+overselling bug that no amount of reading source code could have found.
 
 ## The read-only guarantee, honestly stated
 

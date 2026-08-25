@@ -2,3 +2,7 @@ __pycache__/
 .pytest_cache/
 .DS_Store
 .qa/
+.venv/
+dist/
+*.egg-info/
+uv.lock
