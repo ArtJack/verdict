@@ -75,6 +75,7 @@ Artifact: .qa/reports/2026-08-24-pricer-review.md
 | Release decision | "go/no-go" appears as a checklist word | four-verdict contract; an open Blocker forces `fail` |
 | Red test triage | "investigate failures" | five-class taxonomy; `STALE_EXPECTATION` requires an intent citation |
 | Quality gates | ">90% coverage" absolutes | direction gates: coverage on changed files must not decrease; 0 tests collected ≠ 1 test failing |
+| Test design | "test edge cases" | 24-technique catalog with risk triggers — incl. property-based, metamorphic (for ML/LLM output), MC-DC, contract tests ([docs/test-design.md](docs/test-design.md)) |
 | Can edit your code | nothing stops it | no `Edit` tool + write-scope hook |
 | "No bugs found!" | frequently | never — coverage, gaps, and residual risk instead |
 | Tested itself | — | seeded-defect eval with a published answer key ([eval/](eval/)) |
