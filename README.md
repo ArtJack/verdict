@@ -137,6 +137,53 @@ annotation and the server never writes — **the tester's memory is public API; 
 pen is not.** Needs `uv` (or `pipx install "git+https://github.com/ArtJack/verdict"`); the
 plugin itself still has zero dependencies and works without the server.
 
+## Closing the loop (without letting the tester fix anything)
+
+Verdict is deliberately the **gate** of a fix loop, never its actor — an agent that fixes
+and then re-judges its own fixes is grading its own homework. The loop belongs to your
+orchestrator, your coding agent, or CI; Verdict's job is to make every pass around it
+evidence-cited and impossible to rubber-stamp:
+
+```text
+┌─────> implement the ordered fix list   (you / your coding agent)
+│                    │
+│                    v
+│        /qa-review — delta run          (scoped by diff, findings aged)
+│                    │
+│                    v
+│        get_verdict over MCP ────────── pass ──> merge
+│                    │                            (the not-tested list travels with the PR)
+└──────── fail · pass with risks
+          (fix order is dependency-aware, REGRESSED first)
+```
+
+Minimal driver, any MCP client:
+
+```python
+while True:
+    subprocess.run(["claude", "-p", "/qa-review delta pass on myapp"])   # the agent runs
+    v = mcp.call("verdict", "get_verdict", {"project": "myapp"})          # the gate reads
+    if v["verdict"] == "pass":
+        break
+    fix(v["release_blockers"],
+        mcp.call("verdict", "get_findings", {"project": "myapp", "status": "open"}))
+```
+
+Rules that keep the loop honest — all enforced by the agent's contract, not by hope:
+
+- **REGRESSED breaks the loop loudly.** A finding that comes back outranks any number of
+  NEW ones; it is ranked first in every report and every `get_findings` response.
+- **Red tests exit through the right door.** `STALE_EXPECTATION` exits via a test-update
+  task (with an intent citation), `REAL_DEFECT` via a code fix — the loop never converges
+  by editing a red test to match the code.
+- **Flakes can't be buried.** Quarantined tests are excluded from the gate but re-enter on
+  expiry, so the loop cannot converge by skipping its way to green.
+- **`blocked` halts, it doesn't pass.** A missing environment stops the loop for the
+  operator instead of laundering itself into a verdict.
+
+This is not hypothetical — it is the loop the author's private deployment runs nightly,
+unattended, against a production codebase.
+
 ## Give your tester project eyes (bring your own MCPs)
 
 The agent ships with core tools only, but the frontmatter is an extension point: copy
