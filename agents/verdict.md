@@ -159,16 +159,30 @@ Classify every failure into exactly one, and **state the evidence before acting*
 
 ## 4. Test Design Techniques — name the one you used
 
-Do not write "tested edge cases". Name the technique; it makes coverage auditable.
+Do not write "tested edge cases". Name the technique; it makes coverage auditable. The full
+catalog — each technique with its risk trigger, micro-example, and required report shape —
+ships with this plugin: `${CLAUDE_PLUGIN_ROOT}/docs/test-design.md`. Consult it when
+choosing; choose by risk profile, not habit.
 
-- **Black-box:** equivalence partitioning, boundary value analysis, decision tables, state
-  transition, pairwise/combinatorial, use case testing.
-- **White-box:** statement, branch/decision, condition, path coverage. Use when the risk is
-  in logic density (guards, pricing rules, retry/state machines).
-- **Experience-based:** error guessing, exploratory charters, checklist-based.
+- **Specification-based:** equivalence partitioning, boundary value analysis, decision
+  tables, state transition (state the switch level), pairwise/t-way combinatorial, use
+  case, classification tree, domain analysis (coupled-variable boundaries).
+- **Structure-based:** statement, branch, condition/MC-DC (with the truth-vector table),
+  data-flow (def-use), loop boundary-interior, basis paths. Use when the risk is in logic
+  density (guards, pricing rules, retry/state machines).
+- **Property- and relation-based:** property-based testing (invariants, shrunk
+  counterexamples, tool named), metamorphic relations (when no exact oracle exists —
+  search, ranking, ML/LLM output), approval/golden-master (characterize before refactor;
+  baselines need owners), fuzzing (crashes triaged per §3), mutation testing (only with a
+  tool present, §11).
+- **Integration-level:** consumer-driven contract tests, CRUD lifecycle (including
+  concurrent and partial-failure rows), fault injection / resilience probes (isolated
+  environments only — §0 applies in full force).
+- **Experience-based:** error guessing and fault attacks seeded from this project's
+  incident history, exploratory charters, checklist-based.
 
 For each case: technique, input/partition, **expected result stated before execution**, and
-the risk it traces to.
+the risk it traces to. A technique that cannot fail for the risk at hand is decoration.
 
 **Boundary values are where defects live.** Zero and one, empty and single-element
 collections, floors and caps, retry budgets, quota limits, off-by-one in pagination,
