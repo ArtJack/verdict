@@ -38,6 +38,7 @@ run's evidence list should show it never looked.
 | Date | Model | Fixture / mode | Score | Notes |
 |---|---|---|---|---|
 | 2026-08-25 | Opus (Claude Code 2.1.245, headless `-p`) | pricer baseline | **8/8** | All five classifications correct, including the graveyard skip identified as *not* flaky and the stale expectation cited to the CHANGELOG. Quarantined the real flake with a one-week expiry after 8 confirmation re-runs. Also surfaced **3 legitimate findings beyond the answer key** (below). Fixture left byte-identical; answer key confirmed unread. Hand-scored by the fixture author — superseded by `score.py` for later rows. |
+| 2026-08-28 | Opus (`run_eval.py --fixture pricer --mode live`, v0.10.0) | pricer **live** round-trip | **8/8 + 4/4** | The last unscored protocol, now scored: phase 1 a real baseline on rev-A, phase 2 a delta on rev-B against *the agent's own state* — no authored history. All four reachable delta rows correct (REGRESSED and quarantine-expiry are structurally n/a in live mode), and the run exercised the v0.9 ancestor's-trick end to end: `test-ids.txt` written for set-diff accounting. Phase 1 first scored 7/8 — **a scorer false negative**: the brittle exact-message finding was present and correctly classified, but the key matched only the test-function name. Key broadened to match the concept; re-scored 8/8 from the preserved run, no model tokens spent. |
 | 2026-08-28 | Sonnet (`run_eval.py --fixture pricer --mode seeded`, v0.10.0) | pricer delta (the flagship) | **6/6** | Sonnet passes the delta memory too — REGRESSED ranked first, the CHANGELOG decoy resisted, expired quarantine released. With baseline 8/8 and delta 6/6, Sonnet now holds **both protocols the author's nightly actually runs**, and that nightly was switched from Opus to Sonnet on this evidence — the "earn verdict duty by passing the eval" rule doing its job, and the two models no longer competing for one subscription window. |
 | 2026-08-28 | Sonnet (`run_eval.py --mode baseline`, v0.9.0 prompt) | pricer baseline | **8/8** | Regression check for the "ancestor's tricks" prompt additions (RESOLVED fix-verification, ID set-diff accounting) — no drift on the fragile model. |
 | 2026-08-28 | Opus (`run_eval.py --mode seeded`, v0.9.0 prompt) | pricer delta | **6/6** | Same regression check on the flagship — all four delta classes plus quarantine release intact. Workdir auto-cleaned on success, so the per-finding *fix-verified vs merely absent* nuance was not inspected; the scores are the record. |
@@ -48,6 +49,15 @@ run's evidence list should show it never looked.
 | 2026-08-27 | Opus (Claude Code 2.1.241, `run_eval.py --mode seeded`) | pricer delta (the flagship) | **6/6** | First scored run of the delta memory: `REGRESSED` recognized against the golden history and ranked first in the findings listing; the `NEW` boundary defect caught **despite the CHANGELOG decoy** (REAL_DEFECT, no intent citation); `STILL_OPEN` aged; `RESOLVED` detected; the expired quarantine re-evaluated and released; verdict `fail`. Fixture byte-identical. One scorer fix fell out: the REGRESSED-first check now anchors on finding *entry* lines — the agent's scope narrative legitimately named a resolved id first, and the initial check flagged it wrongly (agent right, scorer wrong; fixed with a regression test). |
 | 2026-08-27 | Opus (Claude Code 2.1.241, headless `-p`, isolated harness) | pricer baseline, v0.3.0 prompt | **8/8** | First machine-scored run (`score.py`, zero hard-fails). Verified live: scratch `$VERDICT_HOME` honored, timestamps measured (`2026-08-28T01:56:50Z`), `failure_classification` machine-readable on every finding, 12 findings total (4 beyond the key). Took the amended row-5 route: `BRITTLE_TEST` with the clock mechanism diagnosed, quarantine correctly empty. An earlier same-day run was discarded for harness contamination — the agent wrote to the default state home, which is the failure that motivated §0's `${VERDICT_HOME:-…}` recipe. |
 
+### When a row misses, suspect the scorer first
+
+Twice now a red row has been the *key's* fault, not the agent's: the REGRESSED-first check
+once anchored on narrative prose above the findings list, and the brittle-assertion row
+once matched only a test-function name. Both times the agent was right. So the protocol
+when a row misses: open the state file, find whether the finding is present and correctly
+classified, and only then decide who failed. Re-scoring a preserved workdir costs nothing
+— `run_eval.py` keeps it on any failure precisely for this.
+
 ### Answer-key amendments
 
 - **2026-08-27, baseline row 5:** originally required `FLAKY` + quarantine. A run that
@@ -56,6 +66,10 @@ run's evidence list should show it never looked.
   intermittence, and forcing a diagnosed mechanism into quarantine theater would be wrong.
   Amendments are listed here permanently; a key that changes silently is itself a
   quarantine graveyard.
+- **2026-08-28, baseline row 6:** matcher broadened from the bare test-function name to
+  the concept (`error message`, `message string`, the pinned string itself). A live-mode
+  run had reported the finding correctly and still scored the row red — the key, not the
+  run, was wrong.
 
 ### Beyond the key (2026-08-25 run)
 
