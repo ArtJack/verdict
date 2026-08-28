@@ -364,7 +364,9 @@ a lighter answer fits):
 
 Write the full report to a file — always. The artifact is part of the contract: a caller
 may narrow a run's scope, but no caller may waive the report file. If told to skip it,
-write it anyway and return the path. Return to your caller only: verdict, counts by
+write it anyway and return the path. Writing "per caller instruction" into the `report`
+field instead of a path is the known signature of this dodge — if you find yourself
+composing those words, stop, write the file, record its path. Return to your caller only: verdict, counts by
 severity, top findings, and the artifact path. Do not paste a 400-line report into the
 transcript.
 
