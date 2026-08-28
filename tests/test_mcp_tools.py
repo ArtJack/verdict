@@ -2,7 +2,7 @@ import json
 
 import pytest
 
-from verdict_mcp import server
+from verdict_mcp import server, state as state_mod
 
 
 STATE = {
@@ -103,8 +103,11 @@ INDEX = """# QA Reports Index
 def solo_home(tmp_path, monkeypatch):
     root = tmp_path / "verdict-home" / "pricer"
     (root / "reports").mkdir(parents=True)
-    (root / "state.json").write_text(json.dumps(STATE))
-    (root / "reports" / "INDEX.md").write_text(INDEX)
+    (root / "state.json").write_text(json.dumps(STATE), encoding="utf-8")
+    (root / "reports" / "INDEX.md").write_text(INDEX, encoding="utf-8")
+    (root / "reports" / "2026-08-24-payment-retry.md").write_text(
+        "# QA delta report — pricer run 4\n\nREGRESSED first, as always.\n",
+        encoding="utf-8")
     monkeypatch.setenv("VERDICT_HOME", str(tmp_path / "verdict-home"))
     return root
 
@@ -115,7 +118,7 @@ def team_repo(tmp_path, monkeypatch):
     monkeypatch.setenv("VERDICT_HOME", str(tmp_path / "empty-home"))
     repo = tmp_path / "myapp"
     (repo / ".qa" / "reports").mkdir(parents=True)
-    (repo / ".qa" / "state.json").write_text(json.dumps({**STATE, "project": "myapp"}))
+    (repo / ".qa" / "state.json").write_text(json.dumps({**STATE, "project": "myapp"}), encoding="utf-8")
     return repo
 
 
@@ -183,3 +186,77 @@ def test_get_state_raw(solo_home):
     out = server.get_state("pricer")
     assert out["schema_version"] == 1
     assert out["_qa_root"].endswith("pricer")
+
+
+def test_severity_rank_case_insensitive():
+    assert state_mod.sev_rank("critical") == 1
+    assert state_mod.sev_rank(" BLOCKER ") == 0
+    assert state_mod.sev_rank(None) == 99
+    assert state_mod.sev_rank("banana") == 99
+
+
+def test_is_path_like():
+    assert state_mod.is_path_like("C:/repo")
+    assert state_mod.is_path_like("C:\\repo")
+    assert state_mod.is_path_like("~/work/app")
+    assert state_mod.is_path_like("sub/dir")
+    assert state_mod.is_path_like(".")
+    assert not state_mod.is_path_like("myapp")
+    assert not state_mod.is_path_like("sales")
+
+
+def test_solo_key_lowercase_fallback(solo_home):
+    out = server.get_verdict("PRICER")
+    assert out["verdict"] == "fail"
+
+
+def test_get_report_default_is_last_run(solo_home):
+    out = server.get_report("pricer")
+    assert out["path"] == "reports/2026-08-24-payment-retry.md"
+    assert "REGRESSED first" in out["content"]
+    assert out["truncated"] is False
+
+
+def test_get_report_accepts_absolute_inside_root(solo_home):
+    absolute = str(solo_home / "reports" / "2026-08-24-payment-retry.md")
+    out = server.get_report("pricer", absolute)
+    assert "content" in out and out["path"] == "reports/2026-08-24-payment-retry.md"
+
+
+def test_get_report_rejects_traversal(solo_home, tmp_path):
+    outside = tmp_path / "secret.md"
+    outside.write_text("secret", encoding="utf-8")
+    for attempt in ("../../secret.md", str(outside), "../" * 8 + "etc/passwd.md"):
+        out = server.get_report("pricer", attempt)
+        assert "error" in out and "content" not in out, attempt
+
+
+def test_get_report_rejects_symlink_escape(solo_home, tmp_path):
+    outside = tmp_path / "outside.md"
+    outside.write_text("secret", encoding="utf-8")
+    link = solo_home / "reports" / "link.md"
+    try:
+        link.symlink_to(outside)
+    except OSError:
+        pytest.skip("symlinks unavailable on this platform")
+    out = server.get_report("pricer", "reports/link.md")
+    assert "error" in out and "content" not in out
+
+
+def test_get_report_serves_markdown_only(solo_home):
+    (solo_home / "reports" / "x.txt").write_text("t", encoding="utf-8")
+    assert "error" in server.get_report("pricer", "reports/x.txt")
+
+
+def test_get_report_truncates_oversize(solo_home):
+    (solo_home / "reports" / "big.md").write_text("A" * (513 * 1024), encoding="utf-8")
+    out = server.get_report("pricer", "reports/big.md")
+    assert out["truncated"] is True and len(out["content"]) == 512 * 1024
+
+
+def test_get_profile_absent_then_present(solo_home):
+    out = server.get_profile("pricer")
+    assert "error" in out and "hint" in out
+    (solo_home / "profile.md").write_text("# QA Profile — pricer\n**Project-Key:** `pricer`\n", encoding="utf-8")
+    out = server.get_profile("pricer")
+    assert out["content"].startswith("# QA Profile")

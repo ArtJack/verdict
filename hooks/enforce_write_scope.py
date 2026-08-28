@@ -5,7 +5,7 @@ Verdict is a QA agent that must be read-only on your code. Its contract allows
 writes ONLY inside a QA root:
 
   - <anywhere>/.qa/...          (team mode, committed with the repo)
-  - ~/.claude/verdict/...       (solo mode, default)
+  - $VERDICT_HOME/...           (solo mode; defaults to ~/.claude/verdict)
 
 Enforcement modes:
 
@@ -27,16 +27,7 @@ import json
 import os
 import sys
 
-
-def _is_allowed(path: str) -> bool:
-    if not path:
-        return True  # nothing to judge; let permission system handle it
-    p = os.path.normpath(os.path.abspath(os.path.expanduser(path)))
-    parts = p.split(os.sep)
-    if ".qa" in parts:
-        return True
-    solo_root = os.path.normpath(os.path.expanduser("~/.claude/verdict"))
-    return p == solo_root or p.startswith(solo_root + os.sep)
+from qa_paths import is_allowed_path as _is_allowed
 
 
 def _caller_is_verdict(data: dict) -> bool:
