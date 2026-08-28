@@ -134,6 +134,7 @@ versioned, forward-compatible, human-readable JSON.
 | `/qa-flake` | Classify an intermittent failure: ≥3 reproductions, mechanism hunt → `BRITTLE_TEST` fix task, or `FLAKY` quarantine with expiry |
 | `/qa-status` | Read-only status from the stored state — no run, no writes, no agent spin-up |
 | `/qa-spec` | Shift-left: judge a spec/issue/PRD for testability *before code exists* — contradictions, unmeasurables, undefined boundaries, silent gaps, history conflicts, plus Given/When/Then criteria |
+| `/qa-charter` | Timeboxed exploratory charter with a risk focus seeded from the profile's incident history; observations captured as evidence, discoveries converted to bug reports and regression candidates |
 
 ## The tester's memory, over MCP (optional)
 

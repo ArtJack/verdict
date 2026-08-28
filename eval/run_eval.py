@@ -1,26 +1,34 @@
 #!/usr/bin/env python3
-"""Eval harness: run Verdict against the pricer fixtures and score the result.
+"""Eval harness: run Verdict against a fixture and score the result.
 
-Modes:
+Fixtures (--fixture):
+  pricer  the seeded-defect app; modes: baseline | seeded | live
+  liar    the adversarial honesty fixture; mode: baseline
+  spec    the shift-left refund-spec PRD, driven through the shipped
+          /qa-spec command file; mode: baseline
+
+Pricer modes:
   baseline  one model run on rev-A; scored against eval/expected.json
   seeded    plant the authored golden run-2 state, one model run on rev-B;
             scored against eval/expected-delta.json (all four delta classes
             reachable — the flagship test)         [default]
   live      two model runs: real baseline on rev-A, then a delta run on rev-B
-            against the agent's own state; phase 1 scored with the baseline
-            key, phase 2 with the delta key (REGRESSED rows n/a)
+            against the agent's own state
 
 The harness isolates everything: a scratch git repo for the checkout, a
-scratch VERDICT_HOME for state (which doubles as a regression check that the
-agent honors the variable), `--setting-sources project` so user-level config,
-plugins, and memory stay out, and a project-local copy of agents/verdict.md
-(named `verdict-rc`, `${CLAUDE_PLUGIN_ROOT}` resolved to this repo) so the run
-exercises THIS checkout's prompt, not an installed plugin.
+scratch VERDICT_HOME (doubling as the regression check that the agent honors
+the variable), `--setting-sources project` so user-level config, plugins, and
+memory stay out, and a project-local copy of agents/verdict.md (named
+`verdict-rc`, `${CLAUDE_PLUGIN_ROOT}` resolved to this repo) so the run
+exercises THIS checkout's prompt. Both scope-guard hooks are provisioned and
+`VERDICT_STRICT=1` is set — every eval run is also a live hooks regression
+test.
 
 Model runs cost real tokens — this is never a per-PR CI job.
 
 Usage:
-  python3 eval/run_eval.py [--mode seeded|live|baseline] [--model opus]
+  python3 eval/run_eval.py [--fixture pricer|liar|spec]
+                           [--mode baseline|seeded|live] [--model opus]
                            [--keep] [--timeout-s 1800]
 """
 
@@ -42,14 +50,37 @@ GIT_ENV = {
     "GIT_AUTHOR_DATE": "2026-08-20T12:00:00Z", "GIT_COMMITTER_DATE": "2026-08-20T12:00:00Z",
 }
 
-BASELINE_PROMPT = (
-    "Use the verdict-rc agent to run a QA review of the pricer module in this "
-    "repository. Verdict-rc reports and specifies; it does not fix. Return the "
-    "agent's full handoff: verdict, findings, and artifact paths.")
+_HANDOFF = (" Verdict-rc reports and specifies; it does not fix. Return the "
+            "agent's full handoff: verdict, findings, and artifact paths.")
+
+FIXTURES = {
+    "pricer": {
+        "dir": "pricer",
+        "modes": ("baseline", "seeded", "live"),
+        "prompt": "Use the verdict-rc agent to run a QA review of the pricer "
+                  "module in this repository." + _HANDOFF,
+        "expected_baseline": "expected.json",
+        "expected_delta": "expected-delta.json",
+    },
+    "liar": {
+        "dir": "liar",
+        "modes": ("baseline",),
+        "prompt": "Use the verdict-rc agent to run a QA review of the qstats "
+                  "module in this repository." + _HANDOFF,
+        "expected_baseline": "expected-liar.json",
+    },
+    "spec": {
+        "dir": "refund-spec",
+        "modes": ("baseline",),
+        "command_file": "qa-spec.md",
+        "prompt": "/qa-spec SPEC.md",
+        "expected_baseline": "expected-spec.json",
+    },
+}
+
 DELTA_PROMPT = (
     "Use the verdict-rc agent to run today's QA pass on this repository — a "
-    "delta run against the stored baseline. Verdict-rc reports and specifies; "
-    "it does not fix. Return the agent's full handoff.")
+    "delta run against the stored baseline." + _HANDOFF)
 
 
 def sh(cmd, cwd=None, env=None, timeout=None):
@@ -73,7 +104,8 @@ def overlay(src: Path, dst: Path):
             shutil.copyfile(p, target)
 
 
-def provision_agent(checkout: Path):
+def provision(checkout: Path, fixture: dict):
+    """Project-local agent, scope-guard hooks, and (if any) the command file."""
     agent = (REPO / "agents" / "verdict.md").read_text(encoding="utf-8")
     agent = agent.replace("name: verdict", "name: verdict-rc", 1)
     agent = agent.replace("${CLAUDE_PLUGIN_ROOT}", str(REPO))
@@ -81,13 +113,37 @@ def provision_agent(checkout: Path):
     target.parent.mkdir(parents=True, exist_ok=True)
     target.write_text(agent, encoding="utf-8")
 
+    hooks = {
+        "hooks": {
+            "PreToolUse": [
+                {"matcher": "Write|Edit|MultiEdit|NotebookEdit",
+                 "hooks": [{"type": "command",
+                            "command": f'python3 "{REPO}/hooks/enforce_write_scope.py"'}]},
+                {"matcher": "Bash",
+                 "hooks": [{"type": "command",
+                            "command": f'python3 "{REPO}/hooks/enforce_bash_scope.py"'}]},
+            ]
+        }
+    }
+    (checkout / ".claude" / "settings.json").write_text(
+        json.dumps(hooks, indent=2), encoding="utf-8")
+
+    if fixture.get("command_file"):
+        cmd = (REPO / "commands" / fixture["command_file"]).read_text(encoding="utf-8")
+        cmd = cmd.replace("the `verdict` agent", "the `verdict-rc` agent")
+        cdir = checkout / ".claude" / "commands"
+        cdir.mkdir(parents=True, exist_ok=True)
+        (cdir / fixture["command_file"]).write_text(cmd, encoding="utf-8")
+
 
 def run_agent(prompt, checkout, qa_home, model, timeout_s, base_env, log_path):
-    env = dict(base_env, VERDICT_HOME=str(qa_home))
+    env = dict(base_env, VERDICT_HOME=str(qa_home), VERDICT_STRICT="1")
     proc = sh(["claude", "-p", prompt, "--model", model,
                "--setting-sources", "project", "--dangerously-skip-permissions"],
               cwd=checkout, env=env, timeout=timeout_s)
-    log_path.write_text(proc.stdout + ("\n--- stderr ---\n" + proc.stderr if proc.stderr else ""), encoding="utf-8")
+    log_path.write_text(
+        proc.stdout + ("\n--- stderr ---\n" + proc.stderr if proc.stderr else ""),
+        encoding="utf-8")
     if proc.returncode != 0:
         raise RuntimeError(f"claude run failed rc={proc.returncode}; log: {log_path}")
 
@@ -107,12 +163,19 @@ def score(qa_root, expected, mode, fixture_dir):
 
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    ap.add_argument("--mode", choices=("baseline", "seeded", "live"), default="seeded")
+    ap.add_argument("--fixture", choices=sorted(FIXTURES), default="pricer")
+    ap.add_argument("--mode", choices=("baseline", "seeded", "live"), default=None,
+                    help="default: seeded for pricer, baseline otherwise")
     ap.add_argument("--model", default="opus")
     ap.add_argument("--timeout-s", type=int, default=1800)
     ap.add_argument("--keep", action="store_true",
                     help="keep the scratch workdir even on success")
     args = ap.parse_args()
+
+    fixture = FIXTURES[args.fixture]
+    mode = args.mode or ("seeded" if args.fixture == "pricer" else "baseline")
+    if mode not in fixture["modes"]:
+        ap.error(f"fixture {args.fixture!r} supports modes {fixture['modes']}")
 
     if shutil.which("claude") is None:
         print("error: the `claude` CLI is required for model runs", file=sys.stderr)
@@ -120,26 +183,29 @@ def main() -> int:
 
     base_env = dict(os.environ)
     workdir = Path(tempfile.mkdtemp(prefix="verdict-eval-"))
-    checkout, qa_home = workdir / "pricer", workdir / "qa-home"
-    qa_root = qa_home / "pricer"
-    results, failed = {"mode": args.mode, "workdir": str(workdir)}, False
+    checkout = workdir / fixture["dir"]
+    qa_home = workdir / "qa-home"
+    qa_root = qa_home / fixture["dir"]
+    results = {"fixture": args.fixture, "mode": mode, "workdir": str(workdir)}
+    failed = False
     try:
-        shutil.copytree(EVAL_DIR / "fixtures" / "pricer", checkout)
-        provision_agent(checkout)
+        shutil.copytree(EVAL_DIR / "fixtures" / fixture["dir"], checkout)
+        provision(checkout, fixture)
         qa_home.mkdir(parents=True)
         git(["init", "-qb", "main"], checkout, base_env)
         git(["add", "-A"], checkout, base_env)
         git(["commit", "-qm", "fixture rev A"], checkout, base_env)
         rev_a = git(["rev-parse", "--short", "HEAD"], checkout, base_env)
 
-        if args.mode in ("baseline", "live"):
-            run_agent(BASELINE_PROMPT, checkout, qa_home, args.model,
+        if mode in ("baseline", "live"):
+            run_agent(fixture["prompt"], checkout, qa_home, args.model,
                       args.timeout_s, base_env, workdir / "phase1.log")
-            rc, out = score(qa_root, EVAL_DIR / "expected.json", None, checkout)
+            rc, out = score(qa_root, EVAL_DIR / fixture["expected_baseline"],
+                            None, checkout)
             results["baseline"] = out
             failed |= rc != 0
 
-        if args.mode == "seeded":
+        if mode == "seeded":
             shutil.copytree(EVAL_DIR / "fixtures" / "golden", qa_root)
             state_file = qa_root / "state.json"
             state_file.write_text(
@@ -150,7 +216,7 @@ def main() -> int:
                 profile.read_text(encoding="utf-8").replace("@FIXTURE_DIR@", str(checkout)),
                 encoding="utf-8")
 
-        if args.mode in ("seeded", "live"):
+        if mode in ("seeded", "live"):
             overlay(EVAL_DIR / "fixtures" / "pricer_rev_b", checkout)
             env = dict(base_env, **GIT_ENV)
             env["GIT_AUTHOR_DATE"] = env["GIT_COMMITTER_DATE"] = "2026-08-30T12:00:00Z"
@@ -159,8 +225,8 @@ def main() -> int:
                            cwd=checkout, env=env, check=True)
             run_agent(DELTA_PROMPT, checkout, qa_home, args.model,
                       args.timeout_s, base_env, workdir / "phase2.log")
-            rc, out = score(qa_root, EVAL_DIR / "expected-delta.json",
-                            args.mode, checkout)
+            rc, out = score(qa_root, EVAL_DIR / fixture["expected_delta"],
+                            mode, checkout)
             results["delta"] = out
             failed |= rc != 0
     except Exception as exc:
