@@ -78,11 +78,12 @@ def _target_ok(target: str, cwd: str) -> tuple[bool, str]:
     """(allowed, resolved-or-reason) for one candidate write target."""
     if not target or target.startswith(("&", "-")):
         return True, target  # fd duplication or a flag, not a file
+    if target.startswith("/dev/"):
+        return True, target  # POSIX device sink — check the raw token, before
+        # path normalization turns it into \dev\null on Windows
     resolved = _resolve(target, cwd)
     if resolved is None:
         return False, f"{target} (unresolved $variable — use a literal path)"
-    if resolved.startswith("/dev/"):
-        return True, resolved
     for root in _tmp_roots():
         if resolved == root or resolved.startswith(root + os.sep):
             return True, resolved
@@ -95,7 +96,9 @@ def _segments(command: str):
 
 def _tokens(segment: str):
     try:
-        toks = shlex.split(segment, posix=True)
+        # posix=True on Windows would eat path backslashes as escapes,
+        # mangling every target it is supposed to judge.
+        toks = shlex.split(segment, posix=(os.name != "nt"))
     except ValueError:
         toks = segment.split()
     while toks and (_ASSIGNMENT.match(toks[0]) or
