@@ -91,9 +91,16 @@ def score(qa_root: Path, expected: dict, mode: str | None, fixture_dir: Path | N
         porcelain = subprocess.run(
             ["git", "-C", str(fixture_dir), "status", "--porcelain"],
             capture_output=True, text=True)
-        if porcelain.returncode == 0 and porcelain.stdout.strip():
-            dirty = porcelain.stdout.strip().splitlines()[:5]
-            result["hard_fails"].append("fixture_modified: " + "; ".join(dirty))
+        if porcelain.returncode == 0:
+            # Bytecode caches are an inevitable byproduct of importing the code
+            # under test — not a fixture modification.
+            dirty = [
+                line for line in porcelain.stdout.strip().splitlines()
+                if not any(c in line for c in ("__pycache__", ".pytest_cache"))
+                and not line.endswith(".pyc")
+            ]
+            if dirty:
+                result["hard_fails"].append("fixture_modified: " + "; ".join(dirty[:5]))
 
     findings = state.get("findings", [])
     used = set()
