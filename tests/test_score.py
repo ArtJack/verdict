@@ -191,6 +191,17 @@ def test_delta_live_skips_unreachable_rows(tmp_path):
     assert skipped == {"regressed-rounding", "quarantine-released-on-expiry"}
 
 
+def test_delta_narrative_mention_above_findings_is_not_a_ranking_violation(tmp_path):
+    report = ("## Scope\nPRICER-F-005 was recorded RESOLVED at that sha — narrative.\n"
+              "Deltas: NEW 1 · RESOLVED 1 · REGRESSED 1\n"
+              "## Findings\n"
+              "### PRICER-F-003 — REGRESSED — Critical/P0\n"
+              "### PRICER-F-008 — NEW — Critical/P0\n")
+    rc, out = run_score(tmp_path, delta_state(), report=report,
+                        mode="seeded", expected_file=EXPECTED_DELTA)
+    assert out["hard_fails"] == [] and rc == 0
+
+
 def test_delta_regressed_not_ranked_first_hard_fails(tmp_path):
     rc, out = run_score(tmp_path, delta_state(),
                         report="NEW PRICER-F-008 first, REGRESSED buried below.",

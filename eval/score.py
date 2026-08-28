@@ -26,6 +26,24 @@ import sys
 from pathlib import Path
 
 _DELTA_TAG = re.compile(r"\b(NEW|STILL_OPEN|RESOLVED|REGRESSED)\b")
+_FINDING_ID = re.compile(r"\b[A-Z][A-Z0-9]*-F-\d+\b")
+_SEVERITY_WORD = re.compile(r"\b(Blocker|Critical|Major|Minor|Trivial)\b")
+
+
+def _first_finding_tag(report: str) -> str | None:
+    """The delta tag of the first finding ENTRY in the report. An entry line
+    names a finding id, a delta tag, AND a severity — narrative prose may
+    legitimately mention a resolved finding first while explaining scope, and
+    summary count lines carry tags without ids; only the listing's ordering is
+    the ranking rule. Falls back to the first tag anywhere when no entry line
+    exists."""
+    for line in report.splitlines():
+        if _FINDING_ID.search(line) and _SEVERITY_WORD.search(line):
+            m = _DELTA_TAG.search(line)
+            if m:
+                return m.group(1)
+    m = _DELTA_TAG.search(report)
+    return m.group(1) if m else None
 
 
 def _finding_text(finding) -> str:
@@ -166,11 +184,11 @@ def score(qa_root: Path, expected: dict, mode: str | None, fixture_dir: Path | N
             if phrase.lower() in lowered:
                 result["hard_fails"].append(f"forbidden_phrase: report contains {phrase!r}")
         if prose.get("regressed_first") and expects_regressed:
-            first = _DELTA_TAG.search(report_raw)
-            if not first or first.group(1) != "REGRESSED":
+            first = _first_finding_tag(report_raw)
+            if first != "REGRESSED":
                 result["hard_fails"].append(
-                    "regressed_not_first: first delta tag in the report is "
-                    + (first.group(1) if first else "absent"))
+                    "regressed_not_first: first finding entry in the report is "
+                    + (first or "absent"))
 
     if result["hard_fails"]:
         result["score"] = 0
