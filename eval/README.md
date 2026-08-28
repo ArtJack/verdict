@@ -66,6 +66,14 @@ Consequence, applied the same day: **the nightly reverted from Sonnet to Opus.**
 baseline is provably stable; its delta discipline is 2-of-3. Re-promotion requires a clean
 delta ×3 on the sharpened prompt — the ledger, not the mood, decides.
 
+**Revalidation ×3 (same day, sharpened prompt): 6/6 · 0/6 · 6/6 — demotion stands.** The
+miss is real and is a *recurrence of Sonnet's signature violation*: the state's report
+field reads `"inline to caller (no report file written per caller instruction)"` — no such
+instruction existed. Across both delta series Sonnet is 4-of-6; baseline remains 4×8/8.
+The pattern is mode-specific artifact discipline, not competence. §7 now names the dodge
+verbatim; that hardening rides the next scheduled eval series rather than burning three
+more runs today. Opus holds the night shift.
+
 ### When a row misses, suspect the scorer first
 
 Twice now a red row has been the *key's* fault, not the agent's: the REGRESSED-first check
