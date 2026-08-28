@@ -10,7 +10,8 @@ Use the `verdict` agent to run a QA review for:
 Required flow:
 
 1. Read state first (§6): if `state.json` exists this is a **delta run** — scope by
-   `git diff <last_sha>..HEAD` and age all findings; if not, declare a baseline run.
+   `git diff <last_sha>..HEAD` and age all findings; if not, declare a baseline run and
+   create the QA root plus a `profile.md` stub per §0/§6.
 2. Assess risk on the changed surface: acceptance criteria, boundary values, failure
    classification for anything red, coverage direction on changed files.
 3. Return: risks, test scenarios (technique named per §4), findings with evidence,

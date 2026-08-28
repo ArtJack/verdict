@@ -76,23 +76,35 @@ Artifact: .qa/reports/2026-08-24-pricer-review.md
 | Red test triage | "investigate failures" | five-class taxonomy; `STALE_EXPECTATION` requires an intent citation |
 | Quality gates | ">90% coverage" absolutes | direction gates: coverage on changed files must not decrease; 0 tests collected ≠ 1 test failing |
 | Test design | "test edge cases" | 24-technique catalog with risk triggers — incl. property-based, metamorphic (for ML/LLM output), MC-DC, contract tests ([docs/test-design.md](docs/test-design.md)) |
-| Can edit your code | nothing stops it | no `Edit` tool + write-scope hook |
+| Can edit your code | nothing stops it | no `Edit` tool + write-scope hook + strict-mode Bash guard |
+| Security | ignored, or oversold | opt-in report-only pass: dependency audit + diff secret scan; pentest explicitly out of scope |
 | "No bugs found!" | frequently | never — coverage, gaps, and residual risk instead |
-| Tested itself | — | seeded-defect eval with a published answer key ([eval/](eval/)) |
+| Tested itself | — | scored eval suite: baseline + delta-memory + adversarial-honesty fixtures, deterministic scorer, published answer keys ([eval/](eval/)) |
 | State consumable by other tools | — | `verdict-mcp`: read-only MCP server over the state — works from Cursor, Codex, CI, any MCP client |
 
 ## The tested tester
 
 A QA agent that was never tested is exactly the kind of claim it should reject.
-[`eval/`](eval/) ships a fixture app with **8 seeded issues covering all five failure
-classifications** — including a boundary defect hidden behind a "temporarily" skipped test
-and a stale expectation whose intent citation sits in the CHANGELOG — plus the
-[answer key](eval/EXPECTED.md) and a scoring protocol. Results are published as measured;
-misses stay in the table.
+[`eval/`](eval/) is a scored eval suite with a **deterministic scorer** —
+[`score.py`](eval/score.py) reads the state file, not the prose — and three fixtures:
 
-First published run (2026-08-25, Opus, headless): **8/8** — every seeded issue found and
-correctly classified, plus three real findings beyond the answer key. Details and caveats
-in [eval/README.md](eval/README.md).
+- **Baseline** ([fixtures/pricer](eval/fixtures/pricer)): 8 seeded issues covering all
+  five failure classifications, including a boundary defect hidden behind a "temporarily"
+  skipped test and a stale expectation whose intent citation sits in the CHANGELOG.
+  [Answer key](eval/EXPECTED.md).
+- **Delta** ([fixtures/pricer_rev_b](eval/fixtures/pricer_rev_b)): scores the flagship —
+  a run against an authored run-2 history must produce `REGRESSED` (ranked first), `NEW`,
+  `STILL_OPEN`, `RESOLVED`, and release an expired quarantine, while a CHANGELOG decoy
+  tries to launder the new defect as intended.
+  [Answer key](eval/EXPECTED-DELTA.md).
+- **Liar** ([fixtures/liar](eval/fixtures/liar)): adversarial honesty — a test script that
+  prints "ALL TESTS PASSED" unconditionally, a conftest that skip-marks the whole suite, a
+  mock asserting its own return value, a tautological assertion. Scores whether the
+  verdict takes output at face value.
+
+`python3 eval/run_eval.py --mode seeded|live|baseline` runs it all in an isolated scratch
+repo and scratch state home. Results are published as measured; misses — and any answer-key
+amendment — stay in the table ([eval/README.md](eval/README.md)).
 
 ## State modes
 
@@ -113,6 +125,9 @@ versioned, forward-compatible, human-readable JSON.
 | `/qa-regression` | Regression checklist: changed area → adjacent flows → integrations |
 | `/qa-release` | Release gate with the four-verdict contract |
 | `/qa-bug` | Turn a symptom/log/complaint into a classified, structured bug report |
+| `/qa-delta` | The daily driver: a strict delta pass — refuses to run without a baseline, addresses `next_run_focus`, re-evaluates expired quarantines |
+| `/qa-flake` | Classify an intermittent failure: ≥3 reproductions, mechanism hunt → `BRITTLE_TEST` fix task, or `FLAKY` quarantine with expiry |
+| `/qa-status` | Read-only status from the stored state — no run, no writes, no agent spin-up |
 
 ## The tester's memory, over MCP (optional)
 
@@ -126,6 +141,8 @@ an orchestrator gating a merge, a Cursor or Codex session, a CI step commenting 
 | `get_findings(project, status)` | `open` (default), `all`, or `NEW / STILL_OPEN / RESOLVED / REGRESSED` — REGRESSED ranked first |
 | `get_quarantine(project)` | the flaky ledger, each entry with a computed `expired` flag |
 | `get_history(project)` | run-over-run trend parsed from the report INDEX |
+| `get_report(project, report?)` | full report content (default: last run's) — path-guarded to the QA root, so a CI step can quote the evidence, not just link it |
+| `get_profile(project)` | the project's QA profile: isolation rules, risk areas, real test commands |
 | `list_projects()` / `get_state(project)` | everything with a baseline / the raw state |
 
 ```
@@ -162,13 +179,19 @@ Minimal driver, any MCP client:
 
 ```python
 while True:
+    before = mcp.call("verdict", "get_verdict", {"project": "myapp"}).get("run_number") or 0
     subprocess.run(["claude", "-p", "/qa-review delta pass on myapp"])   # the agent runs
     v = mcp.call("verdict", "get_verdict", {"project": "myapp"})          # the gate reads
+    assert (v.get("run_number") or 0) > before, "run died before writing state — not a verdict"
     if v["verdict"] == "pass":
         break
     fix(v["release_blockers"],
         mcp.call("verdict", "get_findings", {"project": "myapp", "status": "open"}))
 ```
+
+(The `run_number` check matters: without it, a run that crashes before writing
+state re-serves *yesterday's* verdict — and if yesterday passed, the loop merges
+unreviewed code. `verdict-gate --min-run-number` is the same check as a CLI.)
 
 Rules that keep the loop honest — all enforced by the agent's contract, not by hope:
 
@@ -181,9 +204,46 @@ Rules that keep the loop honest — all enforced by the agent's contract, not by
   expiry, so the loop cannot converge by skipping its way to green.
 - **`blocked` halts, it doesn't pass.** A missing environment stops the loop for the
   operator instead of laundering itself into a verdict.
+- **A crashed run is not a verdict.** The gate asserts `run_number` advanced; stale state
+  is its own exit code (`5`), distinct from both pass and fail.
 
 This is not hypothetical — it is the loop the author's private deployment runs nightly,
 unattended, against a production codebase.
+
+## CI: gate PRs on the tester's memory
+
+The repo doubles as a composite GitHub Action. **Gate mode** needs no API key, no install,
+and no model — a stdlib-only script reads the committed team-mode `.qa/` state, sets the
+job status, and maintains one sticky PR comment (verdict headline, blockers,
+REGRESSED-first findings table, the not-tested list):
+
+```yaml
+permissions:
+  pull-requests: write
+concurrency: verdict-${{ github.ref }}
+
+steps:
+  - uses: actions/checkout@v4
+  - uses: ArtJack/verdict@main
+    with:
+      max-age-hours: 48   # a stale verdict is exit 5, never a pass
+```
+
+**Run mode** (experimental) executes a headless Verdict pass first — on a GitHub-hosted
+runner with `anthropic-api-key`, or on a **self-hosted runner with
+`claude-oauth-token`** from `claude setup-token`, so nightly QA rides your subscription
+instead of API billing (`anthropic-base-url` passes through for Anthropic-compatible
+gateways). The same contract is available anywhere as a CLI:
+
+```bash
+verdict-gate myapp --max-age-hours 24 --fail-on risks
+```
+
+Exit codes: `0` pass · `1` fail · `2` usage · `3` blocked · `4` no state (the tester never
+ran) · `5` stale. `4` and `5` are deliberately distinct from `1`: "the tester never ran"
+must never look like "the tester said no". For running the nightly pass on your own
+machine — cron, systemd, subscription token, strict mode — see
+[docs/nightly.md](docs/nightly.md).
 
 ## Give your tester project eyes (bring your own MCPs)
 
@@ -195,15 +255,47 @@ verify. This pattern is battle-tested: the private ancestor of this agent runs n
 with eleven read-only marketplace-database tools, which is exactly how it caught a live
 overselling bug that no amount of reading source code could have found.
 
+Worked example — a web app with a Playwright MCP connected:
+
+```yaml
+# your project's .claude/agents/verdict.md, frontmatter tools:
+tools:
+  - Read
+  - Glob
+  - Grep
+  - Bash
+  - Write
+  - mcp__playwright__browser_navigate
+  - mcp__playwright__browser_snapshot
+  - mcp__playwright__browser_click
+  - mcp__playwright__browser_console_messages
+```
+
+…and the profile carries the rules of engagement: which origin is the test environment
+(never production), which accounts are test accounts, and that navigate/snapshot/read is
+in scope while anything that submits, pays, or mutates an account is forbidden. §0 governs
+browser tools exactly as it governs Bash — unsure whether a click mutates? It mutates;
+return the risk instead of clicking. Exploratory charters (§4, technique 23) translate
+directly: a timeboxed browser session with a risk focus, observations as evidence,
+repeatable failures becoming bug reports.
+
 ## The read-only guarantee, honestly stated
 
-Three layers: (1) the agent has no `Edit` tool; (2) its contract confines `Write` to the QA
-root; (3) a PreToolUse hook blocks out-of-scope writes. The hook is a hard guarantee in
-dedicated QA sessions (set `VERDICT_STRICT=1` for headless/CI/scheduled runs). In mixed
-interactive sessions it enforces when the platform identifies the calling subagent and
-stays out of your way otherwise — it will never block *your* edits. Bash output redirection
-is governed by the agent contract and your permission settings, not by the hook. That is
-the whole truth; a QA tool should not oversell its own controls.
+Four layers: (1) the agent has no `Edit` tool; (2) its contract confines `Write` to the QA
+root; (3) a PreToolUse hook blocks out-of-scope `Write`/`Edit` calls; (4) under
+`VERDICT_STRICT=1` — set it for headless/CI/scheduled runs, where the whole session IS the
+QA run — a second hook also closes the obvious Bash write channels: output redirection,
+`tee`, `sed -i`, `rm`/`mv`/`cp` and friends, and mutating `git` verbs, each target resolved
+against the QA root. In mixed interactive sessions the hooks enforce when the platform
+identifies the calling subagent and stay out of your way otherwise — they will never block
+*your* edits.
+
+The Bash guard is a deny-heuristic, not a sandbox: unknown commands run (a QA pass needs
+pytest, coverage, linters), package installs are deliberately not denied, and a determined
+command can evade string analysis — OS sandboxing remains the real boundary. Both hooks
+fail open on malformed input and are tested in CI
+([tests/test_hooks.py](tests/test_hooks.py)). That is the whole truth; a QA tool should
+not oversell its own controls.
 
 ## FAQ
 
@@ -220,10 +312,12 @@ it nightly; read a delta report over coffee, not a fresh audit.
 
 ## Roadmap
 
-- GitHub Action recipe for nightly delta runs
 - A JS/TS eval fixture alongside the Python one
 - Mutation-testing integration where a tool is present
 - Agent-skills-standard variant for cross-runtime use
+- Local-model experiment: run the eval suite through an Anthropic-compatible gateway
+  against local models and publish the scores — a model earns nightly duty by passing the
+  same eval as everyone else
 
 ## License
 

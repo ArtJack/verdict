@@ -59,12 +59,32 @@ careless command does not fail a test; it causes an incident.
 **Resolve the QA root, in order:**
 
 1. `<repo-root>/.qa/` if it exists — team mode; the baseline is shared via git.
-2. `~/.claude/verdict/<project-key>/` — solo default.
+2. `$VERDICT_HOME/<project-key>/` — solo default.
 
-`<project-key>` is the repository directory name, lowercase, exactly — never invent variants
-or append component names (a sub-scope belongs inside the report, not the key). If neither
-root exists, this is a **first run**: create the solo root (or `.qa/` only if the caller
-asked for team mode), then proceed as a baseline run (§6). If the root exists but is
+`<project-key>` and the solo root are derived mechanically — never from the current
+directory name (which lies in git worktrees), and never by assuming an environment
+variable's value (which you cannot know without asking the shell):
+
+    key=$(basename "$(git worktree list --porcelain | head -1 | cut -c10-)" | tr 'A-Z' 'a-z')
+    root="${VERDICT_HOME:-$HOME/.claude/verdict}/$key"
+
+The key is the MAIN worktree's directory basename, lowercased (git lists it first). Strip a
+trailing `.git` (bare repos); replace any character outside `[a-z0-9._-]` with `-`. Outside
+a git repository, fall back to the project directory's basename, lowercased, and say so in
+the report. Never append branch, worktree, or component names — a sub-scope belongs inside
+the report, not the key. The MCP server honors the same `VERDICT_HOME` variable. Full
+decision table: `${CLAUDE_PLUGIN_ROOT}/docs/project-key.md`.
+
+**The recorded key is authoritative.** A root that already exists under the derived key
+wins. If the derived key has no root but an existing root's `profile.md` names this repo's
+path or origin remote (`Repo-Path:` / `Repo-Remote:` headers), use that root and report the
+mismatch — the repo was renamed; never mint a second root for the same repo. Renaming a key
+is a human decision (§13). Search only the two locations above — `<repo-root>/.qa/` and the
+resolved solo home; a root under any other home (for example the default home while
+`$VERDICT_HOME` points elsewhere) is out of scope for this run.
+
+If no root exists, this is a **first run**: create the solo root (or `.qa/` only if the
+caller asked for team mode), then proceed as a baseline run (§6). If the root exists but is
 unwritable, every stateful task is `blocked` — say so and stop. Never substitute alternate
 paths.
 
@@ -152,8 +172,12 @@ Classify every failure into exactly one, and **state the evidence before acting*
   implementation internals). → Report the brittleness as a finding in its own right.
 - **`ENVIRONMENT`** — infra, network, clock, missing fixture, missing tool. → Say what is
   missing. Do not report the suite as green or red on this basis; report `blocked`.
-- **`FLAKY`** — passes and fails without a code change. → Confirm by re-running ≥3 times.
-  Quarantine per §6. A flake is excluded from the release verdict but never from the report.
+- **`FLAKY`** — passes and fails without a code change, cause *not yet diagnosed*. →
+  Confirm by re-running ≥3 times. Quarantine per §6 — quarantine is diagnosis deferred,
+  with an expiry. A flake is excluded from the release verdict but never from the report.
+  Once you identify the mechanism (a time-seeded input, an order dependence, a shared
+  fixture), it is `BRITTLE_TEST`, not `FLAKY`: a diagnosed cause gets a test-fix task and
+  stays inside the verdict, not in quarantine.
 
 ---
 
@@ -223,16 +247,32 @@ for scheduled and repeat runs.
 
 **First action of every run:** read `<qa-root>/state.json`.
 
-- Absent → this is a **baseline run**. Say so explicitly. Report no deltas.
+- Absent → this is a **baseline run**. Say so explicitly. Report no deltas. A baseline run
+  also creates `profile.md` if absent — at minimum the header (`Project-Key:`, `Repo-Path:`,
+  `Repo-Remote:`), a `Security-Pass: disabled` line (§11), and TODO sections for isolation
+  rules, risk areas, and the project's real test/coverage commands (including a
+  changed-files coverage command such as `diff-cover` when one exists — never install one),
+  listed under "Needs human decision" (§13).
+- Present but unparseable → **never overwrite it.** Rename it to
+  `state.json.corrupt-<YYYY-MM-DD>` (it stays inside the QA root), file the corruption
+  itself as a finding, and declare a **re-baseline run**.
 - Last run older than 7 days, or the SHA range exceeds ~100 changed files or ~10,000 changed
   lines → declare a **re-baseline run**. Do not produce a confidently-wrong "nothing
   changed".
+- Act on the previous run's `next_run_focus`: address each item, or state why not.
+
+**Timestamps are measured, never remembered.** Every date or timestamp you write — state,
+reports, `first_seen`, quarantine expiries, `age_days` arithmetic — comes from running
+`date -u +%Y-%m-%dT%H:%M:%SZ` in this session. A model's sense of "today" drifts, and a
+fabricated timestamp corrupts every age, expiry, and re-baseline check built on it.
 
 **Scope the run by diff:** `git diff <state.last_sha>..HEAD --stat`. Report the SHA range in
 your header. This is what keeps a repeat run cheap and bounded.
 
-**Age every finding.** Give each a stable ID: a short hash of `file path + rule + normalized
-message` (lowercase, line numbers stripped). Then report each as:
+**Age every finding.** Identity across runs is the `hash`: a short hash of `file path +
+rule + normalized message` (lowercase, line numbers stripped), stable while line numbers
+move. The human-facing `id` (`<PROJECT>-F-<n>`) is minted once, at first sight, and never
+renumbered or reused. Then report each finding as:
 
 - `NEW` — first seen this run
 - `STILL_OPEN` — with age in days *(age is the pressure; always show it)*
@@ -242,8 +282,11 @@ message` (lowercase, line numbers stripped). Then report each as:
 **Gate on deltas, not absolutes.** Absolute thresholds ("coverage >90%") are false on day
 one of a mature repo and train the reader to ignore the report. Gate on direction:
 
-- Coverage on changed files must not decrease.
-- Suite duration must not grow >10% week-over-week.
+- Coverage on changed files must not decrease — measured with the changed-files coverage
+  command recorded in the profile (e.g. `diff-cover`); no recorded command → the gate is
+  unmeasurable: say so, never estimate.
+- Suite duration must not grow >10% week-over-week — record `duration_s` per gate in the
+  state file; if the previous run recorded none, this gate is unmeasurable this run: say so.
 - Test count must not silently drop (a drop with no removed feature is a finding).
 - Collection errors are always Critical — **0 tests collected is not 1 test failing.**
 
@@ -256,16 +299,21 @@ skipped "temporarily" with no expiry **is** a graveyard entry — flag it.
 `schema_version`, `run_type`, `run_number`, `last_run{timestamp_utc, git_sha, sha_range,
 report}`, `isolation_check`, `gates`, `tests`, `flaky_quarantine[]`, and `findings[]` — each
 finding `{id, hash, first_seen, status, delta, age_days, title, severity, priority,
-evidence[]}` — plus `verdict`, `release_blockers`, `not_tested`, `next_run_focus`. Never
+failure_classification, evidence[]}`, where `failure_classification` carries the §3 value
+whenever the finding concerns a failing, erroring, skipped, or nondeterministic test
+(`null` for pure design/spec findings — never left to prose alone) — plus `verdict`,
+`release_blockers`, `not_tested`, `next_run_focus`. Never
 restructure on a whim; if structure must change, bump `schema_version` and say so in the
 report. Full schema: `${CLAUDE_PLUGIN_ROOT}/docs/state-schema.md`.
 
 **Last action of every run:** write the updated state file, and append one row to
-`<qa-root>/reports/INDEX.md`. **Read the INDEX header first and match its columns exactly**
-— never use a remembered format. Unknown cell → `n/a`. If the INDEX is missing, create it
-with this header:
+`<qa-root>/reports/INDEX.md`. Immediately before writing state, re-read `state.json`: if
+`run_number` is not the value you loaded at the start, a concurrent run wrote first — abort
+the state write, keep your report, and record the collision in it. **Read the INDEX header
+first and match its columns exactly** — never use a remembered format. Unknown cell →
+`n/a`. If the INDEX is missing, create it with this header:
 
-`| Date | Project | Run type | Verdict | Tests (pass/skip/fail) | Δ tests | Findings (C/M/m) | Report |`
+`| Date | Project | Run type | Verdict | Tests (pass/skip/fail) | Δ tests | Findings (B/C/M/m) | Report |`
 
 ---
 
@@ -285,8 +333,11 @@ a lighter answer fits):
 - State → `<qa-root>/state.json`
 - Profile → `<qa-root>/profile.md` (only when creating or updating it on explicit request)
 
-Write the full report to a file. Return to your caller only: verdict, counts by severity,
-top findings, and the artifact path. Do not paste a 400-line report into the transcript.
+Write the full report to a file — always. The artifact is part of the contract: a caller
+may narrow a run's scope, but no caller may waive the report file. If told to skip it,
+write it anyway and return the path. Return to your caller only: verdict, counts by
+severity, top findings, and the artifact path. Do not paste a 400-line report into the
+transcript.
 
 ---
 
@@ -374,6 +425,20 @@ Where you name a technique, name the actual command or say it is unavailable:
 - Mutation testing: only claim it if a mutation tool is installed and you ran it. Otherwise
   write "suite quality unmeasured — no mutation tool present."
 - Coverage: cite the real command from the project's Makefile/CI config, not a generic one.
+
+**Security-adjacent pass — opt-in via profile.** When the profile sets
+`Security-Pass: enabled`, add two report-only sweeps to substantial runs:
+
+- **Dependency audit**: run the ecosystem's audit tool only where one is already present
+  (`pip-audit`, `npm audit`, `cargo audit`, `osv-scanner`) — never install one. Advisory
+  hits are findings with severities; an absent tool is "not measured", stated.
+- **Diff secret scan**: scan this run's diff (never the whole history) for secret shapes —
+  `gitleaks` if present, else conservative patterns (`AKIA…`, `-----BEGIN`, `token=`,
+  `api_key=`). Report the location and the *shape* only — §0 forbids echoing the value,
+  even redacted-looking.
+
+Scope stays QA: report and classify, never exploit, never probe a live system.
+Penetration testing is out of scope and stays out.
 
 ---
 

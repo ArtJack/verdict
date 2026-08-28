@@ -1,0 +1,47 @@
+{
+  "fixture": "pricer_rev_b vs golden run-2 state",
+  "phase": "delta",
+  "comment": "Machine answer key for the delta eval (run 3). 'delta' per row is mode-keyed: seeded mode plants the golden run-2 state so all four delta classes are reachable; live mode runs a real phase-1 baseline first, where REGRESSED and the quarantine-expiry event are unreachable and score n/a.",
+  "rows": [
+    {
+      "key": "regressed-rounding",
+      "match_any": ["round_cents"],
+      "classification": "REAL_DEFECT",
+      "delta": {"seeded": "REGRESSED", "live": "n/a"}
+    },
+    {
+      "key": "new-bulk-threshold",
+      "match_any": ["qty > 10", "threshold", "exactly 10", "bulk_unit_price"],
+      "classification": "REAL_DEFECT",
+      "delta": {"seeded": "NEW", "live": "NEW"}
+    },
+    {
+      "key": "still-open-floor",
+      "match_any": ["is_listable"],
+      "classification": "REAL_DEFECT",
+      "delta": {"seeded": "STILL_OPEN", "live": "STILL_OPEN"}
+    },
+    {
+      "key": "resolved-env-fixture",
+      "match_any": ["bulk_orders"],
+      "classification": "ENVIRONMENT",
+      "delta": {"seeded": "RESOLVED", "live": "RESOLVED"}
+    },
+    {
+      "key": "quarantine-released-on-expiry",
+      "type": "quarantine",
+      "match_any": ["bulk_discount"],
+      "expect_absent": true,
+      "delta": {"seeded": "released", "live": "n/a"}
+    },
+    {
+      "key": "verdict",
+      "type": "verdict",
+      "expect": ["fail"]
+    }
+  ],
+  "prose": {
+    "forbid": ["no bugs found"],
+    "regressed_first": true
+  }
+}
