@@ -163,6 +163,11 @@ def main() -> int:
                             args.mode, checkout)
             results["delta"] = out
             failed |= rc != 0
+    except Exception as exc:
+        # A crashed phase must keep the workdir (and its phase logs) — the
+        # first version deleted the evidence it needed to explain itself.
+        failed = True
+        results["error"] = str(exc)
     finally:
         print(json.dumps(results, indent=2))
         if failed or args.keep:
