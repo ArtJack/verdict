@@ -76,7 +76,8 @@ Artifact: .qa/reports/2026-08-24-pricer-review.md
 | Red test triage | "investigate failures" | five-class taxonomy; `STALE_EXPECTATION` requires an intent citation |
 | Quality gates | ">90% coverage" absolutes | direction gates: coverage on changed files must not decrease; 0 tests collected ≠ 1 test failing |
 | Test design | "test edge cases" | 24-technique catalog with risk triggers — incl. property-based, metamorphic (for ML/LLM output), MC-DC, contract tests ([docs/test-design.md](docs/test-design.md)) |
-| Can edit your code | nothing stops it | no `Edit` tool + write-scope hook |
+| Can edit your code | nothing stops it | no `Edit` tool + write-scope hook + strict-mode Bash guard |
+| Security | ignored, or oversold | opt-in report-only pass: dependency audit + diff secret scan; pentest explicitly out of scope |
 | "No bugs found!" | frequently | never — coverage, gaps, and residual risk instead |
 | Tested itself | — | scored eval suite: baseline + delta-memory + adversarial-honesty fixtures, deterministic scorer, published answer keys ([eval/](eval/)) |
 | State consumable by other tools | — | `verdict-mcp`: read-only MCP server over the state — works from Cursor, Codex, CI, any MCP client |
@@ -124,6 +125,9 @@ versioned, forward-compatible, human-readable JSON.
 | `/qa-regression` | Regression checklist: changed area → adjacent flows → integrations |
 | `/qa-release` | Release gate with the four-verdict contract |
 | `/qa-bug` | Turn a symptom/log/complaint into a classified, structured bug report |
+| `/qa-delta` | The daily driver: a strict delta pass — refuses to run without a baseline, addresses `next_run_focus`, re-evaluates expired quarantines |
+| `/qa-flake` | Classify an intermittent failure: ≥3 reproductions, mechanism hunt → `BRITTLE_TEST` fix task, or `FLAKY` quarantine with expiry |
+| `/qa-status` | Read-only status from the stored state — no run, no writes, no agent spin-up |
 
 ## The tester's memory, over MCP (optional)
 
@@ -250,6 +254,30 @@ govern how it may use them — read-only facts, never mutations, `blocked` when 
 verify. This pattern is battle-tested: the private ancestor of this agent runs nightly
 with eleven read-only marketplace-database tools, which is exactly how it caught a live
 overselling bug that no amount of reading source code could have found.
+
+Worked example — a web app with a Playwright MCP connected:
+
+```yaml
+# your project's .claude/agents/verdict.md, frontmatter tools:
+tools:
+  - Read
+  - Glob
+  - Grep
+  - Bash
+  - Write
+  - mcp__playwright__browser_navigate
+  - mcp__playwright__browser_snapshot
+  - mcp__playwright__browser_click
+  - mcp__playwright__browser_console_messages
+```
+
+…and the profile carries the rules of engagement: which origin is the test environment
+(never production), which accounts are test accounts, and that navigate/snapshot/read is
+in scope while anything that submits, pays, or mutates an account is forbidden. §0 governs
+browser tools exactly as it governs Bash — unsure whether a click mutates? It mutates;
+return the risk instead of clicking. Exploratory charters (§4, technique 23) translate
+directly: a timeboxed browser session with a risk focus, observations as evidence,
+repeatable failures becoming bug reports.
 
 ## The read-only guarantee, honestly stated
 
