@@ -3,6 +3,21 @@
 Plugin and `verdict-mcp` share one version line; `.claude-plugin/plugin.json` and
 `pyproject.toml` are bumped together.
 
+## 0.7.0 — 2026-08-27 · "trusted on Pro"
+
+Prompt-hardening release: Sonnet — what Claude Pro runs — now scores **8/8** on the
+baseline eval (previously 0: it skipped the report artifact and missed the brittle
+green-test row). Published in [eval/README.md](eval/README.md).
+
+- **§13 pre-handoff self-check, run as commands, never from memory**: `ls` the report
+  file, re-read `state.json` (run_number advanced, verdict matches), confirm the INDEX
+  row. An artifact not on disk does not exist; no caller instruction waives the check.
+- **§3 green-test sweep**: a passing test that asserts a mock's own return value, a
+  tautology, or an incidental detail is a `BRITTLE_TEST` finding — a suite can be green
+  precisely because it tests nothing.
+- Eval harness: a crashed phase keeps its workdir (the first version deleted the phase log
+  it needed to explain the crash).
+
 ## 0.6.0 — 2026-08-27 · "sharper blade"
 
 - **`/qa-delta`** — the daily driver as a first-class command: refuses to run without a
