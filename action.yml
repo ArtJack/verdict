@@ -1,0 +1,146 @@
+name: "Verdict QA Gate"
+description: >-
+  Gate a PR on Verdict's QA state — and optionally run a headless Verdict QA
+  pass first. Gate mode needs no API key, no install, and no model: it reads
+  the committed .qa/ state with a stdlib-only script and comments the PR.
+branding:
+  icon: "check-circle"
+  color: "gray-dark"
+
+inputs:
+  mode:
+    description: "gate (default) reads existing state; run (experimental) executes a headless Verdict pass first"
+    default: "gate"
+  project:
+    description: "Project key or repo path. Default: the workspace (team-mode .qa/)."
+    default: "${{ github.workspace }}"
+  fail-on:
+    description: "fail (default) or risks — 'risks' also fails 'pass with risks'. blocked always exits 3."
+    default: "fail"
+  max-age-hours:
+    description: "Exit 5 (stale) when the last run is older than this"
+    default: ""
+  min-run-number:
+    description: "Exit 5 (stale) unless run_number reached this — closes the crashed-run race"
+    default: ""
+  findings:
+    description: "Max findings rendered in output and comment"
+    default: "10"
+  comment:
+    description: "Post/update a sticky PR comment (needs permissions: pull-requests: write)"
+    default: "true"
+  run-prompt:
+    description: "run mode: the prompt for the headless pass"
+    default: "Run a QA review of this repository as a delta run against the stored baseline."
+  claude-version:
+    description: "run mode: @anthropic-ai/claude-code npm version"
+    default: "latest"
+  anthropic-api-key:
+    description: "run mode: Anthropic API key (or use claude-oauth-token)"
+    default: ""
+  claude-oauth-token:
+    description: "run mode: subscription token from `claude setup-token` (self-hosted runners)"
+    default: ""
+  anthropic-base-url:
+    description: "run mode: alternate Anthropic-compatible endpoint (e.g. a LiteLLM gateway)"
+    default: ""
+  commit-state:
+    description: "run mode: commit an updated team-mode .qa/ back to the branch"
+    default: "false"
+
+outputs:
+  verdict:
+    description: "pass | pass with risks | blocked | fail | none"
+    value: ${{ steps.gate.outputs.verdict }}
+  exit-code:
+    description: "The gate exit code (0/1/3/4/5)"
+    value: ${{ steps.gate.outputs.exit-code }}
+  blockers:
+    description: "Release blockers as a JSON array"
+    value: ${{ steps.gate.outputs.blockers }}
+  report-path:
+    description: "Path of the last QA report inside the QA root"
+    value: ${{ steps.gate.outputs.report-path }}
+
+runs:
+  using: "composite"
+  steps:
+    - name: Run Verdict headless (experimental)
+      if: ${{ inputs.mode == 'run' }}
+      shell: bash
+      working-directory: ${{ github.workspace }}
+      env:
+        ANTHROPIC_API_KEY: ${{ inputs.anthropic-api-key }}
+        CLAUDE_CODE_OAUTH_TOKEN: ${{ inputs.claude-oauth-token }}
+        ANTHROPIC_BASE_URL: ${{ inputs.anthropic-base-url }}
+        VERDICT_STRICT: "1"
+      run: |
+        set -euo pipefail
+        if [ -z "$ANTHROPIC_API_KEY" ] && [ -z "$CLAUDE_CODE_OAUTH_TOKEN" ]; then
+          echo "::error::run mode needs anthropic-api-key or claude-oauth-token"
+          exit 2
+        fi
+        npm install -g "@anthropic-ai/claude-code@${{ inputs.claude-version }}"
+        # Provision the agent project-locally from this action's own checkout —
+        # no plugin installation step to depend on in CI.
+        mkdir -p .claude/agents
+        sed -e "s|\${CLAUDE_PLUGIN_ROOT}|${{ github.action_path }}|g" \
+          "${{ github.action_path }}/agents/verdict.md" > .claude/agents/verdict.md
+        claude -p "Use the verdict agent. ${{ inputs.run-prompt }}" \
+          --setting-sources project --dangerously-skip-permissions
+
+    - name: Commit updated QA state (team mode)
+      if: ${{ inputs.mode == 'run' && inputs.commit-state == 'true' }}
+      shell: bash
+      working-directory: ${{ github.workspace }}
+      run: |
+        if [ -d .qa ] && [ -n "$(git status --porcelain .qa)" ]; then
+          git config user.name "verdict-gate[bot]"
+          git config user.email "verdict-gate@users.noreply.github.com"
+          git add .qa
+          git commit -m "qa: verdict state update [skip ci]"
+          git push
+        fi
+
+    - name: Gate on the QA state
+      id: gate
+      shell: bash
+      working-directory: ${{ github.workspace }}
+      run: |
+        ARGS=("${{ inputs.project }}" --fail-on "${{ inputs.fail-on }}" --findings "${{ inputs.findings }}")
+        [ -n "${{ inputs.max-age-hours }}" ] && ARGS+=(--max-age-hours "${{ inputs.max-age-hours }}")
+        [ -n "${{ inputs.min-run-number }}" ] && ARGS+=(--min-run-number "${{ inputs.min-run-number }}")
+        GATE="${{ github.action_path }}/src/verdict_mcp/gate.py"
+        set +e
+        python3 "$GATE" "${ARGS[@]}" --format github-output | tee -a "$GITHUB_OUTPUT"
+        rc=${PIPESTATUS[0]}
+        set -e
+        python3 "$GATE" "${ARGS[@]}" --format github-comment \
+          > "${{ runner.temp }}/verdict-comment.md" || true
+        python3 "$GATE" "${ARGS[@]}" --format text || true
+        echo "gate-exit=$rc" >> "$GITHUB_OUTPUT"
+
+    - name: Sticky PR comment
+      if: ${{ inputs.comment == 'true' && github.event_name == 'pull_request' }}
+      uses: actions/github-script@v7
+      with:
+        script: |
+          const fs = require('fs');
+          const body = fs.readFileSync(
+            `${process.env.RUNNER_TEMP}/verdict-comment.md`, 'utf8');
+          const marker = '<!-- verdict-gate -->';
+          const {owner, repo} = context.repo;
+          const issue_number = context.issue.number;
+          const comments = await github.rest.issues.listComments(
+            {owner, repo, issue_number, per_page: 100});
+          const mine = comments.data.find(c => c.body && c.body.startsWith(marker));
+          if (mine) {
+            await github.rest.issues.updateComment(
+              {owner, repo, comment_id: mine.id, body});
+          } else {
+            await github.rest.issues.createComment({owner, repo, issue_number, body});
+          }
+
+    - name: Enforce the gate
+      shell: bash
+      run: exit "${{ steps.gate.outputs.gate-exit }}"

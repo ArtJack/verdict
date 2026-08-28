@@ -137,6 +137,8 @@ an orchestrator gating a merge, a Cursor or Codex session, a CI step commenting 
 | `get_findings(project, status)` | `open` (default), `all`, or `NEW / STILL_OPEN / RESOLVED / REGRESSED` — REGRESSED ranked first |
 | `get_quarantine(project)` | the flaky ledger, each entry with a computed `expired` flag |
 | `get_history(project)` | run-over-run trend parsed from the report INDEX |
+| `get_report(project, report?)` | full report content (default: last run's) — path-guarded to the QA root, so a CI step can quote the evidence, not just link it |
+| `get_profile(project)` | the project's QA profile: isolation rules, risk areas, real test commands |
 | `list_projects()` / `get_state(project)` | everything with a baseline / the raw state |
 
 ```
@@ -173,13 +175,19 @@ Minimal driver, any MCP client:
 
 ```python
 while True:
+    before = mcp.call("verdict", "get_verdict", {"project": "myapp"}).get("run_number") or 0
     subprocess.run(["claude", "-p", "/qa-review delta pass on myapp"])   # the agent runs
     v = mcp.call("verdict", "get_verdict", {"project": "myapp"})          # the gate reads
+    assert (v.get("run_number") or 0) > before, "run died before writing state — not a verdict"
     if v["verdict"] == "pass":
         break
     fix(v["release_blockers"],
         mcp.call("verdict", "get_findings", {"project": "myapp", "status": "open"}))
 ```
+
+(The `run_number` check matters: without it, a run that crashes before writing
+state re-serves *yesterday's* verdict — and if yesterday passed, the loop merges
+unreviewed code. `verdict-gate --min-run-number` is the same check as a CLI.)
 
 Rules that keep the loop honest — all enforced by the agent's contract, not by hope:
 
@@ -192,9 +200,46 @@ Rules that keep the loop honest — all enforced by the agent's contract, not by
   expiry, so the loop cannot converge by skipping its way to green.
 - **`blocked` halts, it doesn't pass.** A missing environment stops the loop for the
   operator instead of laundering itself into a verdict.
+- **A crashed run is not a verdict.** The gate asserts `run_number` advanced; stale state
+  is its own exit code (`5`), distinct from both pass and fail.
 
 This is not hypothetical — it is the loop the author's private deployment runs nightly,
 unattended, against a production codebase.
+
+## CI: gate PRs on the tester's memory
+
+The repo doubles as a composite GitHub Action. **Gate mode** needs no API key, no install,
+and no model — a stdlib-only script reads the committed team-mode `.qa/` state, sets the
+job status, and maintains one sticky PR comment (verdict headline, blockers,
+REGRESSED-first findings table, the not-tested list):
+
+```yaml
+permissions:
+  pull-requests: write
+concurrency: verdict-${{ github.ref }}
+
+steps:
+  - uses: actions/checkout@v4
+  - uses: ArtJack/verdict@main
+    with:
+      max-age-hours: 48   # a stale verdict is exit 5, never a pass
+```
+
+**Run mode** (experimental) executes a headless Verdict pass first — on a GitHub-hosted
+runner with `anthropic-api-key`, or on a **self-hosted runner with
+`claude-oauth-token`** from `claude setup-token`, so nightly QA rides your subscription
+instead of API billing (`anthropic-base-url` passes through for Anthropic-compatible
+gateways). The same contract is available anywhere as a CLI:
+
+```bash
+verdict-gate myapp --max-age-hours 24 --fail-on risks
+```
+
+Exit codes: `0` pass · `1` fail · `2` usage · `3` blocked · `4` no state (the tester never
+ran) · `5` stale. `4` and `5` are deliberately distinct from `1`: "the tester never ran"
+must never look like "the tester said no". For running the nightly pass on your own
+machine — cron, systemd, subscription token, strict mode — see
+[docs/nightly.md](docs/nightly.md).
 
 ## Give your tester project eyes (bring your own MCPs)
 
@@ -239,10 +284,12 @@ it nightly; read a delta report over coffee, not a fresh audit.
 
 ## Roadmap
 
-- GitHub Action recipe for nightly delta runs
 - A JS/TS eval fixture alongside the Python one
 - Mutation-testing integration where a tool is present
 - Agent-skills-standard variant for cross-runtime use
+- Local-model experiment: run the eval suite through an Anthropic-compatible gateway
+  against local models and publish the scores — a model earns nightly duty by passing the
+  same eval as everyone else
 
 ## License
 

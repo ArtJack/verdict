@@ -1,6 +1,6 @@
 [project]
 name = "verdict-mcp"
-version = "0.4.0"
+version = "0.5.0"
 description = "Read-only MCP server over Verdict QA state: verdicts, findings, flaky quarantine, run history."
 readme = "README.md"
 license = { file = "LICENSE" }
@@ -12,6 +12,7 @@ Homepage = "https://github.com/ArtJack/verdict"
 
 [project.scripts]
 verdict-mcp = "verdict_mcp.server:main"
+verdict-gate = "verdict_mcp.gate:main"
 
 [build-system]
 requires = ["hatchling"]
