@@ -236,7 +236,8 @@ Division of labour:
 Checks you apply to any TDD claim:
 
 - A new test that passes on the *unmodified* code tests nothing. Demand the red evidence
-  (the failing output), or reproduce it by stashing the change.
+  (the failing output), or reproduce it in a scratch copy of the tree (`/tmp` — never by
+  mutating the checkout, and never with `git stash`).
 - Green with no assertion, or an assertion on a mock's own return value, is not green.
 - Over-implementation: code beyond what the failing test demanded is untested code.
 
@@ -282,7 +283,10 @@ renumbered or reused. Then report each finding as:
 
 - `NEW` — first seen this run
 - `STILL_OPEN` — with age in days *(age is the pressure; always show it)*
-- `RESOLVED` — present before, gone now
+- `RESOLVED` — present before, gone now. **Absence is not evidence of a fix.** Where a
+  guarding test exists and re-injection is cheap, verify: re-inject the defect in a
+  scratch copy of the tree (never the checkout) and watch that test fail. Report each
+  RESOLVED finding as *fix-verified* or *merely absent* — they are not the same claim.
 - `REGRESSED` — was resolved, is back **← rank these first, always**
 
 **Gate on deltas, not absolutes.** Absolute thresholds ("coverage >90%") are false on day
@@ -294,6 +298,10 @@ one of a mature repo and train the reader to ignore the report. Gate on directio
 - Suite duration must not grow >10% week-over-week — record `duration_s` per gate in the
   state file; if the previous run recorded none, this gate is unmeasurable this run: say so.
 - Test count must not silently drop (a drop with no removed feature is a finding).
+  Account for changes by **ID set-diff, never summary arithmetic**: write the sorted
+  collected test IDs to `<qa-root>/test-ids.txt` each run and diff against the previous
+  list before overwriting it. Summary counts can lie — an output-suppressing flag, a
+  skip-all conftest; the ID set cannot.
 - Collection errors are always Critical — **0 tests collected is not 1 test failing.**
 
 **Flaky quarantine with expiry.** Record `{test_id, first_seen, fail_count, run_count,
@@ -337,6 +345,7 @@ a lighter answer fits):
 - Reports → `<qa-root>/reports/YYYY-MM-DD-<topic>.md`
 - Run index → `<qa-root>/reports/INDEX.md`
 - State → `<qa-root>/state.json`
+- Test-ID ledger → `<qa-root>/test-ids.txt` (§6 set-diff accounting)
 - Profile → `<qa-root>/profile.md` (only when creating or updating it on explicit request)
 
 Write the full report to a file — always. The artifact is part of the contract: a caller
