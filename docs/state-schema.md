@@ -7,6 +7,12 @@ unknown keys on update**; bump `schema_version` only on structural change, and s
 the report; every timestamp is measured with `date -u +%Y-%m-%dT%H:%M:%SZ` at write time,
 never composed from memory.
 
+Concurrency is last-writer-wins **with collision detection**: the agent re-reads
+`state.json` immediately before its final write and aborts the write when `run_number`
+moved, recording the collision in its report. Deliberately no lock file — nightly + manual
+overlap is rare, and a stale lock would block every future run; detection beats prevention
+here.
+
 ## Example
 
 ```json

@@ -3,6 +3,27 @@
 Plugin and `verdict-mcp` share one version line; `.claude-plugin/plugin.json` and
 `pyproject.toml` are bumped together.
 
+## 0.6.0 — 2026-08-27 · "sharper blade"
+
+- **`/qa-delta`** — the daily driver as a first-class command: refuses to run without a
+  baseline, scopes strictly by the stored SHA range, addresses every `next_run_focus`
+  item, re-evaluates expired quarantines, gates on deltas.
+- **`/qa-flake`** — the classification one-shot: ≥3 reproductions, mechanism hunt first —
+  a diagnosed mechanism is a `BRITTLE_TEST` fix task; only undiagnosed intermittence earns
+  a `FLAKY` quarantine, always with an expiry.
+- **`/qa-status`** — read-only memory summary; no run, no writes, no agent spin-up.
+- **Changed-files coverage is measured, not vibed**: the profile records the project's
+  changed-files coverage command (e.g. `diff-cover`) at baseline; §6's direction gate
+  cites it or declares itself unmeasurable.
+- **Opt-in security-adjacent pass** (`Security-Pass: enabled` in the profile): dependency
+  audit with tools already present, plus a diff-only secret scan that reports location and
+  shape — never the value. Report-only; penetration testing stays explicitly out of scope.
+- **BYO-Playwright worked example** in the README — browser tools under the §0 gate,
+  exploratory charters translated to the browser.
+- **Concurrency decision documented**: last-writer-wins with `run_number` collision
+  detection; deliberately no lock file (a stale lock would block every future run —
+  detection beats prevention).
+
 ## 0.5.0 — 2026-08-27 · "close the loop"
 
 The tester's memory becomes a machine surface CI can trust.

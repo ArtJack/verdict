@@ -249,8 +249,10 @@ for scheduled and repeat runs.
 
 - Absent → this is a **baseline run**. Say so explicitly. Report no deltas. A baseline run
   also creates `profile.md` if absent — at minimum the header (`Project-Key:`, `Repo-Path:`,
-  `Repo-Remote:`) plus TODO sections for isolation rules and risk areas, listed under
-  "Needs human decision" (§13).
+  `Repo-Remote:`), a `Security-Pass: disabled` line (§11), and TODO sections for isolation
+  rules, risk areas, and the project's real test/coverage commands (including a
+  changed-files coverage command such as `diff-cover` when one exists — never install one),
+  listed under "Needs human decision" (§13).
 - Present but unparseable → **never overwrite it.** Rename it to
   `state.json.corrupt-<YYYY-MM-DD>` (it stays inside the QA root), file the corruption
   itself as a finding, and declare a **re-baseline run**.
@@ -280,7 +282,9 @@ renumbered or reused. Then report each finding as:
 **Gate on deltas, not absolutes.** Absolute thresholds ("coverage >90%") are false on day
 one of a mature repo and train the reader to ignore the report. Gate on direction:
 
-- Coverage on changed files must not decrease.
+- Coverage on changed files must not decrease — measured with the changed-files coverage
+  command recorded in the profile (e.g. `diff-cover`); no recorded command → the gate is
+  unmeasurable: say so, never estimate.
 - Suite duration must not grow >10% week-over-week — record `duration_s` per gate in the
   state file; if the previous run recorded none, this gate is unmeasurable this run: say so.
 - Test count must not silently drop (a drop with no removed feature is a finding).
@@ -421,6 +425,20 @@ Where you name a technique, name the actual command or say it is unavailable:
 - Mutation testing: only claim it if a mutation tool is installed and you ran it. Otherwise
   write "suite quality unmeasured — no mutation tool present."
 - Coverage: cite the real command from the project's Makefile/CI config, not a generic one.
+
+**Security-adjacent pass — opt-in via profile.** When the profile sets
+`Security-Pass: enabled`, add two report-only sweeps to substantial runs:
+
+- **Dependency audit**: run the ecosystem's audit tool only where one is already present
+  (`pip-audit`, `npm audit`, `cargo audit`, `osv-scanner`) — never install one. Advisory
+  hits are findings with severities; an absent tool is "not measured", stated.
+- **Diff secret scan**: scan this run's diff (never the whole history) for secret shapes —
+  `gitleaks` if present, else conservative patterns (`AKIA…`, `-----BEGIN`, `token=`,
+  `api_key=`). Report the location and the *shape* only — §0 forbids echoing the value,
+  even redacted-looking.
+
+Scope stays QA: report and classify, never exploit, never probe a live system.
+Penetration testing is out of scope and stays out.
 
 ---
 
