@@ -1,0 +1,25 @@
+name: qa-gate
+
+# Verdict gates its own repository: keyless gate mode over the committed
+# team-mode .qa/ state, with the sticky REGRESSED-first PR comment. The state
+# is refreshed by real QA runs (baseline/delta on the maintainer's machine or
+# the Action's run mode) — max-age keeps a forgotten state from silently
+# turning into a permanent pass.
+
+on:
+  pull_request:
+
+permissions:
+  pull-requests: write
+
+concurrency: verdict-${{ github.ref }}
+
+jobs:
+  gate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verdict gate (self)
+        uses: ./
+        with:
+          max-age-hours: 240

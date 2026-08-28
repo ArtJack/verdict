@@ -1,0 +1,141 @@
+{
+  "project": "verdict",
+  "schema_version": 1,
+  "run_type": "baseline",
+  "run_number": 1,
+  "last_run": {
+    "timestamp_utc": "2026-08-28T20:33:24Z",
+    "git_sha": "85aeb65e356f651242e2746ebbfba72e6ce584bc",
+    "sha_range": null,
+    "report": "reports/2026-08-28-baseline.md"
+  },
+  "isolation_check": {
+    "result": "pass",
+    "checks": [
+      "no network/db/credential usage in tests/ or src/",
+      "testpaths=['tests'] excludes seeded-defect fixtures under eval/fixtures",
+      "no money, live-account, or user-data surface"
+    ]
+  },
+  "gates": {
+    "suite": {
+      "command": "uv run --group dev python -m pytest tests/",
+      "result": "pass",
+      "duration_s": 2.71,
+      "note": "CI form 'pytest tests/ -q' yields -qq and prints no summary line (VERDICT-F-3)"
+    },
+    "fixture_freshness": {
+      "command": "cd eval/fixtures && git diff --no-index pricer pricer_rev_b > /tmp/fresh.diff || true; cmp pricer-delta.diff /tmp/fresh.diff",
+      "result": "pass",
+      "duration_s": 0.4
+    },
+    "coverage_changed_files": {
+      "result": "unmeasurable",
+      "reason": "no coverage tool configured in this repo; none installed"
+    },
+    "mutation": {
+      "result": "unmeasurable",
+      "reason": "no mutation tool present; suite quality unmeasured"
+    }
+  },
+  "tests": {
+    "collected": 106,
+    "passed": 106,
+    "skipped": 0,
+    "failed": 0,
+    "errors": 0,
+    "id_ledger": "test-ids.txt",
+    "id_set_delta": null,
+    "note": "baseline: no previous ID set to diff against. Pre-existing orphan ledger was byte-identical to this run's collection."
+  },
+  "flaky_quarantine": [],
+  "findings": [
+    {
+      "id": "VERDICT-F-1",
+      "hash": "a1f3c9d2",
+      "first_seen": "2026-08-28T20:33:24Z",
+      "status": "open",
+      "delta": "NEW",
+      "age_days": 0,
+      "title": "Scope guards use abspath not realpath; a symlink inside .qa/ escapes the QA root (both write and bash guards)",
+      "severity": "Major",
+      "priority": "P1",
+      "failure_classification": null,
+      "evidence": [
+        "hooks/qa_paths.py:20-27 is_allowed_path uses os.path.abspath (does not resolve symlinks)",
+        "hooks/enforce_write_scope.py:54 and hooks/enforce_bash_scope.py:90 consume the same predicate",
+        "probe: .qa/pwn symlinked to proj/src/app.py under VERDICT_STRICT=1 returned write-guard exit=0 (allowed)",
+        "asymmetry: tests/test_mcp_tools.py:234 test_get_report_rejects_symlink_escape guards the read path only"
+      ]
+    },
+    {
+      "id": "VERDICT-F-2",
+      "hash": "b7e04a15",
+      "first_seen": "2026-08-28T20:33:24Z",
+      "status": "open",
+      "delta": "NEW",
+      "age_days": 0,
+      "title": "qa-gate.yml gates PRs on committed .qa/ state, but .qa/ is untracked; gate takes the no-state path (exit 4)",
+      "severity": "Major",
+      "priority": "P2",
+      "failure_classification": null,
+      "evidence": [
+        "git status --porcelain .qa .github -> '?? .github/workflows/qa-gate.yml' and '?? .qa/'",
+        ".gitignore does not exclude .qa/, so this is an uncommitted baseline not a config error",
+        "src/verdict_mcp/gate.py:55 returns exit_code 4 when state is absent"
+      ]
+    },
+    {
+      "id": "VERDICT-F-3",
+      "hash": "c2d81b6e",
+      "first_seen": "2026-08-28T20:33:24Z",
+      "status": "open",
+      "delta": "NEW",
+      "age_days": 0,
+      "title": "addopts='-q' plus CI's '-q' equals -qq: no countable summary line, and --collect-only -q emits counts instead of test IDs",
+      "severity": "Minor",
+      "priority": "P2",
+      "failure_classification": null,
+      "evidence": [
+        "pyproject.toml [tool.pytest.ini_options] addopts = \"-q\"",
+        ".github/workflows/ci.yml: uv run --group dev python -m pytest tests/ -q",
+        "grep -cE '[0-9]+ passed' over the CI command's output returned 0",
+        "--collect-only -q printed 'tests/test_score.py: 21' style counts; -o addopts= restores the 106 IDs"
+      ]
+    },
+    {
+      "id": "VERDICT-F-4",
+      "hash": "d9a52f70",
+      "first_seen": "2026-08-28T20:33:24Z",
+      "status": "closed",
+      "delta": "NEW",
+      "age_days": 0,
+      "title": "Orphaned .qa/test-ids.txt present with no state.json (partial prior run); closed by this baseline",
+      "severity": "Minor",
+      "priority": "P3",
+      "failure_classification": null,
+      "evidence": [
+        "pre-run .qa/ contained only test-ids.txt (106 lines), no state.json",
+        "diff against this run's collection was clean, so no phantom delta was produced"
+      ]
+    }
+  ],
+  "verdict": "pass with risks",
+  "release_blockers": [],
+  "not_tested": [
+    "Windows and Python 3.10 CI matrix legs (unreproducible on this macOS host)",
+    "Agent prompt behaviour via live-model eval (eval/run_eval.py) — costs API calls",
+    "The Action's experimental run mode (uses --dangerously-skip-permissions; forbidden by profile)",
+    "Coverage and mutation score — no tools present",
+    "MCP server end-to-end over stdio with a real client",
+    "Assertion bodies of the ~90 tests not individually audited this run"
+  ],
+  "next_run_focus": [
+    "Verify VERDICT-F-1 fix: confirm realpath resolution and that both new symlink guard tests exist and fail on re-injection",
+    "Verify VERDICT-F-2: is .qa/ committed and does a PR gate run exit 0 rather than 4?",
+    "Verify VERDICT-F-3: does the CI command now print a parseable summary line?",
+    "Confirm VERDICT-F-4 stays closed (state.json and test-ids.txt in sync)",
+    "Run the ID set-diff against test-ids.txt — first real delta opportunity",
+    "Audit assertion bodies in tests/test_score.py and tests/test_corpus.py for tautological greens"
+  ]
+}
