@@ -19,7 +19,10 @@ jobs:
         with:
           python-version: ${{ matrix.python }}
       - name: Run the suite (server, hooks, scorer)
-        run: uv run --group dev python -m pytest tests/ -q
+        # no -q here: pyproject addopts already carries it, and -q + -q = -qq
+        # suppresses the countable summary line (VERDICT-F-3 — our own liar
+        # fixture's trap, found living in our own CI)
+        run: uv run --group dev python -m pytest tests/
 
   delta-diff-freshness:
     # eval/fixtures/pricer-delta.diff is the tamper-evidence for the delta

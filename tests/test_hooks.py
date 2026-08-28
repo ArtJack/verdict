@@ -103,6 +103,43 @@ def test_write_blocks_qa_traversal_escape():
     assert rc == 2
 
 
+def test_write_blocks_symlink_escape_from_inside_qa(tmp_path):
+    # VERDICT-F-1 (found by Verdict reviewing its own repo): a symlink planted
+    # inside .qa/ must not launder a write to wherever it points.
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    qa = tmp_path / "repo" / ".qa"
+    qa.mkdir(parents=True)
+    link = qa / "link"
+    try:
+        link.symlink_to(outside)
+    except OSError:
+        pytest.skip("symlinks unavailable on this platform")
+    rc, err = run_hook("enforce_write_scope.py",
+                       write_event(str(link / "escaped.md")), strict="1")
+    assert rc == 2, "write through a .qa-resident symlink escaped the QA root"
+    # a real file inside the same .qa stays allowed
+    rc, _ = run_hook("enforce_write_scope.py",
+                     write_event(str(qa / "reports" / "ok.md")), strict="1")
+    assert rc == 0
+
+
+def test_bash_blocks_symlink_escape_from_inside_qa(tmp_path):
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    qa = tmp_path / "repo" / ".qa"
+    qa.mkdir(parents=True)
+    link = qa / "link"
+    try:
+        link.symlink_to(outside)
+    except OSError:
+        pytest.skip("symlinks unavailable on this platform")
+    rc, _ = run_hook("enforce_bash_scope.py",
+                     bash_event(f"echo x > {link}/escaped.txt", tmp_path / "repo"),
+                     strict="1")
+    assert rc == 2
+
+
 def test_write_fails_open_on_malformed_input():
     rc, _ = run_hook("enforce_write_scope.py", "this is not json", strict="1")
     assert rc == 0
