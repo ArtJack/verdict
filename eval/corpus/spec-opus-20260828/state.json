@@ -1,0 +1,430 @@
+{
+  "project": "refund-spec",
+  "schema_version": 1,
+  "run_type": "baseline",
+  "run_number": 1,
+  "last_run": {
+    "timestamp_utc": "2026-08-28T07:34:02Z",
+    "git_sha": "5b2c38703c92f6d60db22ae5d44daf1b1d039673",
+    "sha_range": "baseline (single commit 5b2c387; no prior SHA)",
+    "report": "reports/2026-08-28-spec-testability-refund-engine.md"
+  },
+  "isolation_check": {
+    "result": "not_applicable_document_review",
+    "detail": "No profile existed; profile.md created this run. All commands were read-only on the working tree (cat, ls, find, git log, git remote). No service, provider, or dataset contacted; repository contains no executable code. Isolation rules in profile.md are TODO; any execution-phase run is blocked until the owner records them.",
+    "profile_created_this_run": true
+  },
+  "gates": {
+    "coverage_changed_files": {
+      "status": "unmeasurable",
+      "reason": "no code, no test suite, no changed-files coverage command recorded in profile"
+    },
+    "suite_duration": {
+      "status": "unmeasurable",
+      "duration_s": null,
+      "reason": "no suite exists; no previous run recorded a duration"
+    },
+    "test_count": {
+      "status": "unmeasurable",
+      "reason": "no suite exists"
+    },
+    "collection_errors": {
+      "status": "not_applicable",
+      "reason": "no suite to collect"
+    }
+  },
+  "tests": {
+    "passed": null,
+    "skipped": null,
+    "failed": null,
+    "errors": null,
+    "total": null,
+    "note": "No implementation and no test suite exist. This run covered §2 activities 1-4 only (planning, monitoring setup, analysis, design)."
+  },
+  "flaky_quarantine": [],
+  "requirements_inventory": {
+    "numbered_in_spec": 8,
+    "unnumbered_extracted_from_prose": 4,
+    "testable_as_written": 4,
+    "unfalsifiable": 2,
+    "in_unresolved_contradiction": 5
+  },
+  "findings": [
+    {
+      "id": "REFUND-SPEC-F-1",
+      "hash": "06213ce4cd91",
+      "first_seen": "2026-08-28T07:34:02Z",
+      "status": "open",
+      "delta": "NEW",
+      "age_days": 0,
+      "title": "R-1's 14-day refund window contradicts the recorded 30-day extension (REF-88); dual-regime rule absent from spec",
+      "severity": "Blocker",
+      "priority": "P0",
+      "failure_classification": null,
+      "category": "conflict_with_recorded_history",
+      "evidence": [
+        "SPEC.md:8 — \"- **R-1.** A customer may request a refund within 14 days of the delivery date.\"",
+        "CHANGELOG.md:5-6 — \"Refund window extended from 14 to 30 days (REF-88), effective for all orders delivered after this date. Support macros and the help center updated accordingly.\"",
+        "CHANGELOG.md:3 — entry dated 2026-07-02, 57 days before this review (measured 2026-08-28T07:34:02Z)",
+        "SPEC.md:3 — \"Spec of record for the refund engine.\"",
+        "Spec states no regime split for orders delivered before/after 2026-07-02, and no changeover boundary rule"
+      ]
+    },
+    {
+      "id": "REFUND-SPEC-F-2",
+      "hash": "7f5ca0dcbe65",
+      "first_seen": "2026-08-28T07:34:02Z",
+      "status": "open",
+      "delta": "NEW",
+      "age_days": 0,
+      "title": "R-7 'instant' directly contradicts R-2 'within 5 business days'; neither side is measurable",
+      "severity": "Critical",
+      "priority": "P0",
+      "failure_classification": null,
+      "category": "contradiction",
+      "evidence": [
+        "SPEC.md:9 — \"- **R-2.** Approved refunds are processed within 5 business days.\"",
+        "SPEC.md:14 — \"- **R-7.** All refunds are instant once approved.\"",
+        "'instant' has no number, no measurement point, no subject; '5 business days' names no business calendar and no clock-start event"
+      ]
+    },
+    {
+      "id": "REFUND-SPEC-F-3",
+      "hash": "1d78b259c453",
+      "first_seen": "2026-08-28T07:34:02Z",
+      "status": "open",
+      "delta": "NEW",
+      "age_days": 0,
+      "title": "R-5 and R-6 specify two different refund destinations with no stated precedence",
+      "severity": "Critical",
+      "priority": "P1",
+      "failure_classification": null,
+      "category": "contradiction",
+      "evidence": [
+        "SPEC.md:12 — \"- **R-5.** Refunds are issued to the original payment method.\"",
+        "SPEC.md:13 — \"- **R-6.** Store-credit refunds are available on request.\"",
+        "R-5 is stated unconditionally ('are issued'), which R-6 falsifies; no actor, eligibility, precedence, consent, valuation, or expiry rule for store credit"
+      ]
+    },
+    {
+      "id": "REFUND-SPEC-F-4",
+      "hash": "16d5df9362f2",
+      "first_seen": "2026-08-28T07:34:02Z",
+      "status": "open",
+      "delta": "NEW",
+      "age_days": 0,
+      "title": "R-8's refund ceiling is undefined for partial and cumulative refunds; over-refund passes as written",
+      "severity": "Critical",
+      "priority": "P1",
+      "failure_classification": null,
+      "category": "undefined_boundary",
+      "evidence": [
+        "SPEC.md:15 — \"- **R-8.** A refund may not exceed the order total.\"",
+        "Read literally, three separate full-total refunds each satisfy R-8 — a 3x cash loss that passes the requirement",
+        "Partial refunds are never mentioned in the spec, yet R-8's wording presupposes them",
+        "'order total' basis undefined (pre/post tax, discount, shipping); inclusivity at the limit unstated; zero and negative amounts unaddressed"
+      ],
+      "boundary_technique": "boundary value analysis on the amount domain plus domain analysis on the coupled pair (cumulative_refunded, requested_amount)"
+    },
+    {
+      "id": "REFUND-SPEC-F-5",
+      "hash": "65b62ed8635b",
+      "first_seen": "2026-08-28T07:34:02Z",
+      "status": "open",
+      "delta": "NEW",
+      "age_days": 0,
+      "title": "Payment provider failure semantics absent: no decline, timeout, retry, or idempotency requirement",
+      "severity": "Critical",
+      "priority": "P1",
+      "failure_classification": null,
+      "category": "silent_gap",
+      "evidence": [
+        "SPEC.md:20-21 — \"the engine executes approved refunds against the payment provider and emails the customer a confirmation.\" — the only mention of the provider, happy-path only",
+        "Spec contains zero failure paths; no idempotency key requirement anywhere",
+        "Timeout-plus-retry with no idempotency is the highest-probability cash-loss defect in a refund engine",
+        "No reconciliation requirement for provider-applied / engine-unpersisted refunds"
+      ]
+    },
+    {
+      "id": "REFUND-SPEC-F-6",
+      "hash": "3e90d73e68e7",
+      "first_seen": "2026-08-28T07:34:02Z",
+      "status": "open",
+      "delta": "NEW",
+      "age_days": 0,
+      "title": "No concurrency rules: simultaneous approval and duplicate requests can double-refund an order",
+      "severity": "Critical",
+      "priority": "P1",
+      "failure_classification": null,
+      "category": "silent_gap",
+      "evidence": [
+        "SPEC.md:19-20 — \"The customer opens a refund request from the order page; support approves or rejects it;\" — stated as a serial narrative",
+        "Nothing states a request may be approved only once; no state guard or lock",
+        "Nothing forbids a second refund request on the same order while one is pending, approved, or executed",
+        "No interaction rules with chargebacks, disputes, or order cancellation"
+      ],
+      "boundary_technique": "state transition testing (blocked by F-10) plus CRUD-lifecycle concurrent and partial-failure rows"
+    },
+    {
+      "id": "REFUND-SPEC-F-7",
+      "hash": "55dcc9d11f22",
+      "first_seen": "2026-08-28T07:34:02Z",
+      "status": "open",
+      "delta": "NEW",
+      "age_days": 0,
+      "title": "R-3 is unfalsifiable and is not a requirement ('fast', 'handle all edge cases correctly')",
+      "severity": "Major",
+      "priority": "P1",
+      "failure_classification": null,
+      "category": "untestable",
+      "evidence": [
+        "SPEC.md:10 — \"- **R-3.** The engine must be fast and must handle all edge cases correctly.\"",
+        "'fast' has no metric, percentile, threshold, or measurement point",
+        "'handle all edge cases correctly' is unfalsifiable by construction and collides with §8 principle 1",
+        "Transfers enumeration of edge cases from spec author to implementer; findings F-4, F-8, F-9, F-13, F-14 show that work was not done"
+      ]
+    },
+    {
+      "id": "REFUND-SPEC-F-8",
+      "hash": "f41b5f19f427",
+      "first_seen": "2026-08-28T07:34:02Z",
+      "status": "open",
+      "delta": "NEW",
+      "age_days": 0,
+      "title": "R-1's window boundary inclusivity, date granularity, timezone, and clock source are undefined",
+      "severity": "Major",
+      "priority": "P1",
+      "failure_classification": null,
+      "category": "undefined_boundary",
+      "evidence": [
+        "SPEC.md:8 — \"- **R-1.** A customer may request a refund within 14 days of the delivery date.\"",
+        "SPEC.md:9 — \"- **R-2.** Approved refunds are processed within 5 business days.\" — R-1 says 'days', R-2 says 'business days'; the spec never states the difference is deliberate",
+        "Unspecified: inclusive/exclusive at day 14; calendar date vs timestamp (up to ~24h of eligibility); timezone (customer/merchant/warehouse/UTC); DST-length days; day 0; client-supplied vs server clock"
+      ],
+      "boundary_technique": "boundary value analysis on day 13/14/15 at 00:00:00, 12:00:00, 23:59:59 local, plus DST transitions and UTC-offset extremes"
+    },
+    {
+      "id": "REFUND-SPEC-F-9",
+      "hash": "36dc51927182",
+      "first_seen": "2026-08-28T07:34:02Z",
+      "status": "open",
+      "delta": "NEW",
+      "age_days": 0,
+      "title": "R-4's $100 threshold: exclusivity, total basis, currency, and rounding all undefined",
+      "severity": "Major",
+      "priority": "P2",
+      "failure_classification": null,
+      "category": "undefined_boundary",
+      "evidence": [
+        "SPEC.md:11 — \"- **R-4.** Orders over $100 qualify for free return shipping.\"",
+        "'over' reads literally exclusive, so $100.00 pays shipping and $100.01 does not — defensible rule or common drafting error; unstated either way",
+        "Which total (pre/post tax, post-discount, incl. shipping) unstated; '$' currency unqualified; rounding direction and precision unstated"
+      ],
+      "boundary_technique": "boundary value analysis at 99.99 / 100.00 / 100.01 plus domain analysis on (subtotal, tax, discount)"
+    },
+    {
+      "id": "REFUND-SPEC-F-10",
+      "hash": "d5971a91d897",
+      "first_seen": "2026-08-28T07:34:02Z",
+      "status": "open",
+      "delta": "NEW",
+      "age_days": 0,
+      "title": "No refund state machine is defined; invalid transitions cannot be tested",
+      "severity": "Major",
+      "priority": "P1",
+      "failure_classification": null,
+      "category": "silent_gap",
+      "evidence": [
+        "SPEC.md:19-21 — the entire lifecycle is one prose sentence: \"The customer opens a refund request from the order page; support approves or rejects it; the engine executes approved refunds against the payment provider and emails the customer a confirmation.\"",
+        "States are never enumerated and no transition table exists; state transition testing is impossible, so invalid transitions cannot be tested at all",
+        "Terminal states, re-open, and reversal semantics undefined; no atomicity requirement between state persistence and the provider call; no audit-trail requirement"
+      ]
+    },
+    {
+      "id": "REFUND-SPEC-F-11",
+      "hash": "39e025d712e5",
+      "first_seen": "2026-08-28T07:34:02Z",
+      "status": "open",
+      "delta": "NEW",
+      "age_days": 0,
+      "title": "No authorization model: 'support' undefined, no approval limits, no segregation of duties",
+      "severity": "Major",
+      "priority": "P1",
+      "failure_classification": null,
+      "category": "silent_gap",
+      "evidence": [
+        "SPEC.md:19 — \"The customer opens a refund request from the order page; support approves or rejects it;\"",
+        "'support' is never defined as a role; no authorization rule appears anywhere in the spec",
+        "No approval limit by amount — nothing stops a single agent refunding an arbitrary sum; self-approval and own-order approval not barred; order-ownership verification never required"
+      ]
+    },
+    {
+      "id": "REFUND-SPEC-F-12",
+      "hash": "6c54dc310614",
+      "first_seen": "2026-08-28T07:34:02Z",
+      "status": "open",
+      "delta": "NEW",
+      "age_days": 0,
+      "title": "The rejection path has no specified outcome, notification, or resubmission rule",
+      "severity": "Major",
+      "priority": "P2",
+      "failure_classification": null,
+      "category": "silent_gap",
+      "evidence": [
+        "SPEC.md:19-20 — \"support approves or rejects it; the engine executes approved refunds\"",
+        "'rejects' appears once and is never followed up; confirmation email is specified for the approved path only (SPEC.md:20-21)",
+        "Unspecified: customer notification, reason codes, appeal, resubmission limit, whether rejection pauses the R-1 window, auditability"
+      ]
+    },
+    {
+      "id": "REFUND-SPEC-F-13",
+      "hash": "3ffb18de335d",
+      "first_seen": "2026-08-28T07:34:02Z",
+      "status": "open",
+      "delta": "NEW",
+      "age_days": 0,
+      "title": "R-5 has no fallback when the original payment method cannot receive a refund",
+      "severity": "Major",
+      "priority": "P1",
+      "failure_classification": null,
+      "category": "silent_gap",
+      "evidence": [
+        "SPEC.md:12 — \"- **R-5.** Refunds are issued to the original payment method.\" — stated unconditionally",
+        "Original instrument routinely unusable: expired/cancelled/reissued card, closed account, deactivated wallet, deleted token, consumed gift card, provider-side refund window expired",
+        "No fallback, no ordering of alternatives, no consent rule; connection to store credit (SPEC.md:13) never made; no behavior when all destinations fail"
+      ]
+    },
+    {
+      "id": "REFUND-SPEC-F-14",
+      "hash": "d0d63a51c625",
+      "first_seen": "2026-08-28T07:34:02Z",
+      "status": "open",
+      "delta": "NEW",
+      "age_days": 0,
+      "title": "R-1 anchors on a delivery date that may be null or meaningless (undelivered, lost, digital, multi-item orders)",
+      "severity": "Major",
+      "priority": "P2",
+      "failure_classification": null,
+      "category": "silent_gap",
+      "evidence": [
+        "SPEC.md:8 — \"- **R-1.** A customer may request a refund within 14 days of the delivery date.\"",
+        "Read literally, an order lost in transit never opens a refund window — the case with the strongest refund claim",
+        "Unaddressed: in-transit, cancelled, digital goods, subscriptions, services, partially delivered multi-item orders (per-line vs per-order window), retroactively corrected delivery dates"
+      ],
+      "boundary_technique": "equivalence partitioning on fulfillment type x delivery state, with the null/empty delivery_date partition included"
+    },
+    {
+      "id": "REFUND-SPEC-F-15",
+      "hash": "167076c4d6ac",
+      "first_seen": "2026-08-28T07:34:02Z",
+      "status": "open",
+      "delta": "NEW",
+      "age_days": 0,
+      "title": "Multi-currency and FX are unaddressed; the implicit single currency is never stated",
+      "severity": "Major",
+      "priority": "P2",
+      "failure_classification": null,
+      "category": "silent_gap",
+      "evidence": [
+        "SPEC.md:11 — \"- **R-4.** Orders over $100 qualify for free return shipping.\" — the spec's only monetary literal, currency unqualified",
+        "Refund currency, FX rate at capture vs at refund, and 0/3-decimal currency rounding all unspecified",
+        "FX at refund time can make a refund exceed the original charge in the customer's currency, colliding with R-8 (SPEC.md:15)",
+        "Gap-by-absence: if single-currency by design, the spec must say so"
+      ]
+    },
+    {
+      "id": "REFUND-SPEC-F-16",
+      "hash": "3b14d862f9af",
+      "first_seen": "2026-08-28T07:34:02Z",
+      "status": "open",
+      "delta": "NEW",
+      "age_days": 0,
+      "title": "R-4's return-shipping mechanics unspecified; the refund is never conditioned on the return itself",
+      "severity": "Major",
+      "priority": "P2",
+      "failure_classification": null,
+      "category": "silent_gap",
+      "evidence": [
+        "SPEC.md:11 — \"- **R-4.** Orders over $100 qualify for free return shipping.\" — an entitlement with no mechanism",
+        "SPEC.md:15 — \"- **R-8.** A refund may not exceed the order total.\" — a shipping reimbursement added to a refund would breach R-8 with no carve-out",
+        "Who pays return shipping at or under $100, and whether it is deducted from the refund, is unstated",
+        "Nothing conditions refund execution on receipt of returned goods — read literally, a refund is issued on approval regardless of whether anything came back"
+      ]
+    },
+    {
+      "id": "REFUND-SPEC-F-17",
+      "hash": "1a5200cf7da6",
+      "first_seen": "2026-08-28T07:34:02Z",
+      "status": "open",
+      "delta": "NEW",
+      "age_days": 0,
+      "title": "The Flow paragraph carries four unnumbered, untraceable requirements",
+      "severity": "Minor",
+      "priority": "P2",
+      "failure_classification": null,
+      "category": "traceability",
+      "evidence": [
+        "SPEC.md:19-21 — \"The customer opens a refund request from the order page; support approves or rejects it; the engine executes approved refunds against the payment provider and emails the customer a confirmation.\"",
+        "Four behaviors stated only here with no IDs; cannot be traced, cited in a test case or defect, or checked at signoff (§2 activity 3 requires traceability to a requirement ID)"
+      ]
+    },
+    {
+      "id": "REFUND-SPEC-F-18",
+      "hash": "505fc07ab524",
+      "first_seen": "2026-08-28T07:34:02Z",
+      "status": "open",
+      "delta": "NEW",
+      "age_days": 0,
+      "title": "Confirmation email failure coupling to refund success is undefined",
+      "severity": "Minor",
+      "priority": "P3",
+      "failure_classification": null,
+      "category": "silent_gap",
+      "evidence": [
+        "SPEC.md:20-21 — \"the engine executes approved refunds against the payment provider and emails the customer a confirmation.\" — joined by 'and', coupling ambiguous",
+        "Email failure/bounce handling, retry idempotency, required contents, and rejection-path email all unspecified",
+        "Escalation risk: an implementation that emails inside the refund transaction can roll back a successful refund on email failure"
+      ]
+    },
+    {
+      "id": "REFUND-SPEC-F-19",
+      "hash": "881cacb1532e",
+      "first_seen": "2026-08-28T07:34:02Z",
+      "status": "open",
+      "delta": "NEW",
+      "age_days": 0,
+      "title": "A 'v0.3 draft' is labelled the spec of record, with no effective date, owner, or change-ID linkage",
+      "severity": "Minor",
+      "priority": "P3",
+      "failure_classification": null,
+      "category": "traceability",
+      "evidence": [
+        "SPEC.md:1 — \"# Refund Engine — feature spec (v0.3 draft)\"",
+        "SPEC.md:3 — \"Spec of record for the refund engine.\" — a draft and a spec of record are different artifacts with different authority",
+        "No owner, effective date, status, or per-requirement changelog reference; this is why REF-88 (CHANGELOG.md:5) could drift for 57 days undetected (F-1)"
+      ]
+    }
+  ],
+  "verdict": "fail",
+  "release_blockers": [
+    "REFUND-SPEC-F-1 (Blocker/P0) — refund window is 14 days in the spec of record and 30 days in the changelog (REF-88, effective 2026-07-02); customer-facing support macros and help center already say 30. No implementation can proceed, and the spec omits the dual-regime rule for orders delivered before the effective date.",
+    "REFUND-SPEC-F-2 (Critical/P0) — R-2 and R-7 state mutually exclusive timing behavior; no implementation satisfies both and neither is measurable."
+  ],
+  "not_tested": [
+    "No implementation exists; nothing was executed. This report contains no evidence about actual behavior.",
+    "No code, test suite, coverage, or mutation data — suite quality unmeasured, no tooling present and none installed.",
+    "Dependency audit and diff secret scan not run (Security-Pass: disabled; no code or dependencies present).",
+    "Non-functional requirements beyond latency (throughput, availability, data retention, PCI/PSD2/consumer-law compliance, UI accessibility) — out of scope this pass and also absent from the spec; separate compliance review recommended.",
+    "Payment provider's own refund rules (provider refund window, partial-refund support, reversal semantics) — no provider is named in the spec; F-5 and F-13 depend on capabilities that must be confirmed.",
+    "Product intent — internal consistency and testability were judged, not whether the policy is the right policy."
+  ],
+  "next_run_focus": [
+    "Re-check F-1 first: has SPEC.md been reconciled with CHANGELOG.md REF-88, and does it now state the pre/post 2026-07-02 regime split and the changeover boundary rule?",
+    "Verify R-3 (SPEC.md:10) was deleted rather than reworded — a reworded 'performant and robust' is the same finding and must stay open as STILL_OPEN, not RESOLVED.",
+    "Check whether R-8 gained cumulative semantics and an 'order total' definition (F-4); this gates F-9, F-15, F-16.",
+    "Check whether a refund state machine was published (F-10); F-5, F-6, F-12 cannot resolve before it.",
+    "Confirm every <ANGLE_BRACKET> parameter in the report's section 3 acceptance criteria has been replaced with a concrete value; each remaining bracket is an unresolved owner decision.",
+    "Fill in profile.md isolation TODOs before any execution-phase run; without them, activities 5-6 are blocked by §0.",
+    "Age all 19 findings; expect REGRESSED reporting if a resolved contradiction reappears in a later draft."
+  ]
+}

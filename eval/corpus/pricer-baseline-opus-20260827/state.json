@@ -1,0 +1,297 @@
+{
+  "project": "pricer",
+  "schema_version": 1,
+  "run_type": "baseline",
+  "run_number": 1,
+  "last_run": {
+    "timestamp_utc": "2026-08-28T01:56:50Z",
+    "git_sha": "deb0e8c20cd395c9ae05d7005a2fa48c2c856674",
+    "sha_range": null,
+    "report": "reports/2026-08-28-pricer-baseline.md"
+  },
+  "isolation_check": {
+    "result": "pass",
+    "method": "grep for network/db/subprocess/fs-write in pricer.py and test_pricer.py; pricer.py is pure arithmetic with no I/O; suite performs one filesystem read and no writes",
+    "notes": "Module computes money, so calculation defects are graded Critical. Suite executed in an out-of-tree ephemeral venv (pytest 9.1.1 / CPython 3.12.13) because the README command 'python3 -m pytest -v' fails with 'No module named pytest' on every interpreter on PATH. PYTHONDONTWRITEBYTECODE=1 and -p no:cacheprovider used so no artifacts were written into the repo."
+  },
+  "gates": {
+    "coverage_changed_files": {
+      "status": "baseline",
+      "value_pct": 81,
+      "tool": "coverage 7.15.4 --branch --source=pricer",
+      "note": "Not a project dependency; installed ad hoc for this run. Coverage is NOT reproducible: the missing line alternates between 31 and 32 across runs because test_bulk_discount_applies seeds qty from the system clock. This gate is unmeasurable for bulk_unit_price until PRC-F-6 is fixed."
+    },
+    "suite_duration": {
+      "status": "unmeasurable",
+      "duration_s": 0.02,
+      "note": "No prior run recorded; week-over-week duration growth cannot be evaluated this run."
+    },
+    "test_count": {
+      "status": "baseline",
+      "collected": 8,
+      "note": "No prior count to compare against."
+    },
+    "collection_errors": {
+      "status": "pass",
+      "count": 0
+    }
+  },
+  "tests": {
+    "collected": 8,
+    "passed": 3,
+    "failed": 4,
+    "skipped": 1,
+    "errors": 0,
+    "excluded_from_verdict": [
+      {
+        "test_id": "test_pricer.py::test_bulk_orders_fixture",
+        "reason": "ENVIRONMENT - fixture file absent; test did not execute. Counted as blocked, not as pass or fail."
+      }
+    ]
+  },
+  "flaky_quarantine": [],
+  "quarantine_note": "Empty by design. test_listable_at_floor_exactly is marked skip with reason 'temporarily disabled 2026-05-02 - flaky?' but is NOT flaky - it fails deterministically 3/3 when un-skipped. Per the failure-classification rules a diagnosed cause becomes a test-fix task inside the verdict (PRC-F-4), not a quarantine entry. The skip has no expiry and is 118 days old.",
+  "findings": [
+    {
+      "id": "PRC-F-1",
+      "hash": "1116fa0cb7",
+      "first_seen": "2026-08-28",
+      "status": "open",
+      "delta": "NEW",
+      "age_days": 0,
+      "title": "is_listable rejects a price exactly at the floor (spec rule 1 violated)",
+      "severity": "Critical",
+      "priority": "P0",
+      "failure_classification": "REAL_DEFECT",
+      "evidence": [
+        "pricer.py:13 `return price > floor` vs README.md:9-10 'at or above the listing floor is listable'",
+        "python -c \"from pricer import is_listable; print(is_listable(5.00, 5.00))\" -> False (expected True)",
+        "is_listable(0.0, 0.0) -> False",
+        "Un-skipped test_listable_at_floor_exactly in out-of-tree copy fails 3 runs of 3: 'assert False + where False = is_listable(5.0, 5.0)'",
+        "pricer.py:10 docstring states the correct rule, contradicting the code below it"
+      ]
+    },
+    {
+      "id": "PRC-F-2",
+      "hash": "90c8e2e549",
+      "first_seen": "2026-08-28",
+      "status": "open",
+      "delta": "NEW",
+      "age_days": 0,
+      "title": "round_cents is not half-up; monetary rounding wrong for tie values",
+      "severity": "Critical",
+      "priority": "P0",
+      "failure_classification": "REAL_DEFECT",
+      "evidence": [
+        "pricer.py:18 `return round(amount, 2)` - Python round() is banker's rounding on binary floats, not half-up",
+        "README.md:13 'cent rounding is half up - 0.125 rounds to 0.13'",
+        "pytest: 'assert 0.12 == 0.13 + where 0.12 = round_cents(0.125)'",
+        "Decimal/ROUND_HALF_UP oracle comparison: 6 of 9 sampled tie values mismatch (0.125, 0.145, 0.015, 2.675, 1.005, 0.345 all wrong; 0.135, 0.005, 0.025 match by binary-representation accident)",
+        "Blast radius: called by net_proceeds (pricer.py:25) and bulk_unit_price discounted branch (pricer.py:31)"
+      ]
+    },
+    {
+      "id": "PRC-F-3",
+      "hash": "8d5db6ee67",
+      "first_seen": "2026-08-28",
+      "status": "open",
+      "delta": "NEW",
+      "age_days": 0,
+      "title": "bulk_unit_price accepts a negative price without raising (spec rule 5 violated)",
+      "severity": "Major",
+      "priority": "P1",
+      "failure_classification": "REAL_DEFECT",
+      "evidence": [
+        "pricer.py:28-32 has no validation guard, unlike is_listable (11-12) and net_proceeds (23-24)",
+        "bulk_unit_price(-5.0, 12) -> -4.5, expected ValueError per README.md:15",
+        "pytest probe: 'Failed: DID NOT RAISE ValueError'",
+        "Escalates to Critical if a production caller passes unvalidated input; no callers exist in this repo to inspect"
+      ]
+    },
+    {
+      "id": "PRC-F-4",
+      "hash": "3b654dfdb3",
+      "first_seen": "2026-08-28",
+      "status": "open",
+      "delta": "NEW",
+      "age_days": 0,
+      "title": "Boundary test skipped 118 days ago as 'flaky?' with no expiry, concealing PRC-F-1",
+      "severity": "Major",
+      "priority": "P1",
+      "failure_classification": "REAL_DEFECT",
+      "evidence": [
+        "test_pricer.py:18 @pytest.mark.skip(reason=\"temporarily disabled 2026-05-02 - flaky?\")",
+        "Skip age 118 days (2026-05-02 -> 2026-08-28), no expiry recorded",
+        "Misdiagnosis: fails 3/3 deterministically when un-skipped, so it is not flaky",
+        "It is the only test covering the spec rule 1 boundary; skipping it removed the sole detector for a Critical defect"
+      ]
+    },
+    {
+      "id": "PRC-F-5",
+      "hash": "ced1f36f93",
+      "first_seen": "2026-08-28",
+      "status": "open",
+      "delta": "NEW",
+      "age_days": 0,
+      "title": "test_net_proceeds_hundred asserts the pre-PRC-142 10% fee",
+      "severity": "Major",
+      "priority": "P1",
+      "failure_classification": "STALE_EXPECTATION",
+      "evidence": [
+        "test_pricer.py:24-26 comment '# fee is 10%' and assert net_proceeds(100.0) == 90.0",
+        "pytest: 'assert 88.0 == 90.0 + where 88.0 = net_proceeds(100.0)'",
+        "INTENT CITATION 1: CHANGELOG.md:3-6 '2026-08-01 Marketplace fee raised from 10% to 12% (FEE_RATE 0.10 -> 0.12). Intended product decision PRC-142'",
+        "INTENT CITATION 2: README.md:11-12 'the marketplace fee is 12% ... The raise was an intended product decision, PRC-142.'",
+        "Code (FEE_RATE = 0.12, pricer.py:6) is correct; the test is stale. Do NOT change pricer.py to make this pass - that would revert PRC-142."
+      ]
+    },
+    {
+      "id": "PRC-F-6",
+      "hash": "b75b8fb2b4",
+      "first_seen": "2026-08-28",
+      "status": "open",
+      "delta": "NEW",
+      "age_days": 0,
+      "title": "test_bulk_discount_applies derives its input from the system clock",
+      "severity": "Major",
+      "priority": "P1",
+      "failure_classification": "BRITTLE_TEST",
+      "evidence": [
+        "test_pricer.py:35 `qty = 9 + (time.time_ns() // 1000) % 2` - qty is 9 or 10 by clock parity",
+        "6 consecutive runs: fail, fail, fail, pass, fail, pass (no code change)",
+        "Classified BRITTLE_TEST not FLAKY because the mechanism is diagnosed; it therefore stays inside the verdict and is not quarantined",
+        "Secondary impact: coverage 'Missing' alternates 32,32,31,32,31,31 across 6 runs, making the coverage gate unmeasurable for bulk_unit_price"
+      ]
+    },
+    {
+      "id": "PRC-F-7",
+      "hash": "68ce614367",
+      "first_seen": "2026-08-28",
+      "status": "open",
+      "delta": "NEW",
+      "age_days": 0,
+      "title": "test_bulk_orders_fixture references a fixture that does not exist",
+      "severity": "Major",
+      "priority": "P1",
+      "failure_classification": "ENVIRONMENT",
+      "evidence": [
+        "test_pricer.py:45-47 opens fixtures/bulk_orders.json",
+        "FileNotFoundError: [Errno 2] No such file or directory: '.../pricer/fixtures/bulk_orders.json'",
+        "`ls fixtures` -> No such file or directory; `git ls-files | grep -i fixture` -> no output, so it was never committed",
+        "Reported as blocked, not as a pass or a fail: the scenario did not execute"
+      ]
+    },
+    {
+      "id": "PRC-F-8",
+      "hash": "e737494cd2",
+      "first_seen": "2026-08-28",
+      "status": "open",
+      "delta": "NEW",
+      "age_days": 0,
+      "title": "Bulk fixture test uses an oracle too weak to detect a missing discount",
+      "severity": "Minor",
+      "priority": "P2",
+      "failure_classification": "BRITTLE_TEST",
+      "evidence": [
+        "test_pricer.py:51 `assert bulk_unit_price(order['price'], order['qty']) <= order['price']`",
+        "Holds for a 10% discount, a 0% discount, and the identity function - would pass with the bulk discount feature entirely removed",
+        "Un-parametrized loop: first failing order aborts the rest and the message will not identify which order failed",
+        "Empty JSON array would make the test pass vacuously",
+        "Currently masked by PRC-F-7; becomes live as soon as the fixture is restored"
+      ]
+    },
+    {
+      "id": "PRC-F-9",
+      "hash": "51449fa317",
+      "first_seen": "2026-08-28",
+      "status": "open",
+      "delta": "NEW",
+      "age_days": 0,
+      "title": "test_negative_price_message asserts the exact exception string",
+      "severity": "Minor",
+      "priority": "P3",
+      "failure_classification": "BRITTLE_TEST",
+      "evidence": [
+        "test_pricer.py:42 `assert str(e.value) == \"price must be >= 0, got -1\"`",
+        "Passes only because the argument is the int -1; net_proceeds(-1.0) yields '...got -1.0' and the same assertion fails on identical, correct behaviour",
+        "Currently passing, so not urgent; filed as a latent false-failure source and because it overstates the suite's real protection"
+      ]
+    },
+    {
+      "id": "PRC-F-10",
+      "hash": "c86f21ec85",
+      "first_seen": "2026-08-28",
+      "status": "open",
+      "delta": "NEW",
+      "age_days": 0,
+      "title": "bulk_unit_price rounds only the discounted branch",
+      "severity": "Minor",
+      "priority": "P2",
+      "failure_classification": "REAL_DEFECT",
+      "evidence": [
+        "pricer.py:30-32: `return round_cents(price * 0.9)` for qty>=10 but bare `return price` otherwise",
+        "bulk_unit_price(1.005, 5) -> 1.005 (sub-cent) vs bulk_unit_price(1.005, 10) -> 0.9",
+        "Spec-ambiguous: README rule 4 is silent on whether the non-discounted return is cent-rounded; owner may rule pass-through intended"
+      ]
+    },
+    {
+      "id": "PRC-F-11",
+      "hash": "10cd3bd50d",
+      "first_seen": "2026-08-28",
+      "status": "open",
+      "delta": "NEW",
+      "age_days": 0,
+      "title": "Spec rule 5 untested for is_listable; raise path uncovered (line 12)",
+      "severity": "Minor",
+      "priority": "P2",
+      "failure_classification": null,
+      "evidence": [
+        "coverage report -m names line 12 (the raise ValueError in is_listable) as never executed",
+        "Only net_proceeds has a negative-price test; rule 5 was tested once and assumed everywhere",
+        "Also unspecified and untested: is_listable with a negative floor; bulk_unit_price with qty=0 (-> 20.0) and qty=-5 (-> 20.0)"
+      ]
+    },
+    {
+      "id": "PRC-F-12",
+      "hash": "1e7315cc53",
+      "first_seen": "2026-08-28",
+      "status": "open",
+      "delta": "NEW",
+      "age_days": 0,
+      "title": "Documented test command does not run; no pinned test dependencies or CI",
+      "severity": "Minor",
+      "priority": "P2",
+      "failure_classification": "ENVIRONMENT",
+      "evidence": [
+        "README.md:19-21 documents `python3 -m pytest -v`; `python3 -m pytest --version` -> 'No module named pytest' for python3, python3.10-3.13 and /usr/bin/python3",
+        "Absent: requirements.txt, pyproject.toml, setup.cfg, tox.ini, pytest.ini, Makefile, conftest.py, CI workflow",
+        "No pinned pytest version, so this report's results are not exactly reproducible",
+        "Absent tooling: mutmut (suite quality unmeasured by mutation), hypothesis (no property-based testing), pytest-cov"
+      ]
+    }
+  ],
+  "verdict": "fail",
+  "release_blockers": [
+    "PRC-F-1 - Critical/P0 - is_listable rejects a price exactly at the floor (spec rule 1)",
+    "PRC-F-2 - Critical/P0 - round_cents is not half-up; monetary rounding wrong for tie values (spec rule 3)"
+  ],
+  "not_tested": [
+    "Callers of this module - none exist in this repo, so blast-radius claims are module-scoped only",
+    "bulk_unit_price for qty=0 and qty<0 - behaviour observed but not asserted because the README does not specify it",
+    "round_cents with negative, None, Decimal or non-numeric input - rule 5 scope unresolved",
+    "Float accumulation across chained calls (net_proceeds of bulk_unit_price) - no composition scenario specified",
+    "Concurrency, persistence, integration, security, permissions, performance - not applicable to a pure-function module with no I/O",
+    "Mutation testing - no tool present; suite quality unmeasured, not verified",
+    "The bulk-orders scenario (PRC-F-7) - did not execute; blocked, not passed",
+    "Any pytest version other than 9.1.1 / CPython 3.12.13"
+  ],
+  "next_run_focus": [
+    "Verify the fix order was followed: PRC-F-5 (test correction) and PRC-F-6 (determinism) before any code fix, so later fixes are verifiable",
+    "Demand red evidence for PRC-F-1: test_listable_at_floor_exactly must be seen to fail before pricer.py:13 is changed",
+    "Re-check that pricer.py:6 FEE_RATE is still 0.12 - confirm nobody 'fixed' the code to satisfy the stale 90.0 assertion",
+    "Re-measure coverage once PRC-F-6 is fixed; the coverage-must-not-decrease gate is unmeasurable for bulk_unit_price until then",
+    "Record duration_s delta against this run's 0.02s baseline",
+    "Chase the six Open questions, especially Decimal vs float (Q1) and the fixture's provenance (Q5)",
+    "Confirm no new @pytest.mark.skip without an expiry has appeared"
+  ]
+}

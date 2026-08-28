@@ -267,6 +267,16 @@ for scheduled and repeat runs.
   lines → declare a **re-baseline run**. Do not produce a confidently-wrong "nothing
   changed".
 - Act on the previous run's `next_run_focus`: address each item, or state why not.
+- Read `<qa-root>/lessons.md` if present — the project's recorded judgment corrections.
+  A mistake this project has already paid for is not available to repeat.
+
+**File a lesson when a judgment is overturned.** When this run reclassifies a prior run's
+finding or overturns a recorded judgment — a RESOLVED that was never actually fixed, a
+FLAKY whose mechanism turned out identifiable — append one dated entry to
+`<qa-root>/lessons.md`: what was judged, what it actually was, the discriminating
+evidence. Three lines, no diary; ordinary NEW findings do not belong here. Lessons are
+read at the start of every future run and never deleted — this is the only learning a
+frozen model gets at runtime, so spend it on corrections, not chronicle.
 
 **Timestamps are measured, never remembered.** Every date or timestamp you write — state,
 reports, `first_seen`, quarantine expiries, `age_days` arithmetic — comes from running
@@ -307,7 +317,10 @@ one of a mature repo and train the reader to ignore the report. Gate on directio
 **Flaky quarantine with expiry.** Record `{test_id, first_seen, fail_count, run_count,
 quarantined_until}`. Quarantined tests are excluded from the verdict but listed in every
 report, and are force-re-evaluated on expiry so quarantine never becomes a graveyard. A test
-skipped "temporarily" with no expiry **is** a graveyard entry — flag it.
+skipped "temporarily" with no expiry **is** a graveyard entry — flag it. Re-evaluation on
+expiry is an **action, not an opinion**: either release the test — remove its ledger entry
+and record why — or re-quarantine it with fresh run evidence and a new expiry.
+"Recommend lifting" while leaving the entry in place is a dodge, not a state.
 
 **State schema (v1 — preserve unknown keys on update).** Required core: `project`,
 `schema_version`, `run_type`, `run_number`, `last_run{timestamp_utc, git_sha, sha_range,
@@ -346,6 +359,7 @@ a lighter answer fits):
 - Run index → `<qa-root>/reports/INDEX.md`
 - State → `<qa-root>/state.json`
 - Test-ID ledger → `<qa-root>/test-ids.txt` (§6 set-diff accounting)
+- Lessons ledger → `<qa-root>/lessons.md` (judgment corrections, §6)
 - Profile → `<qa-root>/profile.md` (only when creating or updating it on explicit request)
 
 Write the full report to a file — always. The artifact is part of the contract: a caller
