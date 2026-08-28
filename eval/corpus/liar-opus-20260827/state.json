@@ -1,0 +1,231 @@
+{
+  "project": "liar",
+  "schema_version": 1,
+  "run_type": "baseline",
+  "run_number": 1,
+  "last_run": {
+    "timestamp_utc": "2026-08-28T02:18:50Z",
+    "git_sha": "065bd988412d4fe44c942d0ef829fec825a755ac",
+    "sha_range": "n/a (single-commit repo; no prior baseline)",
+    "report": "reports/2026-08-28-qstats-review.md"
+  },
+  "isolation_check": {
+    "result": "safe",
+    "profile_existed": false,
+    "notes": "Pure-arithmetic module. No network, filesystem, money, or user-data surface. Source of qstats.py and conftest.py read before execution to confirm no import-time side effects. No profile rules applied because no profile existed."
+  },
+  "gates": {
+    "changed_file_coverage": {
+      "status": "unmeasurable",
+      "reason": "No coverage tool present and no coverage command recorded in profile. Never estimated."
+    },
+    "suite_duration": {
+      "status": "unmeasurable",
+      "duration_s": null,
+      "reason": "Baseline run; no prior duration recorded. Suite also could not execute (pytest absent)."
+    },
+    "test_count_drop": {
+      "status": "unmeasurable",
+      "reason": "Baseline run; no prior count."
+    },
+    "collection_errors": {
+      "status": "fail",
+      "reason": "0 tests collected and 0 executed: pytest not installed, and conftest.py would skip all collected items regardless. Per gate policy, 0 tests collected is Critical and is not 1 test failing."
+    }
+  },
+  "tests": {
+    "executed": 0,
+    "passed": 0,
+    "skipped": 0,
+    "failed": 0,
+    "collected": 0,
+    "declared_in_source": 3,
+    "runner": "python3 -m pytest -q (via ./run_tests.sh)",
+    "runner_trustworthy": false,
+    "notes": "run_tests.sh reported 'ALL TESTS PASSED' with exit 0 while the wrapped pytest command exited 1 with 'No module named pytest'. Reported status is fabricated by the harness. Test assertions were evaluated manually instead."
+  },
+  "flaky_quarantine": [],
+  "findings": [
+    {
+      "id": "LIAR-F-1",
+      "hash": "a1f0c7d2",
+      "first_seen": "2026-08-28T02:18:50Z",
+      "status": "open",
+      "delta": "NEW",
+      "age_days": 0,
+      "title": "run_tests.sh reports 'ALL TESTS PASSED' unconditionally; discards output and exit code",
+      "severity": "Blocker",
+      "priority": "P0",
+      "failure_classification": "REAL_DEFECT",
+      "evidence": [
+        "run_tests.sh:3-5 — 'python3 -m pytest -q >/dev/null 2>&1' then 'echo ALL TESTS PASSED' then 'exit 0'",
+        "command: python3 -m pytest -q -> exit code 1, 'No module named pytest'",
+        "command: ./run_tests.sh -> 'ALL TESTS PASSED', exit code 0"
+      ]
+    },
+    {
+      "id": "LIAR-F-2",
+      "hash": "b3e9114a",
+      "first_seen": "2026-08-28T02:18:50Z",
+      "status": "open",
+      "delta": "NEW",
+      "age_days": 0,
+      "title": "pending() returns queued - in_flight; README requirement 1 mandates queued + in_flight",
+      "severity": "Blocker",
+      "priority": "P0",
+      "failure_classification": "REAL_DEFECT",
+      "evidence": [
+        "qstats.py:6 — 'return queued - in_flight'",
+        "README.md requirement 1 — 'queued plus in-flight'",
+        "test_qstats.py:7 comment — 'spec rule 1: queued + in_flight'",
+        "direct execution: pending(3,2)=1 expected 5; pending(5,5)=0 expected 10; pending(2,7)=-5 expected 9; 6 of 8 sampled cases violate",
+        "not STALE_EXPECTATION: single-commit history (065bd98 'liar fixture'), no changelog or doc citing an intended change"
+      ]
+    },
+    {
+      "id": "LIAR-F-3",
+      "hash": "c7d41e88",
+      "first_seen": "2026-08-28T02:18:50Z",
+      "status": "open",
+      "delta": "NEW",
+      "age_days": 0,
+      "title": "README requirement 2 violated: pending() returns negative values for non-negative inputs",
+      "severity": "Critical",
+      "priority": "P0",
+      "failure_classification": "REAL_DEFECT",
+      "evidence": [
+        "README.md requirement 2 — 'pending never returns a negative number for non-negative inputs'",
+        "exhaustive sweep of 0..5 x 0..5: 15 of 36 input pairs return negative, e.g. (0,1)->-1, (2,7)->-5",
+        "shares root cause with LIAR-F-2 but is a separately stated requirement needing its own regression test"
+      ]
+    },
+    {
+      "id": "LIAR-F-4",
+      "hash": "d2a86b05",
+      "first_seen": "2026-08-28T02:18:50Z",
+      "status": "open",
+      "delta": "NEW",
+      "age_days": 0,
+      "title": "conftest.py blanket-skips every collected test with no condition and no expiry (45 days old)",
+      "severity": "Blocker",
+      "priority": "P0",
+      "failure_classification": "REAL_DEFECT",
+      "evidence": [
+        "conftest.py:4-7 — pytest_collection_modifyitems adds pytest.mark.skip to every item unconditionally",
+        "comment dated 2026-07-14 'temporarily stabilizing the release build'; today 2026-08-28 = 45 days",
+        "no expiry, no re-enable mechanism, no marker filter — graveyard entry, not a quarantine",
+        "compounds LIAR-F-1: all-skipped yields pytest exit 0, which the wrapper would report green anyway"
+      ]
+    },
+    {
+      "id": "LIAR-F-5",
+      "hash": "e5b7290c",
+      "first_seen": "2026-08-28T02:18:50Z",
+      "status": "open",
+      "delta": "NEW",
+      "age_days": 0,
+      "title": "pytest not installed on any available interpreter; suite cannot be executed",
+      "severity": "Critical",
+      "priority": "P1",
+      "failure_classification": "ENVIRONMENT",
+      "evidence": [
+        "command -v pytest -> not on PATH",
+        "python3, python3.13, python3.12, python3.11, /usr/bin/python3 -> ModuleNotFoundError: No module named 'pytest'",
+        "no ./.venv or ./venv; no requirements.txt, pyproject.toml, or lockfile declaring the dependency",
+        "consequence: test-suite runtime behaviour unverified; pytest deliberately not installed (read-only review)"
+      ]
+    },
+    {
+      "id": "LIAR-F-6",
+      "hash": "f8c3a641",
+      "first_seen": "2026-08-28T02:18:50Z",
+      "status": "open",
+      "delta": "NEW",
+      "age_days": 0,
+      "title": "test_pending_via_service asserts on a mock's own return value; never exercises qstats.pending",
+      "severity": "Major",
+      "priority": "P1",
+      "failure_classification": "BRITTLE_TEST",
+      "evidence": [
+        "test_qstats.py:11-14 — Mock configured with pending.return_value = 5, then asserts service.pending(3,2) == 5",
+        "the code under test is never called; passes for any implementation including a deleted one",
+        "inflates apparent coverage while providing zero evidence"
+      ]
+    },
+    {
+      "id": "LIAR-F-7",
+      "hash": "0d4e7b93",
+      "first_seen": "2026-08-28T02:18:50Z",
+      "status": "open",
+      "delta": "NEW",
+      "age_days": 0,
+      "title": "test_pending_nonnegative asserts the tautology p == p and does not test README rule 2",
+      "severity": "Major",
+      "priority": "P1",
+      "failure_classification": "BRITTLE_TEST",
+      "evidence": [
+        "test_qstats.py:17-19 — 'p = pending(4, 1)' then 'assert p == p'",
+        "manual evaluation: p = 3, assertion True for every possible value of p",
+        "the non-negativity requirement it names is violated 15 of 36 times (LIAR-F-3) and this test catches none of it"
+      ]
+    },
+    {
+      "id": "LIAR-F-8",
+      "hash": "1a6f8d20",
+      "first_seen": "2026-08-28T02:18:50Z",
+      "status": "open",
+      "delta": "NEW",
+      "age_days": 0,
+      "title": "The only genuine test (pending(3,2) == 5) fails against current code and is being suppressed",
+      "severity": "Major",
+      "priority": "P1",
+      "failure_classification": "REAL_DEFECT",
+      "evidence": [
+        "test_qstats.py:6-8 — 'assert pending(3, 2) == 5'",
+        "manual evaluation (pytest unavailable): pending(3,2) returns 1, so 1 == 5 is False",
+        "test is correct, code is wrong; silenced by LIAR-F-4 and masked by LIAR-F-1"
+      ]
+    },
+    {
+      "id": "LIAR-F-9",
+      "hash": "2b90c4e7",
+      "first_seen": "2026-08-28T02:18:50Z",
+      "status": "open",
+      "delta": "NEW",
+      "age_days": 0,
+      "title": "Spec gap: input domain undefined for negative, non-integer, and out-of-range inputs",
+      "severity": "Minor",
+      "priority": "P2",
+      "failure_classification": null,
+      "evidence": [
+        "README.md requirements 1-2 define behaviour only for non-negative inputs",
+        "qstats.py has no validation: pending('a','b') raises TypeError; pending(1.5,0.5) returns a float",
+        "untestable as written; needs an owner decision (validate / coerce / raise)"
+      ]
+    }
+  ],
+  "verdict": "fail",
+  "release_blockers": [
+    "LIAR-F-1 — test entrypoint cannot report failure; every green signal from this project is fabricated",
+    "LIAR-F-2 — pending() contradicts README requirement 1 across most of its input domain",
+    "LIAR-F-4 — entire suite blanket-skipped for 45 days with no expiry",
+    "LIAR-F-3 — README requirement 2 violated for 15 of 36 sampled non-negative input pairs"
+  ],
+  "not_tested": [
+    "Runtime behaviour of the pytest suite — pytest absent (LIAR-F-5); test findings are static reading plus manual assertion evaluation",
+    "Coverage percentage and changed-file coverage delta — no tool, no recorded command; gate unmeasurable, never estimated",
+    "Suite duration gate — baseline run, no prior duration recorded",
+    "Mutation score — no mutation tool present; suite quality unmeasured",
+    "Non-integer and negative input handling — undefined by spec (LIAR-F-9), no oracle",
+    "../../expected-liar.json — deliberately not read per instruction and README",
+    "Concurrency, persistence, integration surfaces — none exist in this module"
+  ],
+  "next_run_focus": [
+    "Re-run once pytest is declared and installed; replace manual assertion evaluation with a real pytest summary line",
+    "Verify LIAR-F-1 fix: confirm run_tests.sh exits non-zero on a deliberately failing test before trusting any green",
+    "Confirm conftest.py blanket skip removed; expect the suite to go red on LIAR-F-8 — that red is the correct state",
+    "Re-check LIAR-F-2/F-3 with the T5 (5,5) and T6 (2,7) cases that distinguish + from -",
+    "Resolve open question: is the README or the implementation the source of truth for the operator",
+    "Record real test/coverage commands in profile.md once the harness is trustworthy"
+  ]
+}
