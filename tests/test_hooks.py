@@ -125,13 +125,16 @@ def test_write_blocks_symlink_escape_from_inside_qa(tmp_path):
 
 
 def test_bash_blocks_symlink_escape_from_inside_qa(tmp_path):
-    outside = tmp_path / "outside"
-    outside.mkdir()
+    # The escape target must live outside the guard's scratch allow-list: on
+    # Linux, pytest's tmp_path is under /tmp, which the Bash guard rightly
+    # allows — so the symlink points at a fictional non-scratch path (symlink
+    # creation does not require the target to exist, and realpath resolves it
+    # regardless).
     qa = tmp_path / "repo" / ".qa"
     qa.mkdir(parents=True)
     link = qa / "link"
     try:
-        link.symlink_to(outside)
+        link.symlink_to("/fictional-escape-target")
     except OSError:
         pytest.skip("symlinks unavailable on this platform")
     rc, _ = run_hook("enforce_bash_scope.py",
