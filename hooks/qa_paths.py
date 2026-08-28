@@ -10,15 +10,19 @@ import os
 
 def solo_root() -> str:
     root = os.environ.get("VERDICT_HOME") or "~/.claude/verdict"
-    return os.path.normpath(os.path.abspath(os.path.expanduser(root)))
+    return os.path.realpath(os.path.expanduser(root))
 
 
 def is_allowed_path(path: str) -> bool:
     """True when `path` is inside a QA root. Empty paths are allowed — there
-    is nothing to judge, and the permission system still applies."""
+    is nothing to judge, and the permission system still applies.
+
+    Resolved with realpath, not abspath: a symlink planted inside a `.qa/`
+    directory must not launder a write to wherever it points (VERDICT-F-1,
+    found by Verdict reviewing its own repository)."""
     if not path:
         return True
-    p = os.path.normpath(os.path.abspath(os.path.expanduser(path)))
+    p = os.path.realpath(os.path.expanduser(path))
     if ".qa" in p.split(os.sep):
         return True
     root = solo_root()

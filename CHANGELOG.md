@@ -3,6 +3,20 @@
 Plugin and `verdict-mcp` share one version line; `.claude-plugin/plugin.json` and
 `pyproject.toml` are bumped together.
 
+## 0.12.1 — 2026-08-28 · security: symlink escape in the scope guards
+
+Found by Verdict itself, in the first run of the self-gating baseline
+(VERDICT-F-1, Major/P1): both scope guards resolved paths with `abspath`, so a
+symlink planted inside a `.qa/` directory laundered writes to wherever it
+pointed. The shared predicate now uses `realpath`; a write through a
+`.qa`-resident symlink to the outside is denied by both the Write/Edit guard
+and the strict-mode Bash guard, with escape tests for each. Also
+VERDICT-F-3: CI's extra `-q` on top of pyproject's `addopts = "-q"` made
+`-qq` — the exact countable-summary trap our own liar fixture seeds — removed.
+
+The repository now gates its own pull requests (keyless Action gate mode over
+committed team-mode `.qa/` state); these findings came from that run.
+
 ## 0.12.0 — 2026-08-28 · "reward, done honestly"
 
 Reinforcement without self-deception: the score selects configurations, memory carries the

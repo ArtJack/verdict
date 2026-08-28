@@ -60,7 +60,7 @@ def _strict() -> bool:
 def _tmp_roots():
     roots = {"/tmp", "/private/tmp",
              tempfile.gettempdir(), os.environ.get("TMPDIR") or ""}
-    return [os.path.normpath(r) for r in roots if r]
+    return [os.path.realpath(r) for r in roots if r]
 
 
 def _resolve(target: str, cwd: str) -> str | None:
@@ -84,6 +84,10 @@ def _target_ok(target: str, cwd: str) -> tuple[bool, str]:
     resolved = _resolve(target, cwd)
     if resolved is None:
         return False, f"{target} (unresolved $variable — use a literal path)"
+    # realpath BEFORE the scratch check: a symlink sitting inside /tmp (or
+    # inside .qa/) that points outside must not launder the write through the
+    # allow-list — VERDICT-F-1, applied consistently.
+    resolved = os.path.realpath(resolved)
     for root in _tmp_roots():
         if resolved == root or resolved.startswith(root + os.sep):
             return True, resolved
