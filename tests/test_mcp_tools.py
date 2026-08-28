@@ -103,10 +103,11 @@ INDEX = """# QA Reports Index
 def solo_home(tmp_path, monkeypatch):
     root = tmp_path / "verdict-home" / "pricer"
     (root / "reports").mkdir(parents=True)
-    (root / "state.json").write_text(json.dumps(STATE))
-    (root / "reports" / "INDEX.md").write_text(INDEX)
+    (root / "state.json").write_text(json.dumps(STATE), encoding="utf-8")
+    (root / "reports" / "INDEX.md").write_text(INDEX, encoding="utf-8")
     (root / "reports" / "2026-08-24-payment-retry.md").write_text(
-        "# QA delta report — pricer run 4\n\nREGRESSED first, as always.\n")
+        "# QA delta report — pricer run 4\n\nREGRESSED first, as always.\n",
+        encoding="utf-8")
     monkeypatch.setenv("VERDICT_HOME", str(tmp_path / "verdict-home"))
     return root
 
@@ -117,7 +118,7 @@ def team_repo(tmp_path, monkeypatch):
     monkeypatch.setenv("VERDICT_HOME", str(tmp_path / "empty-home"))
     repo = tmp_path / "myapp"
     (repo / ".qa" / "reports").mkdir(parents=True)
-    (repo / ".qa" / "state.json").write_text(json.dumps({**STATE, "project": "myapp"}))
+    (repo / ".qa" / "state.json").write_text(json.dumps({**STATE, "project": "myapp"}), encoding="utf-8")
     return repo
 
 
@@ -224,7 +225,7 @@ def test_get_report_accepts_absolute_inside_root(solo_home):
 
 def test_get_report_rejects_traversal(solo_home, tmp_path):
     outside = tmp_path / "secret.md"
-    outside.write_text("secret")
+    outside.write_text("secret", encoding="utf-8")
     for attempt in ("../../secret.md", str(outside), "../" * 8 + "etc/passwd.md"):
         out = server.get_report("pricer", attempt)
         assert "error" in out and "content" not in out, attempt
@@ -232,7 +233,7 @@ def test_get_report_rejects_traversal(solo_home, tmp_path):
 
 def test_get_report_rejects_symlink_escape(solo_home, tmp_path):
     outside = tmp_path / "outside.md"
-    outside.write_text("secret")
+    outside.write_text("secret", encoding="utf-8")
     link = solo_home / "reports" / "link.md"
     try:
         link.symlink_to(outside)
@@ -243,12 +244,12 @@ def test_get_report_rejects_symlink_escape(solo_home, tmp_path):
 
 
 def test_get_report_serves_markdown_only(solo_home):
-    (solo_home / "reports" / "x.txt").write_text("t")
+    (solo_home / "reports" / "x.txt").write_text("t", encoding="utf-8")
     assert "error" in server.get_report("pricer", "reports/x.txt")
 
 
 def test_get_report_truncates_oversize(solo_home):
-    (solo_home / "reports" / "big.md").write_text("A" * (513 * 1024))
+    (solo_home / "reports" / "big.md").write_text("A" * (513 * 1024), encoding="utf-8")
     out = server.get_report("pricer", "reports/big.md")
     assert out["truncated"] is True and len(out["content"]) == 512 * 1024
 
@@ -256,6 +257,6 @@ def test_get_report_truncates_oversize(solo_home):
 def test_get_profile_absent_then_present(solo_home):
     out = server.get_profile("pricer")
     assert "error" in out and "hint" in out
-    (solo_home / "profile.md").write_text("# QA Profile — pricer\n**Project-Key:** `pricer`\n")
+    (solo_home / "profile.md").write_text("# QA Profile — pricer\n**Project-Key:** `pricer`\n", encoding="utf-8")
     out = server.get_profile("pricer")
     assert out["content"].startswith("# QA Profile")

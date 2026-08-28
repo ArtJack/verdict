@@ -92,7 +92,7 @@ def score(qa_root: Path, expected: dict, mode: str | None, fixture_dir: Path | N
         result["hard_fails"].append("state_missing: the agent never wrote state.json")
         return result
     try:
-        state = json.loads(state_path.read_text())
+        state = json.loads(state_path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as exc:
         result["hard_fails"].append(f"state_unreadable: {exc}")
         return result
@@ -100,7 +100,7 @@ def score(qa_root: Path, expected: dict, mode: str | None, fixture_dir: Path | N
 
     rp = str((state.get("last_run") or {}).get("report") or "")
     report_path = Path(rp) if Path(rp).is_absolute() else qa_root / rp
-    report_raw = report_path.read_text() if rp and report_path.is_file() else None
+    report_raw = report_path.read_text(encoding="utf-8") if rp and report_path.is_file() else None
     if report_raw is None:
         result["hard_fails"].append(
             "report_missing: the report artifact is part of the contract (§7)")
@@ -203,7 +203,7 @@ def main(argv=None) -> int:
     ap.add_argument("--fixture-dir", type=Path, default=None)
     args = ap.parse_args(argv)
 
-    expected = json.loads(args.expected.read_text())
+    expected = json.loads(args.expected.read_text(encoding="utf-8"))
     result = score(args.qa_root, expected, args.mode, args.fixture_dir)
     print(json.dumps(result, indent=2))
     ok = not result["hard_fails"] and result["max"] > 0 and result["score"] == result["max"]

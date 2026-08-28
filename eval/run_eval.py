@@ -74,12 +74,12 @@ def overlay(src: Path, dst: Path):
 
 
 def provision_agent(checkout: Path):
-    agent = (REPO / "agents" / "verdict.md").read_text()
+    agent = (REPO / "agents" / "verdict.md").read_text(encoding="utf-8")
     agent = agent.replace("name: verdict", "name: verdict-rc", 1)
     agent = agent.replace("${CLAUDE_PLUGIN_ROOT}", str(REPO))
     target = checkout / ".claude" / "agents" / "verdict-rc.md"
     target.parent.mkdir(parents=True, exist_ok=True)
-    target.write_text(agent)
+    target.write_text(agent, encoding="utf-8")
 
 
 def run_agent(prompt, checkout, qa_home, model, timeout_s, base_env, log_path):
@@ -87,7 +87,7 @@ def run_agent(prompt, checkout, qa_home, model, timeout_s, base_env, log_path):
     proc = sh(["claude", "-p", prompt, "--model", model,
                "--setting-sources", "project", "--dangerously-skip-permissions"],
               cwd=checkout, env=env, timeout=timeout_s)
-    log_path.write_text(proc.stdout + ("\n--- stderr ---\n" + proc.stderr if proc.stderr else ""))
+    log_path.write_text(proc.stdout + ("\n--- stderr ---\n" + proc.stderr if proc.stderr else ""), encoding="utf-8")
     if proc.returncode != 0:
         raise RuntimeError(f"claude run failed rc={proc.returncode}; log: {log_path}")
 
@@ -143,10 +143,12 @@ def main() -> int:
             shutil.copytree(EVAL_DIR / "fixtures" / "golden", qa_root)
             state_file = qa_root / "state.json"
             state_file.write_text(
-                state_file.read_text().replace("@REV_A_SHA@", rev_a))
+                state_file.read_text(encoding="utf-8").replace("@REV_A_SHA@", rev_a),
+                encoding="utf-8")
             profile = qa_root / "profile.md"
             profile.write_text(
-                profile.read_text().replace("@FIXTURE_DIR@", str(checkout)))
+                profile.read_text(encoding="utf-8").replace("@FIXTURE_DIR@", str(checkout)),
+                encoding="utf-8")
 
         if args.mode in ("seeded", "live"):
             overlay(EVAL_DIR / "fixtures" / "pricer_rev_b", checkout)

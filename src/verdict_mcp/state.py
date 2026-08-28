@@ -75,7 +75,7 @@ def load_state(project: str) -> tuple[dict | None, dict | None]:
             "hint": "pass a project key from known_projects, or a repo path whose .qa/ holds state.json",
         }
     try:
-        state = json.loads((root / "state.json").read_text())
+        state = json.loads((root / "state.json").read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as exc:
         return None, {"error": f"state.json unreadable for {project!r}: {exc}"}
     state["_qa_root"] = str(root)
