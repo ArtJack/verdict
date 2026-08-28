@@ -1,0 +1,5 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Feature idea or QA-practice discussion
+    url: https://github.com/ArtJack/verdict/discussions
+    about: Techniques, workflow ideas, and "should Verdict judge X this way?" questions.
