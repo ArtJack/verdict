@@ -1,0 +1,52 @@
+{
+  "fixture": "pricer",
+  "phase": "baseline",
+  "comment": "Machine answer key for eval/fixtures/pricer, mirroring EXPECTED.md. Rows with a classification are matched first; matching is case-folded substring over each finding's title+evidence, one finding per row.",
+  "rows": [
+    {
+      "key": "1-floor-boundary",
+      "match_any": ["is_listable"],
+      "classification": "REAL_DEFECT"
+    },
+    {
+      "key": "4-bankers-rounding",
+      "match_any": ["round_cents"],
+      "classification": "REAL_DEFECT"
+    },
+    {
+      "key": "3-stale-fee-expectation",
+      "match_any": ["net_proceeds", "10%", "fee"],
+      "classification": "STALE_EXPECTATION",
+      "require_evidence_any": ["changelog", "prc-142"]
+    },
+    {
+      "key": "5-nondeterministic-bulk-discount",
+      "match_any": ["bulk_discount"],
+      "classification": ["FLAKY", "BRITTLE_TEST"],
+      "flaky_requires_quarantine": true,
+      "quarantine_match_any": ["bulk_discount"]
+    },
+    {
+      "key": "6-brittle-exact-message",
+      "match_any": ["negative_price_message"],
+      "classification": "BRITTLE_TEST"
+    },
+    {
+      "key": "7-environment-missing-fixture",
+      "match_any": ["bulk_orders"],
+      "classification": "ENVIRONMENT"
+    },
+    {
+      "key": "2-quarantine-graveyard-skip",
+      "match_any": ["skip", "no expiry", "graveyard"]
+    },
+    {
+      "key": "8-verdict",
+      "type": "verdict",
+      "expect": ["fail"]
+    }
+  ],
+  "prose": {
+    "forbid": ["no bugs found"]
+  }
+}

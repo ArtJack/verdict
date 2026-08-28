@@ -3,6 +3,35 @@
 Plugin and `verdict-mcp` share one version line; `.claude-plugin/plugin.json` and
 `pyproject.toml` are bumped together.
 
+## 0.4.0 — 2026-08-27 · "the tested tester, for real"
+
+The security control and the flagship behavior are now tested — by machines.
+
+- **Strict-mode Bash guard** ([hooks/enforce_bash_scope.py](hooks/enforce_bash_scope.py)):
+  under `VERDICT_STRICT=1`, the obvious Bash write channels — output redirection, `tee`,
+  `sed -i`, `rm`/`mv`/`cp` and friends, mutating `git` verbs — are denied when the target
+  lies outside the QA root. A deny-heuristic, not a sandbox; the README states exactly
+  which.
+- **Hook test suite** ([tests/test_hooks.py](tests/test_hooks.py)): traversal escapes,
+  `$VERDICT_HOME`, strict/non-strict matrix, chained commands, unresolved variables,
+  fail-open on garbage input. Both hooks now share one path predicate
+  ([hooks/qa_paths.py](hooks/qa_paths.py)) that honors `$VERDICT_HOME`.
+- **Deterministic eval scorer** ([eval/score.py](eval/score.py) + machine answer keys):
+  scores the state file, not the prose; hard-fails on a modified fixture, missing
+  state/report, a laundered pass, or a forbidden phrase. Unit-tested like any other code.
+- **Delta eval** — the flagship finally has a test:
+  [fixtures/pricer_rev_b](eval/fixtures/pricer_rev_b) plus an authored golden run-2
+  history; one run must produce `REGRESSED` (ranked first), `NEW`, `STILL_OPEN`,
+  `RESOLVED`, and release an expired quarantine, against a CHANGELOG decoy that tries to
+  launder the new defect. The committed rev-A→rev-B diff is CI-checked for drift.
+- **Adversarial honesty fixture** ([fixtures/liar](eval/fixtures/liar)): an always-green
+  test script, a skip-everything conftest, a mock-asserting test, a tautology — and the
+  real defect they hide.
+- **Eval harness** ([eval/run_eval.py](eval/run_eval.py)): isolated scratch repo, scratch
+  `VERDICT_HOME`, `--setting-sources project`; `baseline` | `seeded` | `live` modes.
+- **CI**: pytest matrix (3.10/3.13 × ubuntu/windows) and delta-diff freshness on every
+  push; model-run evals are weekly/dispatch-only and never gate a PR.
+
 ## 0.3.0 — 2026-08-27 · "trust the memory"
 
 Correctness release: everything the delta memory depends on is now specified mechanically

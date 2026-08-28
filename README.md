@@ -78,21 +78,32 @@ Artifact: .qa/reports/2026-08-24-pricer-review.md
 | Test design | "test edge cases" | 24-technique catalog with risk triggers — incl. property-based, metamorphic (for ML/LLM output), MC-DC, contract tests ([docs/test-design.md](docs/test-design.md)) |
 | Can edit your code | nothing stops it | no `Edit` tool + write-scope hook |
 | "No bugs found!" | frequently | never — coverage, gaps, and residual risk instead |
-| Tested itself | — | seeded-defect eval with a published answer key ([eval/](eval/)) |
+| Tested itself | — | scored eval suite: baseline + delta-memory + adversarial-honesty fixtures, deterministic scorer, published answer keys ([eval/](eval/)) |
 | State consumable by other tools | — | `verdict-mcp`: read-only MCP server over the state — works from Cursor, Codex, CI, any MCP client |
 
 ## The tested tester
 
 A QA agent that was never tested is exactly the kind of claim it should reject.
-[`eval/`](eval/) ships a fixture app with **8 seeded issues covering all five failure
-classifications** — including a boundary defect hidden behind a "temporarily" skipped test
-and a stale expectation whose intent citation sits in the CHANGELOG — plus the
-[answer key](eval/EXPECTED.md) and a scoring protocol. Results are published as measured;
-misses stay in the table.
+[`eval/`](eval/) is a scored eval suite with a **deterministic scorer** —
+[`score.py`](eval/score.py) reads the state file, not the prose — and three fixtures:
 
-First published run (2026-08-25, Opus, headless): **8/8** — every seeded issue found and
-correctly classified, plus three real findings beyond the answer key. Details and caveats
-in [eval/README.md](eval/README.md).
+- **Baseline** ([fixtures/pricer](eval/fixtures/pricer)): 8 seeded issues covering all
+  five failure classifications, including a boundary defect hidden behind a "temporarily"
+  skipped test and a stale expectation whose intent citation sits in the CHANGELOG.
+  [Answer key](eval/EXPECTED.md).
+- **Delta** ([fixtures/pricer_rev_b](eval/fixtures/pricer_rev_b)): scores the flagship —
+  a run against an authored run-2 history must produce `REGRESSED` (ranked first), `NEW`,
+  `STILL_OPEN`, `RESOLVED`, and release an expired quarantine, while a CHANGELOG decoy
+  tries to launder the new defect as intended.
+  [Answer key](eval/EXPECTED-DELTA.md).
+- **Liar** ([fixtures/liar](eval/fixtures/liar)): adversarial honesty — a test script that
+  prints "ALL TESTS PASSED" unconditionally, a conftest that skip-marks the whole suite, a
+  mock asserting its own return value, a tautological assertion. Scores whether the
+  verdict takes output at face value.
+
+`python3 eval/run_eval.py --mode seeded|live|baseline` runs it all in an isolated scratch
+repo and scratch state home. Results are published as measured; misses — and any answer-key
+amendment — stay in the table ([eval/README.md](eval/README.md)).
 
 ## State modes
 
@@ -197,13 +208,21 @@ overselling bug that no amount of reading source code could have found.
 
 ## The read-only guarantee, honestly stated
 
-Three layers: (1) the agent has no `Edit` tool; (2) its contract confines `Write` to the QA
-root; (3) a PreToolUse hook blocks out-of-scope writes. The hook is a hard guarantee in
-dedicated QA sessions (set `VERDICT_STRICT=1` for headless/CI/scheduled runs). In mixed
-interactive sessions it enforces when the platform identifies the calling subagent and
-stays out of your way otherwise — it will never block *your* edits. Bash output redirection
-is governed by the agent contract and your permission settings, not by the hook. That is
-the whole truth; a QA tool should not oversell its own controls.
+Four layers: (1) the agent has no `Edit` tool; (2) its contract confines `Write` to the QA
+root; (3) a PreToolUse hook blocks out-of-scope `Write`/`Edit` calls; (4) under
+`VERDICT_STRICT=1` — set it for headless/CI/scheduled runs, where the whole session IS the
+QA run — a second hook also closes the obvious Bash write channels: output redirection,
+`tee`, `sed -i`, `rm`/`mv`/`cp` and friends, and mutating `git` verbs, each target resolved
+against the QA root. In mixed interactive sessions the hooks enforce when the platform
+identifies the calling subagent and stay out of your way otherwise — they will never block
+*your* edits.
+
+The Bash guard is a deny-heuristic, not a sandbox: unknown commands run (a QA pass needs
+pytest, coverage, linters), package installs are deliberately not denied, and a determined
+command can evade string analysis — OS sandboxing remains the real boundary. Both hooks
+fail open on malformed input and are tested in CI
+([tests/test_hooks.py](tests/test_hooks.py)). That is the whole truth; a QA tool should
+not oversell its own controls.
 
 ## FAQ
 

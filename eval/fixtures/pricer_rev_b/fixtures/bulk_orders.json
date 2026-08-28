@@ -1,0 +1,6 @@
+[
+  {"price": 20.00, "qty": 15, "expected": 18.00},
+  {"price": 20.00, "qty": 10, "expected": 18.00},
+  {"price": 19.99, "qty": 12, "expected": 17.99},
+  {"price": 5.00, "qty": 9, "expected": 5.00}
+]
