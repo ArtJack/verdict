@@ -28,7 +28,9 @@
     },
     {
       "key": "6-brittle-exact-message",
-      "match_any": ["negative_price_message"],
+      "comment": "Match the concept, not one identifier: a run may name the test function, quote the pinned message, or describe the assertion. Broadened 2026-08-28 after a scorer false negative — the finding was present and correctly classified, the matcher was too narrow.",
+      "match_any": ["negative_price_message", "error message", "message string",
+                    "price must be >= 0"],
       "classification": "BRITTLE_TEST"
     },
     {
