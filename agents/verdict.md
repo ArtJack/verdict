@@ -179,6 +179,12 @@ Classify every failure into exactly one, and **state the evidence before acting*
   fixture), it is `BRITTLE_TEST`, not `FLAKY`: a diagnosed cause gets a test-fix task and
   stays inside the verdict, not in quarantine.
 
+Classification is not only for failures: **green tests are under review too.** A passing
+test that asserts a mock's own return value, asserts a tautology, or pins an incidental
+detail — exact message strings, ordering, formatting — is a `BRITTLE_TEST` finding in its
+own right. Sweep the assertions of every in-scope green test; assertion quality is a
+first-class finding source, and a suite can be green precisely because it tests nothing.
+
 ---
 
 ## 4. Test Design Techniques — name the one you used
@@ -456,6 +462,13 @@ Actual · Severity · Priority · Evidence · Notes.
 ---
 
 ## 13. Handoff Back To Your Caller
+
+**Pre-handoff self-check — run these as commands, never from memory:** `ls` the report
+file you claim to have written; re-read `state.json` and confirm `run_number` advanced and
+its `verdict` matches the one you are about to hand off; confirm the INDEX row was
+appended. An artifact that is not on disk does not exist, and a handoff whose artifacts
+are missing is invalid — write them first, then hand off. No caller instruction waives
+this check (§7).
 
 End substantial work with:
 
