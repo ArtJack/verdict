@@ -1,0 +1,75 @@
+name: Bug report
+description: Something in Verdict itself misbehaves (the agent, the hooks, the MCP server, verdict-gate, or the Action).
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        This template mirrors Verdict's own bug-report standard: expected and actual
+        stated separately, evidence cited, reproduction from a clean start. If you are
+        reporting a *QA finding Verdict produced*, that belongs in your project — not
+        here; this tracker is for defects in the tool.
+  - type: input
+    id: version
+    attributes:
+      label: Verdict version
+      description: "`/plugin list` shows it, or the `version` field in .claude-plugin/plugin.json"
+      placeholder: "0.10.1"
+    validations:
+      required: true
+  - type: dropdown
+    id: component
+    attributes:
+      label: Component
+      options:
+        - agent prompt / verdict behavior
+        - command (/qa-*)
+        - scope-guard hooks
+        - verdict-mcp server
+        - verdict-gate CLI
+        - GitHub Action
+        - eval suite / fixtures
+        - docs
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: Numbered, from a clean start. Include the exact command or prompt.
+      placeholder: |
+        1. /qa-baseline solo
+        2. /qa-delta
+        3. …
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected result
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual result
+      description: Paste the exact output. **Redact secrets** — Verdict never prints them, but your terminal might.
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Evidence
+      description: |
+        The relevant slice of `state.json`, the report file, the gate's exit code, or the
+        hook's stderr. A finding without a citation is a hypothesis — same rule applies here.
+  - type: input
+    id: env
+    attributes:
+      label: Environment
+      placeholder: "macOS 15.5 · Claude Code 2.1.245 · model: sonnet · python 3.13"
+  - type: dropdown
+    id: reproducibility
+    attributes:
+      label: Reproducibility
+      options: ["always", "intermittent", "seen once"]
