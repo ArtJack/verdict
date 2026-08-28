@@ -3,6 +3,20 @@
 Plugin and `verdict-mcp` share one version line; `.claude-plugin/plugin.json` and
 `pyproject.toml` are bumped together.
 
+## 0.10.0 — 2026-08-28 · "reproducible to the last row"
+
+Tool-inventory findings, fixed:
+
+- **Every published eval row now reproduces with one command**: `run_eval.py` gains a
+  fixture registry — `--fixture pricer|liar|spec` (the liar and spec rows previously came
+  from a hand-built harness that did not ship). The spec fixture runs through the shipped
+  `/qa-spec` command file itself.
+- **Every eval run is now also a hooks regression test**: the harness provisions both
+  scope guards and sets `VERDICT_STRICT=1` for all fixtures.
+- **`/qa-charter`**: the exploratory-charter template finally gets its driver — timeboxed
+  mission seeded from the profile's risk clusters, §0 governing every probe, discoveries
+  converted to bug reports, regression candidates, and `next_run_focus`.
+
 ## 0.9.0 — 2026-08-28 · "the ancestor's tricks"
 
 Two battle-earned practices absorbed from the private predecessor's 24-run production

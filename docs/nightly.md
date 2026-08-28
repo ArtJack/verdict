@@ -41,6 +41,24 @@ VERDICT_STRICT=1 claude -p "/qa-review delta pass for this repository" \
   audit. In team mode (`.qa/` committed) the state travels with the repo; in
   solo mode it lives in `$VERDICT_HOME` on the box.
 
+**Make the runner session-limit aware.** A subscription window exhausted by daytime work
+will kill the nightly run mid-flight — the CLI prints `You've hit your session limit ·
+resets <time>` and exits non-zero, and the gate then correctly refuses the stale state
+(exit 5). That is the safety net working, but it costs you the night. A runner that parses
+the stated reset time, sleeps until it passes, and retries **once** turns a lost night
+into a late one:
+
+```bash
+OUT=$(run_pass)
+if echo "$OUT" | grep -qi "session limit"; then
+  # parse "resets 2:40am" → seconds to wait (clamped), then retry once
+  sleep "$WAIT"; OUT=$(run_pass)
+fi
+```
+
+Bound it: one retry, a hard ceiling (3h), never a loop — a runner that retries forever is
+how you exhaust tomorrow's window too.
+
 Then gate and notify however you like:
 
 ```bash
