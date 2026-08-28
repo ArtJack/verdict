@@ -3,6 +3,22 @@
 Plugin and `verdict-mcp` share one version line; `.claude-plugin/plugin.json` and
 `pyproject.toml` are bumped together.
 
+## 0.9.0 — 2026-08-28 · "the ancestor's tricks"
+
+Two battle-earned practices absorbed from the private predecessor's 24-run production
+history — the habits it learned that the public prompt never had:
+
+- **RESOLVED requires evidence, not absence** (§6): where a guarding test exists and
+  re-injection is cheap, a claimed fix is verified by re-injecting the defect in a scratch
+  copy of the tree (never the checkout) and watching that test fail. Every RESOLVED
+  finding is reported as *fix-verified* or *merely absent* — they are not the same claim.
+- **Test-count accounting by ID set-diff, never summary arithmetic** (§6, §7): sorted
+  collected test IDs land in `<qa-root>/test-ids.txt` each run and are diffed before
+  overwriting. Summary counts can lie — an output-suppressing flag, a skip-all conftest;
+  the ID set cannot.
+- §5's red-evidence reproduction now says *scratch copy*, never `git stash` — consistent
+  with the strict-mode Bash guard, which blocks stash anyway.
+
 ## 0.8.0 — 2026-08-28 · "shift left"
 
 The cheapest defect is the one caught before code exists — now a first-class command with
