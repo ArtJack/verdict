@@ -123,6 +123,22 @@ run and pass `--min-run-number <n+1>` after, exactly like the loop in the
 README. A run that died without writing state then exits `5` instead of
 re-serving yesterday's verdict.)
 
+**The model is on probation, permanently.** Make the verdict-signing model a config file,
+not a constant, and keep a small ledger of run outcomes. The author's rule: **2 non-ok
+runs in the trailing 5 demote the model to the fallback** (a stronger one), with a
+notification; the demoted model's ledger is wiped so a deliberate re-promotion — pass the
+eval, edit the file — starts clean instead of instantly re-demoting on inherited failures.
+Two definitions matter:
+
+- **non-ok = the run failed to write state** (the model's discipline broke: it ended its
+  turn early, hit a limit twice, wandered off). That is a fact about the *model*.
+- **verdict `fail` is never non-ok** — that is a fact about the *code*, and it is exactly
+  what the model is employed to report. A probation rule that punishes bad news teaches
+  the model to stop delivering it.
+
+This is the reward loop done honestly: the score selects *which configuration runs*, and
+the agent being judged never sees its own ledger.
+
 **GitHub self-hosted runner:** the same box can also serve the Action's `run`
 mode — register it as a self-hosted runner and pass `claude-oauth-token`
 instead of an API key. GitHub-hosted runners then only ever execute the

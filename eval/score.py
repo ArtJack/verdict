@@ -30,16 +30,27 @@ _FINDING_ID = re.compile(r"\b[A-Z][A-Z0-9]*-F-\d+\b")
 _SEVERITY_WORD = re.compile(r"\b(Blocker|Critical|Major|Minor|Trivial)\b")
 
 
+_FINDINGS_HEADING = re.compile(r"^\s{0,3}(#{1,6}\s.*finding|\*\*finding)", re.I)
+
+
 def _first_finding_tag(report: str) -> str | None:
-    """The delta tag of the first finding ENTRY in the report. An entry line
-    names a finding id, a delta tag, AND a severity — narrative prose may
-    legitimately mention a resolved finding first while explaining scope, and
-    summary count lines carry tags without ids; only the listing's ordering is
-    the ranking rule. Falls back to the first tag anywhere when no entry line
-    exists."""
-    for line in report.splitlines():
-        if _FINDING_ID.search(line) and _SEVERITY_WORD.search(line):
-            m = _DELTA_TAG.search(line)
+    """The delta tag of the first finding ENTRY in the report's findings
+    section. Reports format entries differently — one line with everything, or
+    an id heading with the delta tag a line or two below — so the anchor is:
+    from the findings heading onward, the first line naming a finding id whose
+    small window (the line and the next three) carries a delta tag. Narrative
+    above the heading and count lines without ids never trip it. Falls back to
+    scanning from the top when no findings heading exists."""
+    lines = report.splitlines()
+    start = 0
+    for i, line in enumerate(lines):
+        if _FINDINGS_HEADING.search(line):
+            start = i
+            break
+    for i in range(start, len(lines)):
+        if _FINDING_ID.search(lines[i]):
+            window = "\n".join(lines[i:i + 4])
+            m = _DELTA_TAG.search(window)
             if m:
                 return m.group(1)
     m = _DELTA_TAG.search(report)
@@ -110,11 +121,15 @@ def score(qa_root: Path, expected: dict, mode: str | None, fixture_dir: Path | N
             ["git", "-C", str(fixture_dir), "status", "--porcelain"],
             capture_output=True, text=True)
         if porcelain.returncode == 0:
-            # Bytecode caches are an inevitable byproduct of importing the code
-            # under test — not a fixture modification.
+            # Tool byproducts — bytecode caches, coverage data, linter caches —
+            # are inevitable side effects of measuring the code under test, not
+            # modifications of it.
+            _BYPRODUCTS = ("__pycache__", ".pytest_cache", ".coverage",
+                           "coverage.xml", "htmlcov", ".hypothesis",
+                           ".ruff_cache", ".mypy_cache", "node_modules")
             dirty = [
                 line for line in porcelain.stdout.strip().splitlines()
-                if not any(c in line for c in ("__pycache__", ".pytest_cache"))
+                if not any(c in line for c in _BYPRODUCTS)
                 and not line.endswith(".pyc")
             ]
             if dirty:

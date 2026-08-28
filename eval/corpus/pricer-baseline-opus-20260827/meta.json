@@ -1,0 +1,6 @@
+{
+  "expected": "expected.json",
+  "mode": null,
+  "source": "2026-08-27 isolated harness, first machine-scored 8/8 (v0.3.0 prompt)",
+  "model": "opus"
+}

@@ -1,0 +1,6 @@
+{
+  "expected": "expected.json",
+  "mode": null,
+  "source": "2026-08-28 pricer baseline, archived by run_eval",
+  "model": "sonnet"
+}

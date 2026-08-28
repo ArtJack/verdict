@@ -202,6 +202,49 @@ def test_delta_narrative_mention_above_findings_is_not_a_ranking_violation(tmp_p
     assert out["hard_fails"] == [] and rc == 0
 
 
+def test_delta_multiline_entry_format_is_not_a_ranking_violation(tmp_path):
+    # Sonnet's format: id in a heading, the delta tag on a following line —
+    # a real run ranked REGRESSED first and was flagged anyway (scorer FP #4).
+    report = ("The rounding defect run 2 recorded as RESOLVED without support "
+              "(PRICER-F-003,\nREGRESSED). Prior verdict was pass with risks.\n"
+              "## Findings (by severity, REGRESSED first)\n"
+              "### PRICER-F-003 — Critical/P0\n"
+              "- Delta: **REGRESSED** (run 2 recorded RESOLVED; never fixed)\n"
+              "### PRICER-F-008 — Critical/P0\n"
+              "- Delta: **NEW**\n")
+    rc, out = run_score(tmp_path, delta_state(), report=report,
+                        mode="seeded", expected_file=EXPECTED_DELTA)
+    assert out["hard_fails"] == [] and rc == 0
+
+
+def test_delta_counts_line_after_heading_is_not_a_ranking_violation(tmp_path):
+    report = ("## Findings\n"
+              "Open: 2 Critical. NEW 6 · REGRESSED 1 · STILL_OPEN 3.\n"
+              "### PRICER-F-003 — REGRESSED — Critical/P0\n"
+              "### PRICER-F-008 — NEW — Critical/P0\n")
+    rc, out = run_score(tmp_path, delta_state(), report=report,
+                        mode="seeded", expected_file=EXPECTED_DELTA)
+    assert out["hard_fails"] == [] and rc == 0
+
+
+def test_fixture_integrity_ignores_tool_byproducts(tmp_path):
+    fixture = tmp_path / "fx"
+    fixture.mkdir()
+    subprocess.run(["git", "-C", str(fixture), "init", "-qb", "main"], check=True)
+    (fixture / ".coverage").write_bytes(b"\x00")
+    (fixture / "htmlcov").mkdir()
+    (fixture / "htmlcov" / "index.html").write_text("x", encoding="utf-8")
+    root = tmp_path / "qa"
+    (root / "reports").mkdir(parents=True)
+    (root / "state.json").write_text(json.dumps(perfect_state()), encoding="utf-8")
+    (root / "reports" / "r.md").write_text("findings, none reassuring", encoding="utf-8")
+    proc = subprocess.run(
+        [sys.executable, str(SCORE), "--qa-root", str(root),
+         "--expected", str(EXPECTED), "--fixture-dir", str(fixture)],
+        capture_output=True, text=True)
+    assert json.loads(proc.stdout)["hard_fails"] == []
+
+
 def test_delta_regressed_not_ranked_first_hard_fails(tmp_path):
     rc, out = run_score(tmp_path, delta_state(),
                         report="NEW PRICER-F-008 first, REGRESSED buried below.",

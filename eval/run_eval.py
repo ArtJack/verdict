@@ -2,10 +2,11 @@
 """Eval harness: run Verdict against a fixture and score the result.
 
 Fixtures (--fixture):
-  pricer  the seeded-defect app; modes: baseline | seeded | live
-  liar    the adversarial honesty fixture; mode: baseline
-  spec    the shift-left refund-spec PRD, driven through the shipped
-          /qa-spec command file; mode: baseline
+  pricer     the seeded-defect app; modes: baseline | seeded | live
+  pricer-ts  the TypeScript/vitest twin; mode: baseline
+  liar       the adversarial honesty fixture; mode: baseline
+  spec       the shift-left refund-spec PRD, driven through the shipped
+             /qa-spec command file; mode: baseline
 
 Pricer modes:
   baseline  one model run on rev-A; scored against eval/expected.json
@@ -24,21 +25,29 @@ exercises THIS checkout's prompt. Both scope-guard hooks are provisioned and
 `VERDICT_STRICT=1` is set — every eval run is also a live hooks regression
 test.
 
-Model runs cost real tokens — this is never a per-PR CI job.
+An exhausted subscription window is handled, not suffered: the harness parses
+the stated reset time from the CLI's error, sleeps (3h ceiling), and retries
+that phase once.
 
-Usage:
-  python3 eval/run_eval.py [--fixture pricer|liar|spec]
-                           [--mode baseline|seeded|live] [--model opus]
-                           [--keep] [--timeout-s 1800]
+Repeatability and curation:
+  --repeat N     run the whole protocol N times in fresh workdirs and report
+                 per-run scores — a single 8/8 is n=1; variance is evidence
+  --archive NAME on a fully-passing run, freeze its state + reports into
+                 eval/corpus/NAME/ for the scorer regression corpus
+
+Model runs cost real tokens — this is never a per-PR CI job.
 """
 
 import argparse
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
 import tempfile
+import time
+from datetime import datetime, timedelta
 from pathlib import Path
 
 EVAL_DIR = Path(__file__).resolve().parent
@@ -143,15 +152,44 @@ def provision(checkout: Path, fixture: dict):
         (cdir / fixture["command_file"]).write_text(cmd, encoding="utf-8")
 
 
+def _seconds_until_reset(output: str) -> int | None:
+    """Parse 'resets 2:40am' / 'resets 23:15' from a session-limit error."""
+    if "session limit" not in output.lower():
+        return None
+    m = re.search(r"resets\s+([0-9]{1,2}:[0-9]{2}(?:am|pm)?)", output, re.I)
+    if not m:
+        return 3600
+    raw = m.group(1).lower()
+    now = datetime.now()
+    try:
+        fmt = "%I:%M%p" if raw.endswith(("am", "pm")) else "%H:%M"
+        t = datetime.strptime(raw, fmt).time()
+        target = now.replace(hour=t.hour, minute=t.minute, second=0, microsecond=0)
+        if target <= now:
+            target += timedelta(days=1)
+        wait = int((target - now).total_seconds()) + 180
+    except ValueError:
+        wait = 3600
+    return max(60, min(wait, 10800))
+
+
 def run_agent(prompt, checkout, qa_home, model, timeout_s, base_env, log_path):
     env = dict(base_env, VERDICT_HOME=str(qa_home), VERDICT_STRICT="1")
-    proc = sh(["claude", "-p", prompt, "--model", model,
-               "--setting-sources", "project", "--dangerously-skip-permissions"],
-              cwd=checkout, env=env, timeout=timeout_s)
-    log_path.write_text(
-        proc.stdout + ("\n--- stderr ---\n" + proc.stderr if proc.stderr else ""),
-        encoding="utf-8")
-    if proc.returncode != 0:
+    for attempt in (1, 2):
+        proc = sh(["claude", "-p", prompt, "--model", model,
+                   "--setting-sources", "project", "--dangerously-skip-permissions"],
+                  cwd=checkout, env=env, timeout=timeout_s)
+        log_path.write_text(
+            proc.stdout + ("\n--- stderr ---\n" + proc.stderr if proc.stderr else ""),
+            encoding="utf-8")
+        if proc.returncode == 0:
+            return
+        wait = _seconds_until_reset(proc.stdout + proc.stderr)
+        if wait and attempt == 1:
+            print(f"session limit; waiting {wait}s for the window to reset",
+                  file=sys.stderr)
+            time.sleep(wait)
+            continue
         raise RuntimeError(f"claude run failed rc={proc.returncode}; log: {log_path}")
 
 
@@ -168,27 +206,25 @@ def score(qa_root, expected, mode, fixture_dir):
         raise RuntimeError(f"scorer produced no JSON: {proc.stdout}\n{proc.stderr}")
 
 
-def main() -> int:
-    ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    ap.add_argument("--fixture", choices=sorted(FIXTURES), default="pricer")
-    ap.add_argument("--mode", choices=("baseline", "seeded", "live"), default=None,
-                    help="default: seeded for pricer, baseline otherwise")
-    ap.add_argument("--model", default="opus")
-    ap.add_argument("--timeout-s", type=int, default=1800)
-    ap.add_argument("--keep", action="store_true",
-                    help="keep the scratch workdir even on success")
-    args = ap.parse_args()
+def archive(qa_root: Path, name: str, fixture_key: str, mode: str, model: str):
+    dest = EVAL_DIR / "corpus" / name
+    if dest.exists():
+        raise RuntimeError(f"corpus entry already exists: {dest}")
+    fixture = FIXTURES[fixture_key]
+    expected = (fixture["expected_delta"] if mode == "seeded"
+                else fixture["expected_baseline"])
+    shutil.copytree(qa_root, dest, ignore=shutil.ignore_patterns("test-ids.txt"))
+    (dest / "meta.json").write_text(json.dumps({
+        "expected": expected,
+        "mode": mode if mode in ("seeded", "live") else None,
+        "source": f"{datetime.now():%Y-%m-%d} {fixture_key} {mode}, archived by run_eval",
+        "model": model,
+    }, indent=2) + "\n", encoding="utf-8")
+    print(f"archived to eval/corpus/{name}", file=sys.stderr)
 
-    fixture = FIXTURES[args.fixture]
-    mode = args.mode or ("seeded" if args.fixture == "pricer" else "baseline")
-    if mode not in fixture["modes"]:
-        ap.error(f"fixture {args.fixture!r} supports modes {fixture['modes']}")
 
-    if shutil.which("claude") is None:
-        print("error: the `claude` CLI is required for model runs", file=sys.stderr)
-        return 2
-
-    base_env = dict(os.environ)
+def run_once(args, fixture, mode, base_env):
+    """One full protocol execution in a fresh workdir → (failed, results, qa_root)."""
     workdir = Path(tempfile.mkdtemp(prefix="verdict-eval-"))
     checkout = workdir / fixture["dir"]
     qa_home = workdir / "qa-home"
@@ -241,13 +277,66 @@ def main() -> int:
         # first version deleted the evidence it needed to explain itself.
         failed = True
         results["error"] = str(exc)
-    finally:
-        print(json.dumps(results, indent=2))
-        if failed or args.keep:
-            print(f"workdir kept for inspection: {workdir}", file=sys.stderr)
-        else:
+    if failed or args.keep:
+        print(f"workdir kept for inspection: {workdir}", file=sys.stderr)
+    return failed, results, qa_root, workdir
+
+
+def main() -> int:
+    ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    ap.add_argument("--fixture", choices=sorted(FIXTURES), default="pricer")
+    ap.add_argument("--mode", choices=("baseline", "seeded", "live"), default=None,
+                    help="default: seeded for pricer, baseline otherwise")
+    ap.add_argument("--model", default="opus")
+    ap.add_argument("--repeat", type=int, default=1, metavar="N",
+                    help="run the protocol N times in fresh workdirs (variance)")
+    ap.add_argument("--archive", default=None, metavar="NAME",
+                    help="freeze the first fully-passing run into eval/corpus/NAME/")
+    ap.add_argument("--timeout-s", type=int, default=1800)
+    ap.add_argument("--keep", action="store_true",
+                    help="keep the scratch workdir even on success")
+    args = ap.parse_args()
+
+    fixture = FIXTURES[args.fixture]
+    mode = args.mode or ("seeded" if args.fixture == "pricer" else "baseline")
+    if mode not in fixture["modes"]:
+        ap.error(f"fixture {args.fixture!r} supports modes {fixture['modes']}")
+    if shutil.which("claude") is None:
+        print("error: the `claude` CLI is required for model runs", file=sys.stderr)
+        return 2
+
+    base_env = dict(os.environ)
+    runs, any_failed, archived = [], False, False
+    for i in range(args.repeat):
+        failed, results, qa_root, workdir = run_once(args, fixture, mode, base_env)
+        runs.append(results)
+        any_failed |= failed
+        if not failed and args.archive and not archived:
+            archive(qa_root, args.archive, args.fixture, mode, args.model)
+            archived = True
+        if not failed and not args.keep:
             shutil.rmtree(workdir, ignore_errors=True)
-    return 1 if failed else 0
+
+    if args.repeat == 1:
+        print(json.dumps(runs[0], indent=2))
+    else:
+        def _tag(r):
+            parts = []
+            for phase in ("baseline", "delta"):
+                if phase in r:
+                    b = r[phase]
+                    hf = "!" if b["hard_fails"] else ""
+                    parts.append(f"{phase} {b['score']}/{b['max']}{hf}")
+            return " + ".join(parts) if parts else f"error: {r.get('error', '?')[:80]}"
+        summary = {
+            "fixture": args.fixture, "mode": mode, "model": args.model,
+            "repeat": args.repeat,
+            "per_run": [_tag(r) for r in runs],
+            "all_full": not any_failed,
+            "runs": runs,
+        }
+        print(json.dumps(summary, indent=2))
+    return 1 if any_failed else 0
 
 
 if __name__ == "__main__":
