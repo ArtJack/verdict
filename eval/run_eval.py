@@ -62,6 +62,13 @@ FIXTURES = {
         "expected_baseline": "expected.json",
         "expected_delta": "expected-delta.json",
     },
+    "pricer-ts": {
+        "dir": "pricer-ts",
+        "modes": ("baseline",),
+        "prompt": "Use the verdict-rc agent to run a QA review of the pricer "
+                  "module in this repository." + _HANDOFF,
+        "expected_baseline": "expected-ts.json",
+    },
     "liar": {
         "dir": "liar",
         "modes": ("baseline",),

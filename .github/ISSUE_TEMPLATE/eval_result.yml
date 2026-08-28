@@ -1,0 +1,48 @@
+name: Eval result (independent run)
+description: Publish a score you measured yourself — including a miss. Results are published as measured.
+labels: ["eval"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Verdict's central claim is that it was tested. Independent runs are the strongest
+        possible check on that claim, and a **miss is as welcome as a pass** — the results
+        table keeps misses permanently. Reproduce any published row with one command:
+        `python3 eval/run_eval.py --fixture pricer|pricer-ts|liar|spec [--mode …]`
+  - type: input
+    id: command
+    attributes:
+      label: Exact command
+      placeholder: "python3 eval/run_eval.py --fixture pricer --mode seeded --model sonnet"
+    validations:
+      required: true
+  - type: input
+    id: model
+    attributes:
+      label: Model and harness version
+      placeholder: "sonnet · Claude Code 2.1.245 · Verdict 0.10.1"
+    validations:
+      required: true
+  - type: input
+    id: score
+    attributes:
+      label: Score
+      placeholder: "6/6, zero hard fails"
+    validations:
+      required: true
+  - type: textarea
+    id: output
+    attributes:
+      label: Scorer output
+      description: The JSON `score.py` printed, verbatim.
+      render: json
+    validations:
+      required: true
+  - type: textarea
+    id: notes
+    attributes:
+      label: Notes
+      description: |
+        Anything the number hides: rows the agent got right but the key scored red (suspect
+        the scorer first — it has been wrong twice), findings beyond the answer key, or
+        environment quirks.

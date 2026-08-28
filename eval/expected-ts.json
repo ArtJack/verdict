@@ -1,0 +1,53 @@
+{
+  "fixture": "pricer-ts",
+  "phase": "baseline",
+  "comment": "TypeScript/vitest twin of expected.json. Same five failure classifications, but the rounding defect is JS-native: Math.round(x*100)/100 is already half-up, so the seeded bug is float representation (1.005*100 === 100.49999999999999). A run that transplants the Python 'banker's rounding' explanation has not read this code.",
+  "rows": [
+    {
+      "key": "1-floor-boundary",
+      "match_any": ["islistable"],
+      "classification": "REAL_DEFECT"
+    },
+    {
+      "key": "4-float-rounding",
+      "match_any": ["roundcents", "1.005", "float"],
+      "classification": "REAL_DEFECT"
+    },
+    {
+      "key": "3-stale-fee-expectation",
+      "match_any": ["netproceeds", "10%", "fee"],
+      "classification": "STALE_EXPECTATION",
+      "require_evidence_any": ["changelog", "prc-142"]
+    },
+    {
+      "key": "5-nondeterministic-bulk-discount",
+      "match_any": ["bulk discount", "bulkunitprice", "date.now"],
+      "classification": ["FLAKY", "BRITTLE_TEST"],
+      "flaky_requires_quarantine": true,
+      "quarantine_match_any": ["bulk"]
+    },
+    {
+      "key": "6-brittle-exact-message",
+      "match_any": ["negative price", "error message", "message string",
+                    "price must be >= 0"],
+      "classification": "BRITTLE_TEST"
+    },
+    {
+      "key": "7-environment-missing-fixture",
+      "match_any": ["bulkorders"],
+      "classification": "ENVIRONMENT"
+    },
+    {
+      "key": "2-quarantine-graveyard-skip",
+      "match_any": ["skip", "no expiry", "graveyard"]
+    },
+    {
+      "key": "8-verdict",
+      "type": "verdict",
+      "expect": ["fail"]
+    }
+  ],
+  "prose": {
+    "forbid": ["no bugs found"]
+  }
+}

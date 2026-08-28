@@ -3,6 +3,22 @@
 Plugin and `verdict-mcp` share one version line; `.claude-plugin/plugin.json` and
 `pyproject.toml` are bumped together.
 
+## 0.11.0 — 2026-08-28 · "not just Python"
+
+- **TypeScript/vitest eval fixture** ([fixtures/pricer-ts](eval/fixtures/pricer-ts)) with
+  its own machine key: the same five failure classifications in a different language,
+  runner, and idiom — and a **JS-native** rounding defect, because `Math.round(x*100)/100`
+  is already half-up; the seeded bug is float representation
+  (`1.005 * 100 === 100.49999999999999`). A run that transplants the Python explanation
+  has not read the code. **8/8 on the first run**, published.
+- **Demo asset rebuilt as SVG** ([docs/demo.svg](docs/demo.svg)): the old GIF showed
+  pre-0.6 output — no gate, no `/qa-delta`, no set-diff accounting. The replacement is
+  hand-authored, dependency-free, crisp at any zoom, and accurate to what the tool prints
+  today, including the gate's exit-code legend. The stale GIF is removed.
+- **Issue templates** built from Verdict's own standards: a bug report that demands
+  expected/actual separately with cited evidence, and an **eval-result template** for
+  independent runs — misses explicitly as welcome as passes.
+
 ## 0.10.1 — 2026-08-28 · eval key correction
 
 - **All six eval protocols are now scored.** The `live` two-phase round-trip — the agent
