@@ -78,6 +78,7 @@ Artifact: .qa/reports/2026-08-24-pricer-review.md
 | Test design | "test edge cases" | 24-technique catalog with risk triggers — incl. property-based, metamorphic (for ML/LLM output), MC-DC, contract tests ([docs/test-design.md](docs/test-design.md)) |
 | Can edit your code | nothing stops it | no `Edit` tool + write-scope hook + strict-mode Bash guard |
 | Security | ignored, or oversold | opt-in report-only pass: dependency audit + diff secret scan; pentest explicitly out of scope |
+| Requirements review | never — code only | `/qa-spec` judges the spec before code exists (contradictions, unmeasurables, boundary ambiguities, history conflicts) — with its own scored eval fixture |
 | "No bugs found!" | frequently | never — coverage, gaps, and residual risk instead |
 | Tested itself | — | scored eval suite: baseline + delta-memory + adversarial-honesty fixtures, deterministic scorer, published answer keys ([eval/](eval/)) |
 | State consumable by other tools | — | `verdict-mcp`: read-only MCP server over the state — works from Cursor, Codex, CI, any MCP client |
@@ -101,6 +102,10 @@ A QA agent that was never tested is exactly the kind of claim it should reject.
   prints "ALL TESTS PASSED" unconditionally, a conftest that skip-marks the whole suite, a
   mock asserting its own return value, a tautological assertion. Scores whether the
   verdict takes output at face value.
+- **Spec** ([fixtures/refund-spec](eval/fixtures/refund-spec)): shift-left — a draft PRD
+  with a seeded contradiction, an unmeasurable requirement, an exactly-at-the-boundary
+  ambiguity, a silent failure-path gap, and a CHANGELOG that contradicts the spec. Scores
+  `/qa-spec` finding them all before any code exists.
 
 `python3 eval/run_eval.py --mode seeded|live|baseline` runs it all in an isolated scratch
 repo and scratch state home. Results are published as measured; misses — and any answer-key
@@ -128,6 +133,7 @@ versioned, forward-compatible, human-readable JSON.
 | `/qa-delta` | The daily driver: a strict delta pass — refuses to run without a baseline, addresses `next_run_focus`, re-evaluates expired quarantines |
 | `/qa-flake` | Classify an intermittent failure: ≥3 reproductions, mechanism hunt → `BRITTLE_TEST` fix task, or `FLAKY` quarantine with expiry |
 | `/qa-status` | Read-only status from the stored state — no run, no writes, no agent spin-up |
+| `/qa-spec` | Shift-left: judge a spec/issue/PRD for testability *before code exists* — contradictions, unmeasurables, undefined boundaries, silent gaps, history conflicts, plus Given/When/Then criteria |
 
 ## The tester's memory, over MCP (optional)
 

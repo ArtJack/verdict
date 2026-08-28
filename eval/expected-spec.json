@@ -1,0 +1,42 @@
+{
+  "fixture": "refund-spec",
+  "phase": "shift-left",
+  "comment": "Answer key for the spec-review eval: /qa-spec on fixtures/refund-spec/SPEC.md. No code exists — every row is a requirements defect. Scored on state.json findings like every other eval; the criteria row checks the report.",
+  "rows": [
+    {
+      "key": "contradiction-instant-vs-5-days",
+      "match_any": ["r-7", "instant"],
+      "require_evidence_any": ["5 business", "r-2"]
+    },
+    {
+      "key": "unmeasurable-fast-edge-cases",
+      "match_any": ["fast", "edge cases"]
+    },
+    {
+      "key": "boundary-exactly-100",
+      "match_any": ["100"]
+    },
+    {
+      "key": "silent-gap-failure-path",
+      "match_any": ["declin", "failure", "partial", "reject"]
+    },
+    {
+      "key": "history-conflict-refund-window",
+      "match_any": ["ref-88", "30 day", "30-day"],
+      "require_evidence_any": ["changelog", "ref-88"]
+    },
+    {
+      "key": "acceptance-criteria-delivered",
+      "type": "report_contains",
+      "terms_all": ["given", "when", "then"]
+    },
+    {
+      "key": "verdict-on-the-spec",
+      "type": "verdict",
+      "expect": ["fail"]
+    }
+  ],
+  "prose": {
+    "forbid": ["no bugs found"]
+  }
+}
