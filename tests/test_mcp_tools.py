@@ -183,3 +183,25 @@ def test_get_state_raw(solo_home):
     out = server.get_state("pricer")
     assert out["schema_version"] == 1
     assert out["_qa_root"].endswith("pricer")
+
+
+def test_severity_rank_case_insensitive():
+    assert server._sev_rank("critical") == 1
+    assert server._sev_rank(" BLOCKER ") == 0
+    assert server._sev_rank(None) == 99
+    assert server._sev_rank("banana") == 99
+
+
+def test_is_path_like():
+    assert server._is_path_like("C:/repo")
+    assert server._is_path_like("C:\\repo")
+    assert server._is_path_like("~/work/app")
+    assert server._is_path_like("sub/dir")
+    assert server._is_path_like(".")
+    assert not server._is_path_like("myapp")
+    assert not server._is_path_like("sales")
+
+
+def test_solo_key_lowercase_fallback(solo_home):
+    out = server.get_verdict("PRICER")
+    assert out["verdict"] == "fail"
