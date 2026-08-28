@@ -1,0 +1,56 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="560" viewBox="0 0 900 560" role="img"
+     aria-label="A Verdict delta run: verdict first, REGRESSED findings ranked on top, a flake quarantined with an expiry, and the gate returning a distinct exit code for stale state.">
+  <style>
+    .bg   { fill: #0d1117; }
+    .bar  { fill: #161b22; }
+    .t    { font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace; font-size: 13px; }
+    .dim  { fill: #8b949e; }
+    .fg   { fill: #c9d1d9; }
+    .red  { fill: #ff7b72; }
+    .amb  { fill: #d29922; }
+    .grn  { fill: #3fb950; }
+    .blu  { fill: #79c0ff; }
+    .mag  { fill: #d2a8ff; }
+    .b    { font-weight: 700; }
+  </style>
+  <rect class="bg" width="900" height="560" rx="8"/>
+  <rect class="bar" width="900" height="30" rx="8"/>
+  <rect class="bar" y="22" width="900" height="8"/>
+  <circle cx="20" cy="15" r="5" fill="#ff5f56"/>
+  <circle cx="38" cy="15" r="5" fill="#ffbd2e"/>
+  <circle cx="56" cy="15" r="5" fill="#27c93f"/>
+  <text class="t dim" x="80" y="19">verdict — nightly delta run</text>
+
+  <g class="t">
+    <text x="20" y="58"><tspan class="grn b">$</tspan><tspan class="fg"> /qa-delta</tspan></text>
+
+    <text x="20" y="86"><tspan class="red b">VERDICT: fail</tspan></text>
+
+    <text x="20" y="112"><tspan class="dim">Scope: 2c67f47..b4e2943 (4 commits, 16 files) · run 4 (delta)</tspan></text>
+    <text x="20" y="130"><tspan class="dim">Isolation check: pass (no .env present; no live service touched)</tspan></text>
+
+    <text x="20" y="164"><tspan class="fg b">Findings — REGRESSED first:</tspan></text>
+
+    <text x="20" y="188"><tspan class="mag b">REGRESSED</tspan><tspan class="fg">  PRICER-F-002  </tspan><tspan class="red">Critical/P0</tspan><tspan class="fg">  round_cents is banker's rounding again</tspan></text>
+    <text x="20" y="206"><tspan class="dim">                            resolved 08-19, reintroduced by b4e2943 — this forces the verdict</tspan></text>
+
+    <text x="20" y="230"><tspan class="blu b">NEW</tspan><tspan class="fg">        PRICER-F-007  </tspan><tspan class="amb">Major/P1</tspan><tspan class="fg">     quarantine graveyard: at-floor test</tspan></text>
+    <text x="20" y="248"><tspan class="dim">                            skipped 114 days with no expiry — it is the test that would catch F-001</tspan></text>
+
+    <text x="20" y="272"><tspan class="amb b">STILL_OPEN</tspan><tspan class="fg"> PRICER-F-001  </tspan><tspan class="red">Critical/P0</tspan><tspan class="fg">  age 6d  is_listable rejects a price at the floor</tspan></text>
+
+    <text x="20" y="296"><tspan class="dim b">FLAKY</tspan><tspan class="dim">      test_bulk_discount_applies — 3/6 runs, no code change; quarantined</tspan></text>
+    <text x="20" y="314"><tspan class="dim">                            until 2026-09-07, excluded from this verdict, listed until re-evaluated</tspan></text>
+
+    <text x="20" y="348"><tspan class="dim">Delta gates: tests 213 → 213 (ID set-diff) · duration +0.4% · coverage on changed files: no decrease</tspan></text>
+    <text x="20" y="366"><tspan class="fg">Release blockers: </tspan><tspan class="red">PRICER-F-002 (regressed), PRICER-F-001</tspan></text>
+    <text x="20" y="384"><tspan class="fg">Not tested: </tspan><tspan class="dim">concurrency under parallel checkout — no harness present</tspan></text>
+    <text x="20" y="402"><tspan class="fg">Fix order: </tspan><tspan class="dim">1) F-002  2) F-001 (unskip its test first, watch it fail red)  3) F-007 expiry</tspan></text>
+    <text x="20" y="420"><tspan class="fg">Artifact: </tspan><tspan class="dim">.qa/reports/2026-08-24-pricer-review.md</tspan></text>
+
+    <text x="20" y="458"><tspan class="grn b">$</tspan><tspan class="fg"> verdict-gate pricer --max-age-hours 24 --min-run-number 5</tspan></text>
+    <text x="20" y="480"><tspan class="fg">VERDICT: fail → exit </tspan><tspan class="red b">1</tspan><tspan class="dim">   (0 pass · 1 fail · 3 blocked · 4 never ran · 5 stale)</tspan></text>
+
+    <text x="20" y="516"><tspan class="dim">the tester never ran ≠ the tester said no — the gate keeps them apart</tspan></text>
+  </g>
+</svg>

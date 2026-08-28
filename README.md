@@ -26,7 +26,7 @@ Verdict is a Claude Code plugin built the way QA is actually practiced:
 - **It never says "no bugs found."** Testing shows the presence of defects, not their
   absence. Verdict reports what it covered, what it didn't, and the residual risk.
 
-![A Verdict delta run: verdict first, REGRESSED findings ranked on top, flake quarantined with an expiry](docs/demo.gif)
+![A Verdict delta run: verdict first, REGRESSED findings ranked on top, a flake quarantined with an expiry, and the gate's exit codes keeping "never ran" apart from "said no"](docs/demo.svg)
 
 ## Install
 
