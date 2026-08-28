@@ -3,6 +3,16 @@
 Plugin and `verdict-mcp` share one version line; `.claude-plugin/plugin.json` and
 `pyproject.toml` are bumped together.
 
+## 0.13.0 — 2026-08-28 · "trajectory and annotations"
+
+- **MCP `get_trends`**: run-over-run trajectory parsed from the INDEX (dates, verdicts,
+  test counts) plus the current pressure picture — open findings by severity, age
+  distribution (oldest/median), quarantine size, suite duration. Direction is the signal.
+- **`verdict-gate --format sarif`**: open findings as SARIF 2.1.0 — severity mapped to
+  level, locations parsed from `file:line` evidence — ready for
+  `github/codeql-action/upload-sarif`, so findings land as annotations in the Security
+  tab. Exit-code contract unchanged by format.
+
 ## 0.12.1 — 2026-08-28 · security: symlink escape in the scope guards
 
 Found by Verdict itself, in the first run of the self-gating baseline

@@ -24,6 +24,7 @@ without writing state can no longer launder the previous verdict.
 
 import argparse
 import json
+import re
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -147,6 +148,58 @@ def _fmt_comment(r, n):
     return "\n".join(head + tail)
 
 
+_SARIF_LEVEL = {"Blocker": "error", "Critical": "error",
+                "Major": "warning", "Minor": "note", "Trivial": "note"}
+_EVIDENCE_LOC = re.compile(r"([\w./\\-]+\.[A-Za-z0-9_]+):(\d+)")
+
+
+def _fmt_sarif(r):
+    """SARIF 2.1.0 over the open findings — one result each, level mapped from
+    severity, location parsed from the first file:line in the evidence. Feed it
+    to github/codeql-action/upload-sarif and findings land in the Security tab."""
+    results, rules = [], {}
+    for f in r.get("findings_open") or []:
+        fid = str(f.get("id") or "VERDICT-F-?")
+        sev = str(f.get("severity") or "").strip().capitalize()
+        if fid not in rules:
+            rules[fid] = {
+                "id": fid,
+                "shortDescription": {"text": str(f.get("title") or fid)[:120]},
+            }
+        message = str(f.get("title") or fid)
+        evidence = [str(e) for e in f.get("evidence") or []]
+        if evidence:
+            message += " — evidence: " + "; ".join(evidence)[:400]
+        result = {
+            "ruleId": fid,
+            "level": _SARIF_LEVEL.get(sev, "warning"),
+            "message": {"text": message},
+        }
+        for ev in evidence:
+            m = _EVIDENCE_LOC.search(ev)
+            if m:
+                result["locations"] = [{
+                    "physicalLocation": {
+                        "artifactLocation": {"uri": m.group(1).replace("\\", "/")},
+                        "region": {"startLine": int(m.group(2))},
+                    }
+                }]
+                break
+        results.append(result)
+    return json.dumps({
+        "$schema": "https://raw.githubusercontent.com/oasis-tcs/sarif-spec/master/Schemata/sarif-schema-2.1.0.json",
+        "version": "2.1.0",
+        "runs": [{
+            "tool": {"driver": {
+                "name": "verdict-gate",
+                "informationUri": "https://github.com/ArtJack/verdict",
+                "rules": list(rules.values()),
+            }},
+            "results": results,
+        }],
+    }, indent=2)
+
+
 def _fmt_github_output(r):
     return "\n".join([
         f"verdict={r.get('verdict') or 'none'}",
@@ -178,7 +231,8 @@ def main(argv=None) -> int:
     ap.add_argument("--min-run-number", type=int, default=None)
     ap.add_argument("--findings", type=int, default=10, metavar="N",
                     help="max findings rendered (default 10)")
-    ap.add_argument("--format", choices=("text", "json", "github-comment", "github-output"),
+    ap.add_argument("--format",
+                    choices=("text", "json", "github-comment", "github-output", "sarif"),
                     default="text")
     args = ap.parse_args(argv)
 
@@ -192,6 +246,8 @@ def main(argv=None) -> int:
         print(_fmt_comment(result, args.findings))
     elif args.format == "github-output":
         print(_fmt_github_output(result))
+    elif args.format == "sarif":
+        print(_fmt_sarif(result))
     else:
         print(_fmt_text(result, args.findings))
     return result["exit_code"]
