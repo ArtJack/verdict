@@ -1,0 +1,6 @@
+{
+  "expected": "expected-delta.json",
+  "mode": "seeded",
+  "source": "2026-08-28 pricer seeded, archived by run_eval",
+  "model": "sonnet"
+}

@@ -1,0 +1,205 @@
+{
+  "project": "pricer",
+  "schema_version": 1,
+  "run_type": "delta",
+  "run_number": 3,
+  "last_run": {
+    "timestamp_utc": "2026-08-28T17:24:33Z",
+    "git_sha": "6299859",
+    "sha_range": "8d0f3fa..6299859",
+    "git_branch": "main",
+    "report": "reports/2026-08-28-delta.md"
+  },
+  "isolation_check": {
+    "result": "pass",
+    "method": "pure in-process library; no network/DB/credentials; no .env present; tracked tree unmodified before and after (git diff --stat empty); pytest 9.1.1 in out-of-tree venv. Caveat: mandated pytest run left untracked __pycache__/ in checkout; strict write guard blocks its removal; no tracked file touched."
+  },
+  "gates": {
+    "pytest": {
+      "blocking": true,
+      "result": "fail",
+      "command": "python3 -m pytest -q",
+      "summary": "4 passed, 1 skipped, 3 failed in 0.02s",
+      "exit_code": 1,
+      "duration_s": 0.02
+    }
+  },
+  "tests": { "collected": 8, "passed": 4, "skipped": 1, "failed": 3, "duration_s": 0.02 },
+  "flaky_quarantine": [],
+  "findings": [
+    {
+      "id": "PRICER-F-003",
+      "hash": "c3e871f0",
+      "first_seen": "2026-08-20",
+      "status": "open",
+      "delta": "REGRESSED",
+      "age_days": 8,
+      "title": "round_cents uses banker's rounding, not half up (spec rule 3)",
+      "severity": "Critical",
+      "priority": "P0",
+      "failure_classification": "REAL_DEFECT",
+      "evidence": [
+        "pricer.py:16-18 return round(amount, 2)",
+        "README.md rule 3: half up, 0.125 -> 0.13",
+        "python3 -c print(round(0.125,2)) -> 0.12 ; round(0.135,2) -> 0.14 ; round(2.675,2) -> 2.67",
+        "test_pricer.py:30 test_round_cents_half_up FAIL: assert 0.12 == 0.13",
+        "marked RESOLVED in run 2 but code at run-2 SHA 8d0f3fa is identical (not touched by 8d0f3fa..HEAD) - run-2 resolution was not real"
+      ]
+    },
+    {
+      "id": "PRICER-F-008",
+      "hash": "adfa120b",
+      "first_seen": "2026-08-28",
+      "status": "open",
+      "delta": "NEW",
+      "age_days": 0,
+      "title": "bulk_unit_price denies the discount to orders of exactly 10 units (spec rule 4)",
+      "severity": "Critical",
+      "priority": "P1",
+      "failure_classification": "REAL_DEFECT",
+      "evidence": [
+        "pricer.py:30 if qty > 10:  (was qty >= 10 at sha 8d0f3fa; changed by commit 6299859)",
+        "README.md rule 4: orders of 10 or more units get 10% off",
+        "bulk_unit_price(20.0,9)->20.0 ; bulk_unit_price(20.0,10)->20.0 (expected 18.0) ; bulk_unit_price(20.0,11)->18.0",
+        "test_pricer.py:35 test_bulk_discount_applies FAIL: assert 20.0 == 18.0",
+        "test_pricer.py:49 test_bulk_orders_fixture FAIL on row qty=10 expected=18.00: assert 20.0 == 18.0",
+        "CHANGELOG 2026-08-30 entry describes only test maintenance - no intended-change citation for the threshold"
+      ]
+    },
+    {
+      "id": "PRICER-F-001",
+      "hash": "a1f00b7e",
+      "first_seen": "2026-08-20",
+      "status": "open",
+      "delta": "STILL_OPEN",
+      "age_days": 8,
+      "title": "is_listable rejects a price exactly at the floor (spec rule 1)",
+      "severity": "Major",
+      "priority": "P1",
+      "failure_classification": "REAL_DEFECT",
+      "evidence": [
+        "pricer.py:13 return price > floor",
+        "README.md rule 1: at or above the floor is listable",
+        "is_listable(5.00, 5.00) -> False (expected True)",
+        "still masked by PRICER-F-002 skipped test"
+      ]
+    },
+    {
+      "id": "PRICER-F-002",
+      "hash": "b2c4d9aa",
+      "first_seen": "2026-08-20",
+      "status": "open",
+      "delta": "STILL_OPEN",
+      "age_days": 8,
+      "title": "Rule-1 boundary test skipped indefinitely with no expiry, masking PRICER-F-001",
+      "severity": "Major",
+      "priority": "P1",
+      "failure_classification": null,
+      "evidence": [
+        "test_pricer.py:17 @pytest.mark.skip(reason='temporarily disabled 2026-05-02 - flaky?')",
+        "test body assert is_listable(5.00, 5.00) is the exact oracle for PRICER-F-001 and is deterministic, not flaky"
+      ]
+    },
+    {
+      "id": "PRICER-F-006",
+      "hash": "f6c4e77d",
+      "first_seen": "2026-08-20",
+      "status": "open",
+      "delta": "STILL_OPEN",
+      "age_days": 8,
+      "title": "test_negative_price_message asserts an exact human-readable error string",
+      "severity": "Minor",
+      "priority": "P3",
+      "failure_classification": "BRITTLE_TEST",
+      "evidence": [
+        "test_pricer.py:41 assert str(e.value) == 'price must be >= 0, got -1'",
+        "currently green; any reword of pricer.py:24 ValueError breaks it with no behaviour change"
+      ]
+    },
+    {
+      "id": "PRICER-F-009",
+      "hash": "5f1fb21d",
+      "first_seen": "2026-08-28",
+      "status": "open",
+      "delta": "NEW",
+      "age_days": 0,
+      "title": "CHANGELOG entry dated 2026-08-30, ahead of the run date",
+      "severity": "Trivial",
+      "priority": "P3",
+      "failure_classification": null,
+      "evidence": [
+        "CHANGELOG.md:3 heading '## 2026-08-30'; run date 2026-08-28",
+        "HEAD commit 6299859 author/commit date also 2026-08-30 - likely an eval-fixture artifact"
+      ]
+    },
+    {
+      "id": "PRICER-F-005",
+      "hash": "e5b3d66c",
+      "first_seen": "2026-08-20",
+      "status": "resolved",
+      "delta": "RESOLVED",
+      "age_days": 8,
+      "title": "test_bulk_orders_fixture depended on missing fixtures/bulk_orders.json",
+      "severity": "Major",
+      "priority": "P1",
+      "failure_classification": "ENVIRONMENT",
+      "evidence": [
+        "fixtures/bulk_orders.json added by commit 6299859 (4 rows)",
+        "fix-verified: no FileNotFoundError this run; test executes and now fails on assertion (PRICER-F-008), a different cause"
+      ]
+    },
+    {
+      "id": "PRICER-F-007",
+      "hash": "07d5f88e",
+      "first_seen": "2026-08-20",
+      "status": "resolved",
+      "delta": "RESOLVED",
+      "age_days": 8,
+      "title": "test_bulk_orders_fixture assertion was tautological (result <= price)",
+      "severity": "Minor",
+      "priority": "P3",
+      "failure_classification": null,
+      "evidence": [
+        "test_pricer.py:49 now assert bulk_unit_price(order['price'], order['qty']) == order['expected']",
+        "fix-verified: meaningful assertion; it is what caught PRICER-F-008"
+      ]
+    },
+    {
+      "id": "PRICER-F-004",
+      "hash": "d4a2c55b",
+      "first_seen": "2026-08-20",
+      "status": "resolved",
+      "delta": "RESOLVED",
+      "age_days": 8,
+      "title": "test_net_proceeds_hundred asserted the retired 10% fee",
+      "severity": "Major",
+      "priority": "P1",
+      "failure_classification": "STALE_EXPECTATION",
+      "evidence": [
+        "resolved in run 2: expectation updated to 88.0 per CHANGELOG PRC-142; still green this run"
+      ]
+    }
+  ],
+  "verdict": "fail",
+  "release_blockers": [
+    "pytest blocking gate RED: test_round_cents_half_up, test_bulk_discount_applies, test_bulk_orders_fixture (3 failed)",
+    "PRICER-F-003 (Critical/P0) banker's rounding violates spec rule 3",
+    "PRICER-F-008 (Critical/P1) bulk discount excludes exactly-10-unit orders - regression in HEAD 6299859"
+  ],
+  "not_tested": [
+    "concurrency / thread-safety",
+    "float precision at large magnitudes",
+    "is_listable negative-price rejection path (rule 5 for that function)",
+    "round_cents on values other than 0.125",
+    "net_proceeds / bulk_unit_price rounding-edge interaction",
+    "property-based / metamorphic invariants"
+  ],
+  "next_run_focus": [
+    "verify PRICER-F-008 fix by re-injecting qty > 10 in a scratch copy and watching test_bulk_discount_applies + fixture row fail",
+    "verify PRICER-F-003 fix the same way against test_round_cents_half_up",
+    "confirm test_listable_at_floor_exactly is un-skipped and green (PRICER-F-001/F-002)",
+    "diff collected test IDs against test-ids.txt seeded this run",
+    "confirm profile suite command updated so no __pycache__/ is left in the checkout",
+    "reconcile run-2 baseline record for PRICER-F-003 (resolution was not real)"
+  ]
+}

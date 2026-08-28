@@ -260,3 +260,9 @@ def test_get_profile_absent_then_present(solo_home):
     (solo_home / "profile.md").write_text("# QA Profile — pricer\n**Project-Key:** `pricer`\n", encoding="utf-8")
     out = server.get_profile("pricer")
     assert out["content"].startswith("# QA Profile")
+    assert "lessons" not in out
+    (solo_home / "lessons.md").write_text(
+        "# Lessons — pricer\n\n- 2026-08-28 · called FLAKY; was BRITTLE_TEST (clock-seeded).\n",
+        encoding="utf-8")
+    out = server.get_profile("pricer")
+    assert "clock-seeded" in out["lessons"]
