@@ -37,7 +37,7 @@ BASE_STATE = {
 def make_home(tmp_path, **overrides):
     state = {**BASE_STATE, **overrides}
     root = tmp_path / "home" / "pricer"
-    (root / "reports").mkdir(parents=True)
+    (root / "reports").mkdir(parents=True, exist_ok=True)
     (root / "state.json").write_text(json.dumps(state), encoding="utf-8")
     return tmp_path / "home"
 
@@ -133,6 +133,53 @@ def test_json_format(tmp_path):
     data = json.loads(proc.stdout)
     assert data["exit_code"] == 1 and data["verdict"] == "fail"
     assert data["findings_open"][0]["id"] == "PRC-F-2"
+
+
+def test_min_run_number_exact_boundary_passes(tmp_path):
+    # run_number == required is satisfied; only < is stale (kills < -> <=)
+    proc = gate(tmp_path, "pricer", "--min-run-number", "4",
+                state_kwargs={"verdict": "pass", "release_blockers": []})
+    assert proc.returncode == 0
+
+
+def test_max_age_within_window_passes_and_unparseable_is_stale(tmp_path):
+    from datetime import datetime, timedelta, timezone
+    fresh = (datetime.now(timezone.utc) - timedelta(hours=1)).strftime("%Y-%m-%dT%H:%M:%SZ")
+    proc = gate(tmp_path, "pricer", "--max-age-hours", "2",
+                state_kwargs={"verdict": "pass", "release_blockers": [],
+                              "last_run": {**BASE_STATE["last_run"],
+                                           "timestamp_utc": fresh}})
+    assert proc.returncode == 0
+    proc = gate(tmp_path, "pricer", "--max-age-hours", "2",
+                state_kwargs={"verdict": "pass", "release_blockers": [],
+                              "last_run": {**BASE_STATE["last_run"],
+                                           "timestamp_utc": "not a time"}})
+    assert proc.returncode == 5
+
+
+def test_unknown_verdict_exits_4(tmp_path):
+    proc = gate(tmp_path, "pricer", state_kwargs={"verdict": "maybe"})
+    assert proc.returncode == 4
+    assert "no usable verdict" in proc.stdout
+
+
+def test_stale_outranks_blocked(tmp_path):
+    # precedence: 'the expected run never happened' beats 'the last run was blocked'
+    proc = gate(tmp_path, "pricer", "--min-run-number", "9",
+                state_kwargs={"verdict": "blocked"})
+    assert proc.returncode == 5
+
+
+def test_json_contract_fields(tmp_path):
+    data = json.loads(gate(tmp_path, "pricer", "--format", "json").stdout)
+    assert data["project"] == "pricer"
+    assert data["run_type"] == "delta"
+    assert data["sha_range"] == "2c67f47..b4e2943"
+    assert data["last_run_utc"] == "2026-08-24T17:30:00Z"
+    assert data["not_tested"] == ["concurrency"]
+    assert data["report"] == "reports/2026-08-24-payment-retry.md"
+    missing = json.loads(gate(tmp_path, "nope", "--format", "json").stdout)
+    assert missing["exit_code"] == 4 and missing["known_projects"] == ["pricer"]
 
 
 def test_sarif_format(tmp_path):

@@ -1,6 +1,6 @@
 [project]
 name = "verdict-mcp"
-version = "0.13.0"
+version = "0.14.0"
 description = "Read-only MCP server over Verdict QA state: verdicts, findings, flaky quarantine, run history."
 readme = "README.md"
 license = { file = "LICENSE" }
@@ -22,7 +22,7 @@ build-backend = "hatchling.build"
 packages = ["src/verdict_mcp"]
 
 [dependency-groups]
-dev = ["pytest>=8"]
+dev = ["pytest>=8", "mutmut>=2.5,<3"]
 
 [tool.pytest.ini_options]
 # Only the MCP server's own tests. eval/fixtures/pricer contains INTENTIONALLY

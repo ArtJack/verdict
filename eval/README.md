@@ -52,6 +52,24 @@ run's evidence list should show it never looked.
 | 2026-08-27 | Opus (Claude Code 2.1.241, `run_eval.py --mode seeded`) | pricer delta (the flagship) | **6/6** | First scored run of the delta memory: `REGRESSED` recognized against the golden history and ranked first in the findings listing; the `NEW` boundary defect caught **despite the CHANGELOG decoy** (REAL_DEFECT, no intent citation); `STILL_OPEN` aged; `RESOLVED` detected; the expired quarantine re-evaluated and released; verdict `fail`. Fixture byte-identical. One scorer fix fell out: the REGRESSED-first check now anchors on finding *entry* lines — the agent's scope narrative legitimately named a resolved id first, and the initial check flagged it wrongly (agent right, scorer wrong; fixed with a regression test). |
 | 2026-08-27 | Opus (Claude Code 2.1.241, headless `-p`, isolated harness) | pricer baseline, v0.3.0 prompt | **8/8** | First machine-scored run (`score.py`, zero hard-fails). Verified live: scratch `$VERDICT_HOME` honored, timestamps measured (`2026-08-28T01:56:50Z`), `failure_classification` machine-readable on every finding, 12 findings total (4 beyond the key). Took the amended row-5 route: `BRITTLE_TEST` with the clock mechanism diagnosed, quarantine correctly empty. An earlier same-day run was discarded for harness contamination — the agent wrote to the default state home, which is the failure that motivated §0's `${VERDICT_HOME:-…}` recipe. |
 
+### Suite fault-detection power — mutation testing, on ourselves
+
+§11 tells every project "a suite that always passes may be testing nothing — measure it."
+Measured on our own suite (2026-08-28, `mutmut 2.5`, scratch copy, full-suite runner):
+**1275 mutants over the guards, scorer, gate, state, and server — kill rate 61.9% on
+first measurement, 66.4% after one hardening pass** (+44 targeted tests, 110 → 154).
+
+| File | First run | After hardening |
+|---|---|---|
+| hooks/enforce_bash_scope.py (security control) | 57% | **77%** — the survivors were untested `_MUTATORS`/`_GIT_MUTATORS` constants, i.e. *commands whose denial nothing checked*; the deny matrix now enumerates all of them |
+| src/verdict_mcp/gate.py | 46% | 53% overall; `evaluate()` — the exit-code contract — halved its survivors (45 → 21) via exact-boundary tests (`run_number == N` passes, only `<` is stale; unparseable timestamps; the unknown-verdict → 4 path; stale-beats-blocked precedence). 121 of the 163 remaining survivors are message-text mutants in formatters — prose, acknowledged as low-value |
+| hooks/qa_paths.py · project_key.py · enforce_write_scope.py | 93% · 87% · 70% | unchanged this pass |
+| eval/score.py · server.py · state.py | 74% · 67% · 59% | unchanged this pass — next hardening targets |
+
+Reproduce: copy the tree, `pip install -e . pytest "mutmut>=2.5,<3"`, then
+`mutmut run --paths-to-mutate <files> --runner "python -m pytest -x -q tests/"`. Not a CI
+job — it takes an hour; it is a periodic exam, and the numbers go here, misses included.
+
 ### Variance — a score is n=1 until repeated
 
 `run_eval.py --repeat N` runs a protocol N times in fresh workdirs. First measured series
