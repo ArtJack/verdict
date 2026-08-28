@@ -3,6 +3,31 @@
 Plugin and `verdict-mcp` share one version line; `.claude-plugin/plugin.json` and
 `pyproject.toml` are bumped together.
 
+## 0.5.0 — 2026-08-27 · "close the loop"
+
+The tester's memory becomes a machine surface CI can trust.
+
+- **`verdict-gate` CLI**: an exit-code release gate over the state — `0` pass · `1` fail ·
+  `2` usage · `3` blocked · `4` no state (the tester never ran) · `5` stale
+  (`--max-age-hours`, `--min-run-number`). Stdlib-only and runnable as a bare script;
+  formats: `text`, `json`, `github-comment` (sticky marker), `github-output`.
+- **GitHub Action** ([action.yml](action.yml)): gate mode with zero installs, zero keys,
+  zero model — reads committed `.qa/` state, sets job status, maintains one sticky PR
+  comment with the REGRESSED-first findings table. Experimental run mode executes a
+  headless Verdict pass first, on `anthropic-api-key` or a subscription
+  `claude-oauth-token` (self-hosted runners), with `anthropic-base-url` passthrough;
+  optional `.qa/` commit-back.
+- **MCP `get_report` + `get_profile`**: report content (path-guarded to the QA root,
+  symlink-safe, 512 KB cap) and the profile — consumers can quote the evidence, not just
+  link it.
+- **Stdlib core extracted**: `verdict_mcp.state` (loading/resolution/ordering, shared by
+  server and gate) and `verdict_mcp.project_key` — the reference implementation of
+  [docs/project-key.md](docs/project-key.md), tested against its decision table
+  (worktrees, detached HEAD, bare repos, non-git).
+- **Loop race closed**: the documented driver asserts `run_number` advanced
+  (`--min-run-number` as a CLI); [docs/nightly.md](docs/nightly.md) ships the
+  cron/systemd/subscription-token recipe for nightly runs on your own machine.
+
 ## 0.4.0 — 2026-08-27 · "the tested tester, for real"
 
 The security control and the flagship behavior are now tested — by machines.
