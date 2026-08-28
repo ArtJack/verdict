@@ -59,6 +59,20 @@ fi
 Bound it: one retry, a hard ceiling (3h), never a loop — a runner that retries forever is
 how you exhaust tomorrow's window too.
 
+**Two more lessons from the author's first scheduled night, both worth stealing:**
+
+- **A headless session can end its turn while the delegated agent is still running.** One
+  run printed a tidy plan, said it would "relay the handoff when it reports back", exited
+  `0` — and wrote no state. In `-p` mode there is no "later". Say so in the prompt: *run
+  the agent to completion in this session; do not spawn it in the background; do not end
+  your turn until the state file and report are written.* Then verify rather than trust:
+  compare `run_number` before and after, and retry once if it did not advance. The gate
+  catches this either way (exit 5) — but a caught failure is still a lost night.
+- **Take a lock.** Two runs sharing one QA root is precisely the collision the state
+  contract warns about, and a script can even be invoked while you are editing it (ours
+  was, and executed half of itself). `mkdir` is atomic and makes a fine lock; expire it on
+  age so a dead run cannot block tomorrow.
+
 Then gate and notify however you like:
 
 ```bash

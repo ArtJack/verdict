@@ -3,6 +3,16 @@
 Plugin and `verdict-mcp` share one version line; `.claude-plugin/plugin.json` and
 `pyproject.toml` are bumped together.
 
+## 0.10.1 — 2026-08-28 · eval key correction
+
+- **All six eval protocols are now scored.** The `live` two-phase round-trip — the agent
+  reading its *own* phase-1 state rather than an authored history — scored **8/8 + 4/4**.
+- **Answer-key fix, published as an amendment:** the brittle exact-message row matched
+  only a test-function name, so a run that reported the finding correctly still scored it
+  red. The matcher now matches the concept. Second scorer false alarm in this suite; both
+  times the agent was right, and `eval/README.md` now carries the standing rule — *when a
+  row misses, suspect the scorer first*.
+
 ## 0.10.0 — 2026-08-28 · "reproducible to the last row"
 
 Tool-inventory findings, fixed:
