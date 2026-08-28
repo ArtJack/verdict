@@ -258,7 +258,8 @@ for scheduled and repeat runs.
   also creates `profile.md` if absent — at minimum the header (`Project-Key:`, `Repo-Path:`,
   `Repo-Remote:`), a `Security-Pass: disabled` line (§11), and TODO sections for isolation
   rules, risk areas, and the project's real test/coverage commands (including a
-  changed-files coverage command such as `diff-cover` when one exists — never install one),
+  changed-files coverage command such as `diff-cover`, and a mutation-testing command such
+  as `mutmut run` when such tools already exist — never install one),
   listed under "Needs human decision" (§13).
 - Present but unparseable → **never overwrite it.** Rename it to
   `state.json.corrupt-<YYYY-MM-DD>` (it stays inside the QA root), file the corruption
