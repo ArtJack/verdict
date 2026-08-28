@@ -149,7 +149,8 @@ an orchestrator gating a merge, a Cursor or Codex session, a CI step commenting 
 | `get_quarantine(project)` | the flaky ledger, each entry with a computed `expired` flag |
 | `get_history(project)` | run-over-run trend parsed from the report INDEX |
 | `get_report(project, report?)` | full report content (default: last run's) — path-guarded to the QA root, so a CI step can quote the evidence, not just link it |
-| `get_profile(project)` | the project's QA profile: isolation rules, risk areas, real test commands |
+| `get_profile(project)` | the project's QA profile: isolation rules, risk areas, real test commands — plus the lessons ledger when one exists |
+| `get_trends(project)` | run-over-run trajectory from the INDEX plus the current pressure picture: open findings by severity, age distribution, quarantine size, suite duration |
 | `list_projects()` / `get_state(project)` | everything with a baseline / the raw state |
 
 ```
@@ -251,6 +252,15 @@ ran) · `5` stale. `4` and `5` are deliberately distinct from `1`: "the tester n
 must never look like "the tester said no". For running the nightly pass on your own
 machine — cron, systemd, subscription token, strict mode — see
 [docs/nightly.md](docs/nightly.md).
+
+`--format sarif` emits the open findings as SARIF 2.1.0 (severity → level, locations
+parsed from `file:line` evidence), so they land as annotations in GitHub's Security tab:
+
+```yaml
+- run: verdict-gate --format sarif > verdict.sarif || true
+- uses: github/codeql-action/upload-sarif@v3
+  with: { sarif_file: verdict.sarif }
+```
 
 ## Give your tester project eyes (bring your own MCPs)
 

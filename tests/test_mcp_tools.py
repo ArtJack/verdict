@@ -182,6 +182,19 @@ def test_unknown_project_error(solo_home):
     assert out["known_projects"] == ["pricer"]
 
 
+def test_get_trends(solo_home):
+    out = server.get_trends("pricer")
+    assert out["project"] == "pricer"
+    assert len(out["runs"]) == 2  # both INDEX rows parsed
+    assert out["runs"][0]["verdict"] == "pass with risks"
+    assert out["runs"][1]["tests_passed"] == 212
+    cur = out["current"]
+    assert cur["open_findings"] == 3
+    assert cur["open_by_severity"] == {"Critical": 1, "Major": 1, "Minor": 1}
+    assert cur["age_days"]["oldest"] == 5
+    assert cur["quarantine_size"] == 2
+
+
 def test_get_state_raw(solo_home):
     out = server.get_state("pricer")
     assert out["schema_version"] == 1

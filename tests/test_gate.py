@@ -23,7 +23,7 @@ BASE_STATE = {
         {"id": "PRC-F-2", "hash": "b", "first_seen": "2026-08-19", "status": "open",
          "delta": "REGRESSED", "age_days": 5, "title": "banker's rounding is back",
          "severity": "Critical", "priority": "P0",
-         "failure_classification": "REAL_DEFECT", "evidence": []},
+         "failure_classification": "REAL_DEFECT", "evidence": ["pricer.py:17 round(amount, 2)"]},
         {"id": "PRC-F-9", "hash": "c", "first_seen": "2026-08-24", "status": "open",
          "delta": "NEW", "age_days": 0, "title": "minor nit | with a pipe",
          "severity": "Minor", "priority": "P3",
@@ -133,6 +133,23 @@ def test_json_format(tmp_path):
     data = json.loads(proc.stdout)
     assert data["exit_code"] == 1 and data["verdict"] == "fail"
     assert data["findings_open"][0]["id"] == "PRC-F-2"
+
+
+def test_sarif_format(tmp_path):
+    proc = gate(tmp_path, "pricer", "--format", "sarif")
+    sarif = json.loads(proc.stdout)
+    assert sarif["version"] == "2.1.0"
+    run = sarif["runs"][0]
+    assert run["tool"]["driver"]["name"] == "verdict-gate"
+    results = {r["ruleId"]: r for r in run["results"]}
+    reg = results["PRC-F-2"]
+    assert reg["level"] == "error"  # Critical -> error
+    assert results["PRC-F-9"]["level"] == "note"  # Minor -> note
+    # location parsed from "cart.py:88"-style evidence
+    loc = reg["locations"][0]["physicalLocation"]
+    assert loc["artifactLocation"]["uri"] == "pricer.py"
+    assert loc["region"]["startLine"] == 17
+    assert proc.returncode == 1  # exit contract unchanged by format
 
 
 def test_default_resolution_prefers_team_qa(tmp_path):
