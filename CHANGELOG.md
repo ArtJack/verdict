@@ -3,6 +3,24 @@
 Plugin and `verdict-mcp` share one version line; `.claude-plugin/plugin.json` and
 `pyproject.toml` are bumped together.
 
+## 0.8.0 — 2026-08-28 · "shift left"
+
+The cheapest defect is the one caught before code exists — now a first-class command with
+its own scored eval.
+
+- **`/qa-spec`**: judge a spec, issue, or PRD for testability — requirement inventory
+  (a sentence that cannot fail a test is not a requirement), contradictions with both
+  lines quoted, unmeasurables, undefined boundaries (exactly-at-the-limit, inclusive vs
+  exclusive, calendar vs business days), silent failure-path gaps, conflicts with
+  recorded history (CHANGELOG/ADR), and core requirements rewritten as Given/When/Then
+  precise enough that the criterion is the test. Spec findings are real findings: they
+  land in `state.json` and age/resolve/regress as the spec is revised.
+- **Spec eval fixture** ([fixtures/refund-spec](eval/fixtures/refund-spec)) with machine
+  answer key ([expected-spec.json](eval/expected-spec.json)): five seeded requirements
+  defects plus a criteria-delivery check and a verdict row.
+- Scorer: new `report_contains` row type (used to verify the Given/When/Then criteria
+  actually shipped in the report).
+
 ## 0.7.0 — 2026-08-27 · "trusted on Pro"
 
 Prompt-hardening release: Sonnet — what Claude Pro runs — now scores **8/8** on the

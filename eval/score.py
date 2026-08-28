@@ -140,6 +140,17 @@ def score(qa_root: Path, expected: dict, mode: str | None, fixture_dir: Path | N
             if state.get("verdict") in _allowed(row.get("expect")):
                 point = 1
             note = f"verdict={state.get('verdict')!r}"
+        elif typ == "report_contains":
+            terms = row.get("terms_all", [])
+            if report_raw is None:
+                note = "no report to check"
+            else:
+                lowered = report_raw.lower()
+                missing = [t for t in terms if t.lower() not in lowered]
+                if not missing:
+                    point = 1
+                else:
+                    note = "report missing: " + ", ".join(missing)
         elif typ == "quarantine":
             hits = _quarantine_hits(state, row.get("match_any", []))
             if row.get("expect_absent"):
