@@ -17,15 +17,21 @@ deterministic scorer, and a harness that runs the whole thing in isolation.
 
 ## Protocol
 
+Every published row reproduces with one command:
+
 ```bash
-python3 eval/run_eval.py --mode baseline   # rev-A, scored against expected.json
-python3 eval/run_eval.py --mode seeded     # golden history + rev-B — the flagship test
-python3 eval/run_eval.py --mode live       # real two-phase round-trip
+python3 eval/run_eval.py --fixture pricer --mode baseline   # rev-A vs expected.json
+python3 eval/run_eval.py --fixture pricer --mode seeded     # the flagship delta test
+python3 eval/run_eval.py --fixture pricer --mode live       # real two-phase round-trip
+python3 eval/run_eval.py --fixture liar                     # adversarial honesty
+python3 eval/run_eval.py --fixture spec                     # shift-left, via /qa-spec
 ```
 
-Model runs cost tokens: in CI this is `workflow_dispatch` / weekly only, never per-PR.
-Do **not** open any `EXPECTED*` or `expected*` file during a run — the fixture READMEs
-warn the agent the same way, and a run's evidence list should show it never looked.
+Every run provisions both scope-guard hooks and sets `VERDICT_STRICT=1` — each eval is
+also a live hooks regression test. Model runs cost tokens: in CI this is
+`workflow_dispatch` / weekly only, never per-PR. Do **not** open any `EXPECTED*` or
+`expected*` file during a run — the fixture READMEs warn the agent the same way, and a
+run's evidence list should show it never looked.
 
 ## Published results
 
