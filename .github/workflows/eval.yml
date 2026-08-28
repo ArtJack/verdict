@@ -1,0 +1,38 @@
+name: eval
+
+# Model-run evals cost real tokens: manual dispatch plus a weekly run on the
+# canonical repo only. Results are artifacts — this workflow never gates a PR.
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "seeded | live | baseline"
+        default: "seeded"
+      model:
+        description: "model for the run"
+        default: "opus"
+  schedule:
+    - cron: "17 9 * * 1"
+
+jobs:
+  model-eval:
+    if: github.repository == 'ArtJack/verdict'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Claude Code
+        run: npm install -g @anthropic-ai/claude-code
+      - name: Run the eval
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          python3 eval/run_eval.py \
+            --mode "${{ github.event.inputs.mode || 'seeded' }}" \
+            --model "${{ github.event.inputs.model || 'opus' }}" \
+            | tee eval-results.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: eval-results
+          path: eval-results.json

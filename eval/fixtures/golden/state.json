@@ -1,0 +1,137 @@
+{
+  "project": "pricer",
+  "schema_version": 1,
+  "run_type": "delta",
+  "run_number": 2,
+  "last_run": {
+    "timestamp_utc": "2026-08-24T18:00:00Z",
+    "git_sha": "@REV_A_SHA@",
+    "sha_range": "@REV_A_SHA@..@REV_A_SHA@",
+    "git_branch": "main",
+    "report": "reports/2026-08-24-run2-delta.md"
+  },
+  "isolation_check": {
+    "result": "pass",
+    "method": "pure in-process library; no network, DB, or credential use; pytest provisioned out-of-tree"
+  },
+  "gates": {
+    "pytest": {
+      "blocking": true,
+      "result": "fail",
+      "command": "python3 -m pytest -q",
+      "summary": "6 passed, 1 skipped, 1 error in 0.05s",
+      "exit_code": 1,
+      "duration_s": 0.05
+    }
+  },
+  "tests": { "collected": 8, "passed": 6, "skipped": 1, "failed": 1, "duration_s": 0.05 },
+  "flaky_quarantine": [
+    {
+      "test_id": "test_pricer.py::test_bulk_discount_applies",
+      "first_seen": "2026-08-20",
+      "fail_count": 3,
+      "run_count": 8,
+      "quarantined_until": "2026-08-26"
+    }
+  ],
+  "findings": [
+    {
+      "id": "PRICER-F-001",
+      "hash": "a1f00b7e",
+      "first_seen": "2026-08-20",
+      "status": "open",
+      "delta": "STILL_OPEN",
+      "age_days": 4,
+      "title": "is_listable rejects a price exactly at the floor (spec rule 1)",
+      "severity": "Major",
+      "priority": "P1",
+      "failure_classification": "REAL_DEFECT",
+      "evidence": ["pricer.py:13 return price > floor", "README.md rule 1: at or above"]
+    },
+    {
+      "id": "PRICER-F-002",
+      "hash": "b2c4d9aa",
+      "first_seen": "2026-08-20",
+      "status": "open",
+      "delta": "STILL_OPEN",
+      "age_days": 4,
+      "title": "Rule-1 boundary test skipped indefinitely with no expiry, masking PRICER-F-001",
+      "severity": "Major",
+      "priority": "P1",
+      "failure_classification": null,
+      "evidence": ["test_pricer.py:18 @pytest.mark.skip reason='temporarily disabled 2026-05-02 - flaky?'"]
+    },
+    {
+      "id": "PRICER-F-003",
+      "hash": "c3e871f0",
+      "first_seen": "2026-08-20",
+      "status": "resolved",
+      "delta": "RESOLVED",
+      "age_days": 4,
+      "title": "round_cents used banker's rounding instead of half up (spec rule 3)",
+      "severity": "Critical",
+      "priority": "P0",
+      "failure_classification": "REAL_DEFECT",
+      "evidence": ["resolved in run 2: round_cents rewrote to half-up; test_round_cents_half_up green"]
+    },
+    {
+      "id": "PRICER-F-004",
+      "hash": "d4a2c55b",
+      "first_seen": "2026-08-20",
+      "status": "resolved",
+      "delta": "RESOLVED",
+      "age_days": 4,
+      "title": "test_net_proceeds_hundred asserted the retired 10% fee",
+      "severity": "Major",
+      "priority": "P1",
+      "failure_classification": "STALE_EXPECTATION",
+      "evidence": ["resolved in run 2: expectation updated to 88.0 per CHANGELOG PRC-142"]
+    },
+    {
+      "id": "PRICER-F-005",
+      "hash": "e5b3d66c",
+      "first_seen": "2026-08-20",
+      "status": "open",
+      "delta": "STILL_OPEN",
+      "age_days": 4,
+      "title": "test_bulk_orders_fixture depends on missing fixtures/bulk_orders.json",
+      "severity": "Major",
+      "priority": "P1",
+      "failure_classification": "ENVIRONMENT",
+      "evidence": ["FileNotFoundError: fixtures/bulk_orders.json"]
+    },
+    {
+      "id": "PRICER-F-006",
+      "hash": "f6c4e77d",
+      "first_seen": "2026-08-20",
+      "status": "open",
+      "delta": "STILL_OPEN",
+      "age_days": 4,
+      "title": "test_negative_price_message asserts an exact human-readable error string",
+      "severity": "Minor",
+      "priority": "P3",
+      "failure_classification": "BRITTLE_TEST",
+      "evidence": ["test_pricer.py:42 asserts full message text"]
+    },
+    {
+      "id": "PRICER-F-007",
+      "hash": "07d5f88e",
+      "first_seen": "2026-08-20",
+      "status": "open",
+      "delta": "STILL_OPEN",
+      "age_days": 4,
+      "title": "test_bulk_orders_fixture assertion is tautological (result <= price)",
+      "severity": "Minor",
+      "priority": "P3",
+      "failure_classification": null,
+      "evidence": ["test_pricer.py:50 assert bulk_unit_price(...) <= order['price']"]
+    }
+  ],
+  "verdict": "pass with risks",
+  "release_blockers": [],
+  "not_tested": ["concurrency", "float precision at large magnitudes"],
+  "next_run_focus": [
+    "re-evaluate quarantined test_bulk_discount_applies on expiry 2026-08-26",
+    "fixtures/bulk_orders.json still missing - check whether it was restored"
+  ]
+}

@@ -1,0 +1,34 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        python: ["3.10", "3.13"]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - name: Run the suite (server, hooks, scorer)
+        run: uv run --group dev python -m pytest tests/ -q
+
+  delta-diff-freshness:
+    # eval/fixtures/pricer-delta.diff is the tamper-evidence for the delta
+    # fixture: any drift between rev-A, rev-B, and the committed diff fails here.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Regenerate and compare
+        run: |
+          cd eval/fixtures
+          git diff --no-index pricer pricer_rev_b > /tmp/fresh.diff || true
+          cmp pricer-delta.diff /tmp/fresh.diff
