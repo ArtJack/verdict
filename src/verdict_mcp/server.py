@@ -29,6 +29,23 @@ _RO = ToolAnnotations(readOnlyHint=True)
 
 _SEVERITY_RANK = {"Blocker": 0, "Critical": 1, "Major": 2, "Minor": 3, "Trivial": 4}
 _DELTA_VALUES = {"NEW", "STILL_OPEN", "RESOLVED", "REGRESSED"}
+_DRIVE_PREFIX = re.compile(r"^[A-Za-z]:[\\/]")
+
+
+def _sev_rank(value) -> int:
+    """Rank severity case-insensitively; unknown or missing values sort last."""
+    return _SEVERITY_RANK.get(str(value or "").strip().capitalize(), 99)
+
+
+def _is_path_like(project: str) -> bool:
+    """True when the argument addresses a filesystem path rather than a solo key."""
+    return (
+        "/" in project
+        or "\\" in project
+        or project.startswith("~")
+        or project == "."
+        or bool(_DRIVE_PREFIX.match(project))
+    )
 
 
 def _home() -> Path:
@@ -44,16 +61,17 @@ def _known_projects() -> list[str]:
 
 def resolve_root(project: str) -> Path | None:
     """Return the QA root for a project key or a filesystem path, else None."""
-    if os.sep in project or project.startswith("~") or project == ".":
+    if _is_path_like(project):
         p = Path(project).expanduser().resolve()
         if (p / ".qa" / "state.json").is_file():
             return p / ".qa"
         if (p / "state.json").is_file():
             return p
         return None
-    solo = _home() / project
-    if (solo / "state.json").is_file():
-        return solo
+    for key in (project, project.lower()):
+        solo = _home() / key
+        if (solo / "state.json").is_file():
+            return solo
     return None
 
 
@@ -149,7 +167,7 @@ def get_findings(project: str, status: str = "open") -> dict:
         selected,
         key=lambda f: (
             0 if f.get("delta") == "REGRESSED" else 1,
-            _SEVERITY_RANK.get(f.get("severity"), 99),
+            _sev_rank(f.get("severity")),
             -(f.get("age_days") or 0),
         ),
     )

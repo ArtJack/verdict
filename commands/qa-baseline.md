@@ -10,7 +10,9 @@ Use the `verdict` agent to initialize QA for this repository:
 Required flow:
 
 1. Resolve the QA root per the agent's §0: `team` → create `<repo>/.qa/` (committed, shared
-   baseline); `solo` or unspecified → `~/.claude/verdict/<project-key>/`.
+   baseline); `solo` or unspecified → `$VERDICT_HOME/<project-key>/` (default
+   `~/.claude/verdict`), with `<project-key>` derived mechanically per §0 — main-worktree
+   basename, never the current directory name.
 2. Create `profile.md` in the QA root: what this project does, what it touches (money, live
    accounts, user data, external services), the isolation check to run before any command,
    commands that are forbidden, the real test/lint/coverage commands from the project's own
