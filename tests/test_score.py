@@ -59,9 +59,9 @@ def run_score(tmp_path, state=None, report="Scope...\nFindings, none reassuring.
     root = tmp_path / "qa"
     (root / "reports").mkdir(parents=True)
     if state is not None:
-        (root / "state.json").write_text(json.dumps(state))
+        (root / "state.json").write_text(json.dumps(state), encoding="utf-8")
     if report is not None:
-        (root / "reports" / "r.md").write_text(report)
+        (root / "reports" / "r.md").write_text(report, encoding="utf-8")
     cmd = [sys.executable, str(SCORE), "--qa-root", str(root),
            "--expected", str(expected_file)]
     if mode:
@@ -258,15 +258,15 @@ def test_fixture_integrity_ignores_bytecode_caches(tmp_path):
     (fixture / "__pycache__" / "m.cpython-313.pyc").write_bytes(b"\x00")
     root = tmp_path / "qa"
     (root / "reports").mkdir(parents=True)
-    (root / "state.json").write_text(json.dumps(perfect_state()))
-    (root / "reports" / "r.md").write_text("findings, none reassuring")
+    (root / "state.json").write_text(json.dumps(perfect_state()), encoding="utf-8")
+    (root / "reports" / "r.md").write_text("findings, none reassuring", encoding="utf-8")
     proc = subprocess.run(
         [sys.executable, str(SCORE), "--qa-root", str(root),
          "--expected", str(EXPECTED), "--fixture-dir", str(fixture)],
         capture_output=True, text=True)
     out = json.loads(proc.stdout)
     assert out["hard_fails"] == []
-    (fixture / "pricer.py").write_text("tampered")
+    (fixture / "pricer.py").write_text("tampered", encoding="utf-8")
     proc = subprocess.run(
         [sys.executable, str(SCORE), "--qa-root", str(root),
          "--expected", str(EXPECTED), "--fixture-dir", str(fixture)],

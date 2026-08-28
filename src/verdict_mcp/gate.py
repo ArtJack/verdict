@@ -157,6 +157,12 @@ def _fmt_github_output(r):
 
 
 def main(argv=None) -> int:
+    try:
+        # The comment format contains Δ and · — Windows consoles default to a
+        # legacy codepage that cannot encode them.
+        sys.stdout.reconfigure(encoding="utf-8")
+    except (AttributeError, OSError):
+        pass
     ap = argparse.ArgumentParser(
         prog="verdict-gate",
         description="Exit-code release gate over Verdict QA state.",

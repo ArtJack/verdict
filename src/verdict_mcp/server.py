@@ -124,7 +124,7 @@ def get_history(project: str) -> dict:
     if not index.is_file():
         return {"project": state.get("project", project), "runs": [], "note": "no INDEX.md yet"}
     rows, header = [], None
-    for line in index.read_text().splitlines():
+    for line in index.read_text(encoding="utf-8").splitlines():
         line = line.strip()
         if not line.startswith("|"):
             continue
@@ -162,7 +162,7 @@ def get_report(project: str, report: str | None = None) -> dict:
         return {"error": "only .md reports are served", "report": rel}
     if not candidate.is_file():
         return {"error": f"report not found: {rel}"}
-    content = candidate.read_text()
+    content = candidate.read_text(encoding="utf-8")
     truncated = len(content) > _REPORT_CAP
     if truncated:
         content = content[:_REPORT_CAP]
@@ -186,7 +186,7 @@ def get_profile(project: str) -> dict:
             "error": f"no profile.md for {project!r}",
             "hint": "run /qa-baseline to create one",
         }
-    return {"project": state.get("project", project), "content": path.read_text()}
+    return {"project": state.get("project", project), "content": path.read_text(encoding="utf-8")}
 
 
 @mcp.tool(annotations=_RO)

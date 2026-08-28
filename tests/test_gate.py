@@ -37,7 +37,7 @@ def make_home(tmp_path, **overrides):
     state = {**BASE_STATE, **overrides}
     root = tmp_path / "home" / "pricer"
     (root / "reports").mkdir(parents=True)
-    (root / "state.json").write_text(json.dumps(state))
+    (root / "state.json").write_text(json.dumps(state), encoding="utf-8")
     return tmp_path / "home"
 
 
@@ -87,7 +87,7 @@ def test_no_state_exits_4(tmp_path):
 
 def test_corrupt_state_exits_4(tmp_path):
     home = make_home(tmp_path)
-    (home / "pricer" / "state.json").write_text("{broken")
+    (home / "pricer" / "state.json").write_text("{broken", encoding="utf-8")
     proc = gate(tmp_path, "pricer", home=home)
     assert proc.returncode == 4
 
@@ -136,7 +136,7 @@ def test_default_resolution_prefers_team_qa(tmp_path):
     (repo / ".qa" / "reports").mkdir(parents=True)
     (repo / ".qa" / "state.json").write_text(
         json.dumps({**BASE_STATE, "project": "myapp", "verdict": "pass",
-                    "release_blockers": []}))
+                    "release_blockers": []}), encoding="utf-8")
     home = tmp_path / "empty-home"
     home.mkdir()
     proc = gate(tmp_path, home=home, cwd=repo)

@@ -18,7 +18,7 @@ def repo(tmp_path):
     r = tmp_path / "Sales"
     r.mkdir()
     _git(["init", "-qb", "main"], r)
-    (r / "f.txt").write_text("x")
+    (r / "f.txt").write_text("x", encoding="utf-8")
     _git(["add", "."], r)
     _git(["commit", "-qm", "init"], r)
     return r
