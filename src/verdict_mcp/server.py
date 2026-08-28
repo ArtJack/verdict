@@ -199,6 +199,53 @@ def get_profile(project: str) -> dict:
 
 
 @mcp.tool(annotations=_RO)
+def get_trends(project: str) -> dict:
+    """Run-over-run trajectory: per-run test counts and verdicts parsed from
+    the INDEX, plus the current pressure picture — open findings by severity,
+    age distribution, quarantine size. Direction is the signal; cells the
+    INDEX writes as prose come back raw with parsed numbers where possible."""
+    state, err = load_state(project)
+    if err:
+        return err
+    runs = []
+    index = Path(state["_qa_root"]) / "reports" / "INDEX.md"
+    if index.is_file():
+        history = get_history(project)
+        for row in history.get("runs", []):
+            tests_cell = next((v for k, v in row.items() if "tests" in k.lower()), "")
+            nums = re.findall(r"\d+", str(tests_cell))
+            runs.append({
+                "date": next((v for k, v in row.items() if k.lower() == "date"), None),
+                "run_type": next((v for k, v in row.items() if "run type" in k.lower()), None),
+                "verdict": next((v for k, v in row.items() if k.lower() == "verdict"), None),
+                "tests_cell": tests_cell,
+                "tests_passed": int(nums[0]) if nums else None,
+            })
+    open_findings = [f for f in state.get("findings", []) if f.get("status") == "open"]
+    by_sev: dict = {}
+    for f in open_findings:
+        sev = str(f.get("severity") or "unknown").strip().capitalize()
+        by_sev[sev] = by_sev.get(sev, 0) + 1
+    ages = sorted(int(f.get("age_days") or 0) for f in open_findings)
+    return {
+        "project": state.get("project", project),
+        "runs": runs,
+        "current": {
+            "run_number": state.get("run_number"),
+            "verdict": state.get("verdict"),
+            "open_findings": len(open_findings),
+            "open_by_severity": by_sev,
+            "age_days": {
+                "oldest": ages[-1] if ages else None,
+                "median": ages[len(ages) // 2] if ages else None,
+            },
+            "quarantine_size": len(state.get("flaky_quarantine", [])),
+            "duration_s": (state.get("tests") or {}).get("duration_s"),
+        },
+    }
+
+
+@mcp.tool(annotations=_RO)
 def get_state(project: str) -> dict:
     """The full raw state.json for a project (escape hatch; schema in docs/state-schema.md)."""
     state, err = load_state(project)
