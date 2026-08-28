@@ -3,6 +3,23 @@
 Plugin and `verdict-mcp` share one version line; `.claude-plugin/plugin.json` and
 `pyproject.toml` are bumped together.
 
+## 0.14.0 — 2026-08-28 · "the measured suite"
+
+The pesticide-paradox rule (§11) applied to ourselves: mutation testing over the guards,
+scorer, gate, state, and server — 1275 mutants, kill rate **61.9% measured, 66.4% after
+one hardening pass**, published per-file in [eval/README.md](eval/README.md).
+
+- **+44 killer tests (110 → 154)**: the Bash guard's deny matrix now enumerates every
+  mutator command and git verb it claims to block (57% → **77%** — each surviving
+  constant was a command whose denial nothing checked); `evaluate()`'s exit-code contract
+  gets exact-boundary coverage (`--min-run-number` equality passes, unparseable
+  timestamps are stale, unknown verdicts exit 4, stale outranks blocked) and the JSON
+  contract fields are asserted.
+- Baseline profiles now record the project's **mutation-testing command** alongside
+  coverage when a tool is already present (§6 stub, `/qa-baseline`) — never installed.
+- Honest residue, stated: formatter message-text mutants dominate the gate's remaining
+  survivors and are low-value; score.py/server.py/state.py are the next hardening targets.
+
 ## 0.13.0 — 2026-08-28 · "trajectory and annotations"
 
 - **MCP `get_trends`**: run-over-run trajectory parsed from the INDEX (dates, verdicts,

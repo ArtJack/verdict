@@ -169,6 +169,22 @@ def test_bash_allows_reads_and_safe_commands(repo, command):
     assert rc == 0, err
 
 
+@pytest.mark.parametrize("command", [
+    "echo x > /tmp/scratch-probe.txt",
+    "echo x >> /private/tmp/scratch-probe.txt",
+    "tee /tmp/notes.txt",
+])
+def test_bash_allows_plain_tmp_roots(repo, command):
+    rc, err = run_hook("enforce_bash_scope.py", bash_event(command, repo), strict="1")
+    assert rc == 0, err
+
+
+def test_bash_allows_git_dry_run_and_check(repo):
+    for command in ("git clean --dry-run", "git apply --check fix.patch"):
+        rc, err = run_hook("enforce_bash_scope.py", bash_event(command, repo), strict="1")
+        assert rc == 0, (command, err)
+
+
 def test_bash_allows_tmpdir_redirect(repo, tmp_path):
     rc, err = run_hook("enforce_bash_scope.py",
                        bash_event("echo x > $TMPDIR/scratch.txt", repo),
@@ -208,15 +224,50 @@ def test_bash_allows_git_mutation_inside_qa_root(repo):
 @pytest.mark.parametrize("command", [
     "echo hi > src/app.py",
     "cat notes >> README.md",
+    "echo x &> combined.log",
+    "echo y >| clobbered.txt",
+    "cmd 2> errors.txt",
     "tee src/x.py",
     "sed -i '' 's/a/b/' app.py",
+    "perl -i -pe s/a/b/ app.py",
     "rm -rf src",
+    "rmdir empty",
+    "unlink f.py",
     "mv a.py b.py",
     "cp fix.py src/app.py",
+    "install -m 755 tool.sh bin/tool",
     "touch marker.txt",
+    "mkdir newdir",
+    "ln -s a b",
+    "chmod 777 script.sh",
+    "chown me f.py",
+    "truncate -s 0 log.py",
+    "shred secrets.py",
+    "rsync a/ b/",
+    "patch -p1 < fix.diff",
     "git checkout -- .",
+    "git switch main",
+    "git restore .",
     "git commit -am wip",
+    "git push origin main",
+    "git reset --hard HEAD~1",
+    "git clean -fd",
+    "git stash",
+    "git merge feature",
+    "git rebase main",
+    "git am patch.mbox",
+    "git apply fix.patch",
+    "git revert HEAD",
+    "git cherry-pick abc123",
+    "git tag v1",
+    "git branch -D old",
+    "git worktree add ../x",
+    "git config user.name x",
     "VAR=1 env cp a.py b.py",
+    "sudo rm -rf src",
+    "nohup rm x.py",
+    "command cp a b",
+    "time mv a b",
     "pytest -q && echo done > out.log",
     "dd if=/dev/zero of=src/blob bs=1",
 ])
