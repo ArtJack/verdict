@@ -168,7 +168,9 @@ def get_report(project: str, report: str | None = None) -> dict:
         content = content[:_REPORT_CAP]
     return {
         "project": state.get("project", project),
-        "path": str(candidate.relative_to(root)),
+        # POSIX-style relative path on every platform — this value round-trips
+        # as the `report` argument and into links.
+        "path": candidate.relative_to(root).as_posix(),
         "content": content,
         "truncated": truncated,
     }

@@ -2,6 +2,7 @@
 as a bare script with zero installs."""
 
 import json
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -43,10 +44,13 @@ def make_home(tmp_path, **overrides):
 
 def gate(tmp_path, *args, home=None, cwd=None, state_kwargs=None):
     home = home or make_home(tmp_path, **(state_kwargs or {}))
+    # Inherit the environment (Windows Python cannot start without SystemRoot);
+    # strip only Verdict's own variables so the test home is authoritative.
+    env = {k: v for k, v in os.environ.items() if not k.startswith("VERDICT_")}
+    env["VERDICT_HOME"] = str(home)
     proc = subprocess.run(
         [sys.executable, str(GATE), *args],
-        capture_output=True, text=True, cwd=cwd,
-        env={"PATH": "/usr/bin:/bin", "VERDICT_HOME": str(home)},
+        capture_output=True, text=True, cwd=cwd, env=env,
     )
     return proc
 
