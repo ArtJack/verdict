@@ -224,7 +224,7 @@ concurrency: verdict-${{ github.ref }}
 
 steps:
   - uses: actions/checkout@v4
-  - uses: ArtJack/verdict@main
+  - uses: ArtJack/verdict@v0.6.0
     with:
       max-age-hours: 48   # a stale verdict is exit 5, never a pass
 ```
@@ -299,6 +299,21 @@ not oversell its own controls.
 
 ## FAQ
 
+**Who pays for the model?** You do — with the Claude subscription you already have.
+Verdict is a plugin that runs inside *your* Claude Code session: nothing routes through
+the author, no API key is required, and nobody else is ever billed for your runs. The one
+place an API key can appear is the optional GitHub Action's run mode — and that is your
+key, in your repo, for your CI. Everything below the model — the state memory, the MCP
+server, `verdict-gate`, the eval scorer — is plain files and stdlib Python: free on any
+machine, no model involved at all.
+
+**Can it run on a local LLM?** The wiring exists today (`ANTHROPIC_BASE_URL` passes
+through to any Anthropic-compatible gateway, e.g. LiteLLM in front of Ollama), and every
+non-judgment layer already runs locally for free. But the verdict is only as good as the
+judge: Sonnet — far stronger than any home-lab model — currently hard-fails the eval (see
+the results table), so a local model must earn verdict-signing duty by passing the same
+eval as everyone else. Run it, publish the score, then decide.
+
 **Why won't it fix the bugs it finds?** Independence. The agent that patches the code and
 then declares it healthy is grading its own homework. Verdict returns an ordered,
 implementation-ready fix list for you (or your coding agent) to execute.
@@ -312,12 +327,13 @@ it nightly; read a delta report over coffee, not a fresh audit.
 
 ## Roadmap
 
+- **Local-first track** (the project's original ambition): an agent-skills-standard
+  variant — the prompt, technique catalog, and state contract are portable markdown, which
+  is the door to non-Claude runtimes — plus the local-model experiment: run the eval suite
+  through an Anthropic-compatible gateway against local models and publish the scores. A
+  model earns nightly duty by passing the same eval as everyone else.
 - A JS/TS eval fixture alongside the Python one
 - Mutation-testing integration where a tool is present
-- Agent-skills-standard variant for cross-runtime use
-- Local-model experiment: run the eval suite through an Anthropic-compatible gateway
-  against local models and publish the scores — a model earns nightly duty by passing the
-  same eval as everyone else
 
 ## License
 
