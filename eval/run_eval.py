@@ -150,9 +150,8 @@ def main() -> int:
 
         if args.mode in ("seeded", "live"):
             overlay(EVAL_DIR / "fixtures" / "pricer_rev_b", checkout)
-            env = dict(base_env, **GIT_ENV,
-                       GIT_AUTHOR_DATE="2026-08-30T12:00:00Z",
-                       GIT_COMMITTER_DATE="2026-08-30T12:00:00Z")
+            env = dict(base_env, **GIT_ENV)
+            env["GIT_AUTHOR_DATE"] = env["GIT_COMMITTER_DATE"] = "2026-08-30T12:00:00Z"
             subprocess.run(["git", "add", "-A"], cwd=checkout, env=env, check=True)
             subprocess.run(["git", "commit", "-qm", "fixture rev B"],
                            cwd=checkout, env=env, check=True)

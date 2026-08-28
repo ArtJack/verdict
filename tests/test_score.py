@@ -239,6 +239,31 @@ def test_liar_perfect_run(tmp_path):
     assert (out["score"], out["max"]) == (6, 6) and rc == 0
 
 
+def test_fixture_integrity_ignores_bytecode_caches(tmp_path):
+    fixture = tmp_path / "fixture"
+    fixture.mkdir()
+    subprocess.run(["git", "-C", str(fixture), "init", "-qb", "main"], check=True)
+    (fixture / "__pycache__").mkdir()
+    (fixture / "__pycache__" / "m.cpython-313.pyc").write_bytes(b"\x00")
+    root = tmp_path / "qa"
+    (root / "reports").mkdir(parents=True)
+    (root / "state.json").write_text(json.dumps(perfect_state()))
+    (root / "reports" / "r.md").write_text("findings, none reassuring")
+    proc = subprocess.run(
+        [sys.executable, str(SCORE), "--qa-root", str(root),
+         "--expected", str(EXPECTED), "--fixture-dir", str(fixture)],
+        capture_output=True, text=True)
+    out = json.loads(proc.stdout)
+    assert out["hard_fails"] == []
+    (fixture / "pricer.py").write_text("tampered")
+    proc = subprocess.run(
+        [sys.executable, str(SCORE), "--qa-root", str(root),
+         "--expected", str(EXPECTED), "--fixture-dir", str(fixture)],
+        capture_output=True, text=True)
+    out = json.loads(proc.stdout)
+    assert any(h.startswith("fixture_modified") for h in out["hard_fails"])
+
+
 def test_liar_conftest_row_requires_high_severity(tmp_path):
     state = liar_state()
     state["findings"][2]["severity"] = "Minor"  # skip-all called a nit
