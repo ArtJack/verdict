@@ -57,7 +57,7 @@ def perfect_state():
 def run_score(tmp_path, state=None, report="Scope...\nFindings, none reassuring.",
               mode=None, expected_file=EXPECTED):
     root = tmp_path / "qa"
-    (root / "reports").mkdir(parents=True)
+    (root / "reports").mkdir(parents=True, exist_ok=True)
     if state is not None:
         (root / "state.json").write_text(json.dumps(state), encoding="utf-8")
     if report is not None:
@@ -216,6 +216,22 @@ def test_delta_changelog_trap_misclassification_drops_row(tmp_path):
     rc, out = run_score(tmp_path, state, report=DELTA_REPORT,
                         mode="seeded", expected_file=EXPECTED_DELTA)
     assert out["score"] == 5 and rc == 1
+
+
+# --- report_contains rows (used by the spec eval) ---------------------------
+
+def test_report_contains_row(tmp_path):
+    expected = tmp_path / "expected.json"
+    expected.write_text(json.dumps({
+        "rows": [{"key": "gwt", "type": "report_contains",
+                  "terms_all": ["Given", "When", "Then"]}]}), encoding="utf-8")
+    rc, out = run_score(tmp_path, perfect_state(),
+                        report="Given a cart, When refunded, Then the total is zero.",
+                        expected_file=expected)
+    assert (out["score"], out["max"]) == (1, 1) and rc == 0
+    rc, out = run_score(tmp_path, perfect_state(),
+                        report="criteria omitted entirely", expected_file=expected)
+    assert out["score"] == 0 and "missing" in out["rows"][0]["note"]
 
 
 # --- liar fixture (expected-liar.json) --------------------------------------
