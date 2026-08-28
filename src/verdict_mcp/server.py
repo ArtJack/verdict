@@ -178,17 +178,24 @@ def get_report(project: str, report: str | None = None) -> dict:
 
 @mcp.tool(annotations=_RO)
 def get_profile(project: str) -> dict:
-    """The project's QA profile — isolation rules, risk areas, real test commands."""
+    """The project's QA profile — isolation rules, risk areas, real test
+    commands — plus the lessons ledger (judgment corrections) when one exists."""
     state, err = load_state(project)
     if err:
         return err
-    path = Path(state["_qa_root"]) / "profile.md"
+    root = Path(state["_qa_root"])
+    path = root / "profile.md"
     if not path.is_file():
         return {
             "error": f"no profile.md for {project!r}",
             "hint": "run /qa-baseline to create one",
         }
-    return {"project": state.get("project", project), "content": path.read_text(encoding="utf-8")}
+    out = {"project": state.get("project", project),
+           "content": path.read_text(encoding="utf-8")}
+    lessons = root / "lessons.md"
+    if lessons.is_file():
+        out["lessons"] = lessons.read_text(encoding="utf-8")
+    return out
 
 
 @mcp.tool(annotations=_RO)

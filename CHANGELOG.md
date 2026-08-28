@@ -3,6 +3,31 @@
 Plugin and `verdict-mcp` share one version line; `.claude-plugin/plugin.json` and
 `pyproject.toml` are bumped together.
 
+## 0.12.0 — 2026-08-28 · "reward, done honestly"
+
+Reinforcement without self-deception: the score selects configurations, memory carries the
+lessons, and the judged agent never sees its own ledger.
+
+- **Lessons ledger** (`<qa-root>/lessons.md`, §6/§7): when a run overturns a prior
+  judgment — a RESOLVED that was never fixed, a FLAKY with an identifiable mechanism — it
+  files a three-line dated correction, read at the start of every future run. The only
+  learning a frozen model gets at runtime, spent on corrections, not chronicle.
+  `get_profile` serves the ledger to MCP consumers.
+- **Quarantine expiry is an action, not an opinion** (§6): release the entry and record
+  why, or re-quarantine with fresh evidence and a new expiry — "recommend lifting" while
+  leaving it in place is a dodge. Added after a real variance-series miss.
+- **Variance measured and published**: `--repeat N`; first series (Sonnet ×3 on both
+  nightly protocols) adjudicated miss by miss — baseline stable, delta 2-of-3, and the
+  nightly **reverted to Opus** on that evidence. Model probation ledger documented in
+  [docs/nightly.md](docs/nightly.md): 2 non-ok in trailing 5 demotes to the fallback;
+  a verdict of `fail` is never non-ok — punishing bad news teaches a tester to stop
+  delivering it.
+- **Scorer amendments #3 and #4** (published): tool byproducts are not fixture
+  modifications; multi-line finding entries no longer trip the REGRESSED-first anchor.
+  Both rehabilitated runs re-scored from preserved workdirs at zero token cost.
+- **Scorer regression corpus** (`eval/corpus/`, 5 entries incl. Sonnet phrasings) wired
+  into CI: every once-passing run must keep scoring full marks forever.
+
 ## 0.11.0 — 2026-08-28 · "not just Python"
 
 - **TypeScript/vitest eval fixture** ([fixtures/pricer-ts](eval/fixtures/pricer-ts)) with
