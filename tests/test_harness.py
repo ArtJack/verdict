@@ -20,9 +20,15 @@ HARNESS = Path(__file__).resolve().parent.parent / "src" / "verdict_mcp" / "harn
 
 
 def _emit(lines):
-    """A shell command printing these lines, on any platform."""
-    payload = "\\n".join(lines)
-    return f'"{sys.executable}" -c "print({payload!r})"'
+    """A shell command printing these lines, on any platform.
+
+    One print() per line, with no backslash escapes anywhere: a POSIX shell
+    unescapes `\\n` inside double quotes before Python ever sees it, while
+    cmd.exe passes it through — so an escape-based version emitted two lines on
+    macOS, one literal line on Windows, and passed locally while failing in CI.
+    """
+    body = "; ".join(f"print({line!r})" for line in lines)
+    return f'"{sys.executable}" -c "{body}"'
 
 
 def git(args, cwd):
