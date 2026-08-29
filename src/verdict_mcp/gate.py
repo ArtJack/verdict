@@ -31,11 +31,11 @@ from pathlib import Path
 
 try:
     from .project_key import derive_key
-    from .state import load_state, order_findings, parse_timestamp, resolve_root
+    from .state import is_open, load_state, order_findings, parse_timestamp, resolve_root
 except ImportError:  # executed as a bare script (GitHub Action gate mode)
     sys.path.insert(0, str(Path(__file__).resolve().parent))
     from project_key import derive_key
-    from state import load_state, order_findings, parse_timestamp, resolve_root
+    from state import is_open, load_state, order_findings, parse_timestamp, resolve_root
 
 MARKER = "<!-- verdict-gate -->"
 
@@ -68,7 +68,7 @@ def evaluate(project, fail_on, max_age_hours, min_run_number, now=None):
         "release_blockers": state.get("release_blockers", []),
         "not_tested": state.get("not_tested", []),
         "findings_open": order_findings(
-            [f for f in state.get("findings", []) if f.get("status") == "open"]),
+            [f for f in state.get("findings", []) if is_open(f)]),
     }
     if verdict not in ("pass", "pass with risks", "blocked", "fail"):
         out.update(exit_code=4, reason=f"state has no usable verdict: {verdict!r}")

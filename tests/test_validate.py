@@ -168,3 +168,48 @@ def test_hook_uses_previous_state_when_present(root):
     proc = run_cli(stdin=json.dumps(
         {"tool_name": "Write", "tool_input": {"file_path": str(state_path)}}))
     assert proc.returncode == 2 and "did not advance" in proc.stderr
+
+
+# ── the calibration contract (v0.20.0) ────────────────────────────────────
+
+def test_a_newly_filed_finding_must_state_its_confidence(root):
+    """Demanded at filing or not at all: a confidence supplied after the outcome
+    is known measures hindsight, not judgment."""
+    new = dict(good_state()["findings"][0], delta="NEW", first_seen="2026-08-24")
+    new.pop("confidence", None)
+    bad = validate(good_state(findings=[new]), root)
+    assert any("NEW without `confidence`" in b for b in bad)
+    assert validate(good_state(findings=[dict(new, confidence="probable")]), root) == []
+
+
+def test_findings_inherited_from_older_runs_stay_legal_without_one(root):
+    """Runs that predate the rule must keep validating — a contract that
+    retroactively invalidates its own history is a rewrite, not a contract."""
+    old = dict(good_state()["findings"][0], delta="STILL_OPEN")
+    old.pop("confidence", None)
+    assert validate(good_state(findings=[old]), root) == []
+
+
+def test_invented_confidence_and_outcome_values_are_rejected(root):
+    f = good_state()["findings"][0]
+    assert any("confidence 'very sure'" in b
+               for b in validate(good_state(findings=[dict(f, confidence="very sure")]), root))
+    assert any("outcome 'probably real'" in b
+               for b in validate(good_state(findings=[dict(f, outcome="probably real")]), root))
+
+
+def test_fix_verified_must_be_a_boolean_and_must_cite_the_guard(root):
+    f = dict(good_state()["findings"][0], status="resolved", delta="RESOLVED")
+    assert any("must be true or false" in b
+               for b in validate(good_state(findings=[dict(f, fix_verified="yes")]), root))
+    no_evidence = dict(f, fix_verified=True, evidence=[])
+    assert any("no evidence" in b for b in validate(good_state(findings=[no_evidence]), root))
+    assert validate(good_state(findings=[dict(f, fix_verified=True)]), root) == []
+
+
+def test_an_uppercase_status_is_still_an_open_finding(root):
+    """The live bug: "OPEN" made an open Critical invisible to every check that
+    switched on this field, including the pass-over-Critical rule."""
+    critical = dict(good_state()["findings"][0], status="OPEN", severity="Critical")
+    bad = validate(good_state(verdict="pass", findings=[critical]), root)
+    assert any("open Critical" in b for b in bad)

@@ -337,3 +337,30 @@ def test_get_profile_absent_then_present(solo_home):
         encoding="utf-8")
     out = server.get_profile("pricer")
     assert "clock-seeded" in out["lessons"]
+
+
+def test_get_trends_reports_the_track_record(solo_home):
+    """Anything gating a merge on this state should be able to ask how often
+    this tester's findings have held up, without reading the report prose."""
+    (solo_home / "outcomes.json").write_text(json.dumps({"schema_version": 1, "findings": {
+        "old-1": {"hash": "old-1", "confidence": "proven", "outcome": "confirmed"},
+        "old-2": {"hash": "old-2", "confidence": "hypothesis", "outcome": "refuted"},
+    }}), encoding="utf-8")
+    cal = server.get_trends("pricer")["calibration"]
+    assert cal["decided_outcomes"] == 2
+    assert cal["by_confidence"]["proven"]["confirmed"] == 1
+    assert cal["by_confidence"]["hypothesis"]["refuted"] == 1
+    # findings still in state count too, and stay undecided
+    assert cal["findings_tracked"] > 2 and cal["undecided_outcomes"] >= 1
+    assert cal["by_confidence"]["proven"]["precision"] is None, "a rate needs a sample"
+
+
+def test_open_findings_are_counted_whatever_the_case_of_the_status(solo_home):
+    """A live baseline wrote "OPEN"; the MCP surface reported it as closed."""
+    state = json.loads((solo_home / "state.json").read_text(encoding="utf-8"))
+    for f in state["findings"]:
+        f["status"] = f["status"].upper()
+    (solo_home / "state.json").write_text(json.dumps(state), encoding="utf-8")
+    assert server.get_findings("pricer", "open")["count"] == sum(
+        1 for f in state["findings"] if f["status"] == "OPEN")
+    assert server.get_trends("pricer")["current"]["open_findings"] > 0

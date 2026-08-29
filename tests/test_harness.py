@@ -65,7 +65,7 @@ def judgment(**over):
         "findings": [{
             "id": "W-F-1", "title": "off-by-one at line 42", "severity": "Major",
             "priority": "P1", "status": "open", "failure_classification": "REAL_DEFECT",
-            "evidence": ["a.py:42 the guard"]}],
+            "confidence": "proven", "evidence": ["a.py:42 the guard"]}],
     }
     j.update(over)
     return j

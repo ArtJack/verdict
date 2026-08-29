@@ -67,6 +67,9 @@ here.
       "severity": "Major",
       "priority": "P1",
       "failure_classification": "REAL_DEFECT",
+      "confidence": "proven",
+      "outcome": "unknown",
+      "outcome_reason": "still open; nothing has settled it",
       "evidence": ["pricer.py:14 (price > floor)", "README.md rule 1 (at or above)"]
     }
   ],
@@ -91,13 +94,47 @@ here.
 | `gates` | yes | One entry per gate actually run: command, summary line, exit code, and `duration_s` (optional but required to make the week-over-week duration gate measurable) |
 | `tests` | yes | Collected/passed/skipped/failed counts (plus optional `duration_s`) — a silent drop in `collected` is a finding |
 | `flaky_quarantine[]` | yes | `{test_id, first_seen, fail_count, run_count, quarantined_until}` — expiry is mandatory |
-| `findings[]` | yes | `{id, hash, first_seen, status, delta, age_days, title, severity, priority, failure_classification, evidence[]}` — `failure_classification` holds the §3 value for any finding about a failing/erroring/skipped/nondeterministic test, `null` for pure design findings; machine consumers (the eval scorer, the gate) read the field, not the prose |
+| `findings[]` | yes | `{id, hash, first_seen, status, delta, age_days, title, severity, priority, failure_classification, confidence, evidence[]}` — `failure_classification` holds the §3 value for any finding about a failing/erroring/skipped/nondeterministic test, `null` for pure design findings; machine consumers (the eval scorer, the gate) read the field, not the prose |
+| `findings[].confidence` | on `NEW` | The tester's claim about the finding when filed: `proven` (demonstrated it happen) · `probable` (traced, not executed) · `hypothesis` (suspected). Required on findings filed this run, and **frozen** afterwards — the harness restores the filed value if a later run tries to revise it, because a confidence edited after the outcome is known measures nothing |
+| `findings[].fix_verified` | no | Boolean, meaningful on a `RESOLVED` finding: `true` only when the defect was re-injected in a scratch copy and a guard failed. It is what separates "fixed" from "absent", and it is the only judgment field that feeds the track record — so it requires cited evidence |
+| `findings[].outcome` | computed | `confirmed` · `refuted` · `unknown`, written by `verdict-finalize`, never by the agent. Confirmed = regressed, or resolved-and-fix-verified. Refuted = withdrawn. Everything else is unknown, and stays out of every rate. Once decided it sticks, so a track record cannot erode as findings change state; only a withdrawal overrides an earlier decision |
+| `findings[].outcome_reason` | computed | The sentence explaining the outcome, so a reader can audit the tally without re-deriving it |
+| `calibration` | computed | The track record block: `by_confidence` and `by_proof_method` counts over every finding the project ever filed, with `precision` present only once a bucket reaches `min_sample` (30) settled outcomes. Rendered into the report as **Track record** |
 | `findings[].root_cause` | no | The §3.5 chain when one was established: `{mechanism, origin, class{pattern, sites[]}, trigger, latent_condition, fix_location, proof{method, evidence}, confidence}`. `proof.method` is `counterfactual` · `differential` · `archaeology` · `reading`; `fix_location` is `code` · `test` · `spec` · `environment` · `process`; `confidence` is `proven` · `hypothesis`. Carrying it forward means the next run inherits the diagnosis instead of re-deriving it |
 | `verdict` | yes | `pass` · `pass with risks` · `blocked` · `fail` |
 | `release_blockers` | yes | Concrete blockers, or empty |
 | `not_tested` | yes | What was consciously not covered — a silent skip is a reporting failure |
 | `next_run_focus` | no | Carries intent to the next run |
 | `coverage` | no | Direction matters, not the absolute number |
+
+## The outcome ledger — `<qa-root>/outcomes.json`
+
+`state.json` holds open findings and the current run's resolutions; a finding resolved two
+runs ago is no longer in it. That is deliberate — state stays small — but it means decided
+outcomes would leave the sample as soon as they stopped being news, and no track record
+could ever accumulate. `outcomes.json` is where they persist: one compact row per finding
+ever filed, keyed by `hash`, upserted by `verdict-finalize` (so a re-run rewrites rows
+instead of double-counting them).
+
+```json
+{
+  "schema_version": 1,
+  "project": "pricer",
+  "findings": {
+    "7a3f1c02": {
+      "hash": "7a3f1c02", "id": "PRICER-F-003", "severity": "Major",
+      "confidence": "probable", "proof_method": "differential",
+      "outcome": "confirmed", "outcome_reason": "regressed: it was fixed and came back, so it was real",
+      "first_seen": "2026-08-22", "decided_on": "2026-09-04"
+    }
+  }
+}
+```
+
+A decided outcome is never overwritten by a later `unknown` — losing sight of a finding is
+not evidence that nothing was ever settled. Evidence, prose, and root-cause chains stay in
+the reports; the ledger keeps only what a tally needs. A missing or corrupt ledger reads as
+empty and never fails a run.
 
 The finding `hash` is a short hash of `file path + rule + normalized message` (lowercase,
 line numbers stripped) so identity stays stable across runs while line numbers move. The

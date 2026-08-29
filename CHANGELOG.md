@@ -3,6 +3,43 @@
 Plugin and `verdict-mcp` share one version line; `.claude-plugin/plugin.json` and
 `pyproject.toml` are bumped together.
 
+## 0.20.0 — 2026-08-29 · "the tester's own error rate"
+
+A QA agent's findings are worth what its track record says they are worth, and until now
+Verdict had no track record — only findings that quietly stopped being mentioned. This
+release makes the tester's accuracy a measured, auditable number that the tester itself
+cannot touch.
+
+- **Confidence, stated at filing and frozen there.** Every finding filed this run carries
+  `confidence` — `proven` (demonstrated it happen), `probable` (traced, not executed), or
+  `hypothesis` (suspected). The validator refuses a `NEW` finding without one, because a
+  confidence supplied after the outcome is known is hindsight in a prediction's clothes;
+  the harness restores the filed value if a later run tries to revise it.
+- **The outcome is computed, never claimed.** `outcome` is derived from what a finding
+  *did*: it regressed, or its fix was verified by re-injection (`fix_verified: true`, which
+  now has to cite the guard that failed) — it held up; the tester withdrew it — it did not.
+  Anything else stays `unknown` and is excluded from every rate rather than guessed at,
+  because a resolution nobody verified is an absence, not proof. A decided outcome sticks,
+  so the record cannot erode as findings change state; only a withdrawal overrides it.
+- **`outcomes.json`, the permanent ledger.** `state.json` drops findings resolved two runs
+  ago, which meant decided outcomes left the sample as soon as they stopped being news.
+  One compact upserted row per finding ever filed now outlives the findings list — the
+  reason a rate can ever accumulate at all.
+- **Track record in the report, and rates only when earned.** `verdict-finalize` renders a
+  section reading "N tracked · M settled" with per-confidence and per-proof-method counts;
+  a percentage appears only once a bucket has 30 settled outcomes. Below that the counts
+  stand alone, because "2 of 3" is a fact and "67%" is decoration. Exposed over MCP through
+  `get_trends`.
+- **A withdrawn finding no longer vanishes.** It was dropped from state on the next run
+  that failed to mention it — the tester's own false-positive record aging quietly off the
+  page. It is now carried forward and stays visible.
+- **Two live bugs in the status field these tallies read.** A production baseline wrote
+  `"OPEN"`, and every `status == "open"` comparison in the codebase disagreed with it: the
+  gate reported zero open findings for a project holding seven, one of them Critical, and
+  the scorer's pass-over-an-open-defect hard fail could not trip. Comparisons are now
+  case-insensitive in one place; the harness normalizes on write. Separately, a withdrawn
+  finding that went unmentioned was silently converted into a resolved one.
+
 ## 0.19.0 — 2026-08-29 · "the report is the state"
 
 - **The report is rendered, not typed.** `verdict-finalize` builds it from `state.json` —

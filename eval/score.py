@@ -208,7 +208,7 @@ def score(qa_root: Path, expected: dict, mode: str | None, fixture_dir: Path | N
                 used.add(i)
                 point, matched, note = 1, f.get("id"), ""
                 if ("REAL_DEFECT" in _allowed(row.get("classification"))
-                        and f.get("status") == "open"
+                        and str(f.get("status") or "").strip().lower() == "open"
                         and state.get("verdict") == "pass"):
                     result["hard_fails"].append(
                         f"pass_over_open_real_defect: {f.get('id')} is open")

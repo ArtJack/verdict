@@ -18,6 +18,8 @@ Required output:
   ENVIRONMENT / FLAKY) with the evidence stated before the classification
 - structured bug report
 - severity with reason · priority with reason
+- confidence per §9 (`proven` / `probable` / `hypothesis`) — stated now, because it is
+  scored later against what the finding turns out to do
 - reproduction gaps (what is still needed for a clean repro)
 - release impact
 - regression checks the fix must not break

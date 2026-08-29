@@ -33,6 +33,25 @@ def known_projects() -> list[str]:
     return sorted(p.name for p in root.iterdir() if (p / "state.json").is_file())
 
 
+STATUSES = ("open", "resolved", "withdrawn")
+
+
+def norm_status(value) -> str:
+    """Normalize a finding's status for comparison.
+
+    A live baseline wrote `"OPEN"`, and every `status == "open"` test in this
+    codebase silently disagreed with it: the gate reported zero open findings
+    for a project holding seven, one of them Critical. Case is not a contract
+    violation worth failing a run over — it is a comparison bug, and it belongs
+    fixed in one place rather than guarded at ten call sites.
+    """
+    return str(value or "").strip().lower()
+
+
+def is_open(finding: dict) -> bool:
+    return norm_status(finding.get("status")) == "open"
+
+
 def sev_rank(value) -> int:
     """Rank severity case-insensitively; unknown or missing values sort last."""
     return SEVERITY_RANK.get(str(value or "").strip().capitalize(), 99)
@@ -162,7 +181,7 @@ def hotspots(state: dict, limit: int = 10) -> dict:
             canon[path], {"path": canon[path], "findings": 0, "open": 0, "weight": 0.0})
         for f in group:
             entry["findings"] += 1
-            entry["open"] += 1 if f.get("status") == "open" else 0
+            entry["open"] += 1 if is_open(f) else 0
             entry["weight"] += SEVERITY_WEIGHT.get(
                 str(f.get("severity") or "").strip().capitalize(), 1.0)
 
@@ -175,6 +194,159 @@ def hotspots(state: dict, limit: int = 10) -> dict:
         "findings_total": len(findings),
         "findings_without_a_cited_path": uncited,
         "hotspots": ranked[:limit],
+    }
+
+
+CONFIDENCE_LEVELS = ("proven", "probable", "hypothesis", "unstated")
+CALIBRATION_MIN_SAMPLE = 30
+OUTCOMES_FILE = "outcomes.json"
+
+
+def finding_key(finding: dict) -> str:
+    """Stable identity for ledger purposes: the run-to-run `hash` when there is
+    one, else the human id, else the title."""
+    for field in ("hash", "id", "title"):
+        value = finding.get(field)
+        if value:
+            return str(value)
+    return ""
+
+
+def outcome_row(finding: dict, decided_on: str | None = None) -> dict:
+    """The part of a finding worth keeping forever — a hundred bytes, not a
+    finding. Evidence, prose, and root-cause chains stay in the report."""
+    root = finding.get("root_cause") or {}
+    row = {
+        "hash": finding.get("hash"),
+        "id": finding.get("id"),
+        "severity": finding.get("severity"),
+        "confidence": finding.get("confidence"),
+        "proof_method": (root.get("proof") or {}).get("method"),
+        "outcome": finding.get("outcome") or "unknown",
+        "outcome_reason": finding.get("outcome_reason"),
+        "first_seen": finding.get("first_seen"),
+    }
+    if row["outcome"] in ("confirmed", "refuted") and decided_on:
+        row["decided_on"] = decided_on
+    return {k: v for k, v in row.items() if v is not None}
+
+
+def load_outcomes(qa_root) -> dict:
+    """The permanent outcome ledger, keyed by finding identity. Missing or
+    corrupt reads as empty — a lost ledger must never fail a run."""
+    try:
+        data = json.loads((Path(qa_root) / OUTCOMES_FILE).read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError, TypeError):
+        return {}
+    rows = data.get("findings") if isinstance(data, dict) else data
+    if not isinstance(rows, dict):
+        return {}
+    return {k: v for k, v in rows.items() if isinstance(v, dict)}
+
+
+def merge_outcomes(ledger: dict, findings: list, decided_on: str | None = None) -> dict:
+    """Fold this run's findings into the ledger — the only reason calibration
+    can exist at all.
+
+    `state.json` keeps open findings and the current run's resolutions; a
+    finding resolved two runs ago is gone from it. Without somewhere permanent
+    to put decided outcomes, every settled finding would leave the sample as
+    soon as it stopped being news, and the denominator would never grow past
+    one run's worth. Upsert by identity, so re-running a finalize rewrites the
+    same rows instead of counting them twice; a decided outcome is never
+    overwritten by a later `unknown`, because losing the current findings list
+    is not evidence that nothing was ever settled.
+    """
+    out = {str(k): dict(v) for k, v in (ledger or {}).items()}
+    for f in findings or []:
+        key = finding_key(f)
+        if not key:
+            continue
+        row = outcome_row(f, decided_on)
+        prior = out.get(key)
+        if prior:
+            if (prior.get("outcome") in ("confirmed", "refuted")
+                    and row.get("outcome") not in ("confirmed", "refuted")):
+                row = {**prior, **{k: v for k, v in row.items()
+                                   if k not in ("outcome", "outcome_reason", "decided_on")}}
+            else:
+                row = {**prior, **row}
+        out[key] = row
+    return out
+
+
+def calibration(state: dict, min_sample: int = CALIBRATION_MIN_SAMPLE,
+                ledger: dict | None = None) -> dict:
+    """Did the confidence this tester claimed predict what happened?
+
+    Outcomes come from what the findings *did*, never from asking the model:
+    a finding that was fixed and verified, or that regressed, was real; a
+    finding the tester withdrew was not. Everything else is `unknown` and is
+    excluded from the denominator — a still-open finding is genuinely
+    ambiguous (not real, or real and nobody's priority yet), and counting it
+    either way would make the number out of an assumption.
+
+    Rates appear only once a bucket has `min_sample` decided outcomes.
+    Below that the counts stand alone: "2 of 3" is a fact, "67%" is decoration.
+    """
+    if ledger is None and state.get("_qa_root"):
+        ledger = load_outcomes(state["_qa_root"])
+    rows = {str(k): v for k, v in (ledger or {}).items()}
+    # The current run wins over its own ledger row: a withdrawal filed today
+    # outranks the confirmation inferred yesterday.
+    for f in state.get("findings", []) or []:
+        key = finding_key(f)
+        if key:
+            rows[key] = f
+    findings = list(rows.values())
+    by_confidence: dict[str, dict] = {}
+    by_method: dict[str, dict] = {}
+
+    def bucket(store, key):
+        return store.setdefault(
+            key, {"confirmed": 0, "refuted": 0, "unknown": 0})
+
+    for f in findings:
+        outcome = f.get("outcome") or "unknown"
+        if outcome not in ("confirmed", "refuted"):
+            outcome = "unknown"
+        conf = str(f.get("confidence") or "unstated").lower()
+        if conf not in CONFIDENCE_LEVELS:
+            conf = "unstated"
+        bucket(by_confidence, conf)[outcome] += 1
+        method = ((f.get("root_cause") or {}).get("proof") or {}).get("method")
+        if method:
+            bucket(by_method, str(method).lower())[outcome] += 1
+
+    def finish(store):
+        for key, counts in store.items():
+            decided = counts["confirmed"] + counts["refuted"]
+            counts["decided"] = decided
+            if decided >= min_sample:
+                counts["precision"] = round(counts["confirmed"] / decided, 3)
+                counts["reading"] = f"{counts['confirmed']} of {decided} held up"
+            else:
+                counts["precision"] = None
+                counts["reading"] = (
+                    f"{counts['confirmed']} of {decided} decided so far — "
+                    f"too few for a rate (needs {min_sample})")
+        return store
+
+    decided_total = sum(c["confirmed"] + c["refuted"] for c in by_confidence.values())
+    return {
+        "min_sample": min_sample,
+        "findings_tracked": len(findings),
+        "decided_outcomes": decided_total,
+        "undecided_outcomes": len(findings) - decided_total,
+        "by_confidence": finish(by_confidence),
+        "by_proof_method": finish(by_method),
+        "caveats": [
+            "`confirmed` means fix-verified or regressed; it therefore tracks which "
+            "findings held up under a check, not correctness in the abstract",
+            "still-open findings are undecided on purpose and are excluded from every "
+            "rate rather than guessed at",
+            "a finding resolved without re-injection stays undecided: absence is not proof",
+        ],
     }
 
 

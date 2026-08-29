@@ -82,6 +82,7 @@ Artifact: .qa/reports/2026-08-24-pricer-review.md
 | Root cause | "investigate the failure" | a four-link chain with a citation per link, a mandatory class check (is this an instance or a pattern?), and causation proven by flipping the cause in a scratch copy — with its own scored fixture built around a decoy |
 | Requirements review | never — code only | `/qa-spec` judges the spec before code exists (contradictions, unmeasurables, boundary ambiguities, history conflicts) — with its own scored eval fixture |
 | "No bugs found!" | frequently | never — coverage, gaps, and residual risk instead |
+| Its own accuracy | unmeasured, and unmeasurable after the fact | every finding states a confidence when filed; the outcome is computed from what the finding did, kept in a permanent ledger, and reported as a track record the tester cannot edit |
 | Tested itself | — | scored eval suite: baseline + delta-memory + adversarial-honesty fixtures, deterministic scorer, published answer keys ([eval/](eval/)) |
 | State consumable by other tools | — | `verdict-mcp`: read-only MCP server over the state — works from Cursor, Codex, CI, any MCP client |
 
@@ -319,6 +320,29 @@ prose (risks, fix order, per-finding narrative) into it. The report cannot go mi
 because the harness writes it, and cannot contradict the state, because it is the state.
 
 Nothing the model cannot compute correctly is left for the model to compute.
+
+## The tester's own error rate
+
+A finding is worth what the tester's record says it is worth. Verdict keeps that record,
+and the design principle is the same one as everywhere else here: the part a model would
+be tempted to grade generously is the part it does not get to touch.
+
+Each finding states a **confidence when it is filed** — `proven` (demonstrated it happen),
+`probable` (traced, not executed), `hypothesis` (suspected). The validator refuses a new
+finding without one, and the harness freezes it: a later run cannot revise a prediction
+after seeing how it turned out.
+
+The **outcome is computed**, never claimed. A finding that regressed, or whose fix was
+verified by re-injecting the defect and watching a guard fail, held up. One the tester
+withdrew did not. Everything else stays undecided and is excluded from every rate — a
+resolution nobody verified is an absence, not proof, and a still-open finding has not
+settled anything. Decided outcomes persist in `outcomes.json`, because `state.json` drops
+findings resolved two runs ago and the sample would otherwise reset forever.
+
+The report then carries a **Track record** section: how many findings this project has
+tracked, how many are settled, and the counts per confidence level and per proof method.
+A percentage appears only once a bucket has 30 settled outcomes. Below that you get "2 of
+3", which is a fact, instead of "67%", which is decoration.
 
 ## The state contract is machine-checked
 
