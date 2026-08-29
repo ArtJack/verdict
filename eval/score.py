@@ -128,9 +128,12 @@ def score(qa_root: Path, expected: dict, mode: str | None, fixture_dir: Path | N
             # Tool byproducts — bytecode caches, coverage data, linter caches —
             # are inevitable side effects of measuring the code under test, not
             # modifications of it.
+            # `.qa/` belongs here for the same reason as the caches: in team
+            # mode the QA root lives *inside* the tree, so a run that wrote its
+            # own state looked like a run that edited the code under test.
             _BYPRODUCTS = ("__pycache__", ".pytest_cache", ".coverage",
                            "coverage.xml", "htmlcov", ".hypothesis",
-                           ".ruff_cache", ".mypy_cache", "node_modules")
+                           ".ruff_cache", ".mypy_cache", "node_modules", ".qa")
             dirty = [
                 line for line in porcelain.stdout.strip().splitlines()
                 if not any(c in line for c in _BYPRODUCTS)

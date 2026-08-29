@@ -1,7 +1,7 @@
 # The tested tester
 
 A QA agent that has never been tested is exactly the kind of claim Verdict exists to
-reject. This directory is Verdict's own eval: three fixtures, machine answer keys, a
+reject. This directory is Verdict's own eval: six fixtures, machine answer keys, a
 deterministic scorer, and a harness that runs the whole thing in isolation.
 
 ## Layout

@@ -433,3 +433,76 @@ def test_a_retry_at_the_same_commit_is_not_a_lost_run(repo, qa_root):
     lost = json.loads(subprocess.run(args, capture_output=True, text=True,
                                      check=True).stdout)
     assert "its work is lost" in lost["previous_run_incomplete"]["meaning"]
+
+
+# ── runner dialects ───────────────────────────────────────────────────────
+
+# Real summary lines. The count-drop gate and the id set-diff are two of the
+# things Verdict does that a plain test run does not — and for every runner
+# below they used to be silently unavailable, because the parser only spoke
+# pytest and said nothing when it understood nothing.
+SUMMARIES = [
+    ("pytest", "3 failed, 4 passed, 1 skipped in 0.02s",
+     {"passed": 4, "failed": 3, "skipped": 1}),
+    ("cargo", "test result: ok. 5 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out",
+     {"passed": 5, "failed": 0, "skipped": 1}),
+    ("jest", "Tests:       1 failed, 4 passed, 5 total",
+     {"collected": 5, "passed": 4, "failed": 1}),
+    ("vitest", " Tests  2 failed | 5 passed (7)",
+     {"collected": 7, "passed": 5, "failed": 2}),
+    ("rspec", "5 examples, 1 failure, 2 pending",
+     {"collected": 5, "failed": 1, "skipped": 2}),
+    ("phpunit", "Tests: 5, Assertions: 10, Failures: 1.",
+     {"collected": 5, "failed": 1}),
+    ("phpunit", "OK (5 tests, 5 assertions)", {"passed": 5}),
+    ("dotnet", "Passed!  - Failed:     0, Passed:     5, Skipped:     0, Total:     5",
+     {"collected": 5, "passed": 5, "failed": 0, "skipped": 0}),
+    ("surefire", "Tests run: 12, Failures: 1, Errors: 0, Skipped: 2",
+     {"collected": 12, "failed": 1, "errors": 0, "skipped": 2}),
+    ("gotestsum", "DONE 12 tests, 1 failure in 0.5s", {"collected": 12, "failed": 1}),
+]
+
+
+@pytest.mark.parametrize("dialect,line,expected", SUMMARIES,
+                         ids=[f"{d}-{i}" for i, (d, _, _) in enumerate(SUMMARIES)])
+def test_each_runner_dialect_is_parsed_and_named(dialect, line, expected):
+    from verdict_mcp.harness import _counts
+    counts, name = _counts(line)
+    assert counts == expected
+    assert name == dialect, "the dialect is reported so a reader can audit the reading"
+
+
+def test_overlapping_vocabularies_do_not_steal_each_others_output():
+    """`1 failure` is gotestsum and rspec; `Failures: 1` is surefire and phpunit;
+    `5 passed` is pytest, cargo, jest and vitest. Read by the wrong dialect the
+    numbers are not wrong so much as incomplete — cargo read as pytest silently
+    drops `ignored`, which is the skip count the gate cares about."""
+    from verdict_mcp.harness import _counts
+    assert _counts("test result: ok. 5 passed; 0 failed; 1 ignored")[0]["skipped"] == 1
+    assert _counts("Tests run: 12, Failures: 1, Errors: 0, Skipped: 2")[0]["collected"] == 12
+    assert _counts("DONE 12 tests, 1 failure in 0.5s")[0]["collected"] == 12
+
+
+def test_plain_go_test_is_counted_from_its_per_test_lines():
+    """`go test` prints no totals at all; the -v lines are the only signal."""
+    from verdict_mcp.harness import _counts
+    counts, name = _counts(
+        "--- PASS: TestA (0.00s)\n--- FAIL: TestB (0.01s)\n--- SKIP: TestC (0.00s)\nFAIL\n")
+    assert counts == {"passed": 1, "failed": 1, "skipped": 1} and name == "go test -v"
+
+
+def test_an_unreadable_summary_says_so_instead_of_reporting_nothing(repo, qa_root):
+    """Empty counts have two very different causes — the suite reported nothing,
+    or we failed to understand it — and they need different fixes."""
+    facts = collect(repo, qa_root, [("suite", _emit(["Build succeeded. Nothing to report."]))])
+    gate = facts["gates"]["suite"]
+    assert "counts" not in gate
+    assert "cannot fire" in gate["counts_unparsed"]
+    assert "tests" not in facts
+
+
+def test_a_runner_reported_total_beats_our_arithmetic(repo, qa_root):
+    """Several runners report both parts and a total, and they disagree when a
+    test errors during collection. The runner's own number wins."""
+    facts = collect(repo, qa_root, [("suite", _emit(["Tests run: 12, Failures: 1, Errors: 0, Skipped: 2"]))])
+    assert facts["tests"]["collected"] == 12

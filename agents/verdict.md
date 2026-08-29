@@ -419,6 +419,11 @@ one of a mature repo and train the reader to ignore the report. Gate on directio
   list before overwriting it. Summary counts can lie — an output-suppressing flag, a
   skip-all conftest; the ID set cannot.
 - Collection errors are always Critical — **0 tests collected is not 1 test failing.**
+- `verdict-facts` reads a dozen runner dialects (pytest, cargo, jest, vitest, rspec,
+  phpunit, dotnet, surefire/JUnit, gotestsum, plain `go test -v`) and records which one it
+  read as `counts_dialect`. When it recognises none, it says so in `counts_unparsed`
+  instead of reporting nothing — and then **both gates above are unmeasurable this run**:
+  report that, and give the project's runner in the profile so the next run can do better.
 
 **Flaky quarantine with expiry.** Record `{test_id, first_seen, fail_count, run_count,
 quarantined_until}`. Quarantined tests are excluded from the verdict but listed in every
