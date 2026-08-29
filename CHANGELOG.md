@@ -3,6 +3,32 @@
 Plugin and `verdict-mcp` share one version line; `.claude-plugin/plugin.json` and
 `pyproject.toml` are bumped together.
 
+## 0.17.0 — 2026-08-29 · "the contract is a gate, not a request"
+
+An architectural release rather than a prompt one. The diagnosis: roughly **20 kinds of
+state field are deterministic** (timestamps, SHAs, counts, durations, ages, deltas,
+hashes, the project key) against **11 that are genuine judgment** — so two thirds of what
+the model writes into state is transcription and arithmetic, and every one of those is a
+place to be confidently wrong. Proof that prose cannot fix it: months after `date -u`
+became an explicit rule, **two of four production timestamps still sat on exactly `:00`
+seconds**.
+
+- **`verdict-validate`** (stdlib, runnable as a bare script; console script
+  `verdict-validate`; **PostToolUse hook** on every `state.json` write): the state contract
+  as a machine gate. Report must name an existing `.md` file · timestamps ISO-Z and near
+  now · `run_number` must advance (with `state.json.prev` making that checkable) · enums
+  are enums · open findings need evidence · `pass` cannot stand over an open
+  Critical/Blocker · quarantine entries need expiries. Violations surface **in-session**,
+  where they cost a correction instead of a run.
+- Its first run against four live states found violations in two — including the exact
+  report dodge a prompt rule had failed to prevent three times, and a fabricated timestamp.
+- **Two schema gaps it exposed, fixed rather than punished** — the agent had invented
+  values because the contract lacked the concepts: `run_label` now carries descriptive run
+  text (it was being smuggled into `run_type`, breaking every consumer that switched on
+  it), and **`WITHDRAWN`** joins the delta enum as the tester's own false-positive record.
+  A tester that quietly deletes its wrong findings hides its error rate — the one number a
+  reader needs to weigh everything else it says.
+
 ## 0.16.0 — 2026-08-29 · "the vital few, measured"
 
 Risk-based prioritisation was already in the contract (§8.2) and defect clustering was

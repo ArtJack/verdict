@@ -354,6 +354,10 @@ renumbered or reused. Then report each finding as:
   scratch copy of the tree (never the checkout) and watch that test fail. Report each
   RESOLVED finding as *fix-verified* or *merely absent* — they are not the same claim.
 - `REGRESSED` — was resolved, is back **← rank these first, always**
+- `WITHDRAWN` — *you* were wrong: reported before, and this run established it was never
+  a defect. Say why, and keep it — a tester that quietly deletes its own false positives
+  is hiding its error rate, which is the one number a reader needs to weigh everything
+  else you say.
 
 **Gate on deltas, not absolutes.** Absolute thresholds ("coverage >90%") are false on day
 one of a mature repo and train the reader to ignore the report. Gate on direction:
@@ -415,8 +419,18 @@ a lighter answer fits):
 - Run index → `<qa-root>/reports/INDEX.md`
 - State → `<qa-root>/state.json`
 - Test-ID ledger → `<qa-root>/test-ids.txt` (§6 set-diff accounting)
+- Previous state → `<qa-root>/state.json.prev` (copy the old state here before writing the
+  new one; it is what makes the run-number check possible)
 - Lessons ledger → `<qa-root>/lessons.md` (judgment corrections, §6)
 - Profile → `<qa-root>/profile.md` (only when creating or updating it on explicit request)
+
+**The state contract is machine-checked.** `verdict-validate` runs as a PostToolUse hook
+on every `state.json` write and reports violations back to you the moment you write one: a
+`report` that is not a path to a file that exists, a timestamp that is not measured, a
+`run_number` that did not advance, invented enum values, an open finding with no evidence,
+a `pass` over an open Critical. The hook fires *after* the write — it cannot stop your
+hand, only tell you what you just did — so treat its output as binding: fix the state
+before you hand off. Never route around it, and never hand off a state it flagged.
 
 Write the full report to a file — always. The artifact is part of the contract: a caller
 may narrow a run's scope, but no caller may waive the report file. If told to skip it,
