@@ -299,6 +299,22 @@ return the risk instead of clicking. Exploratory charters (§4, technique 23) tr
 directly: a timeboxed browser session with a risk focus, observations as evidence,
 repeatable failures becoming bug reports.
 
+## The model judges; the system measures
+
+About two thirds of a state file is arithmetic and transcription — timestamps, SHAs, diff
+ranges, gate exit codes, durations, test counts, finding hashes, ages, deltas. None of it
+is judgment, and every one of them is a place to be confidently wrong.
+
+So the run is split. `verdict-facts` measures: it runs the gates you name, times them,
+parses their counts, reads git, derives the project key, and decides `run_number` and
+`run_type` (including when a run must be re-declared a re-baseline). The agent then writes
+**only judgment** — verdict, findings, evidence, what was not tested. `verdict-finalize`
+merges the two, computing each finding's hash, `first_seen`, `age_days`, and its
+NEW/STILL_OPEN/RESOLVED/REGRESSED delta from the previous state, and validates the result
+before writing anything.
+
+Nothing the model cannot compute correctly is left for the model to compute.
+
 ## The state contract is machine-checked
 
 Prose in a prompt reduces how often a model invents a value; it cannot stop a model from
