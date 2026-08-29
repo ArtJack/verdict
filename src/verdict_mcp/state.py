@@ -104,6 +104,80 @@ def parse_timestamp(value: str) -> datetime | None:
     return None
 
 
+_SOURCE_EXTS = (
+    "py|ts|tsx|js|jsx|mjs|cjs|go|rs|rb|java|kt|php|cs|swift|sql|sh|"
+    "yml|yaml|json|toml|md|css|html"
+)
+_CITED_PATH = re.compile(rf"([A-Za-z0-9_./-]+\.(?:{_SOURCE_EXTS}))\b")
+# Defect *weight*, not defect count: ten typos are not a Critical. Exposed
+# alongside the raw count because the two rank differently and both are true.
+SEVERITY_WEIGHT = {"Blocker": 8.0, "Critical": 5.0, "Major": 2.0, "Minor": 1.0, "Trivial": 0.5}
+
+
+def cited_path(finding: dict) -> str | None:
+    """The first source path cited in a finding's evidence, if any."""
+    for item in finding.get("evidence", []) or []:
+        m = _CITED_PATH.search(str(item))
+        if m:
+            return m.group(1)
+    return None
+
+
+def _canonicalize(paths: set[str]) -> dict[str, str]:
+    """Merge paths that are suffixes of one another onto the longest form.
+
+    The same module gets cited at different depths across runs
+    (`marketplaces/x.py` in one, `core/src/pkg/marketplaces/x.py` in another).
+    Left unmerged, one hotspot reads as two lukewarm ones.
+    """
+    longest = sorted(paths, key=len, reverse=True)
+    mapping = {}
+    for p in paths:
+        mapping[p] = next((q for q in longest if q != p and q.endswith("/" + p)), p)
+    return mapping
+
+
+def hotspots(state: dict, limit: int = 10) -> dict:
+    """Where this project's defects actually cluster, computed from its own
+    findings rather than from prose someone wrote once.
+
+    Returns per-file `findings` (all-time), `open`, and `weight` (severity-
+    weighted, all-time), plus `runs_of_history` — a ranking built on one run is
+    a snapshot, not a pattern, and the caller is owed that number.
+    """
+    findings = state.get("findings", []) or []
+    raw = {}
+    uncited = 0
+    for f in findings:
+        path = cited_path(f)
+        if path is None:
+            uncited += 1
+            continue
+        raw.setdefault(path, []).append(f)
+
+    canon = _canonicalize(set(raw))
+    merged: dict[str, dict] = {}
+    for path, group in raw.items():
+        entry = merged.setdefault(
+            canon[path], {"path": canon[path], "findings": 0, "open": 0, "weight": 0.0})
+        for f in group:
+            entry["findings"] += 1
+            entry["open"] += 1 if f.get("status") == "open" else 0
+            entry["weight"] += SEVERITY_WEIGHT.get(
+                str(f.get("severity") or "").strip().capitalize(), 1.0)
+
+    ranked = sorted(
+        merged.values(), key=lambda e: (-e["weight"], -e["findings"], e["path"]))
+    for entry in ranked:
+        entry["weight"] = round(entry["weight"], 1)
+    return {
+        "runs_of_history": state.get("run_number"),
+        "findings_total": len(findings),
+        "findings_without_a_cited_path": uncited,
+        "hotspots": ranked[:limit],
+    }
+
+
 def order_findings(findings: list[dict]) -> list[dict]:
     """REGRESSED first, then severity, then oldest-first pressure."""
     return sorted(

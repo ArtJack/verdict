@@ -22,6 +22,7 @@ from mcp.types import ToolAnnotations
 from .state import (
     DELTA_VALUES,
     home,
+    hotspots,
     known_projects,
     load_state,
     order_findings,
@@ -221,6 +222,7 @@ def get_trends(project: str) -> dict:
                 "tests_cell": tests_cell,
                 "tests_passed": int(nums[0]) if nums else None,
             })
+    hot = hotspots(state)
     open_findings = [f for f in state.get("findings", []) if f.get("status") == "open"]
     by_sev: dict = {}
     for f in open_findings:
@@ -242,6 +244,10 @@ def get_trends(project: str) -> dict:
             "quarantine_size": len(state.get("flaky_quarantine", [])),
             "duration_s": (state.get("tests") or {}).get("duration_s"),
         },
+        # Where defects actually cluster, computed from this project's own
+        # findings. `runs_of_history` is part of the answer: a ranking built on
+        # one run is a snapshot, not a pattern.
+        "hotspots": hot,
     }
 
 

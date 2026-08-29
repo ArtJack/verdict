@@ -195,6 +195,64 @@ def test_get_trends(solo_home):
     assert cur["quarantine_size"] == 2
 
 
+def test_hotspots_merges_paths_cited_at_different_depths():
+    # The same module cited as `marketplaces/x.py` in one run and
+    # `core/src/pkg/marketplaces/x.py` in another must rank as one hotspot,
+    # not two lukewarm ones (observed in the live sales state).
+    state = {"run_number": 4, "findings": [
+        {"severity": "Major", "status": "open",
+         "evidence": ["marketplaces/grailed.py:12 short form"]},
+        {"severity": "Major", "status": "open",
+         "evidence": ["core/src/pkg/marketplaces/grailed.py:40 long form"]},
+    ]}
+    out = state_mod.hotspots(state)
+    assert len(out["hotspots"]) == 1
+    top = out["hotspots"][0]
+    assert top["path"] == "core/src/pkg/marketplaces/grailed.py"
+    assert top["findings"] == 2 and top["open"] == 2
+    assert out["runs_of_history"] == 4
+
+
+def test_hotspots_weight_outranks_raw_count():
+    # Three Minors are not a Critical: weight must reorder against count.
+    state = {"run_number": 2, "findings": [
+        *[{"severity": "Minor", "status": "open", "evidence": [f"noisy.py:{i}"]}
+          for i in range(3)],
+        {"severity": "Critical", "status": "open", "evidence": ["money.py:9"]},
+    ]}
+    ranked = state_mod.hotspots(state)["hotspots"]
+    assert [h["path"] for h in ranked] == ["money.py", "noisy.py"]
+    assert ranked[0]["weight"] == 5.0 and ranked[1]["weight"] == 3.0
+
+
+def test_hotspots_counts_resolved_in_history_but_not_in_open():
+    state = {"run_number": 5, "findings": [
+        {"severity": "Major", "status": "resolved", "evidence": ["legacy.py:3"]},
+        {"severity": "Major", "status": "open", "evidence": ["legacy.py:8"]},
+    ]}
+    top = state_mod.hotspots(state)["hotspots"][0]
+    assert top["findings"] == 2 and top["open"] == 1
+
+
+def test_hotspots_reports_uncited_findings_and_ignores_prose():
+    state = {"run_number": 1, "findings": [
+        {"severity": "Major", "status": "open", "evidence": ["no file here, e.g. nothing"]},
+        {"severity": "Major", "status": "open", "evidence": []},
+        {"severity": "Major", "status": "open", "evidence": ["src/app.ts:1 real"]},
+    ]}
+    out = state_mod.hotspots(state)
+    assert out["findings_without_a_cited_path"] == 2
+    assert [h["path"] for h in out["hotspots"]] == ["src/app.ts"]
+
+
+def test_get_trends_includes_hotspots(solo_home):
+    out = server.get_trends("pricer")
+    hot = out["hotspots"]
+    assert hot["runs_of_history"] == 4
+    assert [h["path"] for h in hot["hotspots"]] == ["pricer.py"]
+    assert hot["hotspots"][0]["findings"] == 2  # F-003 (Critical) + F-002 (Major)
+
+
 def test_get_state_raw(solo_home):
     out = server.get_state("pricer")
     assert out["schema_version"] == 1
