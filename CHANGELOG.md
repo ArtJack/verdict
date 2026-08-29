@@ -3,6 +3,15 @@
 Plugin and `verdict-mcp` share one version line; `.claude-plugin/plugin.json` and
 `pyproject.toml` are bumped together.
 
+## 0.20.1 — 2026-08-29
+
+- **Two findings may no longer share one hash.** Found in a live state the moment the
+  outcome ledger started keying on identity: one defect filed twice under two ids, the
+  second titled "F-003 confirmed in production". By the identity rule those are the same
+  finding, so ageing, deltas, and now the ledger all collapsed them — silently, onto
+  whichever was written last. The validator forbade duplicate `id`s and never checked the
+  field identity actually runs on.
+
 ## 0.20.0 — 2026-08-29 · "the tester's own error rate"
 
 A QA agent's findings are worth what its track record says they are worth, and until now

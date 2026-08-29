@@ -213,3 +213,14 @@ def test_an_uppercase_status_is_still_an_open_finding(root):
     critical = dict(good_state()["findings"][0], status="OPEN", severity="Critical")
     bad = validate(good_state(verdict="pass", findings=[critical]), root)
     assert any("open Critical" in b for b in bad)
+
+
+def test_two_findings_may_not_share_one_hash(root):
+    """Found in a live state: one defect filed twice under two ids, the second
+    as "F-003 confirmed in production". Identity is the hash, so ageing, deltas
+    and the outcome ledger collapsed them onto whichever was written last."""
+    f = good_state()["findings"][0]
+    twice = [f, dict(f, id="PRC-F-2", title="the same thing, said again")]
+    bad = validate(good_state(findings=twice), root)
+    assert any("shares hash a1b2 with PRC-F-1" in b for b in bad)
+    assert validate(good_state(findings=[f, dict(f, id="PRC-F-2", hash="c3d4")]), root) == []
