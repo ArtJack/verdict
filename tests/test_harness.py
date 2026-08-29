@@ -505,3 +505,22 @@ def test_a_runner_reported_total_beats_our_arithmetic(repo, qa_root):
     test errors during collection. The runner's own number wins."""
     facts = collect(repo, qa_root, [("suite", _emit(["Tests run: 12, Failures: 1, Errors: 0, Skipped: 2"]))])
     assert facts["tests"]["collected"] == 12
+
+
+def test_finalize_rejects_a_bad_judgment_in_the_author_s_own_terms(repo, qa_root):
+    """A judgment problem used to surface after the merge, phrased for a
+    structure the agent never wrote. It is caught before the merge now, and
+    nothing is written."""
+    subprocess.run([sys.executable, str(HARNESS), "facts", "--repo", str(repo),
+                    "--qa-root", str(qa_root)], check=True, capture_output=True)
+    j = judgment()
+    j["findings"][0].pop("confidence")
+    path = qa_root / "j.json"
+    path.write_text(json.dumps(j), encoding="utf-8")
+    proc = subprocess.run(
+        [sys.executable, str(HARNESS), "finalize", "--qa-root", str(qa_root),
+         "--judgment", str(path)], capture_output=True, text=True)
+    assert proc.returncode == 1
+    assert "fix the judgment, not the check" in proc.stderr
+    assert "will be filed as NEW" in proc.stderr
+    assert not (qa_root / "state.json").exists(), "nothing is written on a bad judgment"

@@ -348,8 +348,15 @@ quarantine, and — under `prose` — the sections only a person can write: `sco
 a measured number in it; do not compute an age or a delta by hand; do not lay out the
 tables. `finalize` renders the report from the state and injects your prose, so the report
 and the state cannot disagree and the artifact cannot go missing — name a `topic` and it
-picks the filename. If `finalize` refuses, the state was wrong — fix the judgment, not the
-check.
+picks the filename.
+
+**`finalize` checks your judgment before it merges anything**, and its complaints are
+written for you rather than for the merged structure: which finding index, which id, which
+field, and what to put there. A finding that is about to be filed `NEW` is told to state
+its confidence *now*; two findings under one id are told to mint a second; fields the
+harness computes (`hash`, `first_seen`, `age_days`, `outcome`) are called out as ignored.
+Nothing is written when it refuses — **fix the judgment, not the check.** If you find
+yourself arguing with a message, re-read the finding it names.
 
 If the harness genuinely cannot run — no `python3` on the box, and you have tried the
 plugin path — that is a **stated deviation, never a silent one**: paste the command and
