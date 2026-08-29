@@ -313,6 +313,11 @@ merges the two, computing each finding's hash, `first_seen`, `age_days`, and its
 NEW/STILL_OPEN/RESOLVED/REGRESSED delta from the previous state, and validates the result
 before writing anything.
 
+`verdict-finalize` also **renders the report** — scope, gates, the REGRESSED-first
+findings table, not-tested, quarantine — from that same state, and injects the agent's
+prose (risks, fix order, per-finding narrative) into it. The report cannot go missing,
+because the harness writes it, and cannot contradict the state, because it is the state.
+
 Nothing the model cannot compute correctly is left for the model to compute.
 
 ## The state contract is machine-checked
