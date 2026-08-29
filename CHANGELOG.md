@@ -3,6 +3,38 @@
 Plugin and `verdict-mcp` share one version line; `.claude-plugin/plugin.json` and
 `pyproject.toml` are bumped together.
 
+## 0.25.0 — 2026-08-29 · "one spelling of everything"
+
+A refactor review of the whole tree. Most of it said *leave this alone*, correctly. What it
+found that mattered was duplication — and in two places the duplicates had already drifted.
+
+- **The report and the gate disagreed about finding order.** `harness` carried its own copy
+  of the REGRESSED-first sort, and the copies were not identical: `order_findings` strips
+  whitespace before ranking a severity and the harness copy did not, so a severity written
+  ` Critical ` sorted below `Major` in the report and above it in the gate, the MCP surface
+  and the PR comment. One function now.
+- **The outcome ledger was folded twice, from two different dates** — `merge` used the run
+  date, `write_state` re-derived it from the run timestamp — so across a UTC-midnight run
+  the calibration block inside the state could disagree with the ledger persisted beside
+  it. Folded once and carried, and the private key it travels on is taken off before
+  anything serialises the state.
+- **Every state write is now atomic** — temp file plus `os.replace`, for `state.json`, its
+  `.prev` snapshot, `outcomes.json` and the INDEX row. A crash mid-write left the file the
+  whole system pivots on half-written; §6 already carried a rule for recovering from a
+  corrupt state, and it is cheaper to make that near-impossible than to handle it well.
+- **`__version__` said 0.2.0** while `plugin.json` and `pyproject.toml` said 0.24.0 — a
+  third place to remember at release time is a third place to forget. It reads the
+  installed distribution now.
+- One spelling of the `VERDICT_HOME` default in importable code; the hooks keep their own
+  copy on purpose, because a PostToolUse hook that can raise `ImportError` is worse than a
+  duplicated line.
+- **Lint config committed and wired into CI** — pyflakes, syntax errors, complexity and
+  ambiguous names. Deliberately not `ruff format`: the narrative comment layout is a house
+  idiom and reformatting it would churn every file for nothing. Cleared what it found:
+  seven unused imports, five ambiguous `l` variables.
+- Docs: `git_sha_previous` and `gates.<name>.blocking` appeared in the schema example and
+  have never been written by the harness.
+
 ## 0.24.0 — 2026-08-29 · "not just Python, measurably"
 
 Remaining items from the external audit, in value order.

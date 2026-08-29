@@ -1,6 +1,6 @@
 [project]
 name = "verdict-mcp"
-version = "0.24.0"
+version = "0.25.0"
 description = "Read-only MCP server over Verdict QA state: verdicts, findings, flaky quarantine, run history."
 readme = "README.md"
 license = { file = "LICENSE" }
@@ -33,3 +33,22 @@ dev = ["pytest>=8", "mutmut>=2.5,<3"]
 # collected by the project suite.
 testpaths = ["tests"]
 addopts = "-q"
+
+
+[tool.ruff]
+# Deliberately narrow. The narrative comment style in this repo is a house
+# idiom, not mess, and `ruff format` would churn it for no gain — so this
+# selects correctness rules only: pyflakes (F), syntax/runtime errors (E9),
+# complexity (C90) and the ambiguous-name trap (E741) that put four `l`
+# variables in the harness.
+line-length = 100
+extend-exclude = ["eval/fixtures"]      # the defects in there are the product
+
+[tool.ruff.lint]
+select = ["F", "E9", "C90", "E741"]
+
+[tool.ruff.lint.mccabe]
+# `validate()` and `score()` are rule ladders — long by nature, and read top to
+# bottom the way the contract reads. The cap is set to hold the line where it
+# is rather than to force them apart.
+max-complexity = 45
