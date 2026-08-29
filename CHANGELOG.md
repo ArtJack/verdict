@@ -3,6 +3,32 @@
 Plugin and `verdict-mcp` share one version line; `.claude-plugin/plugin.json` and
 `pyproject.toml` are bumped together.
 
+## 0.18.0 — 2026-08-29 · "the model judges; the system measures"
+
+The second half of the architecture the validator opened. If two thirds of a state file is
+arithmetic and transcription, the fix is not to ask the model to be careful — it is to stop
+asking the model.
+
+- **`verdict-facts`** (read-only on the repo): measures the timestamp, project key, git
+  SHA, branch, `sha_range` and diff stat, `run_number`, and `run_type` — including the §6
+  re-baseline triggers (stored SHA absent from the repo, previous run older than a week,
+  diff beyond 100 files / 10k lines), each with its reason. Runs the gates the caller
+  names, times them, records exit codes, extracts the summary line and counts, and keeps
+  the test-id ledger by set-diff.
+- **`verdict-finalize`**: merges facts with the agent's `judgment.json`, computing every
+  finding's hash, `first_seen`, `age_days`, and delta from the previous state — the
+  arithmetic the model used to do by hand and sometimes got wrong. A finding the previous
+  run had and this run did not mention is carried forward as RESOLVED rather than silently
+  dropped. It validates before writing and refuses invalid states outright: the PostToolUse
+  hook matches Write/Edit and would never see a file a shell command wrote.
+- Three defects found by running it against a real repository before shipping, each now a
+  regression test: zero collected test ids was reported as `count: 0` (an empty suite is
+  not the same as a broken command — and the commonest cause is the project's own `-q`
+  turning `--collect-only -q` into `-qq`, this tool's own liar-fixture trap); the ledger was
+  read with whitespace splitting, so parametrised ids containing spaces came back as
+  several ids and would have read as churn on the next run; and the bare-script entry
+  dispatched on its own filename.
+
 ## 0.17.0 — 2026-08-29 · "the contract is a gate, not a request"
 
 An architectural release rather than a prompt one. The diagnosis: roughly **20 kinds of

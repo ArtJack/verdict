@@ -1,0 +1,262 @@
+"""Tests for the fact harness — the deterministic half of a run.
+
+Every value these tests assert is one a model used to produce by hand, and got
+wrong at least once in production.
+"""
+
+import json
+import subprocess
+import sys
+from datetime import date, datetime, timedelta, timezone
+from pathlib import Path
+
+import pytest
+
+from verdict_mcp.harness import (
+    INDEX_HEADER, collect, finding_hash, index_row, merge, write_state)
+
+HARNESS = Path(__file__).resolve().parent.parent / "src" / "verdict_mcp" / "harness.py"
+
+
+def git(args, cwd):
+    subprocess.run(["git", "-c", "user.email=t@t", "-c", "user.name=t", *args],
+                   cwd=cwd, check=True, capture_output=True)
+
+
+@pytest.fixture()
+def repo(tmp_path):
+    r = tmp_path / "Widget"
+    r.mkdir()
+    git(["init", "-qb", "main"], r)
+    (r / "a.py").write_text("x = 1\n", encoding="utf-8")
+    git(["add", "-A"], r)
+    git(["commit", "-qm", "first"], r)
+    return r
+
+
+@pytest.fixture()
+def qa_root(tmp_path):
+    root = tmp_path / "qa"
+    (root / "reports").mkdir(parents=True)
+    (root / "reports" / "r.md").write_text("# report", encoding="utf-8")
+    return root
+
+
+def judgment(**over):
+    j = {
+        "report": "reports/r.md",
+        "isolation_check": {"result": "pass"},
+        "verdict": "pass with risks",
+        "release_blockers": [],
+        "not_tested": ["concurrency"],
+        "findings": [{
+            "id": "W-F-1", "title": "off-by-one at line 42", "severity": "Major",
+            "priority": "P1", "status": "open", "failure_classification": "REAL_DEFECT",
+            "evidence": ["a.py:42 the guard"]}],
+    }
+    j.update(over)
+    return j
+
+
+# ── measuring ─────────────────────────────────────────────────────────────
+
+def test_collect_measures_time_key_and_git(repo, qa_root):
+    facts = collect(repo, qa_root, [])
+    assert facts["project"] == "widget" and facts["project_key_source"] == "git"
+    assert facts["run_number"] == 1 and facts["run_type"] == "baseline"
+    ts = datetime.strptime(facts["last_run"]["timestamp_utc"], "%Y-%m-%dT%H:%M:%SZ")
+    assert abs((datetime.now(timezone.utc) - ts.replace(tzinfo=timezone.utc)).total_seconds()) < 120
+    assert facts["last_run"]["git_sha"] and facts["last_run"]["git_branch"] == "main"
+
+
+def test_collect_runs_gates_and_parses_counts(repo, qa_root):
+    facts = collect(repo, qa_root, [
+        ("suite", "echo '3 passed, 1 skipped, 2 failed in 0.4s'; exit 1"),
+        ("lint", "true"),
+    ])
+    suite = facts["gates"]["suite"]
+    assert suite["exit_code"] == 1 and suite["result"] == "fail"
+    assert suite["counts"] == {"passed": 3, "skipped": 1, "failed": 2}
+    assert isinstance(suite["duration_s"], float)
+    assert facts["gates"]["lint"]["result"] == "pass"
+    assert facts["tests"]["collected"] == 6
+
+
+def test_collect_derives_run_type_and_range_from_previous(repo, qa_root):
+    first = collect(repo, qa_root, [])
+    (qa_root / "state.json").write_text(json.dumps({
+        "run_number": 1,
+        "last_run": {"git_sha": first["last_run"]["git_sha"],
+                     "timestamp_utc": first["last_run"]["timestamp_utc"]}}), encoding="utf-8")
+    (repo / "b.py").write_text("y = 2\n", encoding="utf-8")
+    git(["add", "-A"], repo)
+    git(["commit", "-qm", "second"], repo)
+
+    facts = collect(repo, qa_root, [])
+    assert facts["run_number"] == 2 and facts["run_type"] == "delta"
+    assert facts["last_run"]["sha_range"].startswith(first["last_run"]["git_sha"])
+    assert "1 file changed" in facts["last_run"]["diff_stat"]
+
+
+def test_collect_declares_re_baseline_when_the_stored_sha_is_gone(repo, qa_root):
+    (qa_root / "state.json").write_text(json.dumps({
+        "run_number": 3, "last_run": {"git_sha": "deadbee", "timestamp_utc": "2026-01-01T00:00:00Z"}}),
+        encoding="utf-8")
+    facts = collect(repo, qa_root, [])
+    assert facts["run_type"] == "re-baseline"
+    assert "not in this repository" in facts["run_type_reason"]
+
+
+def test_collect_declares_re_baseline_when_the_previous_run_is_old(repo, qa_root):
+    first = collect(repo, qa_root, [])
+    old = (datetime.now(timezone.utc) - timedelta(days=9)).strftime("%Y-%m-%dT%H:%M:%SZ")
+    (qa_root / "state.json").write_text(json.dumps({
+        "run_number": 1,
+        "last_run": {"git_sha": first["last_run"]["git_sha"], "timestamp_utc": old}}),
+        encoding="utf-8")
+    facts = collect(repo, qa_root, [])
+    assert facts["run_type"] == "re-baseline" and "9 days ago" in facts["run_type_reason"]
+
+
+def test_test_id_set_diff_not_summary_arithmetic(repo, qa_root):
+    (qa_root / "test-ids.txt").write_text("t.py::a\nt.py::gone\n", encoding="utf-8")
+    facts = collect(repo, qa_root, [], test_ids_cmd="printf 't.py::a\\nt.py::new\\n'")
+    assert facts["test_ids"]["status"] == "measured"
+    assert facts["test_ids"]["added"] == ["t.py::new"]
+    assert facts["test_ids"]["removed"] == ["t.py::gone"]
+
+
+def test_parametrised_ids_with_spaces_survive_the_ledger_round_trip(repo, qa_root):
+    # `test_rate[west 7kg]` is one id, not two words.
+    ids = "t.py::test_rate[west 7kg]\nt.py::test_rate[east 2kg]\n"
+    (qa_root / "test-ids.txt").write_text(ids, encoding="utf-8")
+    facts = collect(repo, qa_root, [], test_ids_cmd=f"printf '{ids}'")
+    assert facts["test_ids"]["count"] == 2
+    assert facts["test_ids"]["added"] == [] and facts["test_ids"]["removed"] == []
+
+
+def test_zero_test_ids_is_reported_as_unavailable_not_as_an_empty_suite(repo, qa_root):
+    # A project whose addopts carry -q turns `--collect-only -q` into -qq and
+    # prints per-file counts; claiming count 0 would be the lie §6 forbids.
+    ledger = qa_root / "test-ids.txt"
+    ledger.write_text("t.py::a\n", encoding="utf-8")
+    facts = collect(repo, qa_root, [], test_ids_cmd="printf 'tests/test_x.py: 5\\n'")
+    assert facts["test_ids"]["status"] == "unavailable"
+    assert "-qq" in facts["test_ids"]["reason"]
+    assert "count" not in facts["test_ids"]
+    assert ledger.read_text(encoding="utf-8") == "t.py::a\n"  # ledger untouched
+
+
+# ── merging ───────────────────────────────────────────────────────────────
+
+def test_hash_is_stable_across_moving_line_numbers():
+    a = {"title": "off-by-one at line 42", "evidence": ["a.py:42 guard"]}
+    b = {"title": "off-by-one at line 87", "evidence": ["a.py:87 guard"]}
+    assert finding_hash(a) == finding_hash(b)
+    other = {"title": "unrelated problem", "evidence": ["b.py:1"]}
+    assert finding_hash(other) != finding_hash(a)
+
+
+def test_merge_assigns_deltas_the_model_used_to_guess(repo, qa_root):
+    facts = collect(repo, qa_root, [])
+    first = merge(facts, judgment(), None)
+    assert first["findings"][0]["delta"] == "NEW"
+    assert first["findings"][0]["age_days"] == 0
+
+    facts2 = dict(facts, run_number=2, run_type="delta")
+    second = merge(facts2, judgment(), first)
+    assert second["findings"][0]["delta"] == "STILL_OPEN"
+
+    fixed = judgment()
+    fixed["findings"][0]["status"] = "resolved"
+    third = merge(facts2, fixed, second)
+    assert third["findings"][0]["delta"] == "RESOLVED"
+
+    fourth = merge(facts2, judgment(), third)
+    assert fourth["findings"][0]["delta"] == "REGRESSED"
+
+
+def test_merge_ages_from_first_seen(repo, qa_root):
+    facts = collect(repo, qa_root, [])
+    previous = {"findings": [{
+        "hash": finding_hash(judgment()["findings"][0]), "status": "open",
+        "first_seen": (date.today() - timedelta(days=6)).isoformat()}]}
+    state = merge(facts, judgment(), previous)
+    assert state["findings"][0]["age_days"] == 6
+
+
+def test_merge_carries_forward_a_finding_this_run_did_not_mention(repo, qa_root):
+    facts = collect(repo, qa_root, [])
+    previous = {"findings": [{
+        "id": "W-F-9", "hash": "beefbeef", "status": "open", "severity": "Minor",
+        "priority": "P3", "first_seen": date.today().isoformat(), "title": "old thing",
+        "evidence": ["z.py:1"]}]}
+    state = merge(facts, judgment(), previous)
+    carried = [f for f in state["findings"] if f["hash"] == "beefbeef"][0]
+    assert carried["delta"] == "RESOLVED" and carried["status"] == "resolved"
+    assert "not reported this run" in carried["carried_forward"]
+
+
+def test_merge_preserves_unknown_keys_from_the_previous_state(repo, qa_root):
+    facts = collect(repo, qa_root, [])
+    state = merge(facts, judgment(), {"house_rules": {"kept": True}, "findings": []})
+    assert state["house_rules"] == {"kept": True}
+
+
+# ── writing ───────────────────────────────────────────────────────────────
+
+def test_write_state_refuses_an_invalid_state_and_writes_a_valid_one(repo, qa_root):
+    facts = collect(repo, qa_root, [])
+    bad = merge(facts, judgment(report="inline to caller"), None)
+    problems = write_state(qa_root, bad)
+    assert problems and not (qa_root / "state.json").exists()
+
+    good = merge(facts, judgment(), None)
+    assert write_state(qa_root, good) == []
+    written = json.loads((qa_root / "state.json").read_text(encoding="utf-8"))
+    assert written["run_number"] == 1
+    index = (qa_root / "reports" / "INDEX.md").read_text(encoding="utf-8")
+    assert INDEX_HEADER.splitlines()[0] in index and "| widget |" in index
+
+
+def test_write_state_snapshots_the_previous_state_for_the_run_number_check(repo, qa_root):
+    facts = collect(repo, qa_root, [])
+    write_state(qa_root, merge(facts, judgment(), None))
+    facts2 = dict(facts, run_number=2, run_type="delta")
+    write_state(qa_root, merge(facts2, judgment(), None))
+    assert json.loads((qa_root / "state.json.prev").read_text(encoding="utf-8"))["run_number"] == 1
+
+
+def test_index_row_counts_open_findings_by_severity(repo, qa_root):
+    facts = collect(repo, qa_root, [("s", "echo '2 passed, 1 failed'")])
+    j = judgment()
+    j["findings"].append({"id": "W-F-2", "title": "worse", "severity": "Critical",
+                          "priority": "P0", "status": "open", "evidence": ["a.py:1"]})
+    row = index_row(merge(facts, j, None))
+    assert "| 0/1/1/0 |" in row and "[r.md](reports/r.md)" in row
+
+
+# ── the CLIs ──────────────────────────────────────────────────────────────
+
+def test_cli_requires_an_explicit_subcommand():
+    proc = subprocess.run([sys.executable, str(HARNESS)], capture_output=True, text=True)
+    assert proc.returncode == 2 and "facts|finalize" in proc.stderr
+
+
+def test_cli_round_trip(repo, qa_root, tmp_path):
+    facts_cli = subprocess.run(
+        [sys.executable, str(HARNESS), "facts", "--repo", str(repo), "--qa-root", str(qa_root),
+         "--gate", "suite=echo '5 passed in 0.1s'"],
+        capture_output=True, text=True, env={"PATH": "/usr/bin:/bin"})
+    assert facts_cli.returncode == 0, facts_cli.stderr
+    assert (qa_root / "facts.json").is_file()
+
+    jpath = tmp_path / "judgment.json"
+    jpath.write_text(json.dumps(judgment()), encoding="utf-8")
+    final = subprocess.run(
+        [sys.executable, str(HARNESS), "finalize",
+         "--qa-root", str(qa_root), "--judgment", str(jpath)],
+        capture_output=True, text=True)
+    assert final.returncode == 0, final.stderr
+    state = json.loads((qa_root / "state.json").read_text(encoding="utf-8"))
+    assert state["tests"]["passed"] == 5 and state["findings"][0]["delta"] == "NEW"

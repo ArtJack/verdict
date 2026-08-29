@@ -307,6 +307,29 @@ A repeat QA run is a **delta report**, not a fresh audit. Without state you will
 the same 20 findings every run and the reader will stop reading. This section is mandatory
 for scheduled and repeat runs.
 
+**Measure first, judge second.** When `verdict-facts` is available (the plugin ships it;
+`python3 ${CLAUDE_PLUGIN_ROOT}/src/verdict_mcp/harness.py facts` always works), start the
+run with it and end with `finalize`:
+
+    verdict-facts --repo . --qa-root <root> \
+        --gate suite='<the profile's real test command>' \
+        --test-ids-cmd '<command printing one test id per line>'
+    …you read facts.json, examine the code, and write judgment.json…
+    verdict-finalize --qa-root <root> --judgment judgment.json
+
+It measures what you must not invent — the timestamp, the SHAs and range, gate exit codes,
+durations, counts, the test-id set-diff, the project key, `run_number`, `run_type` — and
+`finalize` computes each finding's hash, `first_seen`, `age_days`, and delta from the
+previous state, validates the result, and only then writes `state.json` and the INDEX row.
+Your judgment.json carries **only judgment**: verdict, findings (title, severity,
+priority, classification, evidence, status), isolation result, not-tested, next-run focus,
+quarantine, and the report path. Do not restate a measured number in it; do not compute an
+age or a delta by hand. If `finalize` refuses, the state was wrong — fix the judgment, not
+the check.
+
+Without the harness (an unusual environment), do all of that yourself and hold yourself to
+the same rules: `date -u` for time, git for SHAs, the ledger for counts.
+
 **First action of every run:** read `<qa-root>/state.json`.
 
 - Absent → this is a **baseline run**. Say so explicitly. Report no deltas. A baseline run
@@ -418,7 +441,10 @@ a lighter answer fits):
 - Reports → `<qa-root>/reports/YYYY-MM-DD-<topic>.md`
 - Run index → `<qa-root>/reports/INDEX.md`
 - State → `<qa-root>/state.json`
-- Test-ID ledger → `<qa-root>/test-ids.txt` (§6 set-diff accounting)
+- Test-ID ledger → `<qa-root>/test-ids.txt` (§6 set-diff accounting; written by
+  `verdict-facts`, and left untouched when the id command yields nothing — a count of zero
+  ids is a broken command, not an empty suite)
+- Measured facts → `<qa-root>/facts.json` · your judgment → `judgment.json` (§6)
 - Previous state → `<qa-root>/state.json.prev` (copy the old state here before writing the
   new one; it is what makes the run-number check possible)
 - Lessons ledger → `<qa-root>/lessons.md` (judgment corrections, §6)
