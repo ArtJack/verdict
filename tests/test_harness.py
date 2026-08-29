@@ -5,6 +5,7 @@ wrong at least once in production.
 """
 
 import json
+import os
 import subprocess
 import sys
 from datetime import date, datetime, timedelta, timezone
@@ -16,6 +17,12 @@ from verdict_mcp.harness import (
     INDEX_HEADER, collect, finding_hash, index_row, merge, write_state)
 
 HARNESS = Path(__file__).resolve().parent.parent / "src" / "verdict_mcp" / "harness.py"
+
+
+def _emit(lines):
+    """A shell command printing these lines, on any platform."""
+    payload = "\\n".join(lines)
+    return f'"{sys.executable}" -c "print({payload!r})"'
 
 
 def git(args, cwd):
@@ -70,9 +77,10 @@ def test_collect_measures_time_key_and_git(repo, qa_root):
 
 
 def test_collect_runs_gates_and_parses_counts(repo, qa_root):
+    py = sys.executable
     facts = collect(repo, qa_root, [
-        ("suite", "echo '3 passed, 1 skipped, 2 failed in 0.4s'; exit 1"),
-        ("lint", "true"),
+        ("suite", f'"{py}" -c "import sys; print(\'3 passed, 1 skipped, 2 failed in 0.4s\'); sys.exit(1)"'),
+        ("lint", f'"{py}" -c "pass"'),
     ])
     suite = facts["gates"]["suite"]
     assert suite["exit_code"] == 1 and suite["result"] == "fail"
@@ -120,7 +128,7 @@ def test_collect_declares_re_baseline_when_the_previous_run_is_old(repo, qa_root
 
 def test_test_id_set_diff_not_summary_arithmetic(repo, qa_root):
     (qa_root / "test-ids.txt").write_text("t.py::a\nt.py::gone\n", encoding="utf-8")
-    facts = collect(repo, qa_root, [], test_ids_cmd="printf 't.py::a\\nt.py::new\\n'")
+    facts = collect(repo, qa_root, [], test_ids_cmd=_emit(["t.py::a", "t.py::new"]))
     assert facts["test_ids"]["status"] == "measured"
     assert facts["test_ids"]["added"] == ["t.py::new"]
     assert facts["test_ids"]["removed"] == ["t.py::gone"]
@@ -128,9 +136,9 @@ def test_test_id_set_diff_not_summary_arithmetic(repo, qa_root):
 
 def test_parametrised_ids_with_spaces_survive_the_ledger_round_trip(repo, qa_root):
     # `test_rate[west 7kg]` is one id, not two words.
-    ids = "t.py::test_rate[west 7kg]\nt.py::test_rate[east 2kg]\n"
-    (qa_root / "test-ids.txt").write_text(ids, encoding="utf-8")
-    facts = collect(repo, qa_root, [], test_ids_cmd=f"printf '{ids}'")
+    ids = ["t.py::test_rate[west 7kg]", "t.py::test_rate[east 2kg]"]
+    (qa_root / "test-ids.txt").write_text("\n".join(ids) + "\n", encoding="utf-8")
+    facts = collect(repo, qa_root, [], test_ids_cmd=_emit(ids))
     assert facts["test_ids"]["count"] == 2
     assert facts["test_ids"]["added"] == [] and facts["test_ids"]["removed"] == []
 
@@ -140,7 +148,7 @@ def test_zero_test_ids_is_reported_as_unavailable_not_as_an_empty_suite(repo, qa
     # prints per-file counts; claiming count 0 would be the lie §6 forbids.
     ledger = qa_root / "test-ids.txt"
     ledger.write_text("t.py::a\n", encoding="utf-8")
-    facts = collect(repo, qa_root, [], test_ids_cmd="printf 'tests/test_x.py: 5\\n'")
+    facts = collect(repo, qa_root, [], test_ids_cmd=_emit(["tests/test_x.py: 5"]))
     assert facts["test_ids"]["status"] == "unavailable"
     assert "-qq" in facts["test_ids"]["reason"]
     assert "count" not in facts["test_ids"]
@@ -247,7 +255,7 @@ def test_cli_round_trip(repo, qa_root, tmp_path):
     facts_cli = subprocess.run(
         [sys.executable, str(HARNESS), "facts", "--repo", str(repo), "--qa-root", str(qa_root),
          "--gate", "suite=echo '5 passed in 0.1s'"],
-        capture_output=True, text=True, env={"PATH": "/usr/bin:/bin"})
+        capture_output=True, text=True)
     assert facts_cli.returncode == 0, facts_cli.stderr
     assert (qa_root / "facts.json").is_file()
 
