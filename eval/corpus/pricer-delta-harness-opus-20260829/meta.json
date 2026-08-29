@@ -1,0 +1,7 @@
+{
+  "expected": "expected-delta.json",
+  "mode": "seeded",
+  "require_harness": true,
+  "source": "2026-08-29 pricer seeded, the first run ever driven through verdict-facts \u2192 judgment.json \u2192 verdict-finalize",
+  "model": "opus"
+}

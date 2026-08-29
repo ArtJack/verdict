@@ -5,8 +5,8 @@
   "run_number": 2,
   "last_run": {
     "timestamp_utc": "2026-08-24T18:00:00Z",
-    "git_sha": "@REV_A_SHA@",
-    "sha_range": "@REV_A_SHA@..@REV_A_SHA@",
+    "git_sha": "37c74f1",
+    "sha_range": "37c74f1..37c74f1",
     "git_branch": "main",
     "report": "reports/2026-08-24-run2-delta.md"
   },

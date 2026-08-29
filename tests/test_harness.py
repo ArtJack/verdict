@@ -363,3 +363,73 @@ def test_finalize_clears_the_marker(repo, qa_root, tmp_path):
     subprocess.run([sys.executable, str(HARNESS), "finalize", "--qa-root", str(qa_root),
                     "--judgment", str(jpath)], capture_output=True, text=True, check=True)
     assert not (qa_root / "run-in-progress.json").exists()
+
+
+def test_a_healthy_run_does_not_report_itself_as_abandoned(repo, qa_root):
+    """`facts` writes its marker before the gates run, so a run killed mid-suite
+    leaves a trace. It read that marker back on the same pass, and every healthy
+    run announced that the previous one had died — a warning that fires every
+    time is one nobody reads."""
+    first = json.loads(subprocess.run(
+        [sys.executable, str(HARNESS), "facts", "--repo", str(repo),
+         "--qa-root", str(qa_root)],
+        capture_output=True, text=True, check=True).stdout)
+    assert "previous_run_incomplete" not in first
+    assert "previous_attempt_this_run" not in first
+    marker = json.loads((qa_root / "run-in-progress.json").read_text(encoding="utf-8"))
+    assert marker["git_sha"], "the marker records the commit it was staked at"
+
+
+def test_a_reworded_re_report_is_the_same_finding_not_a_new_one(repo, qa_root):
+    """The hash is a content fingerprint and drifts whenever the tester rewords
+    its own finding. Matched only by hash, a reworded re-report was filed as NEW
+    *and* carried forward as resolved: two entries, one id, and a state the
+    validator refuses to write — so the run produced nothing at all."""
+    facts = collect(repo, qa_root, [])
+    first = merge(facts, judgment(), None)
+
+    reworded = judgment()
+    reworded["findings"][0]["title"] = "off-by-one in the floor guard, re-examined"
+    reworded["findings"][0]["evidence"] = ["a.py:44 the same guard, quoted differently"]
+    second = merge(dict(facts, run_number=2, run_type="delta"), reworded, first)
+
+    assert len(second["findings"]) == 1, "one finding, not a NEW plus a carried duplicate"
+    entry = second["findings"][0]
+    assert entry["delta"] == "STILL_OPEN"
+    assert entry["hash"] == first["findings"][0]["hash"], "identity survives the rewording"
+    assert entry["first_seen"] == first["findings"][0]["first_seen"]
+
+
+def test_a_state_whose_hashes_predate_the_harness_still_merges(repo, qa_root):
+    """Every hash in four live projects — 115 of them — was hand-authored before
+    the harness existed and matches nothing computable. Without the id fallback
+    no project could ever take its first harness-driven run."""
+    facts = collect(repo, qa_root, [])
+    previous = merge(facts, judgment(), None)
+    previous["findings"][0]["hash"] = "deadbeef"  # as a model once typed it
+
+    state = merge(dict(facts, run_number=2, run_type="delta"), judgment(), previous)
+    assert len(state["findings"]) == 1
+    assert state["findings"][0]["delta"] == "STILL_OPEN"
+    assert state["findings"][0]["hash"] == "deadbeef", "the stored identity is kept"
+
+
+def test_a_retry_at_the_same_commit_is_not_a_lost_run(repo, qa_root):
+    """A live run mistyped its id command, re-ran `facts`, and was told its own
+    first attempt was a lost night. The alarm exists to make a real gap visible;
+    one that fires on every retry is one nobody reads."""
+    args = [sys.executable, str(HARNESS), "facts", "--repo", str(repo),
+            "--qa-root", str(qa_root)]
+    subprocess.run(args, capture_output=True, text=True, check=True)
+    retry = json.loads(subprocess.run(args, capture_output=True, text=True,
+                                      check=True).stdout)
+    assert "previous_run_incomplete" not in retry
+    assert "this run's own retry" in retry["previous_attempt_this_run"]["meaning"]
+
+    # a marker from another commit is the real thing: that coverage never happened
+    (qa_root / "run-in-progress.json").write_text(json.dumps({
+        "started_utc": "2026-01-01T00:00:00Z", "repo": str(repo),
+        "git_sha": "deadbeef"}), encoding="utf-8")
+    lost = json.loads(subprocess.run(args, capture_output=True, text=True,
+                                     check=True).stdout)
+    assert "its work is lost" in lost["previous_run_incomplete"]["meaning"]

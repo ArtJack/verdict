@@ -55,6 +55,10 @@ except ImportError:  # bare-script execution
     from validate import validate
 
 RE_BASELINE_AFTER_DAYS = 7
+# A run marker at the same commit, this recent, is a retry rather than a night
+# that was lost. Generous: a mistyped gate command and a re-run can straddle a
+# long investigation.
+RETRY_WINDOW_HOURS = 6
 RE_BASELINE_FILES = 100
 RE_BASELINE_LINES = 10_000
 # pytest, vitest, go test and friends all end with a countable line; these
@@ -95,8 +99,18 @@ def _counts(output: str) -> dict:
     return counts
 
 
+_UNSET = object()
+
+
+def _parse_marker_time(value):
+    try:
+        return datetime.strptime(str(value), "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc)
+    except (ValueError, TypeError):
+        return None
+
+
 def collect(repo: Path, qa_root: Path, gates: list[tuple[str, str]],
-            test_ids_cmd: str | None = None) -> dict:
+            test_ids_cmd: str | None = None, abandoned=_UNSET) -> dict:
     """Measure everything about this run that is not a judgment."""
     now = datetime.now(timezone.utc)
     previous = None
@@ -111,13 +125,20 @@ def collect(repo: Path, qa_root: Path, gates: list[tuple[str, str]],
     # finished — the failure mode that once cost a whole night silently. It is
     # reported as a fact, not swept up: the next reader deserves to know the
     # gap exists.
+    # Read from disk only when the caller has not already read it. `facts_main`
+    # writes this run's marker before the gates start — so that a run killed
+    # mid-suite still leaves one — which means by the time we get here the file
+    # describes *this* run. Reading it here unconditionally made every healthy
+    # run announce that the previous one had been abandoned, and a warning that
+    # fires every time is one nobody reads.
     marker_path = qa_root / "run-in-progress.json"
-    abandoned = None
-    if marker_path.is_file():
-        try:
-            abandoned = json.loads(marker_path.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError):
-            abandoned = {"note": "unreadable marker"}
+    if abandoned is _UNSET:
+        abandoned = None
+        if marker_path.is_file():
+            try:
+                abandoned = json.loads(marker_path.read_text(encoding="utf-8"))
+            except (OSError, json.JSONDecodeError):
+                abandoned = {"note": "unreadable marker"}
 
     key, key_source = derive_key(repo)
     sha = _git(["rev-parse", "HEAD"], repo)
@@ -182,11 +203,30 @@ def collect(repo: Path, qa_root: Path, gates: list[tuple[str, str]],
         "gates": gate_results,
     }
     if abandoned:
-        facts["previous_run_incomplete"] = {
-            **abandoned,
-            "meaning": "a previous run started and never wrote state; its work is lost, "
-                       "not merely unreported",
-        }
+        # A marker at this same commit, minutes old, is this run's own earlier
+        # attempt — a mistyped gate command, a retry — not a night that was
+        # lost. Reported as such and kept out of the alarm, because the alarm
+        # exists to make a real gap visible and a reader who sees it fire on
+        # every retry stops reading it. A marker at a *different* commit, or an
+        # old one, is the real thing: coverage of that commit never happened.
+        started = _parse_marker_time(abandoned.get("started_utc"))
+        age_h = (now - started).total_seconds() / 3600 if started else None
+        retry = (abandoned.get("git_sha") == sha and sha is not None
+                 and age_h is not None and age_h <= RETRY_WINDOW_HOURS)
+        if retry:
+            facts["previous_attempt_this_run"] = {
+                **abandoned,
+                "age_hours": round(age_h, 2),
+                "meaning": "an earlier attempt at this same commit, minutes ago — this "
+                           "run's own retry, not a lost run. Nothing is missing",
+            }
+        else:
+            facts["previous_run_incomplete"] = {
+                **abandoned,
+                **({"age_hours": round(age_h, 2)} if age_h is not None else {}),
+                "meaning": "a previous run started and never wrote state; its work is "
+                           "lost, not merely unreported",
+            }
 
     tests = {}
     for gate in gate_results.values():
@@ -309,19 +349,37 @@ def merge(facts: dict, judgment: dict, previous: dict | None, today: date | None
     finding this project ever filed, not just the ones still in state.
     """
     today = today or date.today()
-    prev_by_hash = {}
+    prev_by_hash, prev_by_id = {}, {}
     for f in ((previous or {}).get("findings") or []):
         if f.get("hash"):
             prev_by_hash[str(f["hash"])] = f
+        if f.get("id"):
+            prev_by_id[str(f["id"])] = f
 
     findings = []
     seen = set()
     for f in judgment.get("findings", []) or []:
         entry = dict(f)
         h = finding_hash(entry)
+        prior = prev_by_hash.get(h)
+        if prior is None:
+            # Fall back to the id. The hash is a *content fingerprint* — cited
+            # path plus normalized title — and it drifts the moment the tester
+            # rewords its own finding, which it does constantly as evidence
+            # accumulates. The id does not drift: §6 mints it once and forbids
+            # reuse, so a re-reported id is a deliberate identity claim.
+            #
+            # Without this, a reworded re-report is filed as NEW *and* carried
+            # forward as resolved — two entries, one id, and a state the
+            # validator rightly refuses to write. Every hash in four live
+            # projects was hand-authored before the harness existed and matches
+            # nothing computable, so without the fallback no project could ever
+            # take its first harness-driven run.
+            prior = prev_by_id.get(str(entry.get("id") or ""))
+            if prior is not None and prior.get("hash"):
+                h = str(prior["hash"])  # identity is continuous; the fingerprint moved
         entry["hash"] = h
         seen.add(h)
-        prior = prev_by_hash.get(h)
         first_seen = (prior or {}).get("first_seen") or today.isoformat()
         entry["first_seen"] = first_seen
         try:
@@ -527,10 +585,17 @@ def facts_main(argv=None) -> int:
             print(json.dumps(existing, indent=2))
             return 0
 
+    # Order matters: read whatever the last run left behind, *then* stake this
+    # run's claim. The marker is written before the gates so a run killed
+    # mid-suite still leaves a trace.
+    abandoned = _read_json(qa_root / "run-in-progress.json")
     (qa_root / "run-in-progress.json").write_text(json.dumps({
         "started_utc": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
-        "repo": str(repo)}, indent=2) + "\n", encoding="utf-8")
-    facts = collect(repo, qa_root, gates, args.test_ids_cmd)
+        "repo": str(repo),
+        # The commit is what separates "my own retry" from "last night died".
+        "git_sha": _git(["rev-parse", "HEAD"], repo)}, indent=2) + "\n",
+        encoding="utf-8")
+    facts = collect(repo, qa_root, gates, args.test_ids_cmd, abandoned=abandoned)
     ids = facts.pop("_test_ids", None)
     if ids is not None:
         (qa_root / "test-ids.txt").write_text("\n".join(ids) + "\n", encoding="utf-8")

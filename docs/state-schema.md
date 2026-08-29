@@ -140,3 +140,12 @@ The finding `hash` is a short hash of `file path + rule + normalized message` (l
 line numbers stripped) so identity stays stable across runs while line numbers move. The
 human-facing `id` (`<PROJECT>-F-<n>`) is minted once, at first sight, and never renumbered
 or reused — `hash` is how a finding is recognized; `id` is how humans talk about it.
+
+**Matching is hash first, then id.** A hash is a fingerprint of the words, and it moves
+whenever the tester rewords its own title or cites a different line; matched on hash alone,
+a reworded re-report is filed as `NEW` *and* carried forward as resolved — two entries, one
+id, and a state the validator refuses to write, so the run produces nothing. When the hash
+misses, `verdict-finalize` falls back to the id and adopts the stored hash, because §6
+mints ids once and forbids reuse: a re-reported id is a deliberate identity claim. This is
+also what lets a project migrate onto the harness at all — every hash written before the
+harness existed was authored by hand and matches nothing computable.

@@ -372,7 +372,16 @@ your header. This is what keeps a repeat run cheap and bounded.
 **Age every finding.** Identity across runs is the `hash`: a short hash of `file path +
 rule + normalized message` (lowercase, line numbers stripped), stable while line numbers
 move. The human-facing `id` (`<PROJECT>-F-<n>`) is minted once, at first sight, and never
-renumbered or reused. Then report each finding as:
+renumbered or reused.
+
+**When you re-report a finding you filed before, carry its `id` verbatim.** The hash is a
+fingerprint of the words, and it moves the moment you reword your own title or quote a
+different line of evidence — which you will, as evidence accumulates. The id is what
+survives that, and it is how the harness recognises the finding as the same one. Get it
+wrong and the same defect is filed twice under two ids, which ages both from zero and
+tells the reader a resolved problem is new.
+
+Then report each finding as:
 
 - `NEW` — first seen this run
 - `STILL_OPEN` — with age in days *(age is the pressure; always show it)*

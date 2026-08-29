@@ -1,0 +1,50 @@
+{
+  "measured_at": "2026-08-29T20:36:14Z",
+  "project": "pricer",
+  "project_key_source": "git",
+  "qa_root": "/private/var/folders/95/670m4j2n4738g9pq1tq1mq8c0000gn/T/verdict-eval-8l2a5cbw/qa-home/pricer",
+  "schema_version": 1,
+  "run_number": 3,
+  "run_type": "delta",
+  "run_type_reason": "previous state present",
+  "last_run": {
+    "timestamp_utc": "2026-08-29T20:36:14Z",
+    "git_sha": "5a1184b3eeee58afa22949a0677f2f0c78c7603e",
+    "git_branch": "main",
+    "sha_range": "37c74f1..5a1184b3eeee58afa22949a0677f2f0c78c7603e",
+    "diff_stat": "4 files changed, 17 insertions(+), 7 deletions(-)"
+  },
+  "gates": {
+    "suite": {
+      "command": "/private/tmp/claude-501/-private-var-folders-95-670m4j2n4738g9pq1tq1mq8c0000gn-T-verdict-eval-8l2a5cbw-pricer/fbed5382-15b2-42bd-a630-023868878e3d/scratchpad/venv/bin/python -m pytest -q -p no:cacheprovider",
+      "exit_code": 1,
+      "result": "fail",
+      "duration_s": 0.15,
+      "summary": "3 failed, 4 passed, 1 skipped in 0.01s",
+      "counts": {
+        "passed": 4,
+        "failed": 3,
+        "skipped": 1
+      }
+    }
+  },
+  "previous_run_incomplete": {
+    "started_utc": "2026-08-29T20:36:07Z",
+    "repo": "/private/var/folders/95/670m4j2n4738g9pq1tq1mq8c0000gn/T/verdict-eval-8l2a5cbw/pricer",
+    "meaning": "a previous run started and never wrote state; its work is lost, not merely unreported"
+  },
+  "tests": {
+    "collected": 8,
+    "passed": 4,
+    "failed": 3,
+    "skipped": 1,
+    "duration_s": 0.15
+  },
+  "test_ids": {
+    "status": "measured",
+    "count": 8,
+    "added": [],
+    "removed": [],
+    "source": "id set-diff, not summary arithmetic"
+  }
+}

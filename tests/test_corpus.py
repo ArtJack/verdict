@@ -38,6 +38,11 @@ def test_corpus_entry_still_scores_full(entry):
            "--expected", str(EVAL / meta["expected"])]
     if meta.get("mode"):
         cmd += ["--mode", meta["mode"]]
+    if meta.get("require_harness"):
+        # Entries produced by the real pipeline assert that the pipeline stays
+        # detectable: a scorer that loses the ability to tell a measured run
+        # from a hand-written one cannot enforce the path.
+        cmd += ["--require-harness"]
     proc = subprocess.run(cmd, capture_output=True, text=True)
     out = json.loads(proc.stdout)
     misses = [r for r in out["rows"] if r.get("point") == 0]

@@ -136,20 +136,14 @@ def provision(checkout: Path, fixture: dict):
     target.parent.mkdir(parents=True, exist_ok=True)
     target.write_text(agent, encoding="utf-8")
 
-    hooks = {
-        "hooks": {
-            "PreToolUse": [
-                {"matcher": "Write|Edit|MultiEdit|NotebookEdit",
-                 "hooks": [{"type": "command",
-                            "command": f'python3 "{REPO}/hooks/enforce_write_scope.py"'}]},
-                {"matcher": "Bash",
-                 "hooks": [{"type": "command",
-                            "command": f'python3 "{REPO}/hooks/enforce_bash_scope.py"'}]},
-            ]
-        }
-    }
+    # Read the shipped hook set rather than restating it. The hand-written copy
+    # that used to live here listed only the two PreToolUse guards, so every
+    # eval run since the validator shipped exercised a *different* guard set
+    # than production — the PostToolUse state check never fired once.
+    hooks = json.loads((REPO / "hooks" / "hooks.json").read_text(encoding="utf-8"))
     (checkout / ".claude" / "settings.json").write_text(
-        json.dumps(hooks, indent=2), encoding="utf-8")
+        json.dumps(hooks, indent=2).replace("${CLAUDE_PLUGIN_ROOT}", str(REPO)),
+        encoding="utf-8")
 
     if fixture.get("command_file"):
         cmd = (REPO / "commands" / fixture["command_file"]).read_text(encoding="utf-8")
@@ -200,12 +194,14 @@ def run_agent(prompt, checkout, qa_home, model, timeout_s, base_env, log_path):
         raise RuntimeError(f"claude run failed rc={proc.returncode}; log: {log_path}")
 
 
-def score(qa_root, expected, mode, fixture_dir):
+def score(qa_root, expected, mode, fixture_dir, require_harness=True):
     cmd = [sys.executable, str(EVAL_DIR / "score.py"),
            "--qa-root", str(qa_root), "--expected", str(expected),
            "--fixture-dir", str(fixture_dir)]
     if mode:
         cmd += ["--mode", mode]
+    if require_harness:
+        cmd += ["--require-harness"]
     proc = sh(cmd)
     try:
         return proc.returncode, json.loads(proc.stdout)
@@ -267,7 +263,7 @@ def run_once(args, fixture, mode, base_env):
             run_agent(fixture["prompt"], checkout, qa_home, args.model,
                       args.timeout_s, base_env, workdir / "phase1.log")
             rc, out = score(qa_root, EVAL_DIR / fixture["expected_baseline"],
-                            None, checkout)
+                            None, checkout, args.require_harness)
             results["baseline"] = out
             failed |= rc != 0
 
@@ -292,7 +288,7 @@ def run_once(args, fixture, mode, base_env):
             run_agent(DELTA_PROMPT, checkout, qa_home, args.model,
                       args.timeout_s, base_env, workdir / "phase2.log")
             rc, out = score(qa_root, EVAL_DIR / fixture["expected_delta"],
-                            mode, checkout)
+                            mode, checkout, args.require_harness)
             results["delta"] = out
             failed |= rc != 0
     except Exception as exc:
@@ -318,6 +314,10 @@ def main() -> int:
     ap.add_argument("--timeout-s", type=int, default=1800)
     ap.add_argument("--keep", action="store_true",
                     help="keep the scratch workdir even on success")
+    ap.add_argument("--no-require-harness", dest="require_harness",
+                    action="store_false",
+                    help="score a run that hand-wrote its state instead of using "
+                         "verdict-facts / verdict-finalize (diagnostic only)")
     args = ap.parse_args()
 
     fixture = FIXTURES[args.fixture]

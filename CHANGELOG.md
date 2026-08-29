@@ -3,6 +3,44 @@
 Plugin and `verdict-mcp` share one version line; `.claude-plugin/plugin.json` and
 `pyproject.toml` are bumped together.
 
+## 0.21.0 — 2026-08-29 · "the path nothing had ever run"
+
+The measure → judge → finalize architecture shipped across 0.18–0.20 and had never once
+executed. No live QA root held a `facts.json`; the harness reached the installed plugin
+hours after the last production run; and eval runs scored the state without ever asking
+how it was written. Driving it by hand against the seeded fixture found three defects, each
+fatal to the path, and a live model run then completed it end to end — 6/6, with every
+harness signal present.
+
+- **Identity survives rewording.** `merge` matched previous findings by hash alone. A hash
+  is a fingerprint of the words and moves the moment the tester rewords its own finding, so
+  a reworded re-report was filed as `NEW` *and* carried forward as resolved — two entries,
+  one id, and a state the validator rightly refuses, meaning the run produced nothing at
+  all. It now falls back to the `id`, which §6 mints once and forbids reusing. This is also
+  what makes migration possible: all 115 finding hashes across the four live projects were
+  authored by hand before the harness existed and match nothing computable, so no project
+  could have taken its first harness-driven run.
+- **The run marker no longer cries wolf, twice over.** `verdict-facts` wrote it and then
+  read it back on the same pass, so every healthy run announced that the previous one had
+  been abandoned. And a legitimate retry — a mistyped gate command, re-run at the same
+  commit — was reported as a lost night; the marker now records its commit, and a recent
+  attempt at the same one is reported as this run's own retry. A marker at a different
+  commit, or an old one, is still the real alarm.
+- **The seeded fixture could not pass through the harness.** Golden's seven hashes were
+  decorative values no computation produces. Recomputed from content, and the fixture now
+  ships the test-id ledger its own fiction implies, so its delta reports a clean set-diff
+  instead of eight invented additions.
+
+Eval fidelity, both directions:
+
+- `provision()` restated the hook list by hand and had drifted: every eval run since the
+  validator shipped exercised a different guard set than production, and the PostToolUse
+  state check never fired once. It now reads `hooks/hooks.json`.
+- `score.py --require-harness` hard-fails a run that hand-wrote its state, on four
+  independent traces: facts measured, judgment written, state computed, report rendered.
+  Off by default so the pre-harness corpus keeps scoring; on for entries that record it.
+- The passing run is archived as the corpus's first pipeline-produced entry.
+
 ## 0.20.1 — 2026-08-29
 
 - **Two findings may no longer share one hash.** Found in a live state the moment the
