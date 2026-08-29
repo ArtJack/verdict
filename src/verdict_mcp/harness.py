@@ -50,7 +50,7 @@ try:
     from .state import (OUTCOMES_FILE, calibration, is_open, load_outcomes,
                         merge_outcomes, norm_status, order_findings)
     from .state import home as state_home
-    from .validate import validate
+    from .validate import validate, validate_judgment
 except ImportError:  # bare-script execution
     sys.path.insert(0, str(Path(__file__).resolve().parent))
     from profile import ProfileError, gates_from
@@ -59,7 +59,7 @@ except ImportError:  # bare-script execution
     from state import (OUTCOMES_FILE, calibration, is_open, load_outcomes,
                        merge_outcomes, norm_status, order_findings)
     from state import home as state_home
-    from validate import validate
+    from validate import validate, validate_judgment
 
 RE_BASELINE_AFTER_DAYS = 7
 # A run marker at the same commit, this recent, is a retry rather than a night
@@ -762,6 +762,19 @@ def finalize_main(argv=None) -> int:
         return 2
 
     previous = _read_json(qa_root / "state.json")
+
+    # Checked here, where the author of judgment.json still stands. Validating
+    # only the merged state stops a bad state reaching disk but explains it in
+    # the vocabulary of a structure the agent did not write — a reworded
+    # evidence line used to surface as `repeats id`, which says nothing about
+    # what to change.
+    author_problems = validate_judgment(judgment, previous)
+    if author_problems:
+        print(f"verdict-finalize: {args.judgment} has {len(author_problems)} problem(s) "
+              "— fix the judgment, not the check:\n  " + "\n  ".join(author_problems),
+              file=sys.stderr)
+        return 1
+
     state = merge(facts, judgment, previous, ledger=load_outcomes(qa_root))
 
     # Render the report before validating: the validator requires the file to

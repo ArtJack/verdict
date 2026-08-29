@@ -256,3 +256,68 @@ def test_resolved_and_withdrawn_findings_do_not_block_a_pass(root):
         f = dict(good_state()["findings"][0], status=status, severity="Critical",
                  delta="RESOLVED" if status == "resolved" else "WITHDRAWN")
         assert validate(good_state(verdict="pass", findings=[f]), root) == [], status
+
+
+# ── the judgment's own boundary ───────────────────────────────────────────
+
+from verdict_mcp.validate import validate_judgment  # noqa: E402
+
+
+def judgment(**over):
+    j = {"verdict": "fail", "not_tested": ["concurrency"],
+         "isolation_check": {"result": "pass"},
+         "findings": [{"id": "P-F-1", "severity": "Major", "priority": "P1",
+                       "status": "open", "confidence": "proven",
+                       "failure_classification": "REAL_DEFECT",
+                       "evidence": ["a.py:1"]}]}
+    j.update(over)
+    return j
+
+
+def test_a_clean_judgment_passes():
+    assert validate_judgment(judgment()) == []
+
+
+def test_a_finding_that_will_be_new_is_told_so_before_the_merge():
+    """The whole point of checking here: `validate()` can only say a NEW finding
+    lacks confidence *after* the merge decided it was NEW, in the vocabulary of
+    a structure the agent never wrote."""
+    f = {k: v for k, v in judgment()["findings"][0].items() if k != "confidence"}
+    bad = validate_judgment(judgment(findings=[f]))
+    assert any("will be filed as NEW — state its confidence now" in b for b in bad)
+
+    # ...and a finding the previous state already knows needs none
+    previous = {"findings": [{"id": "P-F-1", "hash": "abc", "status": "open"}]}
+    assert validate_judgment(judgment(findings=[f]), previous) == []
+
+
+def test_two_findings_under_one_id_are_named_as_such():
+    """This is the message that used to arrive as `repeats id` from a structure
+    the author did not write."""
+    f = judgment()["findings"][0]
+    bad = validate_judgment(judgment(findings=[f, dict(f, severity="Minor")]))
+    assert any("both filed as 'P-F-1'" in b and "mint a second id" in b for b in bad)
+
+
+def test_computed_fields_in_a_judgment_are_called_out():
+    f = dict(judgment()["findings"][0], hash="deadbeef", age_days=3, outcome="confirmed")
+    bad = validate_judgment(judgment(findings=[f]))
+    assert any("verdict-finalize computes and will overwrite" in b for b in bad)
+    assert any("hash" in b and "age_days" in b and "outcome" in b for b in bad)
+
+
+def test_the_judgment_check_holds_the_same_lines_as_the_state_check():
+    """Same rules, said earlier and in the author's own terms."""
+    f = judgment()["findings"][0]
+    assert any("uncited finding is a HYPOTHESIS" in b
+               for b in validate_judgment(judgment(findings=[dict(f, evidence=[])])))
+    assert any("open Critical/Blocker" in b for b in validate_judgment(
+        judgment(verdict="pass", findings=[dict(f, severity="Critical")])))
+    assert any("not one of" in b for b in validate_judgment(judgment(verdict="green")))
+    assert any("not_tested must be a list" in b
+               for b in validate_judgment(judgment(not_tested="nothing")))
+
+
+def test_a_malformed_judgment_does_not_raise():
+    assert validate_judgment("not an object") == ["judgment.json is not a JSON object"]
+    assert any("findings must be a list" in b for b in validate_judgment(judgment(findings={})))

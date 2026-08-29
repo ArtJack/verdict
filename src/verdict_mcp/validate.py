@@ -86,6 +86,104 @@ def _parse_z(value: str):
         return None
 
 
+# Fields `verdict-finalize` computes. A judgment that sets them is not wrong so
+# much as wasting its breath, and saying so teaches the contract.
+COMPUTED_BY_FINALIZE = ("hash", "first_seen", "age_days", "outcome", "outcome_reason",
+                        "carried_forward")
+
+
+def validate_judgment(judgment, previous=None):
+    """Check `judgment.json` at the boundary where its author still stands.
+
+    `validate()` checks the merged state, which is the right place to stop a bad
+    state reaching disk but the wrong place to *explain* one: the author's
+    mistake arrives translated into the vocabulary of a structure they did not
+    write. A reworded evidence line surfaced as `repeats id`, which says nothing
+    about what to change. These messages name the thing the agent actually did.
+
+    `previous` is the prior state when there is one; it is what makes "this
+    finding will be filed as NEW, and NEW findings state a confidence" knowable
+    before the merge rather than after it.
+    """
+    bad = []
+    if not isinstance(judgment, dict):
+        return ["judgment.json is not a JSON object"]
+
+    if judgment.get("verdict") not in VERDICTS:
+        bad.append(f"verdict {judgment.get('verdict')!r} is not one of {sorted(VERDICTS)}")
+    if not isinstance(judgment.get("not_tested"), list):
+        bad.append("not_tested must be a list — a `pass` without a stated not-tested list "
+                   "is incomplete, and an empty list is a claim of total coverage")
+    if not isinstance(judgment.get("isolation_check"), dict):
+        bad.append("isolation_check must be an object recording the §0 check you ran")
+
+    findings = judgment.get("findings")
+    if not isinstance(findings, list):
+        return bad + ["findings must be a list"]
+
+    known_ids = {str(f.get("id")) for f in ((previous or {}).get("findings") or [])
+                 if f.get("id")}
+    seen = {}
+    for i, f in enumerate(findings):
+        where = f"findings[{i}]"
+        if not isinstance(f, dict):
+            bad.append(f"{where} is not an object")
+            continue
+        fid = str(f.get("id") or "")
+        if not fid:
+            bad.append(f"{where} has no id — mint one as <PROJECT>-F-<n>, once, and reuse "
+                       "it verbatim on every later run that re-reports this finding")
+        elif fid in seen:
+            bad.append(f"{where} and findings[{seen[fid]}] are both filed as {fid!r} — one "
+                       "id is one finding; if these are two problems, mint a second id")
+        else:
+            seen[fid] = i
+
+        if f.get("severity") not in SEVERITIES:
+            bad.append(f"{where} ({fid}) severity {f.get('severity')!r} not in {sorted(SEVERITIES)}")
+        if f.get("priority") not in PRIORITIES:
+            bad.append(f"{where} ({fid}) priority {f.get('priority')!r} not in {sorted(PRIORITIES)}")
+        status = _status(f)
+        if status and status not in STATUSES:
+            bad.append(f"{where} ({fid}) status {f.get('status')!r} not in {sorted(STATUSES)}")
+        fc = f.get("failure_classification")
+        if fc is not None and fc not in CLASSIFICATIONS:
+            bad.append(f"{where} ({fid}) failure_classification {fc!r} not in "
+                       f"{sorted(CLASSIFICATIONS)} — use null for a finding that is not "
+                       "about a failing, erroring, skipped or nondeterministic test")
+        if _is_open(f) and not (f.get("evidence") or []):
+            bad.append(f"{where} ({fid}) is open with no evidence — an uncited finding is a "
+                       "HYPOTHESIS, not a finding")
+
+        conf = f.get("confidence")
+        if conf is not None and conf not in CONFIDENCES:
+            bad.append(f"{where} ({fid}) confidence {conf!r} not in {sorted(CONFIDENCES)}")
+        elif conf is None and fid and fid not in known_ids:
+            bad.append(
+                f"{where} ({fid}) is not in the previous state, so it will be filed as NEW "
+                f"— state its confidence now: {sorted(CONFIDENCES)}. It is scored against "
+                "what the finding turns out to do, so it cannot be added later")
+
+        fv = f.get("fix_verified")
+        if fv is not None and not isinstance(fv, bool):
+            bad.append(f"{where} ({fid}) fix_verified must be true or false, not {fv!r}")
+        elif fv is True and not (f.get("evidence") or []):
+            bad.append(f"{where} ({fid}) claims fix_verified with no evidence — cite the "
+                       "test that failed when you re-injected the defect")
+
+        computed = [k for k in COMPUTED_BY_FINALIZE if k in f]
+        if computed:
+            bad.append(f"{where} ({fid}) sets {', '.join(computed)}, which verdict-finalize "
+                       "computes and will overwrite — judgment.json carries judgment only")
+
+    blocking = [str(f.get("id")) for f in findings if isinstance(f, dict) and _is_open(f)
+                and f.get("severity") in ("Critical", "Blocker")]
+    if judgment.get("verdict") == "pass" and blocking:
+        bad.append("verdict is `pass` with open Critical/Blocker findings: "
+                   + ", ".join(blocking) + " — §10 caps that at `pass with risks`")
+    return bad
+
+
 def validate(state, root: Path, previous=None, now=None):
     """Return a list of violation strings. Empty means the state is admissible.
 

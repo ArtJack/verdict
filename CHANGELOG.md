@@ -3,6 +3,24 @@
 Plugin and `verdict-mcp` share one version line; `.claude-plugin/plugin.json` and
 `pyproject.toml` are bumped together.
 
+## 0.27.0 — 2026-08-29 · "checked where the author stands"
+
+`verdict-finalize` validated only the merged state. That is the right place to stop a bad
+state reaching disk and the wrong place to *explain* one: the agent's mistake arrived
+translated into the vocabulary of a structure it never wrote. A reworded evidence line
+surfaced as `repeats id` — true, and useless.
+
+- **`judgment.json` is now checked at its own boundary**, before the merge, and nothing is
+  written when it fails. The messages name the finding index, its id, the field and what
+  belongs there: a finding not present in the previous state is told it will be filed
+  `NEW` and must state its confidence *now* (knowable before the merge, not after); two
+  findings under one id are told to mint a second; an open finding without evidence is a
+  hypothesis; a `pass` over an open Critical is §10.
+- **Fields the harness computes are called out rather than silently overwritten.** A
+  judgment that sets `hash`, `first_seen`, `age_days`, `outcome` or `carried_forward` is
+  told so — judgment.json carries judgment, and saying which fields are not judgment
+  teaches the contract better than a rule nobody reads.
+
 ## 0.26.0 — 2026-08-29 · "the profile runs the gates"
 
 The last transcription step in the pipeline is gone.
