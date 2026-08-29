@@ -1,0 +1,77 @@
+{
+  "findings": {
+    "0a46b29e": {
+      "first_seen": "2026-08-20",
+      "hash": "0a46b29e",
+      "id": "PRICER-F-006",
+      "outcome": "unknown",
+      "outcome_reason": "still open; nothing has settled it",
+      "severity": "Minor"
+    },
+    "22522f7c": {
+      "first_seen": "2026-08-20",
+      "hash": "22522f7c",
+      "id": "PRICER-F-001",
+      "outcome": "unknown",
+      "outcome_reason": "still open; nothing has settled it",
+      "severity": "Major"
+    },
+    "2cb5bd44": {
+      "decided_on": "2026-08-29",
+      "first_seen": "2026-08-20",
+      "hash": "2cb5bd44",
+      "id": "PRICER-F-007",
+      "outcome": "confirmed",
+      "outcome_reason": "fix-verified: the guarding test failed on re-injection",
+      "severity": "Minor"
+    },
+    "6ff2daf0": {
+      "decided_on": "2026-08-29",
+      "first_seen": "2026-08-20",
+      "hash": "6ff2daf0",
+      "id": "PRICER-F-005",
+      "outcome": "confirmed",
+      "outcome_reason": "fix-verified: the guarding test failed on re-injection",
+      "severity": "Major"
+    },
+    "bb1c58f1": {
+      "decided_on": "2026-08-29",
+      "first_seen": "2026-08-20",
+      "hash": "bb1c58f1",
+      "id": "PRICER-F-003",
+      "outcome": "confirmed",
+      "outcome_reason": "regressed: it was fixed and came back, so it was real",
+      "proof_method": "counterfactual",
+      "severity": "Critical"
+    },
+    "d29e6946": {
+      "confidence": "proven",
+      "first_seen": "2026-08-29",
+      "hash": "d29e6946",
+      "id": "PRICER-F-008",
+      "outcome": "unknown",
+      "outcome_reason": "still open; nothing has settled it",
+      "proof_method": "counterfactual",
+      "severity": "Critical"
+    },
+    "d7774183": {
+      "confidence": "proven",
+      "first_seen": "2026-08-29",
+      "hash": "d7774183",
+      "id": "PRICER-F-009",
+      "outcome": "unknown",
+      "outcome_reason": "still open; nothing has settled it",
+      "severity": "Minor"
+    },
+    "ecd6fa87": {
+      "first_seen": "2026-08-20",
+      "hash": "ecd6fa87",
+      "id": "PRICER-F-002",
+      "outcome": "unknown",
+      "outcome_reason": "still open; nothing has settled it",
+      "severity": "Major"
+    }
+  },
+  "project": "pricer",
+  "schema_version": 1
+}

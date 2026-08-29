@@ -55,6 +55,10 @@ except ImportError:  # bare-script execution
     from validate import validate
 
 RE_BASELINE_AFTER_DAYS = 7
+# A run marker at the same commit, this recent, is a retry rather than a night
+# that was lost. Generous: a mistyped gate command and a re-run can straddle a
+# long investigation.
+RETRY_WINDOW_HOURS = 6
 RE_BASELINE_FILES = 100
 RE_BASELINE_LINES = 10_000
 # pytest, vitest, go test and friends all end with a countable line; these
@@ -96,6 +100,13 @@ def _counts(output: str) -> dict:
 
 
 _UNSET = object()
+
+
+def _parse_marker_time(value):
+    try:
+        return datetime.strptime(str(value), "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc)
+    except (ValueError, TypeError):
+        return None
 
 
 def collect(repo: Path, qa_root: Path, gates: list[tuple[str, str]],
@@ -192,11 +203,30 @@ def collect(repo: Path, qa_root: Path, gates: list[tuple[str, str]],
         "gates": gate_results,
     }
     if abandoned:
-        facts["previous_run_incomplete"] = {
-            **abandoned,
-            "meaning": "a previous run started and never wrote state; its work is lost, "
-                       "not merely unreported",
-        }
+        # A marker at this same commit, minutes old, is this run's own earlier
+        # attempt — a mistyped gate command, a retry — not a night that was
+        # lost. Reported as such and kept out of the alarm, because the alarm
+        # exists to make a real gap visible and a reader who sees it fire on
+        # every retry stops reading it. A marker at a *different* commit, or an
+        # old one, is the real thing: coverage of that commit never happened.
+        started = _parse_marker_time(abandoned.get("started_utc"))
+        age_h = (now - started).total_seconds() / 3600 if started else None
+        retry = (abandoned.get("git_sha") == sha and sha is not None
+                 and age_h is not None and age_h <= RETRY_WINDOW_HOURS)
+        if retry:
+            facts["previous_attempt_this_run"] = {
+                **abandoned,
+                "age_hours": round(age_h, 2),
+                "meaning": "an earlier attempt at this same commit, minutes ago — this "
+                           "run's own retry, not a lost run. Nothing is missing",
+            }
+        else:
+            facts["previous_run_incomplete"] = {
+                **abandoned,
+                **({"age_hours": round(age_h, 2)} if age_h is not None else {}),
+                "meaning": "a previous run started and never wrote state; its work is "
+                           "lost, not merely unreported",
+            }
 
     tests = {}
     for gate in gate_results.values():
@@ -561,7 +591,10 @@ def facts_main(argv=None) -> int:
     abandoned = _read_json(qa_root / "run-in-progress.json")
     (qa_root / "run-in-progress.json").write_text(json.dumps({
         "started_utc": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
-        "repo": str(repo)}, indent=2) + "\n", encoding="utf-8")
+        "repo": str(repo),
+        # The commit is what separates "my own retry" from "last night died".
+        "git_sha": _git(["rev-parse", "HEAD"], repo)}, indent=2) + "\n",
+        encoding="utf-8")
     facts = collect(repo, qa_root, gates, args.test_ids_cmd, abandoned=abandoned)
     ids = facts.pop("_test_ids", None)
     if ids is not None:

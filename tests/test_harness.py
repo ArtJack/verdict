@@ -375,14 +375,9 @@ def test_a_healthy_run_does_not_report_itself_as_abandoned(repo, qa_root):
          "--qa-root", str(qa_root)],
         capture_output=True, text=True, check=True).stdout)
     assert "previous_run_incomplete" not in first
-    assert (qa_root / "run-in-progress.json").is_file(), "the marker must be staked"
-
-    # a second run, with the first never finalized, is the case it exists for
-    second = json.loads(subprocess.run(
-        [sys.executable, str(HARNESS), "facts", "--repo", str(repo),
-         "--qa-root", str(qa_root)],
-        capture_output=True, text=True, check=True).stdout)
-    assert second["previous_run_incomplete"]["repo"] == str(repo)
+    assert "previous_attempt_this_run" not in first
+    marker = json.loads((qa_root / "run-in-progress.json").read_text(encoding="utf-8"))
+    assert marker["git_sha"], "the marker records the commit it was staked at"
 
 
 def test_a_reworded_re_report_is_the_same_finding_not_a_new_one(repo, qa_root):
@@ -417,3 +412,24 @@ def test_a_state_whose_hashes_predate_the_harness_still_merges(repo, qa_root):
     assert len(state["findings"]) == 1
     assert state["findings"][0]["delta"] == "STILL_OPEN"
     assert state["findings"][0]["hash"] == "deadbeef", "the stored identity is kept"
+
+
+def test_a_retry_at_the_same_commit_is_not_a_lost_run(repo, qa_root):
+    """A live run mistyped its id command, re-ran `facts`, and was told its own
+    first attempt was a lost night. The alarm exists to make a real gap visible;
+    one that fires on every retry is one nobody reads."""
+    args = [sys.executable, str(HARNESS), "facts", "--repo", str(repo),
+            "--qa-root", str(qa_root)]
+    subprocess.run(args, capture_output=True, text=True, check=True)
+    retry = json.loads(subprocess.run(args, capture_output=True, text=True,
+                                      check=True).stdout)
+    assert "previous_run_incomplete" not in retry
+    assert "this run's own retry" in retry["previous_attempt_this_run"]["meaning"]
+
+    # a marker from another commit is the real thing: that coverage never happened
+    (qa_root / "run-in-progress.json").write_text(json.dumps({
+        "started_utc": "2026-01-01T00:00:00Z", "repo": str(repo),
+        "git_sha": "deadbeef"}), encoding="utf-8")
+    lost = json.loads(subprocess.run(args, capture_output=True, text=True,
+                                     check=True).stdout)
+    assert "its work is lost" in lost["previous_run_incomplete"]["meaning"]

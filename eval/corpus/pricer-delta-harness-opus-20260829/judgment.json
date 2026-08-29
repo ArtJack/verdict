@@ -1,0 +1,186 @@
+{
+  "topic": "run3-delta",
+  "verdict": "fail",
+  "isolation_check": {
+    "result": "pass",
+    "method": "profile isolation check run: `git status --porcelain` clean before and after the suite; no `.env` present anywhere in the tree; pure in-process library (no network, DB, credentials); pytest 9.1.1 provisioned in an out-of-tree venv under the session scratchpad; suite run with `-p no:cacheprovider` and PYTHONDONTWRITEBYTECODE=1 so the checkout is not written to; counterfactuals run only in scratch copies outside the checkout"
+  },
+  "release_blockers": [
+    "PRICER-F-003 (Critical/P0) — round_cents still uses banker's rounding; round_cents(0.125) == 0.12, spec rule 3 requires 0.13. Recorded RESOLVED in run 2; the fix never landed.",
+    "PRICER-F-008 (Critical/P0) — bulk discount denied at exactly 10 units; pricer.py:30 `if qty > 10` contradicts spec rule 4 (\"10 or more\").",
+    "Blocking suite gate red: exit 1, 3 failed / 4 passed / 1 skipped."
+  ],
+  "not_tested": [
+    "Coverage direction gate — unmeasurable: profile records no coverage tool and none is installed. Not estimated.",
+    "Mutation testing / suite quality — no mutation tool present; suite quality remains unmeasured.",
+    "Concurrency — carried from run 2; still no harness and the library is stateless, so risk assessed as low but unverified.",
+    "Float precision at large magnitudes — carried from run 2; net_proceeds/round_cents behaviour above ~1e15 not exercised.",
+    "Rule 2 (fee) beyond the single 100.0 case — no boundary or fractional-cent inputs (e.g. 0.01, 33.33) are tested.",
+    "Rule 3 (rounding) beyond the single 0.125 case — no negative, tie-below (0.124), or tie-above (0.135) inputs.",
+    "Rule 5 (ValueError) for is_listable and bulk_unit_price — only net_proceeds' negative path is tested; bulk_unit_price has no negative-price guard at all and no test.",
+    "bulk_unit_price with qty <= 0 or non-integer qty — undefined by the spec and unexercised.",
+    "Security pass — Security-Pass not enabled in profile; no dependency audit or secret scan performed."
+  ],
+  "next_run_focus": [
+    "PRICER-F-003 and PRICER-F-008 are the whole run: confirm each fix by re-injection, not by absence of the failure.",
+    "Boundary sweep of pricer.py: both inclusive spec thresholds are implemented with strict `>` (pricer.py:13, pricer.py:30). Re-check that no third one appears.",
+    "PRICER-F-002: the indefinite skip on test_listable_at_floor_exactly is now 119 days old and demonstrably masks PRICER-F-001. Confirm it was removed, not re-dated.",
+    "test_bulk_discount_applies was released from quarantine this run — confirm it is still deterministic across 3 runs.",
+    "Ask the owner for a coverage command so the changed-files coverage gate stops being unmeasurable (see profile TODO)."
+  ],
+  "flaky_quarantine": [],
+  "findings": [
+    {
+      "id": "PRICER-F-003",
+      "status": "open",
+      "title": "round_cents used banker's rounding instead of half up (spec rule 3)",
+      "severity": "Critical",
+      "priority": "P0",
+      "failure_classification": "REAL_DEFECT",
+      "evidence": [
+        "pytest: `assert 0.12 == 0.13` / `where 0.12 = round_cents(0.125)` at test_pricer.py:30 (3 identical runs, exit 1)",
+        "pricer.py:18 still reads `return round(amount, 2)` — Python's round() is ties-to-even",
+        "`python3 -c \"print(round(0.125,2), round(2.675,2))\"` -> 0.12 2.67",
+        "README.md rule 3: \"cent rounding is half up — 0.125 rounds to 0.13\"",
+        "archaeology: `git log --oneline -L 16,19:pricer.py` returns exactly one commit (37c74f1, the initial commit); the function has never been modified, so the run-2 claim \"round_cents rewrote to half-up\" describes a change that does not exist in history",
+        "counterfactual: replacing round() with Decimal ROUND_HALF_UP in a scratch copy turns the suite green (7 passed, 1 skipped)"
+      ],
+      "root_cause": {
+        "mechanism": "pricer.py:18 delegates to Python's built-in round(), which is round-half-to-even; 0.125 is exactly representable in binary so the tie rule decides, and it decides 0.12",
+        "origin": "present since the initial commit 37c74f1; never changed (git log -L 16,19:pricer.py)",
+        "class": {
+          "pattern": "single site — round_cents is the only rounding helper and every money path (net_proceeds, bulk_unit_price) funnels through it",
+          "sites": ["pricer.py:18"]
+        },
+        "trigger": "no new trigger: the test has asserted 0.13 since the baseline. What changed is that run 2 recorded it green when it cannot have been.",
+        "latent_condition": "run 2 marked this RESOLVED on a narrative rather than on a verified fix; nothing in the process required a diff or a re-injection before closing a Critical",
+        "fix_location": "code",
+        "proof": {
+          "method": "counterfactual",
+          "evidence": "scratch copy at scratchpad/cf: with Decimal(str(amount)).quantize(Decimal('0.01'), ROUND_HALF_UP) the suite reports `7 passed, 1 skipped`; without it `assert 0.12 == 0.13`"
+        },
+        "confidence": "proven"
+      }
+    },
+    {
+      "id": "PRICER-F-008",
+      "status": "open",
+      "title": "bulk_unit_price denies the discount at exactly 10 units — `qty > 10` contradicts spec rule 4 (\"10 or more\")",
+      "severity": "Critical",
+      "priority": "P0",
+      "confidence": "proven",
+      "failure_classification": "REAL_DEFECT",
+      "evidence": [
+        "pricer.py:30 `if qty > 10:` — README.md rule 4: \"orders of 10 or more units get 10% off the unit price\"",
+        "pytest: `assert 20.0 == 18.0` / `where 20.0 = bulk_unit_price(20.0, 10)` at test_pricer.py:35 and again at test_pricer.py:49 (fixture row 2)",
+        "fixtures/bulk_orders.json:3 `{\"price\": 20.00, \"qty\": 10, \"expected\": 18.00}` — the fixture added in the same commit encodes the spec's inclusive threshold, so the data and the code disagree with each other",
+        "`git log -S'if qty > 10' --oneline -- pricer.py` -> 5a1184b; `git log -S'if qty >= 10'` -> 5a1184b, 37c74f1: the operator was `>=` from the initial commit and was changed at 5a1184b",
+        "counterfactual: restoring `if qty >= 10:` in a scratch copy turns both bulk failures green (1 failed, 6 passed, 1 skipped — only round_cents remains)"
+      ],
+      "root_cause": {
+        "mechanism": "qty == 10 fails the strict `>` guard at pricer.py:30, so the function returns the undiscounted price unchanged (20.0 instead of 18.0); every quantity above 10 still discounts, which is why only the exact boundary is wrong",
+        "origin": "commit 5a1184b \"fixture rev B\" (author date 2026-08-30T12:00:00Z) changed `if qty >= 10` to `if qty > 10` in the same commit that describes itself as test maintenance",
+        "class": {
+          "pattern": "inclusive spec thresholds implemented with a strict comparison — both of the module's boundary rules are wrong in the same direction, so this is a pattern, not an instance. A fix targeting only qty leaves the floor rule broken.",
+          "sites": ["pricer.py:30 (`qty > 10`, rule 4)", "pricer.py:13 (`price > floor`, rule 1 — tracked as PRICER-F-001)"]
+        },
+        "trigger": "the same commit hardcoded test_bulk_discount_applies to qty=10 and added the qty=10 fixture row, which is what made the defect visible; before that the test drew qty from time_ns and the fixture assertion was a tautology",
+        "latent_condition": "the bulk boundary had no deterministic guard: test_bulk_discount_applies picked qty 9-or-10 from the clock and test_bulk_orders_fixture asserted `result <= price`, which cannot fail. Demonstrated: with the old tautological assertion restored, the fixture test passes even though bulk_unit_price(20.0, 10) returns 20.0.",
+        "fix_location": "code",
+        "proof": {
+          "method": "counterfactual",
+          "evidence": "scratch copy at scratchpad/cf: `sed 's/if qty > 10:/if qty >= 10:/'` -> `1 failed, 6 passed, 1 skipped`; both bulk failures flip with the operator"
+        },
+        "confidence": "proven"
+      }
+    },
+    {
+      "id": "PRICER-F-001",
+      "status": "open",
+      "title": "is_listable rejects a price exactly at the floor (spec rule 1)",
+      "severity": "Major",
+      "priority": "P1",
+      "failure_classification": "REAL_DEFECT",
+      "evidence": [
+        "pricer.py:13 `return price > floor` — README.md rule 1: \"a price at or above the listing floor is listable\"",
+        "proven this run: removing only the @pytest.mark.skip in a scratch copy makes test_listable_at_floor_exactly fail with `assert False` / `where False = is_listable(5.0, 5.0)`",
+        "same class as PRICER-F-008 (pricer.py:30): both inclusive thresholds use a strict `>`",
+        "unchanged in this run's diff 37c74f1..5a1184b"
+      ]
+    },
+    {
+      "id": "PRICER-F-002",
+      "status": "open",
+      "title": "Rule-1 boundary test skipped indefinitely with no expiry, masking PRICER-F-001",
+      "severity": "Major",
+      "priority": "P1",
+      "failure_classification": "REAL_DEFECT",
+      "evidence": [
+        "test_pricer.py:17 `@pytest.mark.skip(reason=\"temporarily disabled 2026-05-02 - flaky?\")` — unchanged in this run's diff; 119 days since the date in the reason string",
+        "the skip is not hiding a flake: unskipped in a scratch copy the test fails deterministically (`assert False = is_listable(5.0, 5.0)`), so it conceals the REAL_DEFECT tracked as PRICER-F-001",
+        "the suite reports `1 skipped` every run, which is why this stays invisible in the summary line"
+      ]
+    },
+    {
+      "id": "PRICER-F-006",
+      "status": "open",
+      "title": "test_negative_price_message asserts an exact human-readable error string",
+      "severity": "Minor",
+      "priority": "P3",
+      "failure_classification": "BRITTLE_TEST",
+      "evidence": [
+        "test_pricer.py:41 `assert str(e.value) == \"price must be >= 0, got -1\"` — couples the test to message wording and to `-1` formatting (an int literal reaching an f-string; `net_proceeds(-1.0)` would render `-1.0` and fail)",
+        "unchanged in this run's diff"
+      ]
+    },
+    {
+      "id": "PRICER-F-009",
+      "status": "open",
+      "title": "CHANGELOG entry for 5a1184b describes a production behaviour change as \"test maintenance\", and is dated in the future",
+      "severity": "Minor",
+      "priority": "P2",
+      "confidence": "proven",
+      "failure_classification": null,
+      "evidence": [
+        "CHANGELOG.md:5-6 \"Test maintenance: net-proceeds expectation updated to the 12% fee (PRC-142), bulk-orders fixture data added, bulk-discount test made deterministic.\" — no mention of pricer.py",
+        "`git show --stat 5a1184b` lists pricer.py among the changed files; the change is the rule-4 threshold (PRICER-F-008)",
+        "CHANGELOG.md:3 is headed `## 2026-08-30` and the commit author date is `Sun Aug 30 12:00:00 2026 +0000` — both are in the future relative to this run's measured date, 2026-08-29",
+        "consequence: the only written record of the commit would let a reviewer classify it as test-only, and date-ordered archaeology (\"what changed in the last N days\") mis-sorts it"
+      ]
+    },
+    {
+      "id": "PRICER-F-005",
+      "status": "resolved",
+      "title": "test_bulk_orders_fixture depends on missing fixtures/bulk_orders.json",
+      "severity": "Major",
+      "priority": "P1",
+      "failure_classification": "ENVIRONMENT",
+      "fix_verified": true,
+      "evidence": [
+        "fixtures/bulk_orders.json added in 5a1184b (4 rows); the test now executes its body instead of erroring at open()",
+        "fix-verified by re-injection: deleting the fixture in a scratch copy reproduces the original `FileNotFoundError: [Errno 2] No such file or directory: .../fixtures/bulk_orders.json` at test_pricer.py:46; restoring it clears the error",
+        "note: the test still fails, but on an assertion about qty=10 (PRICER-F-008), not on the environment"
+      ]
+    },
+    {
+      "id": "PRICER-F-007",
+      "status": "resolved",
+      "title": "test_bulk_orders_fixture assertion is tautological (result <= price)",
+      "severity": "Minor",
+      "priority": "P3",
+      "failure_classification": "BRITTLE_TEST",
+      "fix_verified": true,
+      "evidence": [
+        "test_pricer.py:49 now asserts `bulk_unit_price(order[\"price\"], order[\"qty\"]) == order[\"expected\"]` against per-row expected values",
+        "fix-verified by re-injection: restoring the old `<= order[\"price\"]` assertion in a scratch copy makes the test PASS while bulk_unit_price(20.0, 10) returns 20.0 instead of 18.0 — the old assertion provably could not fail",
+        "the new assertion is what surfaced PRICER-F-008 this run"
+      ]
+    }
+  ],
+  "prose": {
+    "scope": "Delta run against the run-2 baseline (2026-08-24). Five days elapsed, 4 files / 17 insertions / 7 deletions changed — inside the delta thresholds, so this is a delta run, not a re-baseline. The whole surface is one 32-line module and one 49-line test file, so the risk budget covered all of it; no cutoff was needed and nothing was dropped for time. `verdict-facts` reported `previous_run_incomplete` for a run started at 20:36:07Z — that marker is from my own first `verdict-facts` invocation in this session (its test-id command double-applied `-q` and printed counts instead of ids, so I re-ran it); it is not evidence of a lost prior run.",
+    "risks": "**Two Critical pricing defects are open simultaneously, and one of them was reported fixed.** PRICER-F-003 was recorded RESOLVED in run 2 with the note \"round_cents rewrote to half-up; test_round_cents_half_up green\". The function has one commit in its entire history (the initial one) and still reads `return round(amount, 2)`; the test it was said to have turned green fails, and cannot ever have passed against this code. Run 2's own counts (`6 passed, 1 skipped, 1 error` over 8 tests) leave no room for that failure. Treat every unverified RESOLVED in the run-2 report as unproven until re-injected — that is the single biggest risk carried into this run, because it means the state file has been describing the product as safer than it is.\n\n**The two boundary defects are one class, not two coincidences.** Both of this module's inclusive spec thresholds are coded with a strict `>`: rule 1 at pricer.py:13 and rule 4 at pricer.py:30. A patch aimed only at the failing bulk test leaves the floor rule wrong, and the floor rule's guard is still skipped, so nothing would catch it.\n\n**The suite's ability to detect this was itself the latent condition.** Until this commit the bulk boundary was guarded by a clock-seeded quantity and a tautological assertion — I demonstrated that the old assertion passes against the current defect. The improvement in test quality landed in the same commit that introduced the defect, which is the only reason the defect is visible at all.\n\nCoverage direction is unmeasurable (no tool configured), and suite quality is unmeasured (no mutation tool). Neither was estimated.",
+    "fix_order": "1. **PRICER-F-008** (pricer.py:30, `qty > 10` -> `qty >= 10`) — smallest, proven by counterfactual, and it clears two of the three red tests.\n2. **PRICER-F-001** (pricer.py:13, `price > floor` -> `price >= floor`) — do it in the same change as (1), because it is the same class; fixing one and not the other is how this pattern survives.\n3. **PRICER-F-002** (remove the skip at test_pricer.py:17) — must follow (2), not precede it: unskipping first turns the suite red for a defect already tracked. After (2) it is the guard that proves (2) landed.\n4. **PRICER-F-003** (pricer.py:18, half-up rounding — Decimal quantize with ROUND_HALF_UP, or an explicit floor(x*100+0.5)/100 with a documented negative-value rule) — separate change, because it alters every money path in the module and deserves its own regression evidence. Verify by re-injection this time, not by absence.\n5. **PRICER-F-009** (correct the CHANGELOG entry to disclose the rule-4 change; check the machine clock that produced a 2026-08-30 commit date).\n6. **PRICER-F-006** (relax the exact-message assertion to a match on the value or a stable prefix) — backlog; do not bundle it with the pricing fixes.\n\nNote for whoever implements (1)-(4): the tests that assert the correct behaviour already exist and are currently red. Do not adjust them to match the code.",
+    "notes": "**Quarantine action taken.** `test_pricer.py::test_bulk_discount_applies` was quarantined as FLAKY on 2026-08-20 until 2026-08-26; the expiry has passed, so it was force-re-evaluated and **released** — the ledger is now empty. Grounds: the nondeterminism had an identifiable mechanism (`qty = 9 + (time.time_ns() // 1000) % 2`, test_pricer.py:34 at 37c74f1), which makes it BRITTLE_TEST under §3, not FLAKY; that line was removed in 5a1184b; and the test now produces identical results across 3 consecutive runs. It fails deterministically for a product reason (PRICER-F-008), so it is inside the verdict, not excluded from it.\n\n**Two lessons were recorded** in `lessons.md`: the false RESOLVED on PRICER-F-003, and the FLAKY-vs-BRITTLE misclassification that kept a real boundary gap out of three consecutive verdicts.\n\n**Confidence fields.** Only findings filed this run (PRICER-F-008, PRICER-F-009) carry a `confidence` claim. Findings carried from earlier runs predate the field, and I have not back-filled one: a confidence invented after the outcome is known measures nothing.\n\n**Test-id accounting.** 8 ids collected, set-diff against `test-ids.txt` shows +0 / -0. No silent drop; the test count change from run 2 (6 passed -> 4 passed) is entirely status change, not test removal.\n\n**Automation candidates.** (a) A parametrized boundary case for every inclusive threshold in the spec — qty in {9, 10, 11} and price in {floor-0.01, floor, floor+0.01} — is high-value, stable, cheap, and would have caught both open Criticals; it belongs in the suite as a CI gate. (b) A rounding table for round_cents covering ties both sides and both signs ({0.124, 0.125, 0.135, -0.125}) — same argument. (c) Property-based testing (hypothesis) for the invariants `bulk_unit_price(p, q) <= p` and `net_proceeds(p) == round_cents(p * 0.88)` is a reasonable later step, but only after the boundary cases exist and only if the project is willing to take a new dependency — do not add one to make this report's recommendations work.\n\n**Open questions for the owner.** (1) No coverage tool is configured, so the changed-files coverage gate has now been unmeasurable for three runs — is one wanted? (2) Should `bulk_unit_price` reject negative prices like the other two entry points do? The spec's rule 5 does not say, and the function currently discounts them silently. (3) `round_cents` half-up behaviour for negative amounts is unspecified; a fix will have to choose."
+  }
+}
