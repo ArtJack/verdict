@@ -146,6 +146,7 @@ def validate(state, root: Path, previous=None, now=None):
         bad.append("findings must be a list")
     else:
         seen_ids = set()
+        seen_hashes = {}
         for i, f in enumerate(findings):
             where = f"findings[{i}]"
             if not isinstance(f, dict):
@@ -158,8 +159,21 @@ def validate(state, root: Path, previous=None, now=None):
                 bad.append(f"{where} repeats id {fid!r} — ids are minted once and never reused")
             else:
                 seen_ids.add(fid)
-            if not f.get("hash"):
+            h = f.get("hash")
+            if not h:
                 bad.append(f"{where} ({fid}) has no hash — findings are aged by hash, not by id")
+            elif h in seen_hashes:
+                # Found live: two ids in one state shared a hash, the second
+                # filed as "F-003 confirmed in production". By the identity rule
+                # they are one finding, so ageing, deltas and the outcome ledger
+                # all collapse them — silently, and onto whichever came last.
+                bad.append(
+                    f"{where} ({fid}) shares hash {h} with {seen_hashes[h]} — by the identity "
+                    "rule those are the same finding, and every run-over-run comparison will "
+                    "treat them as one. Merge them, or cite the distinct evidence that makes "
+                    "them different findings")
+            else:
+                seen_hashes[h] = fid
             if f.get("severity") not in SEVERITIES:
                 bad.append(f"{where} ({fid}) severity {f.get('severity')!r} not in {sorted(SEVERITIES)}")
             if f.get("priority") not in PRIORITIES:
