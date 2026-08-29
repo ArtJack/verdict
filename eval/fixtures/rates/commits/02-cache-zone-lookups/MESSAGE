@@ -1,0 +1,5 @@
+perf: memoize zone lookups on the quoting path
+
+The pricing page quotes on every keystroke and the zone table is static at
+runtime. Entries are handed out as copies so a caller mutating its own quote
+cannot poison the cache.

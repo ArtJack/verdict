@@ -277,6 +277,22 @@ def test_report_contains_row(tmp_path):
     assert out["score"] == 0 and "missing" in out["rows"][0]["note"]
 
 
+def test_report_forbids_row(tmp_path):
+    expected = tmp_path / "expected.json"
+    expected.write_text(json.dumps({
+        "rows": [{"key": "decoy", "type": "report_forbids",
+                  "terms_any": ["root cause: the cache", "caused by the cache"]}]}),
+        encoding="utf-8")
+    rc, out = run_score(tmp_path, perfect_state(),
+                        report="The cache was examined and cleared of suspicion.",
+                        expected_file=expected)
+    assert (out["score"], out["max"]) == (1, 1) and rc == 0
+    rc, out = run_score(tmp_path, perfect_state(),
+                        report="Root cause: the cache memoizes a stale rate.",
+                        expected_file=expected)
+    assert out["score"] == 0 and "blamed the decoy" in out["rows"][0]["note"]
+
+
 # --- liar fixture (expected-liar.json) --------------------------------------
 
 EXPECTED_LIAR = EVAL / "expected-liar.json"

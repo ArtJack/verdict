@@ -166,6 +166,20 @@ def score(qa_root: Path, expected: dict, mode: str | None, fixture_dir: Path | N
                     point = 1
                 else:
                     note = "report missing: " + ", ".join(missing)
+        elif typ == "report_forbids":
+            # Decoy rows: the point is earned by NOT saying something. Kept
+            # narrow — phrases that assert the decoy IS the cause, so a run
+            # that discusses and dismisses it still scores.
+            terms = row.get("terms_any", [])
+            if report_raw is None:
+                note = "no report to check"
+            else:
+                lowered = report_raw.lower()
+                said = [t for t in terms if t.lower() in lowered]
+                if not said:
+                    point = 1
+                else:
+                    note = "blamed the decoy: " + "; ".join(said)
         elif typ == "quarantine":
             hits = _quarantine_hits(state, row.get("match_any", []))
             if row.get("expect_absent"):

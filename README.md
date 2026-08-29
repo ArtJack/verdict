@@ -78,6 +78,7 @@ Artifact: .qa/reports/2026-08-24-pricer-review.md
 | Test design | "test edge cases" | 24-technique catalog with risk triggers — incl. property-based, metamorphic (for ML/LLM output), MC-DC, contract tests ([docs/test-design.md](docs/test-design.md)) |
 | Can edit your code | nothing stops it | no `Edit` tool + write-scope hook + strict-mode Bash guard |
 | Security | ignored, or oversold | opt-in report-only pass: dependency audit + diff secret scan; pentest explicitly out of scope |
+| Root cause | "investigate the failure" | a four-link chain with a citation per link, a mandatory class check (is this an instance or a pattern?), and causation proven by flipping the cause in a scratch copy — with its own scored fixture built around a decoy |
 | Requirements review | never — code only | `/qa-spec` judges the spec before code exists (contradictions, unmeasurables, boundary ambiguities, history conflicts) — with its own scored eval fixture |
 | "No bugs found!" | frequently | never — coverage, gaps, and residual risk instead |
 | Tested itself | — | scored eval suite: baseline + delta-memory + adversarial-honesty fixtures, deterministic scorer, published answer keys ([eval/](eval/)) |
@@ -134,6 +135,7 @@ versioned, forward-compatible, human-readable JSON.
 | `/qa-flake` | Classify an intermittent failure: ≥3 reproductions, mechanism hunt → `BRITTLE_TEST` fix task, or `FLAKY` quarantine with expiry |
 | `/qa-status` | Read-only status from the stored state — no run, no writes, no agent spin-up |
 | `/qa-spec` | Shift-left: judge a spec/issue/PRD for testability *before code exists* — contradictions, unmeasurables, undefined boundaries, silent gaps, history conflicts, plus Given/When/Then criteria |
+| `/qa-cause` | Trace a failure to its root cause: symptom → mechanism → origin → **class**, each link cited, causation proven by counterfactual rather than narrated; trigger, cause, and latent condition kept apart |
 | `/qa-charter` | Timeboxed exploratory charter with a risk focus seeded from the profile's incident history; observations captured as evidence, discoveries converted to bug reports and regression candidates |
 
 ## The tester's memory, over MCP (optional)
