@@ -76,12 +76,19 @@ how you exhaust tomorrow's window too.
 Then gate and notify however you like:
 
 ```bash
-verdict-gate myrepo --max-age-hours 24 || notify "QA gate: $?"
+verdict-gate myrepo --max-age-hours 24 --require-harness || notify "QA gate: $?"
 ```
 
-Exit codes: `0` pass · `1` fail · `3` blocked · `4` never ran · `5` stale.
-`4` and `5` are the interesting ones for a scheduler — they mean the *run*
-broke, not the code.
+Exit codes: `0` pass · `1` fail · `3` blocked · `4` never ran · `5` stale ·
+`6` hand-written. `4`, `5` and `6` are the interesting ones for a scheduler —
+they mean the *run* broke, not the code.
+
+`--require-harness` is what keeps an unattended run honest. It checks four traces that only
+`verdict-facts` / `verdict-finalize` leave: facts measured *for this run* (a stale
+`facts.json` from an earlier one does not count), a judgment file, a computed state, and a
+rendered report. Without it a run can quietly go back to composing its timestamps and
+counts by hand, and nothing downstream would be able to tell — which is exactly what
+happened for three releases before anyone checked.
 
 ## 3. Scheduling
 
@@ -117,6 +124,11 @@ Persistent=true
 [Install]
 WantedBy=timers.target
 ```
+
+Provision the hooks by **reading the plugin's `hooks/hooks.json`**, never by restating the
+list in your unit file. Two hand-written copies of it — one in the eval runner, one in a
+nightly script — both silently missed the PostToolUse state validator when it shipped, so
+neither ever ran the guard set production runs use.
 
 (`--min-run-number-from-log` is pseudocode — capture `run_number` before the
 run and pass `--min-run-number <n+1>` after, exactly like the loop in the

@@ -3,6 +3,25 @@
 Plugin and `verdict-mcp` share one version line; `.claude-plugin/plugin.json` and
 `pyproject.toml` are bumped together.
 
+## 0.22.0 — 2026-08-29 · "measured, or say so"
+
+The harness is proven, so it stops being optional.
+
+- **§6 no longer offers an opt-out.** "When `verdict-facts` is available" invited the model
+  to decide it was not; the tools are stdlib Python that run from any checkout with nothing
+  installed, so unavailability is almost never true. A run that genuinely cannot use them
+  must say so in the report — the command, its error, and the fact that every measured
+  value below was produced by hand. Silently writing the state directly is out.
+- **`verdict-gate --require-harness`, exit 6.** Distinct from `4` (never ran) and `5` (ran
+  too long ago): the tester ran and wrote a state, but composed the numbers instead of
+  measuring them. Checks four traces only the pipeline leaves — facts measured *for this
+  run* (a stale `facts.json` inherited from an earlier one does not count), a judgment
+  file, a computed state, a rendered report.
+- **One definition of those traces**, in `state.py`, shared by the gate, the eval scorer
+  and the MCP surface. Duplication is what let both the eval runner and the nightly script
+  keep hand-written hook lists that silently missed the PostToolUse validator when it
+  shipped — neither ever ran production's guard set.
+
 ## 0.21.0 — 2026-08-29 · "the path nothing had ever run"
 
 The measure → judge → finalize architecture shipped across 0.18–0.20 and had never once

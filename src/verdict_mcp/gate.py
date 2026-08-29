@@ -16,6 +16,8 @@ Exit codes — distinct on purpose; "the tester never ran" must not look like
   3  blocked — the tester ran and could not verify
   4  no state / unreadable state — the tester never ran
   5  stale state — --max-age-hours exceeded or run_number < --min-run-number
+  6  hand-written state — --require-harness set and the run did not go
+     through verdict-facts / verdict-finalize
 
 The stale check exists to close the loop race: capture run_number before
 launching the QA run, then gate with --min-run-number <n+1> — a run that died
@@ -31,11 +33,13 @@ from pathlib import Path
 
 try:
     from .project_key import derive_key
-    from .state import is_open, load_state, order_findings, parse_timestamp, resolve_root
+    from .state import (harness_signals, is_open, load_state, order_findings,
+                    parse_timestamp, resolve_root)
 except ImportError:  # executed as a bare script (GitHub Action gate mode)
     sys.path.insert(0, str(Path(__file__).resolve().parent))
     from project_key import derive_key
-    from state import is_open, load_state, order_findings, parse_timestamp, resolve_root
+    from state import (harness_signals, is_open, load_state, order_findings,
+                   parse_timestamp, resolve_root)
 
 MARKER = "<!-- verdict-gate -->"
 
@@ -49,7 +53,8 @@ def _resolve_project(arg):
     return key, f"solo key {key!r} (from {source})"
 
 
-def evaluate(project, fail_on, max_age_hours, min_run_number, now=None):
+def evaluate(project, fail_on, max_age_hours, min_run_number, now=None,
+             require_harness=False):
     """Pure gate decision → a dict with exit_code, reason, and the state facts."""
     state, err = load_state(project)
     if err:
@@ -86,6 +91,16 @@ def evaluate(project, fail_on, max_age_hours, min_run_number, now=None):
                 f"stale: last run at {last.get('timestamp_utc')!r} is older than "
                 f"{max_age_hours}h (or unparseable)"))
             return out
+    if require_harness:
+        signals = harness_signals(state, state.get("_qa_root"))
+        missing = [k for k, ok in signals.items() if not ok]
+        if missing:
+            out.update(exit_code=6, harness=signals, reason=(
+                "hand-written state: this run did not go through verdict-facts → "
+                "judgment.json → verdict-finalize (" + ", ".join(missing) + "). "
+                "Everything the harness measures was composed instead of measured"))
+            return out
+        out["harness"] = signals
     if verdict == "blocked":
         out.update(exit_code=3, reason="blocked: the tester could not verify")
     elif verdict == "fail":
@@ -229,6 +244,9 @@ def main(argv=None) -> int:
                          "'pass with risks'. 'blocked' always exits 3.")
     ap.add_argument("--max-age-hours", type=float, default=None)
     ap.add_argument("--min-run-number", type=int, default=None)
+    ap.add_argument("--require-harness", action="store_true",
+                    help="exit 6 unless the state was produced by verdict-facts / "
+                         "verdict-finalize rather than written by hand")
     ap.add_argument("--findings", type=int, default=10, metavar="N",
                     help="max findings rendered (default 10)")
     ap.add_argument("--format",
@@ -237,7 +255,8 @@ def main(argv=None) -> int:
     args = ap.parse_args(argv)
 
     project, how = _resolve_project(args.project)
-    result = evaluate(project, args.fail_on, args.max_age_hours, args.min_run_number)
+    result = evaluate(project, args.fail_on, args.max_age_hours, args.min_run_number,
+                      require_harness=args.require_harness)
     result["resolved_via"] = how
 
     if args.format == "json":
