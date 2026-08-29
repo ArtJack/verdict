@@ -44,10 +44,14 @@ from pathlib import Path
 
 try:
     from .project_key import derive_key
+    from .state import (OUTCOMES_FILE, calibration, is_open, load_outcomes,
+                        merge_outcomes, norm_status)
     from .validate import validate
 except ImportError:  # bare-script execution
     sys.path.insert(0, str(Path(__file__).resolve().parent))
     from project_key import derive_key
+    from state import (OUTCOMES_FILE, calibration, is_open, load_outcomes,
+                       merge_outcomes, norm_status)
     from validate import validate
 
 RE_BASELINE_AFTER_DAYS = 7
@@ -254,8 +258,56 @@ def finding_hash(finding: dict) -> str:
     return hashlib.sha256(f"{path}|{title}".encode()).hexdigest()[:8]
 
 
-def merge(facts: dict, judgment: dict, previous: dict | None, today: date | None = None) -> dict:
-    """Facts + judgment → a state file, with identity and deltas computed."""
+DECIDED = ("confirmed", "refuted")
+
+
+def _stamp_outcome(finding: dict, prior: dict | None = None) -> dict:
+    """Derive the outcome from what the finding did — never from asking.
+
+    Three things settle a finding. It regressed (it was fixed and came back, so
+    it was real). It was resolved and the fix was verified by re-injection (§6:
+    absence is not evidence, a failing guard is). Or the tester withdrew it,
+    which is the one event that says it was never real.
+
+    A settled outcome then *sticks*. Without that, a finding confirmed by
+    regression on run 12 and still open on run 13 would quietly return to
+    undecided, and the track record would erode every time a finding changed
+    state. Withdrawal is the sole exception: an explicit correction outranks an
+    earlier inference, because it is the tester saying it got this wrong.
+    """
+    delta, status = finding.get("delta"), norm_status(finding.get("status"))
+    if delta == "WITHDRAWN" or status == "withdrawn":
+        return {"outcome": "refuted",
+                "outcome_reason": "withdrawn by the tester as never real"}
+    prior_outcome = (prior or {}).get("outcome")
+    if prior_outcome in DECIDED:
+        return {"outcome": prior_outcome,
+                "outcome_reason": (prior or {}).get("outcome_reason")
+                or "settled by an earlier run"}
+    if delta == "REGRESSED":
+        return {"outcome": "confirmed",
+                "outcome_reason": "regressed: it was fixed and came back, so it was real"}
+    if delta == "RESOLVED" and finding.get("fix_verified") is True:
+        return {"outcome": "confirmed",
+                "outcome_reason": "fix-verified: the guarding test failed on re-injection"}
+    if delta == "RESOLVED" and finding.get("carried_forward"):
+        # Weaker still than an unverified resolution: nobody claimed anything.
+        return {"outcome": "unknown",
+                "outcome_reason": "not re-reported; no one verified anything"}
+    if delta == "RESOLVED":
+        return {"outcome": "unknown",
+                "outcome_reason": "resolved but not fix-verified — absence is not proof"}
+    return {"outcome": "unknown", "outcome_reason": "still open; nothing has settled it"}
+
+
+def merge(facts: dict, judgment: dict, previous: dict | None, today: date | None = None,
+          ledger: dict | None = None) -> dict:
+    """Facts + judgment → a state file, with identity and deltas computed.
+
+    `ledger` is the permanent outcome ledger (`outcomes.json`); passing it in
+    keeps this function pure while letting the calibration block count every
+    finding this project ever filed, not just the ones still in state.
+    """
     today = today or date.today()
     prev_by_hash = {}
     for f in ((previous or {}).get("findings") or []):
@@ -276,9 +328,14 @@ def merge(facts: dict, judgment: dict, previous: dict | None, today: date | None
             entry["age_days"] = (today - date.fromisoformat(str(first_seen))).days
         except ValueError:
             entry["age_days"] = 0
-        status = entry.get("status", "open")
+        status = norm_status(entry.get("status", "open")) or "open"
+        entry["status"] = status
         if entry.get("delta") == "WITHDRAWN":
-            pass  # the tester's own correction; never overwritten
+            # The tester's own correction; the delta is never overwritten, and
+            # the status follows from it — a finding that was never real cannot
+            # also be open, and left to drift it would keep counting toward
+            # blockers it has already been retracted from.
+            entry["status"] = status = "withdrawn"
         elif prior is None:
             entry["delta"] = "NEW"
         elif status == "resolved":
@@ -287,16 +344,36 @@ def merge(facts: dict, judgment: dict, previous: dict | None, today: date | None
             entry["delta"] = "REGRESSED"
         else:
             entry["delta"] = "STILL_OPEN"
+
+        # The claim is frozen at filing. Calibration scores a prediction, and a
+        # confidence revised after the outcome is known is hindsight wearing a
+        # prediction's clothes.
+        if prior and prior.get("confidence"):
+            entry["confidence"] = prior["confidence"]
+        entry.update(_stamp_outcome(entry, prior))
         findings.append(entry)
 
     # A finding the previous run had and this run did not mention is resolved —
     # silence is not the same as an assertion, so it is carried, not dropped.
     for h, prior in prev_by_hash.items():
-        if h in seen or prior.get("status") == "resolved":
+        if h in seen:
+            continue
+        if norm_status(prior.get("status")) == "withdrawn":
+            # A withdrawal is the tester's own error record. Resolutions age out
+            # of state into the reports and the ledger; this one stays visible,
+            # because a tester that files a false positive and lets it fall off
+            # the page next run is hiding the number that weighs all the others.
+            findings.append(dict(prior))
+            continue
+        if norm_status(prior.get("status")) == "resolved":
             continue
         carried = dict(prior)
         carried.update(status="resolved", delta="RESOLVED",
                        carried_forward="not reported this run; no longer observed")
+        # Silence is not verification. A finding nobody re-reported proves
+        # nothing about whether it was real, so it stays undecided — unless an
+        # earlier run already settled it, which silence cannot undo either.
+        carried.update(_stamp_outcome(carried, prior))
         findings.append(carried)
 
     state = {
@@ -317,6 +394,10 @@ def merge(facts: dict, judgment: dict, previous: dict | None, today: date | None
             state[optional] = judgment[optional]
     if facts.get("tests"):
         state["tests"] = facts["tests"]
+    # Computed here rather than left to a consumer: the next run reads
+    # state.json anyway, so its own track record arrives without asking for it.
+    state["calibration"] = calibration(
+        state, ledger=merge_outcomes(ledger or {}, findings, today.isoformat()))
     if facts.get("test_ids"):
         state["test_ids"] = facts["test_ids"]
     # Unknown keys from the previous state survive (schema rule).
@@ -331,7 +412,7 @@ def index_row(state: dict) -> str:
     counts = f"{t.get('passed', 'n/a')} / {t.get('skipped', 'n/a')} / {t.get('failed', 'n/a')}"
     sev = {}
     for f in state.get("findings", []):
-        if f.get("status") == "open":
+        if is_open(f):
             sev[f.get("severity")] = sev.get(f.get("severity"), 0) + 1
     bcmm = "/".join(str(sev.get(s, 0)) for s in ("Blocker", "Critical", "Major", "Minor"))
     report = str((state.get("last_run") or {}).get("report") or "")
@@ -358,6 +439,15 @@ def write_state(qa_root: Path, state: dict) -> list[str]:
     if current.is_file():
         shutil.copyfile(current, qa_root / "state.json.prev")
     current.write_text(json.dumps(state, indent=2) + "\n", encoding="utf-8")
+
+    # The ledger outlives state.json's findings list, which is exactly the
+    # point: resolutions age out of state, and their outcomes must not.
+    decided_on = str((state.get("last_run") or {}).get("timestamp_utc") or "")[:10] or None
+    ledger = merge_outcomes(load_outcomes(qa_root), state.get("findings", []), decided_on)
+    (qa_root / OUTCOMES_FILE).write_text(
+        json.dumps({"schema_version": 1, "project": state.get("project"),
+                    "findings": ledger}, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8")
 
     reports = qa_root / "reports"
     reports.mkdir(parents=True, exist_ok=True)
@@ -471,7 +561,7 @@ def finalize_main(argv=None) -> int:
         return 2
 
     previous = _read_json(qa_root / "state.json")
-    state = merge(facts, judgment, previous)
+    state = merge(facts, judgment, previous, ledger=load_outcomes(qa_root))
 
     # Render the report before validating: the validator requires the file to
     # exist, and writing it here is what makes "the report went missing"
@@ -525,6 +615,37 @@ def _finding_sort_key(f: dict):
             -int(f.get("age_days") or 0))
 
 
+def _render_calibration(cal: dict) -> list[str]:
+    """The tester's own track record, or nothing at all.
+
+    Nothing at all until something has actually been settled: a section reading
+    "0 of 0" trains the reader to skip it, and by the time there is a number
+    worth seeing they no longer look. Rates stay hidden until the bucket has
+    enough decided outcomes to earn one — `reading` carries the counts either
+    way, so the section is honest at every sample size.
+    """
+    if not cal or not cal.get("decided_outcomes"):
+        return []
+    lines = ["", "## Track record", "",
+             f"{cal.get('findings_tracked', 0)} findings tracked across this project's "
+             f"history · {cal['decided_outcomes']} settled, "
+             f"{cal.get('undecided_outcomes', 0)} still undecided.", ""]
+    for label, store in (("Confidence claimed", cal.get("by_confidence") or {}),
+                         ("Proof method", cal.get("by_proof_method") or {})):
+        rows = [(k, v) for k, v in store.items() if v.get("decided")]
+        if not rows:
+            continue
+        lines += [f"| {label} | Held up | Withdrawn | Rate |", "|---|---|---|---|"]
+        for key, v in sorted(rows, key=lambda kv: -kv[1]["decided"]):
+            rate = f"{v['precision']:.0%}" if v.get("precision") is not None else "_not yet_"
+            lines.append(f"| {key} | {v['confirmed']} | {v['refuted']} | {rate} |")
+        lines.append("")
+    lines += [f"*A rate appears once a row has {cal.get('min_sample')} settled outcomes. "
+              "Settled means fix-verified or regressed (it held up) against withdrawn "
+              "(it did not); a finding merely resolved is not evidence either way.*", ""]
+    return lines
+
+
 def render_report(state: dict, prose: dict | None = None) -> str:
     """Render the report from the state, injecting the agent's prose.
 
@@ -575,7 +696,7 @@ def render_report(state: dict, prose: dict | None = None) -> str:
         out += ["", "## Risks", "", prose["risks"]]
 
     findings = sorted(state.get("findings") or [], key=_finding_sort_key)
-    open_f = [f for f in findings if f.get("status") == "open"]
+    open_f = [f for f in findings if is_open(f)]
     out += ["", f"## Findings — REGRESSED first ({len(open_f)} open of {len(findings)} tracked)", ""]
     if not findings:
         out.append("_None recorded this run._")
@@ -601,6 +722,8 @@ def render_report(state: dict, prose: dict | None = None) -> str:
         if prose.get("findings", {}).get(str(f.get("id"))):
             out += ["", prose["findings"][str(f.get("id"))]]
         out.append("")
+
+    out += _render_calibration(state.get("calibration") or {})
 
     blockers = state.get("release_blockers") or []
     out += ["## Release blockers", "",

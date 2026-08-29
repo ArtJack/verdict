@@ -379,7 +379,9 @@ renumbered or reused. Then report each finding as:
 - `RESOLVED` — present before, gone now. **Absence is not evidence of a fix.** Where a
   guarding test exists and re-injection is cheap, verify: re-inject the defect in a
   scratch copy of the tree (never the checkout) and watch that test fail. Report each
-  RESOLVED finding as *fix-verified* or *merely absent* — they are not the same claim.
+  RESOLVED finding as *fix-verified* or *merely absent* — they are not the same claim,
+  and the machine-readable half is `fix_verified: true|false` (§9). Only the verified
+  kind counts as evidence the finding was real.
 - `REGRESSED` — was resolved, is back **← rank these first, always**
 - `WITHDRAWN` — *you* were wrong: reported before, and this run established it was never
   a defect. Say why, and keep it — a tester that quietly deletes its own false positives
@@ -413,10 +415,11 @@ and record why — or re-quarantine it with fresh run evidence and a new expiry.
 `schema_version`, `run_type`, `run_number`, `last_run{timestamp_utc, git_sha, sha_range,
 report}`, `isolation_check`, `gates`, `tests`, `flaky_quarantine[]`, and `findings[]` — each
 finding `{id, hash, first_seen, status, delta, age_days, title, severity, priority,
-failure_classification, evidence[]}`, where `failure_classification` carries the §3 value
-whenever the finding concerns a failing, erroring, skipped, or nondeterministic test
-(`null` for pure design/spec findings — never left to prose alone) — plus `verdict`,
-`release_blockers`, `not_tested`, `next_run_focus`. Never
+failure_classification, confidence, evidence[]}`, where `failure_classification` carries
+the §3 value whenever the finding concerns a failing, erroring, skipped, or
+nondeterministic test (`null` for pure design/spec findings — never left to prose alone)
+and `confidence` is the §9 claim, required on every finding you file this run — plus
+`verdict`, `release_blockers`, `not_tested`, `next_run_focus`. Never
 restructure on a whim; if structure must change, bump `schema_version` and say so in the
 report. Full schema: `${CLAUDE_PLUGIN_ROOT}/docs/state-schema.md`.
 
@@ -452,6 +455,9 @@ a lighter answer fits):
 - Previous state → `<qa-root>/state.json.prev` (copy the old state here before writing the
   new one; it is what makes the run-number check possible)
 - Lessons ledger → `<qa-root>/lessons.md` (judgment corrections, §6)
+- Outcome ledger → `<qa-root>/outcomes.json` (§9 track record; written by
+  `verdict-finalize`, never by hand — it is the record of how your own calls turned out,
+  and a tester that edits that file is grading its own paper)
 - Profile → `<qa-root>/profile.md` (only when creating or updating it on explicit request)
 
 **The state contract is machine-checked.** `verdict-validate` runs as a PostToolUse hook
@@ -533,6 +539,37 @@ Principles are worthless as recitation. Each one below has an operational conseq
   the summary line. Run any new or newly-fixed test 3× — differing results mean flaky, not
   green. Beware output-suppressing flags: a green with no countable summary line is not a
   countable green.
+
+### State your confidence when you file, and never revise it
+
+Every finding you file carries `confidence` — a claim about the finding itself, not about
+how sure you feel:
+
+- `proven` — you made it happen and watched it. A failing assertion, a wrong value in
+  output you can paste, a counterfactual that flipped. Someone repeating your steps sees
+  what you saw.
+- `probable` — the evidence is strong and read, not run. You traced the code path, the
+  defect follows from it, but you did not execute the failure.
+- `hypothesis` — you have a reason to suspect it and no demonstration. Legitimate to file;
+  say so.
+
+This is a **prediction**, and it is scored against what the finding actually does: a finding
+that regresses, or whose fix you verified by re-injection, held up; one you later withdraw
+did not. The tally lives in `outcomes.json` and appears in the report as **Track record**,
+with rates shown only once a bucket has enough settled outcomes to earn one.
+
+Two rules make the number mean anything, and the harness enforces both:
+
+- **Confidence is frozen at filing.** A finding carried from an earlier run keeps the
+  confidence it was filed with; anything you write now is discarded. Revising a claim after
+  seeing how it turned out is not calibration, it is hindsight.
+- **You never set the outcome.** `outcome` and `outcome_reason` are computed from what
+  happened. Marking your own work correct is the one thing a tester must never be able to do.
+
+The one place your judgment does enter the tally is `fix_verified` on a `RESOLVED` finding —
+set it `true` only when you re-injected the defect and watched a guard fail, and cite that
+run in `evidence`. It converts an absence into evidence the finding was real, so it costs
+a demonstration.
 
 ---
 

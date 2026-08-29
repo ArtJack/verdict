@@ -44,6 +44,12 @@ DELTAS = {"NEW", "STILL_OPEN", "RESOLVED", "REGRESSED", "WITHDRAWN"}
 SEVERITIES = {"Blocker", "Critical", "Major", "Minor", "Trivial"}
 PRIORITIES = {"P0", "P1", "P2", "P3"}
 CLASSIFICATIONS = {"REAL_DEFECT", "STALE_EXPECTATION", "BRITTLE_TEST", "ENVIRONMENT", "FLAKY"}
+# Optional, because five archived corpus runs predate them and must keep
+# scoring: a contract that retroactively invalidates its own history is not a
+# contract, it is a rewrite.
+CONFIDENCES = {"proven", "probable", "hypothesis"}
+OUTCOMES = {"confirmed", "refuted", "unknown"}
+STATUSES = {"open", "resolved", "withdrawn"}
 REQUIRED_TOP = ("project", "schema_version", "run_type", "run_number", "last_run",
                 "isolation_check", "verdict", "release_blockers", "not_tested")
 _ISO_Z = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$")
@@ -51,6 +57,12 @@ _ISO_Z = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$")
 # this file. Generous either way: clock skew is real, a two-day-old "now" is not.
 FUTURE_TOLERANCE = timedelta(minutes=10)
 PAST_TOLERANCE = timedelta(days=1)
+
+
+def _status(finding) -> str:
+    """Status, case-normalized. Mirrors state.norm_status, duplicated because
+    this module is the PostToolUse hook and must import nothing."""
+    return str(finding.get("status") or "").strip().lower()
 
 
 def _parse_z(value: str):
@@ -154,17 +166,45 @@ def validate(state, root: Path, previous=None, now=None):
                 bad.append(f"{where} ({fid}) priority {f.get('priority')!r} not in {sorted(PRIORITIES)}")
             if f.get("delta") is not None and f.get("delta") not in DELTAS:
                 bad.append(f"{where} ({fid}) delta {f.get('delta')!r} not in {sorted(DELTAS)}")
+            conf = f.get("confidence")
+            if conf is not None and conf not in CONFIDENCES:
+                bad.append(f"{where} ({fid}) confidence {conf!r} not in {sorted(CONFIDENCES)}")
+            elif conf is None and f.get("delta") == "NEW":
+                # Required only where it can still be honestly given: a finding
+                # filed this run. Confidence is a *prediction*, and a prediction
+                # supplied after the outcome is known is worth nothing — so it
+                # is demanded at filing or not at all. Findings inherited from
+                # runs that predate this rule stay legal and score as `unstated`.
+                bad.append(
+                    f"{where} ({fid}) is NEW without `confidence` — state the claim as you "
+                    f"file it: {sorted(CONFIDENCES)}. It is scored against what the finding "
+                    "actually does, so it cannot be added later")
+            oc = f.get("outcome")
+            if oc is not None and oc not in OUTCOMES:
+                bad.append(f"{where} ({fid}) outcome {oc!r} not in {sorted(OUTCOMES)}")
+            if f.get("delta") == "WITHDRAWN" and _status(f) == "open":
+                bad.append(f"{where} ({fid}) is WITHDRAWN but still open — a finding "
+                           "retracted as never real cannot also count as a live defect")
+            fv = f.get("fix_verified")
+            if fv is not None and not isinstance(fv, bool):
+                bad.append(f"{where} ({fid}) fix_verified must be true or false, not {fv!r}")
+            elif fv is True and not (f.get("evidence") or []):
+                # `fix_verified` upgrades a resolution into evidence that the
+                # finding was real, so it has to cost something: name the guard
+                # that failed on re-injection, or do not make the claim.
+                bad.append(f"{where} ({fid}) claims fix_verified with no evidence — cite the "
+                           "test that failed when the defect was re-injected")
             fc = f.get("failure_classification")
             if fc is not None and fc not in CLASSIFICATIONS:
                 bad.append(f"{where} ({fid}) failure_classification {fc!r} not in {sorted(CLASSIFICATIONS)}")
-            if f.get("status") == "open" and not (f.get("evidence") or []):
+            if _status(f) == "open" and not (f.get("evidence") or []):
                 bad.append(
                     f"{where} ({fid}) is open with no evidence — an uncited finding is a "
                     "HYPOTHESIS, not a finding")
 
         if state.get("verdict") == "pass":
             blocking = [f.get("id") for f in findings
-                        if isinstance(f, dict) and f.get("status") == "open"
+                        if isinstance(f, dict) and _status(f) == "open"
                         and f.get("severity") in {"Critical", "Blocker"}]
             if blocking:
                 bad.append(

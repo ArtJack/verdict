@@ -21,8 +21,10 @@ from mcp.types import ToolAnnotations
 
 from .state import (
     DELTA_VALUES,
+    calibration,
     home,
     hotspots,
+    is_open,
     known_projects,
     load_state,
     order_findings,
@@ -89,7 +91,7 @@ def get_findings(project: str, status: str = "open") -> dict:
     if status == "all":
         selected = findings
     elif status == "open":
-        selected = [f for f in findings if f.get("status") == "open"]
+        selected = [f for f in findings if is_open(f)]
     elif status in DELTA_VALUES:
         selected = [f for f in findings if f.get("delta") == status]
     else:
@@ -223,7 +225,7 @@ def get_trends(project: str) -> dict:
                 "tests_passed": int(nums[0]) if nums else None,
             })
     hot = hotspots(state)
-    open_findings = [f for f in state.get("findings", []) if f.get("status") == "open"]
+    open_findings = [f for f in state.get("findings", []) if is_open(f)]
     by_sev: dict = {}
     for f in open_findings:
         sev = str(f.get("severity") or "unknown").strip().capitalize()
@@ -248,6 +250,7 @@ def get_trends(project: str) -> dict:
         # findings. `runs_of_history` is part of the answer: a ranking built on
         # one run is a snapshot, not a pattern.
         "hotspots": hot,
+        "calibration": calibration(state),
     }
 
 

@@ -211,3 +211,12 @@ def test_default_resolution_prefers_team_qa(tmp_path):
     assert proc.returncode == 0
     assert "team-mode" in json.loads(gate(tmp_path, "--format", "json",
                                           home=home, cwd=repo).stdout)["resolved_via"]
+
+
+def test_open_findings_are_counted_whatever_the_case_of_the_status(tmp_path):
+    """The bug this caught in production: a baseline wrote "OPEN", and the gate
+    reported zero open findings for a project holding seven, one Critical."""
+    findings = [dict(f, status=f["status"].upper()) for f in BASE_STATE["findings"]]
+    out = json.loads(gate(tmp_path, "pricer", "--format", "json",
+                          state_kwargs={"findings": findings}).stdout)
+    assert [f["id"] for f in out["findings_open"]] == ["PRC-F-2", "PRC-F-9"]

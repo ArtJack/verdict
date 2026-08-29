@@ -21,7 +21,9 @@ Required flow:
 4. Re-evaluate every quarantine entry whose `quarantined_until` has passed: release it,
    re-quarantine with fresh evidence and a new expiry, or reclassify per §3.
 5. Age all findings and report `NEW / STILL_OPEN / RESOLVED / REGRESSED` — REGRESSED
-   ranked first, always.
+   ranked first, always. Where a RESOLVED finding had a guarding test, re-inject the
+   defect in a scratch copy and set `fix_verified` from what you saw; where a previous
+   finding turns out never to have been real, `WITHDRAWN` it and say why.
 6. Gate on deltas (§6): coverage direction on changed files, duration vs recorded
    `duration_s`, silent test-count drops, collection errors.
 7. Close with the §13 handoff; write state, report, and the INDEX row as always.
