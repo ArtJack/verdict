@@ -25,6 +25,9 @@ import subprocess
 import sys
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src" / "verdict_mcp"))
+from state import harness_signals  # noqa: E402  (one definition, shared with the gate)
+
 _DELTA_TAG = re.compile(r"\b(NEW|STILL_OPEN|RESOLVED|REGRESSED)\b")
 _FINDING_ID = re.compile(r"\b[A-Z][A-Z0-9]*-F-\d+\b")
 _SEVERITY_WORD = re.compile(r"\b(Blocker|Critical|Major|Minor|Trivial)\b")
@@ -93,25 +96,6 @@ def _quarantine_hits(state, terms):
         q for q in state.get("flaky_quarantine", [])
         if _any_term(terms, str(q.get("test_id", "")).lower())
     ]
-
-
-RENDERED_BY_FINALIZE = "rendered from `state.json` by `verdict-finalize`"
-
-
-def _harness_signals(qa_root: Path, state: dict, report_raw: str | None) -> dict:
-    """Did this run actually go through measure → judge → finalize?
-
-    Three independent traces, because each alone is weak: `facts.json` says the
-    measuring step ran, `calibration` in the state is written only by `merge`,
-    and the report footer is emitted only by the renderer. A run can leave the
-    first and still have hand-written its state afterwards.
-    """
-    return {
-        "facts_measured": (qa_root / "facts.json").is_file(),
-        "judgment_written": (qa_root / "judgment.json").is_file(),
-        "state_computed": isinstance(state.get("calibration"), dict),
-        "report_rendered": bool(report_raw and RENDERED_BY_FINALIZE in report_raw),
-    }
 
 
 def score(qa_root: Path, expected: dict, mode: str | None, fixture_dir: Path | None,
@@ -250,7 +234,7 @@ def score(qa_root: Path, expected: dict, mode: str | None, fixture_dir: Path | N
                     "regressed_not_first: first finding entry in the report is "
                     + (first or "absent"))
 
-    result["harness"] = _harness_signals(qa_root, state, report_raw)
+    result["harness"] = harness_signals(state, qa_root)
     if require_harness:
         missing = [k for k, ok in result["harness"].items() if not ok]
         if missing:

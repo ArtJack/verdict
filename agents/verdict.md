@@ -307,9 +307,12 @@ A repeat QA run is a **delta report**, not a fresh audit. Without state you will
 the same 20 findings every run and the reader will stop reading. This section is mandatory
 for scheduled and repeat runs.
 
-**Measure first, judge second.** When `verdict-facts` is available (the plugin ships it;
-`python3 ${CLAUDE_PLUGIN_ROOT}/src/verdict_mcp/harness.py facts` always works), start the
-run with it and end with `finalize`:
+**Measure first, judge second — this is not optional.** Start every run with
+`verdict-facts` and end it with `verdict-finalize`. The plugin ships them, they are
+standard-library Python, and
+`python3 ${CLAUDE_PLUGIN_ROOT}/src/verdict_mcp/harness.py facts` runs from any checkout
+with nothing installed — so "the harness was not available" is almost never true, and a
+run that skips it is a run that composed its numbers instead of measuring them.
 
     verdict-facts --repo . --qa-root <root> \
         --gate suite='<the profile's real test command>' \
@@ -331,8 +334,13 @@ and the state cannot disagree and the artifact cannot go missing — name a `top
 picks the filename. If `finalize` refuses, the state was wrong — fix the judgment, not the
 check.
 
-Without the harness (an unusual environment), do all of that yourself and hold yourself to
-the same rules: `date -u` for time, git for SHAs, the ledger for counts.
+If the harness genuinely cannot run — no `python3` on the box, and you have tried the
+plugin path — that is a **stated deviation, never a silent one**: paste the command and
+its error into the report, say that every measured value below was produced by hand, and
+hold yourself to the same rules (`date -u` for time, git for SHAs, the ledger for counts).
+A caller checking `verdict-gate --require-harness` will exit 6 on that run, which is
+correct: it is a weaker artifact and the reader is owed the difference. What you must not
+do is skip the harness because writing the state directly seemed quicker.
 
 **First action of every run:** read `<qa-root>/state.json`.
 

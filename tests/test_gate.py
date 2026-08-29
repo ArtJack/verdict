@@ -220,3 +220,38 @@ def test_open_findings_are_counted_whatever_the_case_of_the_status(tmp_path):
     out = json.loads(gate(tmp_path, "pricer", "--format", "json",
                           state_kwargs={"findings": findings}).stdout)
     assert [f["id"] for f in out["findings_open"]] == ["PRC-F-2", "PRC-F-9"]
+
+
+def test_require_harness_separates_a_measured_run_from_a_composed_one(tmp_path):
+    """Exit 6, distinct from 4 (never ran) and 5 (ran too long ago): the tester
+    ran and wrote a state, but composed the numbers instead of measuring them."""
+    home = make_home(tmp_path)
+    root = home / "pricer"
+    assert gate(tmp_path, "pricer", "--require-harness", home=home).returncode == 6
+
+    # now furnish the traces a real pipeline leaves
+    state = json.loads((root / "state.json").read_text(encoding="utf-8"))
+    stamp = state["last_run"]["timestamp_utc"]
+    state["calibration"] = {"decided_outcomes": 0}
+    (root / "state.json").write_text(json.dumps(state), encoding="utf-8")
+    (root / "facts.json").write_text(json.dumps({"measured_at": stamp}), encoding="utf-8")
+    (root / "judgment.json").write_text("{}", encoding="utf-8")
+    (root / "reports").mkdir(exist_ok=True)
+    (root / state["last_run"]["report"]).write_text(
+        "# report\n\n*Countable sections rendered from `state.json` by "
+        "`verdict-finalize`; the prose is the agent's.*\n", encoding="utf-8")
+    proc = gate(tmp_path, "pricer", "--require-harness", "--format", "json", home=home)
+    assert proc.returncode == 1, "the fail verdict decides once the run is admissible"
+    assert all(json.loads(proc.stdout)["harness"].values())
+
+
+def test_stale_facts_from_an_earlier_run_do_not_count_as_measured(tmp_path):
+    """facts.json survives in the QA root. A later hand-written run would inherit
+    it, so the file must describe *this* run to count."""
+    home = make_home(tmp_path)
+    root = home / "pricer"
+    (root / "facts.json").write_text(
+        json.dumps({"measured_at": "2020-01-01T00:00:00Z"}), encoding="utf-8")
+    proc = gate(tmp_path, "pricer", "--require-harness", "--format", "json", home=home)
+    assert proc.returncode == 6
+    assert json.loads(proc.stdout)["harness"]["facts_measured"] is False

@@ -350,6 +350,44 @@ def calibration(state: dict, min_sample: int = CALIBRATION_MIN_SAMPLE,
     }
 
 
+RENDERED_BY_FINALIZE = "rendered from `state.json` by `verdict-finalize`"
+
+
+def harness_signals(state: dict, qa_root=None) -> dict:
+    """Was this state produced by measure → judge → finalize, or written by hand?
+
+    Four independent traces, because each alone is weak. `facts.json` says the
+    measuring step ran — and its `measured_at` must match this run's timestamp,
+    or the file is left over from an earlier run. `calibration` is written only
+    by `merge`. The report footer is emitted only by the renderer.
+
+    One definition, shared by the gate, the eval scorer and the MCP surface.
+    Three separate hand-written copies of the *hook* list is what let the eval
+    and the nightly drift away from production without anyone noticing.
+    """
+    root = Path(qa_root or state.get("_qa_root") or ".")
+    facts = None
+    try:
+        facts = json.loads((root / "facts.json").read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        pass
+    stamp = (state.get("last_run") or {}).get("timestamp_utc")
+    report_raw = ""
+    rel = str((state.get("last_run") or {}).get("report") or "")
+    if rel:
+        path = Path(rel) if Path(rel).is_absolute() else root / rel
+        try:
+            report_raw = path.read_text(encoding="utf-8")
+        except OSError:
+            report_raw = ""
+    return {
+        "facts_measured": bool(facts) and facts.get("measured_at") == stamp,
+        "judgment_written": (root / "judgment.json").is_file(),
+        "state_computed": isinstance(state.get("calibration"), dict),
+        "report_rendered": RENDERED_BY_FINALIZE in report_raw,
+    }
+
+
 def order_findings(findings: list[dict]) -> list[dict]:
     """REGRESSED first, then severity, then oldest-first pressure."""
     return sorted(
