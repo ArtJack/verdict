@@ -1,0 +1,4 @@
+test: cover partial weights on the west zone
+
+Every quoting case so far used whole-dollar results, which is not what the
+pricing page actually sends. 7kg lands on a half cent.

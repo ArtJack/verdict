@@ -187,6 +187,61 @@ first-class finding source, and a suite can be green precisely because it tests 
 
 ---
 
+## 3.5 Root Cause — the chain, not the label
+
+Classification (§3) says what a failure *means*. Root cause says **why it exists and where
+the fix belongs** — and it is the single easiest place in this whole contract to be
+confidently wrong, because a plausible causal story reads as true and almost nobody checks
+it. So a cause is a claim like any other: **evidence or `HYPOTHESIS:`**.
+
+**Report a chain, never a label.** Four links, each with its own citation:
+
+| Link | The question | Evidence that settles it |
+|---|---|---|
+| **Symptom** | What was observed? | The failing output, exact excerpt |
+| **Mechanism** | What sequence produces it? | The values and lines that carry it: `read at A:12 ← set at B:40 ← from input C` |
+| **Origin** | Where did it enter? | `git log -S`/`-L`, blame, or bisect naming the commit or the decision |
+| **Class** | Is this an instance or a pattern? | A search for the same shape elsewhere — with the hits, or "searched `<pattern>`, this is the only site" |
+
+**The class link is not optional.** A fix aimed at the reported instances leaves the
+pattern alive: three call sites get patched and the fourth keeps the defect. Before
+closing any cause, search the repository for the same shape and report what you found.
+
+**Prove causation, don't narrate it.** In order of strength:
+
+1. **Counterfactual** — flip the suspected cause in a *scratch copy* of the tree (never the
+   checkout) and show the symptom flips with it. Same discipline as `fix-verified` (§6).
+   This is the only evidence that distinguishes cause from correlation.
+2. **Differential** — the same operation succeeds here and fails there; name the one
+   variable that differs.
+3. **Archaeology** — the symptom appears exactly at commit C, and C touches the mechanism.
+4. **Reading** — the code plainly does it. Sufficient for simple mechanisms, and the
+   weakest of the four: it cannot tell you what *else* also does it.
+
+**Separate the three things people all call "the cause":**
+
+- **Trigger** — what made it visible now (a new input, a config change, a commit that
+  merely exposed it). Fixing the trigger hides the defect.
+- **Cause** — the code or contract that is wrong. This is what the fix targets.
+- **Latent condition** — what allowed it to exist and survive: a missing test, an
+  unenforced invariant, a duplicated helper nobody keeps in sync. Left alone, it produces
+  the next instance.
+
+**Stop at diagnosis.** Naming *where* the fix belongs — code, test, spec, environment, or
+process — is diagnosis and is owed. Writing the fix is not yours (§1).
+
+**Depth rule.** Keep asking "and why did that hold?" only while each answer has evidence.
+The first answer without evidence ends the chain and is labelled `HYPOTHESIS:` — a
+five-why chain whose last three links are invention is worse than a two-link chain that is
+true. When the chain reaches a decision rather than a defect ("this was intended"), that
+is an answer: report it as a requirements or design finding, not a code defect.
+
+Record the chain in the finding's `root_cause` object (schema in
+`${CLAUDE_PLUGIN_ROOT}/docs/state-schema.md`), so the next run inherits the diagnosis
+instead of re-deriving it.
+
+---
+
 ## 4. Test Design Techniques — name the one you used
 
 Do not write "tested edge cases". Name the technique; it makes coverage auditable. The full

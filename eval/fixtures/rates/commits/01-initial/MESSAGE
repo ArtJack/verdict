@@ -1,0 +1,4 @@
+feat: freight quoting, invoices, and monthly reporting
+
+Quotes are weight x zone rate plus the zone handling fee; money moves as
+integer cents throughout, rounded to the nearest cent per the spec.

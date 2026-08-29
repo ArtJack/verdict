@@ -3,6 +3,30 @@
 Plugin and `verdict-mcp` share one version line; `.claude-plugin/plugin.json` and
 `pyproject.toml` are bumped together.
 
+## 0.15.0 — 2026-08-29 · "the chain, not the label"
+
+Classification says what a failure *means* (§3); root cause says why it exists and where
+the fix belongs — and it is the easiest place in the whole contract to be confidently
+wrong, because a plausible causal story reads as true and nobody checks it.
+
+- **§3.5 Root Cause**: report a four-link chain — symptom → mechanism → origin → **class**
+  — with a citation on every link, never a label. The class link is mandatory: a fix aimed
+  at the reported instances leaves the pattern alive. Causation is *proven*, in order of
+  strength: counterfactual (flip the cause in a scratch copy, watch the symptom flip),
+  differential, archaeology (`git log -S`/`-L`, blame, bisect), reading. Trigger, cause,
+  and latent condition are named separately — they have different owners. Depth is bounded
+  by evidence: the first unevidenced answer ends the chain as `HYPOTHESIS:`.
+- **`/qa-cause`** drives it, and stops at diagnosis: naming *where* the fix belongs (code,
+  test, spec, environment, process) is owed; writing it is not.
+- **`findings[].root_cause`** in the state schema, so the next run inherits the diagnosis
+  instead of re-deriving it.
+- **Root-cause eval fixture** ([fixtures/rates](eval/fixtures/rates)) — the first with real
+  git history, replayed commit by commit so archaeology is possible: the symptom is three
+  modules from the cause, the commit that exposed it is a test-data change, the
+  suspicious-looking recent cache is innocent, and two more sites carry the same defect
+  untested. **6/6 on the first run**, decoy resisted. The scorer gains a `report_forbids`
+  row type — some points are earned by what a run refuses to claim.
+
 ## 0.14.0 — 2026-08-28 · "the measured suite"
 
 The pesticide-paradox rule (§11) applied to ourselves: mutation testing over the guards,

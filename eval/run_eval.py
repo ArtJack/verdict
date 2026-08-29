@@ -78,6 +78,13 @@ FIXTURES = {
                   "module in this repository." + _HANDOFF,
         "expected_baseline": "expected-ts.json",
     },
+    "cause": {
+        "dir": "rates",
+        "modes": ("baseline",),
+        "command_file": "qa-cause.md",
+        "prompt": "/qa-cause the failing test in this repository",
+        "expected_baseline": "expected-cause.json",
+    },
     "liar": {
         "dir": "liar",
         "modes": ("baseline",),
@@ -232,12 +239,28 @@ def run_once(args, fixture, mode, base_env):
     results = {"fixture": args.fixture, "mode": mode, "workdir": str(workdir)}
     failed = False
     try:
-        shutil.copytree(EVAL_DIR / "fixtures" / fixture["dir"], checkout)
-        provision(checkout, fixture)
+        source = EVAL_DIR / "fixtures" / fixture["dir"]
+        history = source / "commits"
+        checkout.mkdir(parents=True)
         qa_home.mkdir(parents=True)
         git(["init", "-qb", "main"], checkout, base_env)
-        git(["add", "-A"], checkout, base_env)
-        git(["commit", "-qm", "fixture rev A"], checkout, base_env)
+
+        if history.is_dir():
+            # Fixtures whose puzzle needs real archaeology ship a commits/
+            # directory: each numbered subdir is an overlay plus its MESSAGE,
+            # replayed in order so `git log -S` and blame mean something.
+            for step in sorted(p for p in history.iterdir() if p.is_dir()):
+                overlay(step, checkout)
+                (checkout / "MESSAGE").unlink(missing_ok=True)
+                provision(checkout, fixture)
+                git(["add", "-A"], checkout, base_env)
+                message = (step / "MESSAGE").read_text(encoding="utf-8").strip()
+                git(["commit", "-q", "-m", message], checkout, base_env)
+        else:
+            shutil.copytree(source, checkout, dirs_exist_ok=True)
+            provision(checkout, fixture)
+            git(["add", "-A"], checkout, base_env)
+            git(["commit", "-qm", "fixture rev A"], checkout, base_env)
         rev_a = git(["rev-parse", "--short", "HEAD"], checkout, base_env)
 
         if mode in ("baseline", "live"):
