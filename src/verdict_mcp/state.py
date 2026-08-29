@@ -33,9 +33,6 @@ def known_projects() -> list[str]:
     return sorted(p.name for p in root.iterdir() if (p / "state.json").is_file())
 
 
-STATUSES = ("open", "resolved", "withdrawn")
-
-
 def norm_status(value) -> str:
     """Normalize a finding's status for comparison.
 
@@ -49,7 +46,11 @@ def norm_status(value) -> str:
 
 
 def is_open(finding: dict) -> bool:
-    return norm_status(finding.get("status")) == "open"
+    """Open unless explicitly closed. The enum lives in `validate`, which
+    refuses to write anything outside it; here the job is to fail safe on a
+    state that got written anyway, because reading it the other way let a
+    mistyped `"closed"` hide an open Critical from the gate."""
+    return norm_status(finding.get("status")) not in ("resolved", "withdrawn")
 
 
 def sev_rank(value) -> int:

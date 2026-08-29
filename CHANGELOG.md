@@ -3,6 +3,37 @@
 Plugin and `verdict-mcp` share one version line; `.claude-plugin/plugin.json` and
 `pyproject.toml` are bumped together.
 
+## 0.23.0 — 2026-08-29 · "the enum that was never checked"
+
+An external audit found the worst bug this project has shipped, and it was three days old:
+`STATUSES` was declared in two modules and enforced in neither. `is_open()` recognised only
+the exact string `"open"`, so a single mistyped word made a finding invisible to the release
+blockers, the gate, the hotspot ranking, and the rule that a `pass` cannot stand over an
+open Critical. Reproduced end to end through the shipped tools: a `pass` state carrying an
+open Critical `REAL_DEFECT` typed `"closed"` validated cleanly and gated **exit 0** — the
+false-green merge this product exists to prevent. Verdict's own committed `.qa/state.json`
+carried such a finding.
+
+Closed at three levels, because one was clearly not enough:
+
+- **The contract.** `verdict-validate` now requires `status` and rejects anything outside
+  `open` · `resolved` · `withdrawn`. No state carrying one can be written through the
+  harness, and the PostToolUse hook flags it in-session.
+- **The reading.** `is_open()` is now *open unless explicitly closed*. An unrecognised or
+  missing status is not evidence that a defect was fixed — it is evidence that nobody
+  knows — so it counts against the verdict rather than vanishing from it.
+- **The gate.** `verdict-gate` refuses a state whose recorded verdict contradicts its own
+  recorded findings: an open Blocker admits no verdict but `fail`, and an open Critical
+  caps at `pass with risks` (§10). The gate does not re-adjudicate; it declines to launder
+  a contradiction. Four of the gate's own test fixtures turned out to encode exactly that
+  contradiction as their baseline.
+- The duplicated `STATUSES` constant is gone — the copy that had no reader was the one
+  that made the other easy to forget.
+
+Also from the audit, and still open: the committed `.qa/` is a v0.12-era snapshot and needs
+a real re-baseline; a state at rest can never satisfy the run-freshness rule, so validating
+a committed state in CI needs a mode that separates well-formedness from recency.
+
 ## 0.22.0 — 2026-08-29 · "measured, or say so"
 
 The harness is proven, so it stops being optional.

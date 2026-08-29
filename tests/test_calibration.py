@@ -297,3 +297,12 @@ def test_a_withdrawn_finding_stops_counting_as_open():
     state = merge(facts(2), judgment([finding(delta="WITHDRAWN")]), prev)
     f = state["findings"][0]
     assert f["status"] == "withdrawn" and not is_open(f) and f["outcome"] == "refuted"
+
+
+def test_an_unrecognised_status_reads_as_open_not_as_closed():
+    """The safe direction: `"closed"`, `"done"`, or a missing status are not
+    evidence a defect was fixed. Read the other way, one typo hid an open
+    Critical from the gate, the blockers and the hotspot ranking."""
+    assert is_open({"status": "closed"}) and is_open({"status": "done"})
+    assert is_open({}) and is_open({"status": ""})
+    assert not is_open({"status": "resolved"}) and not is_open({"status": "WITHDRAWN"})
