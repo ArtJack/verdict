@@ -92,6 +92,30 @@ python3 eval/mutate.py                     # the census — no model, no tokens
 python3 eval/run_mutation.py --model opus  # one model run per survivor
 ```
 
+**First measured run** (2026-08-29, Opus, `pricer_clean`): census 33 mutants → 21 killed
+by the suite, 7 equivalent (fingerprint unchanged over the widened probe grid, negatives
+included), 1 oracle blind spot found and fixed along the way, **6 survivors**. Recall:
+**6/6 = 1.0** — every surviving mutant caught, every catching finding filed
+`confidence: proven`, and each one names the exact boundary the mutant moved (`price <= 0`
+rejecting zero against spec rules 1 and 5; the `$75` free-shipping threshold turned
+exclusive; the `2 kg` boundary turned exclusive; the `< $1` constant).
+
+The 41 findings beyond the planted defects were adjudicated by hand and are **not false
+positives**: they are the fixture's own deliberate test gaps, independently rediscovered —
+"the 2 kg boundary is unasserted", "the $75 threshold is untested", "qty = 9 unasserted",
+plus genuinely sharp observations (the rounding test uses `0.125`, the one binary-exact
+input, so it cannot detect representation drift; `bulk_unit_price` accepts negatives that
+rule 5 forbids; rules 6 and 7 never define whether express doubles a $0 charge). The
+survivors exist *because* those boundaries are untested, and the tester reported both the
+defect and the gap that hides it.
+
+Caveats, stated rather than buried: n=6, one small module, one model, and every survivor
+was a boundary-class mutant — the exact species spec-vs-code reading is best at. The
+arithmetic and condition mutants were all killed by the suite, so this run says nothing
+about recall on classes a suite tends to miss differently. Widening the survivor
+population (more modules, other languages, subtler operators) is what makes the number
+harder to earn.
+
 ### Suite fault-detection power — mutation testing, on ourselves
 
 §11 tells every project "a suite that always passes may be testing nothing — measure it."
