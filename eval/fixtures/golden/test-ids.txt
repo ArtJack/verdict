@@ -1,0 +1,8 @@
+test_pricer.py::test_bulk_discount_applies
+test_pricer.py::test_bulk_orders_fixture
+test_pricer.py::test_listable_above_floor
+test_pricer.py::test_listable_at_floor_exactly
+test_pricer.py::test_negative_price_message
+test_pricer.py::test_net_proceeds_hundred
+test_pricer.py::test_not_listable_below_floor
+test_pricer.py::test_round_cents_half_up

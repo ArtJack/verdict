@@ -24,7 +24,13 @@
       "duration_s": 0.05
     }
   },
-  "tests": { "collected": 8, "passed": 6, "skipped": 1, "failed": 1, "duration_s": 0.05 },
+  "tests": {
+    "collected": 8,
+    "passed": 6,
+    "skipped": 1,
+    "failed": 1,
+    "duration_s": 0.05
+  },
   "flaky_quarantine": [
     {
       "test_id": "test_pricer.py::test_bulk_discount_applies",
@@ -37,7 +43,7 @@
   "findings": [
     {
       "id": "PRICER-F-001",
-      "hash": "a1f00b7e",
+      "hash": "22522f7c",
       "first_seen": "2026-08-20",
       "status": "open",
       "delta": "STILL_OPEN",
@@ -46,11 +52,14 @@
       "severity": "Major",
       "priority": "P1",
       "failure_classification": "REAL_DEFECT",
-      "evidence": ["pricer.py:13 return price > floor", "README.md rule 1: at or above"]
+      "evidence": [
+        "pricer.py:13 return price > floor",
+        "README.md rule 1: at or above"
+      ]
     },
     {
       "id": "PRICER-F-002",
-      "hash": "b2c4d9aa",
+      "hash": "ecd6fa87",
       "first_seen": "2026-08-20",
       "status": "open",
       "delta": "STILL_OPEN",
@@ -59,11 +68,13 @@
       "severity": "Major",
       "priority": "P1",
       "failure_classification": null,
-      "evidence": ["test_pricer.py:18 @pytest.mark.skip reason='temporarily disabled 2026-05-02 - flaky?'"]
+      "evidence": [
+        "test_pricer.py:18 @pytest.mark.skip reason='temporarily disabled 2026-05-02 - flaky?'"
+      ]
     },
     {
       "id": "PRICER-F-003",
-      "hash": "c3e871f0",
+      "hash": "bb1c58f1",
       "first_seen": "2026-08-20",
       "status": "resolved",
       "delta": "RESOLVED",
@@ -72,11 +83,13 @@
       "severity": "Critical",
       "priority": "P0",
       "failure_classification": "REAL_DEFECT",
-      "evidence": ["resolved in run 2: round_cents rewrote to half-up; test_round_cents_half_up green"]
+      "evidence": [
+        "resolved in run 2: round_cents rewrote to half-up; test_round_cents_half_up green"
+      ]
     },
     {
       "id": "PRICER-F-004",
-      "hash": "d4a2c55b",
+      "hash": "e9066f5a",
       "first_seen": "2026-08-20",
       "status": "resolved",
       "delta": "RESOLVED",
@@ -85,11 +98,13 @@
       "severity": "Major",
       "priority": "P1",
       "failure_classification": "STALE_EXPECTATION",
-      "evidence": ["resolved in run 2: expectation updated to 88.0 per CHANGELOG PRC-142"]
+      "evidence": [
+        "resolved in run 2: expectation updated to 88.0 per CHANGELOG PRC-142"
+      ]
     },
     {
       "id": "PRICER-F-005",
-      "hash": "e5b3d66c",
+      "hash": "6ff2daf0",
       "first_seen": "2026-08-20",
       "status": "open",
       "delta": "STILL_OPEN",
@@ -98,11 +113,13 @@
       "severity": "Major",
       "priority": "P1",
       "failure_classification": "ENVIRONMENT",
-      "evidence": ["FileNotFoundError: fixtures/bulk_orders.json"]
+      "evidence": [
+        "FileNotFoundError: fixtures/bulk_orders.json"
+      ]
     },
     {
       "id": "PRICER-F-006",
-      "hash": "f6c4e77d",
+      "hash": "0a46b29e",
       "first_seen": "2026-08-20",
       "status": "open",
       "delta": "STILL_OPEN",
@@ -111,11 +128,13 @@
       "severity": "Minor",
       "priority": "P3",
       "failure_classification": "BRITTLE_TEST",
-      "evidence": ["test_pricer.py:42 asserts full message text"]
+      "evidence": [
+        "test_pricer.py:42 asserts full message text"
+      ]
     },
     {
       "id": "PRICER-F-007",
-      "hash": "07d5f88e",
+      "hash": "2cb5bd44",
       "first_seen": "2026-08-20",
       "status": "open",
       "delta": "STILL_OPEN",
@@ -124,12 +143,17 @@
       "severity": "Minor",
       "priority": "P3",
       "failure_classification": null,
-      "evidence": ["test_pricer.py:50 assert bulk_unit_price(...) <= order['price']"]
+      "evidence": [
+        "test_pricer.py:50 assert bulk_unit_price(...) <= order['price']"
+      ]
     }
   ],
   "verdict": "pass with risks",
   "release_blockers": [],
-  "not_tested": ["concurrency", "float precision at large magnitudes"],
+  "not_tested": [
+    "concurrency",
+    "float precision at large magnitudes"
+  ],
   "next_run_focus": [
     "re-evaluate quarantined test_bulk_discount_applies on expiry 2026-08-26",
     "fixtures/bulk_orders.json still missing - check whether it was restored"

@@ -95,7 +95,27 @@ def _quarantine_hits(state, terms):
     ]
 
 
-def score(qa_root: Path, expected: dict, mode: str | None, fixture_dir: Path | None) -> dict:
+RENDERED_BY_FINALIZE = "rendered from `state.json` by `verdict-finalize`"
+
+
+def _harness_signals(qa_root: Path, state: dict, report_raw: str | None) -> dict:
+    """Did this run actually go through measure → judge → finalize?
+
+    Three independent traces, because each alone is weak: `facts.json` says the
+    measuring step ran, `calibration` in the state is written only by `merge`,
+    and the report footer is emitted only by the renderer. A run can leave the
+    first and still have hand-written its state afterwards.
+    """
+    return {
+        "facts_measured": (qa_root / "facts.json").is_file(),
+        "judgment_written": (qa_root / "judgment.json").is_file(),
+        "state_computed": isinstance(state.get("calibration"), dict),
+        "report_rendered": bool(report_raw and RENDERED_BY_FINALIZE in report_raw),
+    }
+
+
+def score(qa_root: Path, expected: dict, mode: str | None, fixture_dir: Path | None,
+          require_harness: bool = False) -> dict:
     result = {"mode": mode, "score": 0, "max": 0, "rows": [], "hard_fails": []}
 
     state_path = qa_root / "state.json"
@@ -230,6 +250,15 @@ def score(qa_root: Path, expected: dict, mode: str | None, fixture_dir: Path | N
                     "regressed_not_first: first finding entry in the report is "
                     + (first or "absent"))
 
+    result["harness"] = _harness_signals(qa_root, state, report_raw)
+    if require_harness:
+        missing = [k for k, ok in result["harness"].items() if not ok]
+        if missing:
+            result["hard_fails"].append(
+                "harness_bypassed: the run did not go through verdict-facts → "
+                "judgment.json → verdict-finalize (" + ", ".join(missing) + "). "
+                "Everything the harness computes was hand-written instead")
+
     if result["hard_fails"]:
         result["score"] = 0
     return result
@@ -241,10 +270,16 @@ def main(argv=None) -> int:
     ap.add_argument("--expected", required=True, type=Path)
     ap.add_argument("--mode", choices=("seeded", "live"), default=None)
     ap.add_argument("--fixture-dir", type=Path, default=None)
+    ap.add_argument("--require-harness", action="store_true",
+                    help="hard-fail a run that hand-wrote its state instead of going "
+                         "through verdict-facts / verdict-finalize. Off by default so "
+                         "the regression corpus, archived before the harness existed, "
+                         "keeps scoring")
     args = ap.parse_args(argv)
 
     expected = json.loads(args.expected.read_text(encoding="utf-8"))
-    result = score(args.qa_root, expected, args.mode, args.fixture_dir)
+    result = score(args.qa_root, expected, args.mode, args.fixture_dir,
+                   require_harness=args.require_harness)
     print(json.dumps(result, indent=2))
     ok = not result["hard_fails"] and result["max"] > 0 and result["score"] == result["max"]
     return 0 if ok else 1
