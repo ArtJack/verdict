@@ -83,7 +83,8 @@ here.
 |---|---|---|
 | `project` | yes | Project key: repo directory name, lowercase, exactly |
 | `schema_version` | yes | Integer; this document describes v1 |
-| `run_type` | yes | `baseline` · `delta` · `re-baseline` |
+| `run_type` | yes | `baseline` · `delta` · `re-baseline` — a strict enum, because consumers switch on it |
+| `run_label` | no | Free text describing *this* run when the type alone is too coarse ("merge gate re-gate", "claim verification"). Introduced when a production run smuggled the description into `run_type` and broke every consumer that read it |
 | `run_number` | yes | Monotonic counter |
 | `last_run` | yes | `timestamp_utc`, `git_sha`, `sha_range`, `report` at minimum |
 | `isolation_check` | yes | Result of the profile's isolation check (§0) |

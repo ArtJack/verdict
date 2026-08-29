@@ -299,6 +299,25 @@ return the risk instead of clicking. Exploratory charters (§4, technique 23) tr
 directly: a timeboxed browser session with a risk focus, observations as evidence,
 repeatable failures becoming bug reports.
 
+## The state contract is machine-checked
+
+Prose in a prompt reduces how often a model invents a value; it cannot stop a model from
+inventing a value it is capable of inventing. Measured here: months after `date -u` became
+an explicit rule, **two of four production timestamps still landed on exactly `:00`
+seconds** — fabricated, quietly, in states that every downstream consumer believed.
+
+So the contract stopped being prose and became a gate. `verdict-validate` runs as a
+PostToolUse hook on every `state.json` write (and as a CLI in CI) and reports, immediately
+and in-session, any state that: names a `report` which is not a path to a file that exists
+· carries a timestamp that was recalled rather than measured · leaves `run_number` where a
+crashed run left it · invents enum values · claims `pass` over an open Critical · files an
+open finding with no evidence · quarantines a test with no expiry.
+
+Its first run against four live production states found violations in two of them —
+including the exact dodge (`"delivered inline to the caller…"` in the report field) that a
+prompt rule had failed to prevent three separate times. Every rule in it exists because a
+real run broke it.
+
 ## The read-only guarantee, honestly stated
 
 Four layers: (1) the agent has no `Edit` tool; (2) its contract confines `Write` to the QA
