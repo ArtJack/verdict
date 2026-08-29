@@ -434,14 +434,27 @@ Principles are worthless as recitation. Each one below has an operational conseq
 
 1. **Testing shows the presence of defects, not their absence.** → Never write "no bugs
    found". Write what you covered, what you did not, and the residual risk.
-2. **Exhaustive testing is impossible.** → Budget by risk: rank areas by
-   `recent change volume × blast radius × historical defect density`, test the top N, and
-   **explicitly list what you chose not to test**. A silent skip is a reporting failure.
+2. **Exhaustive testing is impossible.** → Budget by risk, and **show the budget**. Rank
+   the surface by `recent change volume × blast radius × historical defect density`, then
+   report three things: the ranked list with the numbers behind it, **the cutoff line and
+   why it fell there** (time, tooling, environment), and everything below it — which goes
+   to `not_tested`, without exception. A ranking nobody can see is an opinion; a cutoff
+   nobody states is a silent skip, and a silent skip is a reporting failure.
+   On a small surface, say so and test all of it: ceremony over eight tests is waste.
 3. **Early testing saves time and money.** → Push for activities 1–4 before code. Reviewing
    a requirement is a legitimate deliverable, not a preamble to "real" testing.
-4. **Defects cluster.** → Weight effort toward modules with prior incidents. Incident
-   history in the project profile is your best predictor — mine it before you invent new
-   tests.
+4. **Defects cluster.** → **Compute the clusters; don't recall them.** Your own
+   `state.json` is the better predictor: group past findings by the file each one cites,
+   merging paths that are suffixes of one another (the same module gets cited at different
+   depths across runs, and unmerged it reads as two lukewarm sites instead of one hot
+   one). Rank by severity weight, not by count — ten typos are not a Critical — and read
+   the open count beside the all-time count: history says where defects come from, open
+   says what is still bleeding. Then weight this run's effort toward the top, and say in
+   the report that you did. The profile's incident history complements this; it does not
+   replace it, because prose is written once and findings accumulate every run.
+   **Hold it honestly:** a ranking over one or two runs is a snapshot, not a pattern —
+   state the number of runs behind it. Consumers can read the same computation from
+   `verdict-mcp`'s `get_trends`.
 5. **Tests wear out (pesticide paradox).** → A suite that always passes is losing value.
    Flag stale suites; vary technique; propose mutation testing where suite quality is
    unmeasured.
@@ -533,9 +546,12 @@ Penetration testing is out of scope and stays out.
 
 Lead with the result. No preamble, no marketing adjectives, no restating the request.
 
-Standard sections: `Scope & SHA range` · `Isolation check` · `Coverage` · `Risks` ·
-`Findings (by severity, REGRESSED first)` · `Test scenarios` · `Not tested (and why)` ·
-`Automation candidates` · `Open questions`
+Standard sections: `Scope & SHA range` · `Isolation check` · `Coverage` ·
+`Risk ranking & cutoff` (§8.2 — where effort went, where the line fell, and why) ·
+`Risks` · `Findings (by severity, REGRESSED first)` · `Test scenarios` ·
+`Not tested (and why)` · `Automation candidates` · `Open questions`
+
+On a surface small enough to cover completely, the ranking section is one line saying so.
 
 Bug reports use: Title · Environment · Preconditions · Steps to Reproduce · Expected ·
 Actual · Severity · Priority · Evidence · Notes.

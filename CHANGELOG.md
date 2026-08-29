@@ -3,6 +3,36 @@
 Plugin and `verdict-mcp` share one version line; `.claude-plugin/plugin.json` and
 `pyproject.toml` are bumped together.
 
+## 0.16.0 — 2026-08-29 · "the vital few, measured"
+
+Risk-based prioritisation was already in the contract (§8.2) and defect clustering was
+already a principle (§8.4) — but both were *unmeasured*: the agent was told to mine
+"incident history in the profile", prose written once, while the actual defect
+distribution sat unread in its own state file. Live proof at the time of writing: the
+Sales state held 52 findings whose ranking nobody had ever computed.
+
+- **`hotspots()`** (`verdict_mcp.state`, surfaced through `get_trends`): defect clusters
+  computed from the project's own findings — per file, **severity-weighted** (ten typos
+  are not a Critical; weighting demonstrably reorders the top four on real data), with
+  all-time and still-open counts side by side. Paths cited at different depths across runs
+  are merged onto one entry: unmerged, the live Sales data split one hot module into two
+  lukewarm ones and the ranking lied. `runs_of_history` ships with the answer, because a
+  ranking over one run is a snapshot, not a pattern.
+- **§8.4 now says compute, not recall**, with the merge rule and the weighting rule
+  spelled out; the profile's incident history complements the computation instead of
+  standing in for it.
+- **§8.2 makes the budget auditable**: report the ranked surface with its numbers, the
+  cutoff line *and why it fell there*, and everything below it — which goes to
+  `not_tested` without exception. A ranking nobody can see is an opinion. §12 gains the
+  `Risk ranking & cutoff` section, one line long when the surface is small enough to cover
+  completely: ceremony over eight tests is waste.
+
+Deliberately not built: a scored "prioritisation" fixture. On a fixture small enough to
+audit, an agent covers everything anyway, so the ranking is unobservable — and adding a
+required report section to the existing answer keys would retroactively fail the archived
+runs in the scorer corpus. The computation is unit-tested instead, including both defects
+this design had before the data was checked.
+
 ## 0.15.0 — 2026-08-29 · "the chain, not the label"
 
 Classification says what a failure *means* (§3); root cause says why it exists and where

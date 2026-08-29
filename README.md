@@ -78,6 +78,7 @@ Artifact: .qa/reports/2026-08-24-pricer-review.md
 | Test design | "test edge cases" | 24-technique catalog with risk triggers — incl. property-based, metamorphic (for ML/LLM output), MC-DC, contract tests ([docs/test-design.md](docs/test-design.md)) |
 | Can edit your code | nothing stops it | no `Edit` tool + write-scope hook + strict-mode Bash guard |
 | Security | ignored, or oversold | opt-in report-only pass: dependency audit + diff secret scan; pentest explicitly out of scope |
+| Risk prioritisation | "focus on high-risk areas" | the ranking is computed from the project's own finding history (severity-weighted, paths merged across citation depths), and the report must show the ranking, the cutoff, and everything below it — which lands in not-tested |
 | Root cause | "investigate the failure" | a four-link chain with a citation per link, a mandatory class check (is this an instance or a pattern?), and causation proven by flipping the cause in a scratch copy — with its own scored fixture built around a decoy |
 | Requirements review | never — code only | `/qa-spec` judges the spec before code exists (contradictions, unmeasurables, boundary ambiguities, history conflicts) — with its own scored eval fixture |
 | "No bugs found!" | frequently | never — coverage, gaps, and residual risk instead |
@@ -152,7 +153,7 @@ an orchestrator gating a merge, a Cursor or Codex session, a CI step commenting 
 | `get_history(project)` | run-over-run trend parsed from the report INDEX |
 | `get_report(project, report?)` | full report content (default: last run's) — path-guarded to the QA root, so a CI step can quote the evidence, not just link it |
 | `get_profile(project)` | the project's QA profile: isolation rules, risk areas, real test commands — plus the lessons ledger when one exists |
-| `get_trends(project)` | run-over-run trajectory from the INDEX plus the current pressure picture: open findings by severity, age distribution, quarantine size, suite duration |
+| `get_trends(project)` | run-over-run trajectory from the INDEX, the current pressure picture (open by severity, age distribution, quarantine size, duration), and **hotspots** — where this project's defects actually cluster, computed from its own findings and severity-weighted, with the number of runs behind the ranking |
 | `list_projects()` / `get_state(project)` | everything with a baseline / the raw state |
 
 ```
