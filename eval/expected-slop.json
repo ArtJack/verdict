@@ -1,0 +1,81 @@
+{
+  "fixture": "slop",
+  "phase": "ai-authored",
+  "comment": "AI-authored code fixture: a polished, green, plausibly-generated module whose defects are the characteristic AI species \u2014 a guard deleted by a 'simplify' commit (with its test deleted by the 'full coverage' commit), an error swallow, a declared-but-unwired constant, a duplicated-then-drifted helper, an undeclared import on the retry path, and a placeholder in a production path. The suite passes; every defect must be found by reading. Scored on the state file.",
+  "rows": [
+    {
+      "key": "rule3-swallow-silently-drops-items",
+      "match_any": [
+        "swallow",
+        "silently",
+        "except"
+      ],
+      "require_evidence_any": [
+        "sync.py"
+      ],
+      "require_severity_any": [
+        "Blocker",
+        "Critical"
+      ]
+    },
+    {
+      "key": "rule2-max-batch-declared-not-wired",
+      "match_any": [
+        "max_batch",
+        "i + 50",
+        "batch size",
+        "batches of 50"
+      ]
+    },
+    {
+      "key": "rule4-negative-guard-removed-in-refactor",
+      "match_any": [
+        "negative"
+      ]
+    },
+    {
+      "key": "rule1-clean-sku-drifted-duplicate",
+      "match_any": [
+        "clean_sku"
+      ]
+    },
+    {
+      "key": "undeclared-backoff-on-the-retry-path",
+      "match_any": [
+        "backoff"
+      ]
+    },
+    {
+      "key": "rule5-placeholder-rate-table",
+      "match_any": [
+        "placeholder",
+        "carrier",
+        "hardcoded"
+      ],
+      "require_evidence_any": [
+        "rates.py"
+      ]
+    },
+    {
+      "key": "self-satisfying-tests",
+      "match_any": [
+        "mock",
+        "send.called",
+        "asserts the mock",
+        "graded its own"
+      ]
+    },
+    {
+      "key": "verdict-fail",
+      "type": "verdict",
+      "expect": [
+        "fail"
+      ]
+    }
+  ],
+  "prose": {
+    "forbid": [
+      "no bugs found"
+    ]
+  }
+}
