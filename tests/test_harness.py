@@ -274,3 +274,92 @@ def test_cli_round_trip(repo, qa_root, tmp_path):
     assert final.returncode == 0, final.stderr
     state = json.loads((qa_root / "state.json").read_text(encoding="utf-8"))
     assert state["tests"]["passed"] == 5 and state["findings"][0]["delta"] == "NEW"
+
+
+# ── the rendered report ───────────────────────────────────────────────────
+
+def test_report_is_rendered_from_state_and_cannot_contradict_it(repo, qa_root):
+    from verdict_mcp.harness import render_report
+    facts = collect(repo, qa_root, [("suite", _emit(["7 passed, 1 failed"]))])
+    j = judgment()
+    j["findings"] = [
+        {"id": "W-F-2", "title": "rounding drifts", "severity": "Critical", "priority": "P0",
+         "status": "open", "failure_classification": "REAL_DEFECT", "evidence": ["m.py:9"]},
+        {"id": "W-F-1", "title": "old news", "severity": "Minor", "priority": "P3",
+         "status": "open", "evidence": ["a.py:1"]},
+    ]
+    state = merge(facts, j, {"findings": [
+        {"hash": finding_hash({"title": "rounding drifts", "evidence": ["m.py:9"]}),
+         "status": "resolved", "first_seen": "2026-08-01"}]})
+    text = render_report(state, {"risks": "Money paths dominate.",
+                                 "findings": {"W-F-2": "The mechanism is truncation."}})
+
+    assert "**VERDICT: pass with risks**" in text
+    # REGRESSED outranks the Critical/Minor ordering and appears first
+    assert text.index("W-F-2") < text.index("W-F-1")
+    assert "REGRESSED" in text.split("W-F-1")[0]
+    assert "7 passed" in text and "suite" in text          # gates from state
+    assert "Money paths dominate." in text                  # prose from the agent
+    assert "The mechanism is truncation." in text
+    assert "concurrency" in text                            # not_tested carried through
+
+
+def test_finalize_writes_the_report_so_it_cannot_go_missing(repo, qa_root, tmp_path):
+    facts = collect(repo, qa_root, [])
+    (qa_root / "facts.json").write_text(json.dumps(facts), encoding="utf-8")
+    j = judgment()
+    j.pop("report")                       # the agent names no report at all
+    j["topic"] = "delta-run"
+    jpath = tmp_path / "j.json"
+    jpath.write_text(json.dumps(j), encoding="utf-8")
+
+    proc = subprocess.run([sys.executable, str(HARNESS), "finalize",
+                           "--qa-root", str(qa_root), "--judgment", str(jpath)],
+                          capture_output=True, text=True)
+    assert proc.returncode == 0, proc.stderr
+    state = json.loads((qa_root / "state.json").read_text(encoding="utf-8"))
+    report = qa_root / state["last_run"]["report"]
+    assert report.is_file() and "delta-run" in report.name
+    assert "VERDICT" in report.read_text(encoding="utf-8")
+
+
+# ── reuse, and the visibility of an abandoned run ─────────────────────────
+
+def test_facts_reuse_skips_the_gates_only_for_the_same_head(repo, qa_root):
+    slow = _emit(["1 passed"])
+    first = subprocess.run([sys.executable, str(HARNESS), "facts", "--repo", str(repo),
+                            "--qa-root", str(qa_root), "--gate", f"suite={slow}"],
+                           capture_output=True, text=True)
+    assert first.returncode == 0, first.stderr
+
+    again = subprocess.run([sys.executable, str(HARNESS), "facts", "--repo", str(repo),
+                            "--qa-root", str(qa_root), "--gate", f"suite={slow}",
+                            "--reuse-if-fresh"], capture_output=True, text=True)
+    assert json.loads(again.stdout)["reused"]["why"].startswith("same HEAD")
+
+    (repo / "c.py").write_text("z = 3\n", encoding="utf-8")
+    git(["add", "-A"], repo)
+    git(["commit", "-qm", "third"], repo)
+    moved = subprocess.run([sys.executable, str(HARNESS), "facts", "--repo", str(repo),
+                            "--qa-root", str(qa_root), "--gate", f"suite={slow}",
+                            "--reuse-if-fresh"], capture_output=True, text=True)
+    assert "reused" not in json.loads(moved.stdout)
+
+
+def test_an_abandoned_run_is_reported_not_swept_up(repo, qa_root):
+    (qa_root / "run-in-progress.json").write_text(
+        json.dumps({"started_utc": "2026-08-29T01:00:00Z"}), encoding="utf-8")
+    facts = collect(repo, qa_root, [])
+    assert facts["previous_run_incomplete"]["started_utc"] == "2026-08-29T01:00:00Z"
+    assert "lost" in facts["previous_run_incomplete"]["meaning"]
+
+
+def test_finalize_clears_the_marker(repo, qa_root, tmp_path):
+    facts = collect(repo, qa_root, [])
+    (qa_root / "facts.json").write_text(json.dumps(facts), encoding="utf-8")
+    (qa_root / "run-in-progress.json").write_text("{}", encoding="utf-8")
+    jpath = tmp_path / "j.json"
+    jpath.write_text(json.dumps(judgment()), encoding="utf-8")
+    subprocess.run([sys.executable, str(HARNESS), "finalize", "--qa-root", str(qa_root),
+                    "--judgment", str(jpath)], capture_output=True, text=True, check=True)
+    assert not (qa_root / "run-in-progress.json").exists()

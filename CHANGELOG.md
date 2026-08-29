@@ -3,6 +3,23 @@
 Plugin and `verdict-mcp` share one version line; `.claude-plugin/plugin.json` and
 `pyproject.toml` are bumped together.
 
+## 0.19.0 — 2026-08-29 · "the report is the state"
+
+- **The report is rendered, not typed.** `verdict-finalize` builds it from `state.json` —
+  scope and SHA range, the gates table, tests and the id-ledger delta, findings ordered
+  REGRESSED-first with evidence and root-cause chains, blockers, not-tested, quarantine —
+  and injects the agent's `prose` sections (scope, risks, fix order, per-finding
+  narrative). Two failure modes stop being possible rather than forbidden: the artifact
+  cannot go missing, because the harness writes it, and it cannot disagree with the state,
+  because it *is* the state. It names the file from a `topic` when the agent supplies none.
+- **Checkpoints, honestly scoped.** Resumable runs are not a real thing here — a model's
+  judgment cannot be continued from the middle, and a partly-judged run is not a run. What
+  is real: `verdict-facts --reuse-if-fresh` skips re-running the gates when the existing
+  facts describe the same HEAD and are recent (the nightly's one retry no longer pays for
+  the suite twice), recording that the measurement was reused and how old it is; and a run
+  marker makes an abandoned run **visible** — the next run reports
+  `previous_run_incomplete` as a fact instead of pretending the night never happened.
+
 ## 0.18.0 — 2026-08-29 · "the model judges; the system measures"
 
 The second half of the architecture the validator opened. If two thirds of a state file is

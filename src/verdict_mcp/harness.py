@@ -103,6 +103,18 @@ def collect(repo: Path, qa_root: Path, gates: list[tuple[str, str]],
         except (OSError, json.JSONDecodeError):
             previous = None
 
+    # A marker left by the previous invocation means that run started and never
+    # finished — the failure mode that once cost a whole night silently. It is
+    # reported as a fact, not swept up: the next reader deserves to know the
+    # gap exists.
+    marker_path = qa_root / "run-in-progress.json"
+    abandoned = None
+    if marker_path.is_file():
+        try:
+            abandoned = json.loads(marker_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            abandoned = {"note": "unreadable marker"}
+
     key, key_source = derive_key(repo)
     sha = _git(["rev-parse", "HEAD"], repo)
     branch = _git(["rev-parse", "--abbrev-ref", "HEAD"], repo)
@@ -165,6 +177,12 @@ def collect(repo: Path, qa_root: Path, gates: list[tuple[str, str]],
         },
         "gates": gate_results,
     }
+    if abandoned:
+        facts["previous_run_incomplete"] = {
+            **abandoned,
+            "meaning": "a previous run started and never wrote state; its work is lost, "
+                       "not merely unreported",
+        }
 
     tests = {}
     for gate in gate_results.values():
@@ -381,6 +399,10 @@ def facts_main(argv=None) -> int:
     ap.add_argument("--test-ids-cmd", default=None,
                     help="command printing one test id per line, for set-diff accounting")
     ap.add_argument("--out", type=Path, default=None, help="also write facts.json here")
+    ap.add_argument("--reuse-if-fresh", action="store_true",
+                    help="reuse an existing facts.json when it describes this same HEAD "
+                         "and is recent — a retry should not re-run the suite")
+    ap.add_argument("--reuse-max-age-min", type=float, default=90.0)
     args = ap.parse_args(argv)
 
     gates = []
@@ -393,6 +415,31 @@ def facts_main(argv=None) -> int:
     repo = args.repo.expanduser().resolve()
     qa_root = _resolve_root(repo, args.qa_root)
     qa_root.mkdir(parents=True, exist_ok=True)
+
+    # Reuse, not resume. A model's judgment cannot be continued from the
+    # middle, but the gates it was about to judge can be spared a second run —
+    # and only while they still describe this commit and are minutes old.
+    existing = _read_json(qa_root / "facts.json") if args.reuse_if_fresh else None
+    if existing:
+        head = _git(["rev-parse", "HEAD"], repo)
+        try:
+            age = (datetime.now(timezone.utc) - datetime.strptime(
+                existing.get("measured_at", ""), "%Y-%m-%dT%H:%M:%SZ").replace(
+                    tzinfo=timezone.utc)).total_seconds() / 60
+        except (ValueError, TypeError):
+            age = 1e9
+        same_head = (existing.get("last_run") or {}).get("git_sha") == head
+        if same_head and age <= args.reuse_max_age_min:
+            existing["reused"] = {"measured_at": existing.get("measured_at"),
+                                  "age_minutes": round(age, 1),
+                                  "why": "same HEAD, within the freshness window; "
+                                         "gates were not re-run"}
+            print(json.dumps(existing, indent=2))
+            return 0
+
+    (qa_root / "run-in-progress.json").write_text(json.dumps({
+        "started_utc": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "repo": str(repo)}, indent=2) + "\n", encoding="utf-8")
     facts = collect(repo, qa_root, gates, args.test_ids_cmd)
     ids = facts.pop("_test_ids", None)
     if ids is not None:
@@ -425,14 +472,30 @@ def finalize_main(argv=None) -> int:
 
     previous = _read_json(qa_root / "state.json")
     state = merge(facts, judgment, previous)
+
+    # Render the report before validating: the validator requires the file to
+    # exist, and writing it here is what makes "the report went missing"
+    # impossible rather than merely forbidden.
+    report_rel = (state.get("last_run") or {}).get("report") or ""
+    if not report_rel or not report_rel.endswith(".md"):
+        stamp = facts.get("measured_at", "")[:10]
+        topic = judgment.get("topic") or state.get("run_type", "run")
+        report_rel = f"reports/{stamp}-{topic}.md".replace(" ", "-")
+        state["last_run"]["report"] = report_rel
+    report_path = qa_root / report_rel
+    report_path.parent.mkdir(parents=True, exist_ok=True)
+    report_path.write_text(render_report(state, judgment.get("prose")), encoding="utf-8")
+
     problems = write_state(qa_root, state)
     if problems:
         print(f"verdict-finalize: refusing to write an invalid state "
               f"({len(problems)} problem(s)):\n  " + "\n  ".join(problems), file=sys.stderr)
         return 1
-    print(f"verdict-finalize: wrote {qa_root / 'state.json'} "
-          f"(run {state['run_number']}, {state['run_type']}, verdict {state['verdict']!r}) "
-          f"and appended the INDEX row")
+    marker = qa_root / "run-in-progress.json"
+    marker.unlink(missing_ok=True)
+    print(f"verdict-finalize: wrote {qa_root / 'state.json'} and {report_path} "
+          f"(run {state['run_number']}, {state['run_type']}, verdict {state['verdict']!r}), "
+          f"appended the INDEX row, cleared the run marker")
     return 0
 
 
@@ -446,6 +509,123 @@ def main(argv=None) -> int:
     print("usage: harness.py {facts|finalize} [options]   "
           "(installed as verdict-facts / verdict-finalize)", file=sys.stderr)
     return 2
+
+
+
+
+# ── the report, rendered ──────────────────────────────────────────────────
+
+_SEV_ORDER = {"Blocker": 0, "Critical": 1, "Major": 2, "Minor": 3, "Trivial": 4}
+
+
+def _finding_sort_key(f: dict):
+    # REGRESSED first, always — then severity, then oldest first.
+    return (0 if f.get("delta") == "REGRESSED" else 1,
+            _SEV_ORDER.get(str(f.get("severity") or "").capitalize(), 9),
+            -int(f.get("age_days") or 0))
+
+
+def render_report(state: dict, prose: dict | None = None) -> str:
+    """Render the report from the state, injecting the agent's prose.
+
+    Everything countable comes from the state, so the report and the state
+    cannot disagree — they did, once, when the state pointed at a stale file.
+    Everything that requires a sentence comes from `prose`, because a rendered
+    table is not an explanation and nobody should pretend otherwise.
+    """
+    prose = prose or {}
+    last = state.get("last_run") or {}
+    out = [f"# QA report — {state.get('project')} · run {state.get('run_number')} "
+           f"({state.get('run_type')})", ""]
+    if state.get("run_label"):
+        out += [f"*{state['run_label']}*", ""]
+    out += [f"**VERDICT: {state.get('verdict')}**", ""]
+
+    out += ["## Scope", "",
+            f"- Range: `{last.get('sha_range') or last.get('git_sha') or 'n/a'}`"
+            + (f" · {last['diff_stat']}" if last.get("diff_stat") else ""),
+            f"- Branch: `{last.get('git_branch') or 'n/a'}` · measured {last.get('timestamp_utc')}"]
+    iso = state.get("isolation_check") or {}
+    if iso:
+        detail = iso.get("method") or iso.get("note") or ""
+        out.append(f"- Isolation check: **{iso.get('result', iso.get('status', 'n/a'))}**"
+                   + (f" — {detail}" if detail else ""))
+    if prose.get("scope"):
+        out += ["", prose["scope"]]
+
+    gates = state.get("gates") or {}
+    if gates:
+        out += ["", "## Gates", "", "| Gate | Result | Exit | Duration | Summary |",
+                "|---|---|---|---|---|"]
+        for name, g in gates.items():
+            out.append(f"| `{name}` | {g.get('result', '?')} | {g.get('exit_code', '?')} "
+                       f"| {g.get('duration_s', '?')}s | {str(g.get('summary', ''))[:120]} |")
+    tests = state.get("tests") or {}
+    if tests:
+        counted = ", ".join(f"{k} {v}" for k, v in tests.items() if k != "duration_s")
+        out += ["", f"Tests: {counted}"]
+    ids = state.get("test_ids") or {}
+    if ids.get("status") == "measured":
+        out.append(f"Test-id ledger: {ids['count']} ids · +{len(ids.get('added', []))} "
+                   f"/ −{len(ids.get('removed', []))} (set-diff, not summary arithmetic)")
+    elif ids.get("status") == "unavailable":
+        out.append(f"Test-id ledger: **unavailable** — {ids.get('reason', '')}")
+
+    if prose.get("risks"):
+        out += ["", "## Risks", "", prose["risks"]]
+
+    findings = sorted(state.get("findings") or [], key=_finding_sort_key)
+    open_f = [f for f in findings if f.get("status") == "open"]
+    out += ["", f"## Findings — REGRESSED first ({len(open_f)} open of {len(findings)} tracked)", ""]
+    if not findings:
+        out.append("_None recorded this run._")
+    for f in findings:
+        cls = f.get("failure_classification")
+        out.append(f"### {f.get('id')} — {f.get('delta', '?')} — "
+                   f"{f.get('severity')}/{f.get('priority')}"
+                   + (f" — {cls}" if cls else "")
+                   + (f" — age {f['age_days']}d" if f.get("age_days") else ""))
+        out.append("")
+        out.append(str(f.get("title", "")))
+        for e in (f.get("evidence") or []):
+            out.append(f"- {e}")
+        rc = f.get("root_cause") or {}
+        if rc:
+            chain = " → ".join(str(rc[k]) for k in ("mechanism", "origin") if rc.get(k))
+            if chain:
+                out.append(f"- Root cause: {chain}")
+            if rc.get("class"):
+                out.append(f"- Class: {json.dumps(rc['class'])[:200]}")
+        if f.get("carried_forward"):
+            out.append(f"- _{f['carried_forward']}_")
+        if prose.get("findings", {}).get(str(f.get("id"))):
+            out += ["", prose["findings"][str(f.get("id"))]]
+        out.append("")
+
+    blockers = state.get("release_blockers") or []
+    out += ["## Release blockers", "",
+            "\n".join(f"- {b}" for b in blockers) if blockers else "_None._", ""]
+    out += ["## Not tested", ""]
+    nt = state.get("not_tested") or []
+    out.append("\n".join(f"- {n}" for n in nt) if nt else
+               "_Nothing listed — which is itself a reporting failure if the surface was not covered._")
+    if prose.get("fix_order"):
+        out += ["", "## Fix order", "", prose["fix_order"]]
+    if state.get("next_run_focus"):
+        out += ["", "## Next run focus", "",
+                "\n".join(f"- {n}" for n in state["next_run_focus"])]
+    quarantine = state.get("flaky_quarantine") or []
+    if quarantine:
+        out += ["", "## Quarantine", ""]
+        for q in quarantine:
+            out.append(f"- `{q.get('test_id')}` until {q.get('quarantined_until')} "
+                       f"({q.get('fail_count', '?')}/{q.get('run_count', '?')} runs)")
+    if prose.get("notes"):
+        out += ["", "## Notes", "", prose["notes"]]
+    out += ["", "---", "",
+            "*Countable sections rendered from `state.json` by `verdict-finalize`; the "
+            "prose is the agent's. They cannot disagree.*"]
+    return "\n".join(out).rstrip() + "\n"
 
 
 if __name__ == "__main__":

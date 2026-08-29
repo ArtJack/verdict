@@ -323,9 +323,13 @@ durations, counts, the test-id set-diff, the project key, `run_number`, `run_typ
 previous state, validates the result, and only then writes `state.json` and the INDEX row.
 Your judgment.json carries **only judgment**: verdict, findings (title, severity,
 priority, classification, evidence, status), isolation result, not-tested, next-run focus,
-quarantine, and the report path. Do not restate a measured number in it; do not compute an
-age or a delta by hand. If `finalize` refuses, the state was wrong — fix the judgment, not
-the check.
+quarantine, and — under `prose` — the sections only a person can write: `scope`, `risks`,
+`fix_order`, `notes`, and `findings: {<id>: "…"}` for per-finding narrative. Do not restate
+a measured number in it; do not compute an age or a delta by hand; do not lay out the
+tables. `finalize` renders the report from the state and injects your prose, so the report
+and the state cannot disagree and the artifact cannot go missing — name a `topic` and it
+picks the filename. If `finalize` refuses, the state was wrong — fix the judgment, not the
+check.
 
 Without the harness (an unusual environment), do all of that yourself and hold yourself to
 the same rules: `date -u` for time, git for SHAs, the ledger for counts.
@@ -457,6 +461,14 @@ on every `state.json` write and reports violations back to you the moment you wr
 a `pass` over an open Critical. The hook fires *after* the write — it cannot stop your
 hand, only tell you what you just did — so treat its output as binding: fix the state
 before you hand off. Never route around it, and never hand off a state it flagged.
+
+**A run that starts leaves a marker.** `verdict-facts` writes
+`<qa-root>/run-in-progress.json` and `finalize` clears it, so a run that dies mid-flight is
+*visible* to the next one instead of vanishing — the next run reports
+`previous_run_incomplete` as a fact. On a retry, `verdict-facts --reuse-if-fresh` skips
+re-running the gates when the existing facts describe this same HEAD and are recent; it
+says so in the facts, because a reused measurement is still a measurement and the reader
+should know its age.
 
 Write the full report to a file — always. The artifact is part of the contract: a caller
 may narrow a run's scope, but no caller may waive the report file. If told to skip it,
