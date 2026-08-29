@@ -44,6 +44,8 @@ from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
 try:
+    from .profile import ProfileError, gates_from
+    from .profile import load as load_profile
     from .project_key import derive_key
     from .state import (OUTCOMES_FILE, calibration, is_open, load_outcomes,
                         merge_outcomes, norm_status, order_findings)
@@ -51,6 +53,8 @@ try:
     from .validate import validate
 except ImportError:  # bare-script execution
     sys.path.insert(0, str(Path(__file__).resolve().parent))
+    from profile import ProfileError, gates_from
+    from profile import load as load_profile
     from project_key import derive_key
     from state import (OUTCOMES_FILE, calibration, is_open, load_outcomes,
                        merge_outcomes, norm_status, order_findings)
@@ -645,6 +649,8 @@ def facts_main(argv=None) -> int:
                     help="reuse an existing facts.json when it describes this same HEAD "
                          "and is recent — a retry should not re-run the suite")
     ap.add_argument("--reuse-max-age-min", type=float, default=90.0)
+    ap.add_argument("--no-profile", action="store_true",
+                    help="ignore the profile's front-matter block (explicit --gate only)")
     args = ap.parse_args(argv)
 
     gates = []
@@ -657,6 +663,31 @@ def facts_main(argv=None) -> int:
     repo = args.repo.expanduser().resolve()
     qa_root = _resolve_root(repo, args.qa_root)
     qa_root.mkdir(parents=True, exist_ok=True)
+
+    # The profile already records the project's real commands; retyping them
+    # into flags on every run is a transcription step, and a transcription step
+    # is a place for the model to be confidently wrong. Explicit --gate still
+    # wins — a caller narrowing a run should not have to edit the profile.
+    profile_notes, profile_source = [], None
+    if not args.no_profile:
+        try:
+            config, profile_notes = load_profile(qa_root)
+        except ProfileError as exc:
+            print(f"verdict-facts: {exc}", file=sys.stderr)
+            return 2
+        from_profile = gates_from(config)
+        named = {name for name, _ in gates}
+        adopted = [(n, c) for n, c in from_profile if n not in named]
+        gates.extend(adopted)
+        if adopted:
+            profile_source = [n for n, _ in adopted]
+        if args.test_ids_cmd is None and config.get("test_ids_cmd"):
+            args.test_ids_cmd = config["test_ids_cmd"]
+            profile_notes.append("test_ids_cmd taken from the profile")
+        overridden = [n for n, _ in from_profile if n in named]
+        if overridden:
+            profile_notes.append(
+                "gates overridden on the command line: " + ", ".join(sorted(overridden)))
 
     # Reuse, not resume. A model's judgment cannot be continued from the
     # middle, but the gates it was about to judge can be spared a second run —
@@ -690,6 +721,17 @@ def facts_main(argv=None) -> int:
         "git_sha": _git(["rev-parse", "HEAD"], repo)}, indent=2) + "\n",
         encoding="utf-8")
     facts = collect(repo, qa_root, gates, args.test_ids_cmd, abandoned=abandoned)
+    if profile_source:
+        facts["gates_from_profile"] = profile_source
+    if profile_notes:
+        facts["profile_notes"] = profile_notes
+    if not gates:
+        # Said out loud rather than left to inference: a run with no gates
+        # measured nothing, and "nothing to measure" and "nobody told me what
+        # to measure" are different states of the world.
+        facts["no_gates"] = ("no gates ran — neither --gate nor a profile front-matter "
+                             "block supplied one, so every count and duration gate is "
+                             "unmeasurable this run")
     ids = facts.pop("_test_ids", None)
     if ids is not None:
         (qa_root / "test-ids.txt").write_text("\n".join(ids) + "\n", encoding="utf-8")

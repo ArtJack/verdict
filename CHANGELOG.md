@@ -3,6 +3,32 @@
 Plugin and `verdict-mcp` share one version line; `.claude-plugin/plugin.json` and
 `pyproject.toml` are bumped together.
 
+## 0.26.0 — 2026-08-29 · "the profile runs the gates"
+
+The last transcription step in the pipeline is gone.
+
+`profile.md` has always recorded a project's real commands, and the agent has always had to
+*retype* them into `verdict-facts --gate suite='…'` on every run. That is a model sitting
+between the configuration and the measurement, which is the exact arrangement the rest of
+this architecture exists to delete — and it was already failing in production: the sales
+profile grew a "Real commands" section precisely because the retyping kept going wrong.
+
+- **A front-matter block at the top of `profile.md`** names the gates, the test-id command
+  and the coverage command. `verdict-facts` reads it, so the canonical invocation is now
+  `verdict-facts --repo . --qa-root <root>` with no flags at all. Explicit `--gate` still
+  wins for narrowing a run, and the override is recorded in the facts.
+- **A deliberately small subset of YAML, not YAML.** `key: value` at the left margin, one
+  level of two-space-indented `name: value` under a bare `key:`. Values run to end of line
+  and are taken literally, because commands are full of colons, quotes and pipes and a
+  cleverer parser would mangle them. Stdlib only — the harness still runs bare.
+- **A line it cannot read is an error naming that line**, never a skip. Silently dropping a
+  gate would reintroduce the failure the block exists to remove, and a run that measured
+  nothing looks exactly like a run with nothing to measure. For the same reason, keys the
+  harness does not read are reported rather than discarded, and a run that ends up with no
+  gates at all records `no_gates` and says every count and duration gate is unmeasurable.
+- `/qa-baseline` writes the block first, and is told to omit a key rather than guess at it:
+  a wrong command measures the wrong thing silently, a missing one is reported.
+
 ## 0.25.0 — 2026-08-29 · "one spelling of everything"
 
 A refactor review of the whole tree. Most of it said *leave this alone*, correctly. What it

@@ -105,6 +105,39 @@ here.
 | `next_run_focus` | no | Carries intent to the next run |
 | `coverage` | no | Direction matters, not the absolute number |
 
+## The profile's front matter — `<qa-root>/profile.md`
+
+The profile has always recorded a project's real commands in prose; the front-matter block
+makes them machine-readable, so `verdict-facts` runs the gates itself instead of the agent
+retyping them into flags each run. That retyping was the last transcription step in the
+pipeline, and transcription is where this architecture assumes error.
+
+```
+---
+gates:
+  suite: .venv/bin/python -m pytest -q
+  lint: ruff check .
+test_ids_cmd: .venv/bin/python -m pytest --collect-only -q
+coverage_cmd: diff-cover coverage.xml
+---
+
+# QA Profile — myproject
+...prose, unchanged...
+```
+
+A deliberately small subset of YAML rather than YAML: `key: value` at the left margin, and
+one level of two-space-indented `name: value` under a bare `key:`. Values run to end of
+line and are taken literally, because commands are full of colons, quotes and pipes. A
+line the parser cannot read is an **error naming that line**, never a skip — silently
+dropping a gate would reintroduce exactly the failure the block removes. Keys beyond
+`gates`, `test_ids_cmd` and `coverage_cmd` are kept and reported as unread rather than
+discarded.
+
+Explicit `--gate` still wins, and the override is recorded in the facts; a run that ends up
+with no gates at all records `no_gates` and says every count and duration gate is
+unmeasurable, because "nothing to measure" and "nobody said what to measure" are different
+states of the world.
+
 ## The outcome ledger — `<qa-root>/outcomes.json`
 
 `state.json` holds open findings and the current run's resolutions; a finding resolved two
