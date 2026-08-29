@@ -61,15 +61,64 @@ RE_BASELINE_AFTER_DAYS = 7
 RETRY_WINDOW_HOURS = 6
 RE_BASELINE_FILES = 100
 RE_BASELINE_LINES = 10_000
-# pytest, vitest, go test and friends all end with a countable line; these
-# cover the runners the fixtures and live projects actually use.
-_COUNT_PATTERNS = (
-    (re.compile(r"(\d+) passed"), "passed"),
-    (re.compile(r"(\d+) failed"), "failed"),
-    (re.compile(r"(\d+) skipped"), "skipped"),
-    (re.compile(r"(\d+) error"), "errors"),
-    (re.compile(r"(\d+) xfailed"), "xfailed"),
+# Runner dialects. Each carries a *signature* — a phrase only that runner
+# prints — and is tried in order of how distinctive that signature is.
+#
+# The earlier design was a flat union of patterns that only spoke pytest, so
+# for Go, Ruby, PHP, .NET and JVM projects the counts came back empty, and
+# *silently*: the "a silent drop in test count is a finding" gate and the
+# test-id set-diff simply never fired. A feature that is unavailable is a
+# problem; one that is unavailable without saying so is a defect.
+#
+# Signatures rather than ordering alone, because these vocabularies overlap:
+# `1 failure` appears in both gotestsum and rspec, `Failures: 1` in both
+# surefire and phpunit, and `5 passed` in pytest, cargo, jest and vitest. Read
+# by the wrong dialect the numbers are not wrong so much as incomplete — cargo
+# read as pytest silently drops `ignored`, which is the skip count the gate
+# cares about.
+_DIALECTS = (
+    # signature                          name            fields
+    (r"Tests run:\s*\d+", "surefire", {                 # JUnit / Maven surefire
+        "collected": r"Tests run:\s*(\d+)", "failed": r"Failures:\s*(\d+)",
+        "errors": r"Errors:\s*(\d+)", "skipped": r"Skipped:\s*(\d+)"}),
+    (r"\bDONE\s+\d+\s+tests?\b", "gotestsum", {        # DONE 12 tests, 1 failure in 0.5s
+        "collected": r"DONE\s+(\d+)\s+tests?", "failed": r"(\d+)\s+failures?",
+        "skipped": r"(\d+)\s+skipped"}),
+    (r"Total:\s*\d+", "dotnet", {                       # Failed: 0, Passed: 5, Total: 5
+        "collected": r"Total:\s*(\d+)", "passed": r"Passed:\s*(\d+)",
+        "failed": r"Failed:\s*(\d+)", "skipped": r"Skipped:\s*(\d+)"}),
+    (r"Assertions:\s*\d+", "phpunit", {                 # Tests: 5, Assertions: 10, Failures: 1.
+        "collected": r"Tests:\s*(\d+)", "failed": r"Failures:\s*(\d+)",
+        "errors": r"Errors:\s*(\d+)", "skipped": r"Skipped:\s*(\d+)"}),
+    (r"OK \(\d+ tests?", "phpunit", {                    # OK (5 tests, 5 assertions)
+        "passed": r"OK \((\d+) tests?", "failed": r"^(?!)"}),
+    (r"\d+ examples?\b", "rspec", {                     # 5 examples, 1 failure, 2 pending
+        "collected": r"(\d+) examples?", "failed": r"(\d+) failures?",
+        "skipped": r"(\d+) pending"}),
+    (r"test result:", "cargo", {                        # test result: ok. 5 passed; 1 ignored
+        "passed": r"(\d+) passed", "failed": r"(\d+) failed",
+        "skipped": r"(\d+) ignored"}),
+    (r"passed \(\d+\)", "vitest", {                       # Tests  2 failed | 5 passed (7)
+        "collected": r"passed \((\d+)\)", "passed": r"(\d+) passed",
+        "failed": r"(\d+) failed", "skipped": r"(\d+) skipped"}),
+    (r"\d+ (?:total|todo)\b", "jest", {                   # Tests: 1 failed, 4 passed, 5 total
+        "collected": r"(\d+) total", "passed": r"(\d+) passed",
+        "failed": r"(\d+) failed", "skipped": r"(\d+) (?:skipped|todo)"}),
+    (r"\d+ (?:passed|failed|skipped|xfailed|error)", "pytest", {
+        "passed": r"(\d+) passed", "failed": r"(\d+) failed",
+        "skipped": r"(\d+) skipped", "errors": r"(\d+) errors?\b",
+        "xfailed": r"(\d+) xfailed"}),
 )
+_DIALECTS = tuple((re.compile(sig), name,
+                   {f: re.compile(pat) for f, pat in fields.items()})
+                  for sig, name, fields in _DIALECTS)
+# `go test` proper prints no totals at all — only per-test lines under -v. It
+# gets counted by tallying those, which is the only signal it offers.
+_GO_VERBOSE = (re.compile(r"^--- PASS: ", re.M), re.compile(r"^--- FAIL: ", re.M),
+               re.compile(r"^--- SKIP: ", re.M))
+_COUNT_PATTERNS = tuple(
+    (sig, name) for sig, name, _ in _DIALECTS) + tuple(
+    (p, "go") for p in _GO_VERBOSE)
 
 
 def _run(cmd, cwd=None, shell=False):
@@ -90,13 +139,27 @@ def _summary_line(output: str) -> str:
     return tail[-1][:300] if tail else ""
 
 
-def _counts(output: str) -> dict:
-    counts = {}
-    for pattern, name in _COUNT_PATTERNS:
-        m = pattern.search(output)
-        if m:
-            counts[name] = int(m.group(1))
-    return counts
+def _counts(output: str) -> tuple[dict, str | None]:
+    """Parse a runner's summary into counts, and say which dialect was read.
+
+    Naming the dialect is not decoration: a reader who sees empty counts needs
+    to know whether the suite reported nothing or whether we failed to
+    understand it, and those are different problems with different fixes.
+    """
+    for signature, name, fields in _DIALECTS:
+        if not signature.search(output):
+            continue
+        counts = {}
+        for field, pattern in fields.items():
+            m = pattern.search(output)
+            if m:
+                counts[field] = int(m.group(1))
+        if counts:
+            return counts, name
+    passed, failed, skipped = (len(p.findall(output)) for p in _GO_VERBOSE)
+    if passed or failed or skipped:
+        return {"passed": passed, "failed": failed, "skipped": skipped}, "go test -v"
+    return {}, None
 
 
 _UNSET = object()
@@ -177,13 +240,16 @@ def collect(repo: Path, qa_root: Path, gates: list[tuple[str, str]],
         proc = _run(command, cwd=repo, shell=True)
         duration = round(time.monotonic() - started, 2)
         output = proc.stdout + proc.stderr
+        counts, dialect = _counts(output)
         gate_results[name] = {
             "command": command,
             "exit_code": proc.returncode,
             "result": "pass" if proc.returncode == 0 else "fail",
             "duration_s": duration,
             "summary": _summary_line(output),
-            **({"counts": _counts(output)} if _counts(output) else {}),
+            **({"counts": counts, "counts_dialect": dialect} if counts else
+               {"counts_unparsed": "no recognised runner summary — the count-drop gate "
+                                   "and the id set-diff cannot fire for this gate"}),
         }
 
     facts = {
@@ -234,9 +300,13 @@ def collect(repo: Path, qa_root: Path, gates: list[tuple[str, str]],
         if "duration_s" not in tests and gate.get("counts"):
             tests["duration_s"] = gate["duration_s"]
     if tests:
-        collected = sum(v for k, v in tests.items()
-                        if k in ("passed", "failed", "skipped", "errors", "xfailed"))
-        facts["tests"] = {"collected": collected, **tests}
+        # A runner that reports its own total is more trustworthy than our
+        # arithmetic over its parts — several report both, and they disagree
+        # when a test errors during collection.
+        collected = tests.get("collected") or sum(
+            v for k, v in tests.items()
+            if k in ("passed", "failed", "skipped", "errors", "xfailed"))
+        facts["tests"] = {**tests, "collected": collected}
 
     if test_ids_cmd:
         proc = _run(test_ids_cmd, cwd=repo, shell=True)

@@ -90,7 +90,7 @@ Artifact: .qa/reports/2026-08-24-pricer-review.md
 
 A QA agent that was never tested is exactly the kind of claim it should reject.
 [`eval/`](eval/) is a scored eval suite with a **deterministic scorer** —
-[`score.py`](eval/score.py) reads the state file, not the prose — and three fixtures:
+[`score.py`](eval/score.py) reads the state file, not the prose — and six fixtures:
 
 - **Baseline** ([fixtures/pricer](eval/fixtures/pricer)): 8 seeded issues covering all
   five failure classifications, including a boundary defect hidden behind a "temporarily"
@@ -236,7 +236,7 @@ concurrency: verdict-${{ github.ref }}
 
 steps:
   - uses: actions/checkout@v4
-  - uses: ArtJack/verdict@v0.6.0
+  - uses: ArtJack/verdict@v0
     with:
       max-age-hours: 48   # a stale verdict is exit 5, never a pass
 ```

