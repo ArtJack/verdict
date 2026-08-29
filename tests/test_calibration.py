@@ -8,8 +8,7 @@ positive quietly age off the page.
 """
 
 import json
-from datetime import date, datetime, timedelta, timezone
-from pathlib import Path
+from datetime import date, datetime, timezone
 
 import pytest
 
@@ -306,3 +305,53 @@ def test_an_unrecognised_status_reads_as_open_not_as_closed():
     assert is_open({"status": "closed"}) and is_open({"status": "done"})
     assert is_open({}) and is_open({"status": ""})
     assert not is_open({"status": "resolved"}) and not is_open({"status": "WITHDRAWN"})
+
+
+def test_the_ledger_is_folded_once_not_twice(qa_root):
+    """Folding it in `merge` from today's date and again in `write_state` from
+    the run timestamp gave two different `decided_on` values across a
+    UTC-midnight run — the calibration block inside the state could disagree
+    with the ledger persisted beside it."""
+    s1 = run(qa_root, 1, [finding(1)], None)
+    run(qa_root, 2, [finding(1, status="resolved", fix_verified=True)], s1)
+    row = next(iter(load_outcomes(qa_root).values()))
+    assert row["decided_on"] == NOW[:10], "the run's own date, from one place"
+
+
+def test_internal_keys_never_reach_the_written_state(qa_root):
+    state = run(qa_root, 1, [finding(1)], None)
+    written = json.loads((qa_root / "state.json").read_text(encoding="utf-8"))
+    assert not [k for k in written if k.startswith("_")], written.keys()
+    assert "_ledger" not in state
+
+
+def test_a_torn_write_cannot_leave_a_half_written_state(qa_root):
+    """Every artifact goes through a temp file and os.replace, so a crash
+    mid-write leaves the previous version intact rather than a truncated one."""
+    s1 = run(qa_root, 1, [finding(1)], None)
+    run(qa_root, 2, [finding(1), finding(2)], s1)
+    for name in ("state.json", "state.json.prev", "outcomes.json"):
+        json.loads((qa_root / name).read_text(encoding="utf-8"))   # parses = intact
+    assert not list(qa_root.glob("*.tmp")), "no temp files survive a clean run"
+
+
+def test_the_report_and_the_gate_order_findings_identically():
+    """The harness carried its own copy of the REGRESSED-first sort, and the two
+    had already drifted: `order_findings` strips whitespace before ranking a
+    severity, the harness copy did not, so ` Critical ` sorted below `Major` in
+    the report and above it everywhere else. One function now, not two."""
+    from verdict_mcp.state import order_findings
+    findings = [
+        {"id": "A", "severity": " Critical ", "delta": "NEW", "age_days": 1,
+         "evidence": ["a.py:1"], "title": "a", "status": "open"},
+        {"id": "B", "severity": "Major", "delta": "NEW", "age_days": 1,
+         "evidence": ["b.py:1"], "title": "b", "status": "open"},
+    ]
+    expected = [f["id"] for f in order_findings(findings)]
+    assert expected == ["A", "B"]
+
+    report = render_report({"project": "p", "run_number": 1, "run_type": "baseline",
+                            "verdict": "fail", "findings": findings,
+                            "last_run": {"timestamp_utc": NOW}})
+    seen = [line.split()[1] for line in report.splitlines() if line.startswith("### ")]
+    assert seen == expected, "the report must not have its own opinion about order"

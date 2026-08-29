@@ -24,7 +24,6 @@ here.
   "last_run": {
     "timestamp_utc": "2026-08-24T17:30:00Z",
     "git_sha": "b4e2943",
-    "git_sha_previous": "2c67f47",
     "sha_range": "2c67f47..b4e2943",
     "git_branch": "main",
     "diff_stat": "16 files changed, 661 insertions(+), 39 deletions(-)",
@@ -36,7 +35,6 @@ here.
   },
   "gates": {
     "pytest": {
-      "blocking": true,
       "result": "pass",
       "command": "python -m pytest",
       "summary": "212 passed, 1 skipped in 8.31s",

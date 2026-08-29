@@ -5,7 +5,6 @@ wrong at least once in production.
 """
 
 import json
-import os
 import subprocess
 import sys
 from datetime import date, datetime, timedelta, timezone

@@ -33,9 +33,10 @@ matches Write/Edit and would never see a file written by a shell command.
 """
 
 import argparse
+import hashlib
 import json
+import os
 import re
-import shutil
 import subprocess
 import sys
 import time
@@ -45,13 +46,15 @@ from pathlib import Path
 try:
     from .project_key import derive_key
     from .state import (OUTCOMES_FILE, calibration, is_open, load_outcomes,
-                        merge_outcomes, norm_status)
+                        merge_outcomes, norm_status, order_findings)
+    from .state import home as state_home
     from .validate import validate
 except ImportError:  # bare-script execution
     sys.path.insert(0, str(Path(__file__).resolve().parent))
     from project_key import derive_key
     from state import (OUTCOMES_FILE, calibration, is_open, load_outcomes,
-                       merge_outcomes, norm_status)
+                       merge_outcomes, norm_status, order_findings)
+    from state import home as state_home
     from validate import validate
 
 RE_BASELINE_AFTER_DAYS = 7
@@ -132,10 +135,10 @@ def _git(args, repo):
 
 def _summary_line(output: str) -> str:
     """The last line carrying countable results — the line a human reads."""
-    for line in reversed([l.strip() for l in output.splitlines() if l.strip()]):
+    for line in reversed([x.strip() for x in output.splitlines() if x.strip()]):
         if any(p.search(line) for p, _ in _COUNT_PATTERNS):
             return line[:300]
-    tail = [l.strip() for l in output.splitlines() if l.strip()]
+    tail = [x.strip() for x in output.splitlines() if x.strip()]
     return tail[-1][:300] if tail else ""
 
 
@@ -310,7 +313,7 @@ def collect(repo: Path, qa_root: Path, gates: list[tuple[str, str]],
 
     if test_ids_cmd:
         proc = _run(test_ids_cmd, cwd=repo, shell=True)
-        ids = sorted({l.strip() for l in proc.stdout.splitlines() if "::" in l})
+        ids = sorted({x.strip() for x in proc.stdout.splitlines() if "::" in x})
         if not ids:
             # Zero ids is almost never an empty suite; it is a command that
             # printed something else. The commonest cause is verbosity: a
@@ -333,7 +336,7 @@ def collect(repo: Path, qa_root: Path, gates: list[tuple[str, str]],
             # (`test_rate[west 7kg]`), and whitespace-splitting the ledger
             # turns one id into several — every one of which then reads as
             # added or removed on the next run.
-            before = ([l.strip() for l in ledger.read_text(encoding="utf-8").splitlines() if l.strip()]
+            before = ([x.strip() for x in ledger.read_text(encoding="utf-8").splitlines() if x.strip()]
                       if ledger.is_file() else [])
             facts["test_ids"] = {
                 "status": "measured",
@@ -358,7 +361,6 @@ def finding_hash(finding: dict) -> str:
     Deliberately not the id: ids are minted once for humans, hashes recognise
     the same finding across runs while line numbers move underneath it.
     """
-    import hashlib
     if finding.get("hash"):
         return str(finding["hash"])
     evidence = " ".join(str(e) for e in (finding.get("evidence") or []))
@@ -524,8 +526,14 @@ def merge(facts: dict, judgment: dict, previous: dict | None, today: date | None
         state["tests"] = facts["tests"]
     # Computed here rather than left to a consumer: the next run reads
     # state.json anyway, so its own track record arrives without asking for it.
-    state["calibration"] = calibration(
-        state, ledger=merge_outcomes(ledger or {}, findings, today.isoformat()))
+    # Folded once, and carried: computing it here from `today` and again in
+    # write_state from the run timestamp gave two different `decided_on` dates
+    # across a UTC-midnight run, so the calibration block inside the state
+    # could disagree with the ledger persisted beside it.
+    decided_on = str((state.get("last_run") or {}).get("timestamp_utc") or "")[:10] \
+        or today.isoformat()
+    state["_ledger"] = merge_outcomes(ledger or {}, findings, decided_on)
+    state["calibration"] = calibration(state, ledger=state["_ledger"])
     if facts.get("test_ids"):
         state["test_ids"] = facts["test_ids"]
     # Unknown keys from the previous state survive (schema rule).
@@ -553,6 +561,15 @@ INDEX_HEADER = ("| Date | Project | Run type | Verdict | Tests (pass/skip/fail) 
                 "| Findings (B/C/M/m) | Report |\n|---|---|---|---|---|---|---|---|")
 
 
+def _atomic_write(path: Path, text: str) -> None:
+    """Write via a temp file and `os.replace`, which is atomic on POSIX and
+    Windows alike. Nothing here is large enough for the extra copy to matter,
+    and a torn state.json costs a run at best."""
+    tmp = path.with_name(path.name + ".tmp")
+    tmp.write_text(text, encoding="utf-8")
+    os.replace(tmp, path)
+
+
 def write_state(qa_root: Path, state: dict) -> list[str]:
     """Validate, then write: state.json.prev, state.json, and the INDEX row.
 
@@ -560,22 +577,30 @@ def write_state(qa_root: Path, state: dict) -> list[str]:
     would never see a file a shell command wrote. An invalid state is not
     written at all — prevention beats notification.
     """
+    # The ledger `merge` folded travels on the state under a private key —
+    # taken off before anything serialises it, because reusing that result is
+    # what keeps the persisted ledger and the state's own calibration block
+    # describing the same run, and a leading underscore is not a licence to
+    # write internals into the artifact.
+    ledger = state.pop("_ledger", None)
     problems = validate(state, qa_root, _read_json(qa_root / "state.json"))
     if problems:
         return problems
-    current = qa_root / "state.json"
-    if current.is_file():
-        shutil.copyfile(current, qa_root / "state.json.prev")
-    current.write_text(json.dumps(state, indent=2) + "\n", encoding="utf-8")
+    if ledger is None:
+        decided_on = str((state.get("last_run") or {}).get("timestamp_utc") or "")[:10] or None
+        ledger = merge_outcomes(load_outcomes(qa_root), state.get("findings", []), decided_on)
 
-    # The ledger outlives state.json's findings list, which is exactly the
-    # point: resolutions age out of state, and their outcomes must not.
-    decided_on = str((state.get("last_run") or {}).get("timestamp_utc") or "")[:10] or None
-    ledger = merge_outcomes(load_outcomes(qa_root), state.get("findings", []), decided_on)
-    (qa_root / OUTCOMES_FILE).write_text(
-        json.dumps({"schema_version": 1, "project": state.get("project"),
-                    "findings": ledger}, indent=2, sort_keys=True) + "\n",
-        encoding="utf-8")
+    # Atomic replace, not a bare write. A crash between truncate and flush
+    # leaves the file the whole system pivots on half-written, and §6 already
+    # carries a rule for recovering from a corrupt state — cheaper to make it
+    # near-impossible than to handle it well.
+    _atomic_write(qa_root / "state.json.prev",
+                  (qa_root / "state.json").read_text(encoding="utf-8")) \
+        if (qa_root / "state.json").is_file() else None
+    _atomic_write(qa_root / "state.json", json.dumps(state, indent=2) + "\n")
+    _atomic_write(qa_root / OUTCOMES_FILE,
+                  json.dumps({"schema_version": 1, "project": state.get("project"),
+                              "findings": ledger}, indent=2, sort_keys=True) + "\n")
 
     reports = qa_root / "reports"
     reports.mkdir(parents=True, exist_ok=True)
@@ -584,7 +609,7 @@ def write_state(qa_root: Path, state: dict) -> list[str]:
         body = index.read_text(encoding="utf-8").rstrip("\n")
     else:
         body = f"# QA run index — {state['project']}\n\n{INDEX_HEADER}"
-    index.write_text(body + "\n" + index_row(state) + "\n", encoding="utf-8")
+    _atomic_write(index, body + "\n" + index_row(state) + "\n")
     return []
 
 
@@ -601,8 +626,7 @@ def _resolve_root(repo: Path, explicit: str | None) -> Path:
     team = repo / ".qa"
     if team.is_dir():
         return team
-    import os
-    home = Path(os.environ.get("VERDICT_HOME", str(Path.home() / ".claude" / "verdict")))
+    home = state_home()  # one spelling of the default, in state.py
     return home / derive_key(repo)[0]
 
 
@@ -740,16 +764,6 @@ def main(argv=None) -> int:
 
 # ── the report, rendered ──────────────────────────────────────────────────
 
-_SEV_ORDER = {"Blocker": 0, "Critical": 1, "Major": 2, "Minor": 3, "Trivial": 4}
-
-
-def _finding_sort_key(f: dict):
-    # REGRESSED first, always — then severity, then oldest first.
-    return (0 if f.get("delta") == "REGRESSED" else 1,
-            _SEV_ORDER.get(str(f.get("severity") or "").capitalize(), 9),
-            -int(f.get("age_days") or 0))
-
-
 def _render_calibration(cal: dict) -> list[str]:
     """The tester's own track record, or nothing at all.
 
@@ -830,7 +844,10 @@ def render_report(state: dict, prose: dict | None = None) -> str:
     if prose.get("risks"):
         out += ["", "## Risks", "", prose["risks"]]
 
-    findings = sorted(state.get("findings") or [], key=_finding_sort_key)
+    # The gate, the MCP surface and this report must agree on what "REGRESSED
+    # first" means. They did not: this module carried its own copy of the sort,
+    # and a severity with a stray space already sorted differently in the two.
+    findings = order_findings(state.get("findings") or [])
     open_f = [f for f in findings if is_open(f)]
     out += ["", f"## Findings — REGRESSED first ({len(open_f)} open of {len(findings)} tracked)", ""]
     if not findings:

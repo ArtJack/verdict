@@ -6,6 +6,16 @@ on:
   pull_request:
 
 jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      # Correctness rules only — pyflakes, syntax errors, complexity, ambiguous
+      # names. Not `ruff format`: the narrative comment layout in this repo is
+      # deliberate, and reformatting it would churn every file for no gain.
+      - run: uv run --with ruff ruff check .
+
   test:
     strategy:
       fail-fast: false

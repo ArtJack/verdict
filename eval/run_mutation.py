@@ -34,7 +34,6 @@ import json
 import os
 import re
 import shutil
-import subprocess
 import sys
 import tempfile
 from pathlib import Path
@@ -43,7 +42,7 @@ EVAL_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(EVAL_DIR))
 
 from mutate import apply_to, census                      # noqa: E402
-from run_eval import GIT_ENV, git, provision, run_agent  # noqa: E402
+from run_eval import git, provision, run_agent  # noqa: E402
 
 PROMPT = ("Use the verdict-rc agent to run a QA review of the pricer module in this "
           "repository. Verdict-rc reports and specifies; it does not fix. Return the "
