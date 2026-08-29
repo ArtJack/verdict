@@ -65,6 +65,18 @@ def _status(finding) -> str:
     return str(finding.get("status") or "").strip().lower()
 
 
+def _is_open(finding) -> bool:
+    """Open unless the finding is explicitly closed — the safe direction.
+
+    Read the other way, a single mistyped word hides a finding: `"closed"` on
+    an open Critical satisfied `status != "open"` everywhere, so the blocker
+    check, the gate and the hotspot ranking all agreed it was dealt with, and a
+    `pass` verdict stood over it. An unrecognised status is not evidence that a
+    defect was fixed; it is evidence that nobody knows.
+    """
+    return _status(finding) not in ("resolved", "withdrawn")
+
+
 def _parse_z(value: str):
     if not isinstance(value, str) or not _ISO_Z.match(value):
         return None
@@ -180,6 +192,16 @@ def validate(state, root: Path, previous=None, now=None):
                 bad.append(f"{where} ({fid}) priority {f.get('priority')!r} not in {sorted(PRIORITIES)}")
             if f.get("delta") is not None and f.get("delta") not in DELTAS:
                 bad.append(f"{where} ({fid}) delta {f.get('delta')!r} not in {sorted(DELTAS)}")
+            status = _status(f)
+            if not status:
+                bad.append(f"{where} ({fid}) has no status — every finding is "
+                           f"{sorted(STATUSES)}; a missing one reads as closed to some "
+                           "consumers and open to others")
+            elif status not in STATUSES:
+                bad.append(
+                    f"{where} ({fid}) status {f.get('status')!r} not in {sorted(STATUSES)} "
+                    "— an unrecognised status hides the finding from the release blockers, "
+                    "the gate and the hotspot ranking")
             conf = f.get("confidence")
             if conf is not None and conf not in CONFIDENCES:
                 bad.append(f"{where} ({fid}) confidence {conf!r} not in {sorted(CONFIDENCES)}")
@@ -211,14 +233,14 @@ def validate(state, root: Path, previous=None, now=None):
             fc = f.get("failure_classification")
             if fc is not None and fc not in CLASSIFICATIONS:
                 bad.append(f"{where} ({fid}) failure_classification {fc!r} not in {sorted(CLASSIFICATIONS)}")
-            if _status(f) == "open" and not (f.get("evidence") or []):
+            if _is_open(f) and not (f.get("evidence") or []):
                 bad.append(
                     f"{where} ({fid}) is open with no evidence — an uncited finding is a "
                     "HYPOTHESIS, not a finding")
 
         if state.get("verdict") == "pass":
             blocking = [f.get("id") for f in findings
-                        if isinstance(f, dict) and _status(f) == "open"
+                        if isinstance(f, dict) and _is_open(f)
                         and f.get("severity") in {"Critical", "Blocker"}]
             if blocking:
                 bad.append(

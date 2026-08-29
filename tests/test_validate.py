@@ -224,3 +224,35 @@ def test_two_findings_may_not_share_one_hash(root):
     bad = validate(good_state(findings=twice), root)
     assert any("shares hash a1b2 with PRC-F-1" in b for b in bad)
     assert validate(good_state(findings=[f, dict(f, id="PRC-F-2", hash="c3d4")]), root) == []
+
+
+# ── the status enum, which was declared and never enforced ────────────────
+
+def test_a_status_outside_the_enum_is_rejected(root):
+    """`STATUSES` sat in two modules, checked in neither. A one-word typo made a
+    finding invisible to the blocker check, the gate and the hotspot ranking."""
+    f = dict(good_state()["findings"][0], status="closed")
+    bad = validate(good_state(findings=[f]), root)
+    assert any("status 'closed' not in" in b for b in bad)
+
+
+def test_a_finding_with_no_status_at_all_is_rejected(root):
+    f = {k: v for k, v in good_state()["findings"][0].items() if k != "status"}
+    assert any("has no status" in b for b in validate(good_state(findings=[f]), root))
+
+
+def test_an_unrecognised_status_still_counts_as_open_for_the_pass_rule(root):
+    """The exact false green: a `pass` carrying an open Critical typed
+    `"closed"` validated cleanly and gated green. Reading `open` as anything not
+    explicitly closed is the safe direction — an unknown status is not evidence
+    a defect was fixed."""
+    critical = dict(good_state()["findings"][0], status="closed", severity="Critical")
+    bad = validate(good_state(verdict="pass", findings=[critical]), root)
+    assert any("open Critical" in b for b in bad)
+
+
+def test_resolved_and_withdrawn_findings_do_not_block_a_pass(root):
+    for status in ("resolved", "withdrawn"):
+        f = dict(good_state()["findings"][0], status=status, severity="Critical",
+                 delta="RESOLVED" if status == "resolved" else "WITHDRAWN")
+        assert validate(good_state(verdict="pass", findings=[f]), root) == [], status

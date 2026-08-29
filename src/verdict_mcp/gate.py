@@ -91,6 +91,28 @@ def evaluate(project, fail_on, max_age_hours, min_run_number, now=None,
                 f"stale: last run at {last.get('timestamp_utc')!r} is older than "
                 f"{max_age_hours}h (or unparseable)"))
             return out
+    # A state whose recorded verdict contradicts its own recorded findings is
+    # not a verdict, it is a contradiction, and serving it green is how a
+    # false pass reaches a merge. §10 is the arbiter: an open Blocker admits
+    # no verdict but `fail`, and an open Critical caps at `pass with risks`.
+    # The gate does not re-adjudicate — it refuses to launder.
+    blockers = [f.get("id") for f in out["findings_open"]
+                if f.get("severity") == "Blocker"]
+    criticals = [f.get("id") for f in out["findings_open"]
+                 if f.get("severity") == "Critical"]
+    if blockers and verdict != "fail":
+        out.update(exit_code=1, reason=(
+            f"the recorded verdict {verdict!r} stands over open Blocker(s) "
+            f"{', '.join(str(b) for b in blockers)} — §10 admits no verdict but `fail` "
+            "over an open Blocker, so this state contradicts itself"))
+        return out
+    if criticals and verdict == "pass":
+        out.update(exit_code=1, reason=(
+            f"the recorded verdict is `pass` over open Critical(s) "
+            f"{', '.join(str(c) for c in criticals)} — §10 caps that at `pass with risks`, "
+            "so this state contradicts itself"))
+        return out
+
     if require_harness:
         signals = harness_signals(state, state.get("_qa_root"))
         missing = [k for k, ok in signals.items() if not ok]

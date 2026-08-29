@@ -55,6 +55,43 @@ run's evidence list should show it never looked.
 | 2026-08-27 | Opus (Claude Code 2.1.241, `run_eval.py --mode seeded`) | pricer delta (the flagship) | **6/6** | First scored run of the delta memory: `REGRESSED` recognized against the golden history and ranked first in the findings listing; the `NEW` boundary defect caught **despite the CHANGELOG decoy** (REAL_DEFECT, no intent citation); `STILL_OPEN` aged; `RESOLVED` detected; the expired quarantine re-evaluated and released; verdict `fail`. Fixture byte-identical. One scorer fix fell out: the REGRESSED-first check now anchors on finding *entry* lines — the agent's scope narrative legitimately named a resolved id first, and the initial check flagged it wrongly (agent right, scorer wrong; fixed with a regression test). |
 | 2026-08-27 | Opus (Claude Code 2.1.241, headless `-p`, isolated harness) | pricer baseline, v0.3.0 prompt | **8/8** | First machine-scored run (`score.py`, zero hard-fails). Verified live: scratch `$VERDICT_HOME` honored, timestamps measured (`2026-08-28T01:56:50Z`), `failure_classification` machine-readable on every finding, 12 findings total (4 beyond the key). Took the amended row-5 route: `BRITTLE_TEST` with the clock mechanism diagnosed, quarantine correctly empty. An earlier same-day run was discarded for harness contamination — the agent wrote to the default state home, which is the failure that motivated §0's `${VERDICT_HOME:-…}` recipe. |
 
+### Recall — what the tester *misses*
+
+Every row above measures precision against a hand-authored answer key: defects someone
+wrote on purpose, which the prompt has effectively been tuned against. They say nothing
+about the number a tester is actually judged on — **what did you miss?**
+
+So there is a second instrument, and it uses defects nobody authored:
+
+1. [`fixtures/pricer_clean/`](fixtures/pricer_clean/) is the same little pricer with every
+   spec rule implemented *correctly*, and a suite that is realistic rather than exhaustive.
+2. [`mutate.py`](mutate.py) breaks one line at a time with mechanical operators, then asks
+   two questions of each mutant. **Does the suite kill it?** A killed mutant takes no
+   insight to find — the tester should report the red test, and that is all. **Does it
+   change behaviour at all?** Each fixture ships a `probe.py` that fingerprints the module
+   over an input grid; identical output everywhere means an *equivalent mutant*, a source
+   change that is not a defect, and scoring a tester for missing it would be scoring a
+   question with no answer.
+3. What survives both filters — the suite misses it, and it provably changes behaviour —
+   is the only honest denominator: real defects that can be found solely by reading.
+   [`run_mutation.py`](run_mutation.py) plants each one in a fresh repo, alone, runs
+   Verdict, and asks whether any finding cites the module and names the function that was
+   broken.
+
+The oracle checks itself: a mutant the suite killed but the probe called a no-op means the
+input grid has a hole, and the same hole would silently drop a real survivor out of the
+denominator. It is reported, not swallowed — the first grid had no negative prices, so
+deleting a negative-price guard looked like a no-op.
+
+Because the base is clean, the protocol measures the opposite error for free: any finding
+about a module whose only defect is the planted one is a candidate false positive. Both
+numbers are recorded; neither is flattered.
+
+```bash
+python3 eval/mutate.py                     # the census — no model, no tokens
+python3 eval/run_mutation.py --model opus  # one model run per survivor
+```
+
 ### Suite fault-detection power — mutation testing, on ourselves
 
 §11 tells every project "a suite that always passes may be testing nothing — measure it."

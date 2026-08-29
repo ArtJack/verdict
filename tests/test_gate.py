@@ -42,6 +42,13 @@ def make_home(tmp_path, **overrides):
     return tmp_path / "home"
 
 
+# BASE_STATE carries an open Critical, so a `pass` over it is a state that
+# contradicts itself — the gate refuses it, and the tests that only want to
+# exercise "verdict pass → exit 0" have to say so with findings that permit one.
+NOTHING_BLOCKING = [f for f in BASE_STATE["findings"] if f["severity"] == "Minor"]
+PASSABLE = {"verdict": "pass", "release_blockers": [], "findings": NOTHING_BLOCKING}
+
+
 def gate(tmp_path, *args, home=None, cwd=None, state_kwargs=None):
     home = home or make_home(tmp_path, **(state_kwargs or {}))
     # Inherit the environment (Windows Python cannot start without SystemRoot);
@@ -62,7 +69,7 @@ def test_fail_exits_1(tmp_path):
 
 
 def test_pass_exits_0(tmp_path):
-    proc = gate(tmp_path, "pricer", state_kwargs={"verdict": "pass", "release_blockers": []})
+    proc = gate(tmp_path, "pricer", state_kwargs=PASSABLE)
     assert proc.returncode == 0
 
 
@@ -137,8 +144,7 @@ def test_json_format(tmp_path):
 
 def test_min_run_number_exact_boundary_passes(tmp_path):
     # run_number == required is satisfied; only < is stale (kills < -> <=)
-    proc = gate(tmp_path, "pricer", "--min-run-number", "4",
-                state_kwargs={"verdict": "pass", "release_blockers": []})
+    proc = gate(tmp_path, "pricer", "--min-run-number", "4", state_kwargs=PASSABLE)
     assert proc.returncode == 0
 
 
@@ -146,7 +152,7 @@ def test_max_age_within_window_passes_and_unparseable_is_stale(tmp_path):
     from datetime import datetime, timedelta, timezone
     fresh = (datetime.now(timezone.utc) - timedelta(hours=1)).strftime("%Y-%m-%dT%H:%M:%SZ")
     proc = gate(tmp_path, "pricer", "--max-age-hours", "2",
-                state_kwargs={"verdict": "pass", "release_blockers": [],
+                state_kwargs={**PASSABLE,
                               "last_run": {**BASE_STATE["last_run"],
                                            "timestamp_utc": fresh}})
     assert proc.returncode == 0
@@ -203,8 +209,7 @@ def test_default_resolution_prefers_team_qa(tmp_path):
     repo = tmp_path / "myapp"
     (repo / ".qa" / "reports").mkdir(parents=True)
     (repo / ".qa" / "state.json").write_text(
-        json.dumps({**BASE_STATE, "project": "myapp", "verdict": "pass",
-                    "release_blockers": []}), encoding="utf-8")
+        json.dumps({**BASE_STATE, "project": "myapp", **PASSABLE}), encoding="utf-8")
     home = tmp_path / "empty-home"
     home.mkdir()
     proc = gate(tmp_path, home=home, cwd=repo)
@@ -255,3 +260,28 @@ def test_stale_facts_from_an_earlier_run_do_not_count_as_measured(tmp_path):
     proc = gate(tmp_path, "pricer", "--require-harness", "--format", "json", home=home)
     assert proc.returncode == 6
     assert json.loads(proc.stdout)["harness"]["facts_measured"] is False
+
+
+def test_the_gate_refuses_a_state_that_contradicts_itself(tmp_path):
+    """A recorded verdict standing over findings that forbid it is not a verdict.
+    Serving it green is how a false pass reaches a merge — which is exactly what
+    a `pass` over a Critical typed `"closed"` used to do."""
+    critical = dict(BASE_STATE["findings"][0], severity="Critical", status="closed")
+    proc = gate(tmp_path, "pricer", state_kwargs={
+        "verdict": "pass", "release_blockers": [], "findings": [critical]})
+    assert proc.returncode == 1
+    assert "contradicts itself" in proc.stdout
+
+    blocker = dict(BASE_STATE["findings"][0], severity="Blocker", status="open")
+    proc = gate(tmp_path, "pricer", state_kwargs={
+        "verdict": "pass with risks", "release_blockers": [], "findings": [blocker]})
+    assert proc.returncode == 1 and "no verdict but `fail`" in proc.stdout
+
+
+def test_an_open_critical_still_allows_pass_with_risks(tmp_path):
+    """§10 caps it there rather than forbidding it — the gate must not invent a
+    stricter rule than the contract states."""
+    critical = dict(BASE_STATE["findings"][0], severity="Critical", status="open")
+    proc = gate(tmp_path, "pricer", state_kwargs={
+        "verdict": "pass with risks", "release_blockers": [], "findings": [critical]})
+    assert proc.returncode == 0
