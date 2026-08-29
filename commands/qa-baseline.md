@@ -13,7 +13,22 @@ Required flow:
    baseline); `solo` or unspecified → `$VERDICT_HOME/<project-key>/` (default
    `~/.claude/verdict`), with `<project-key>` derived mechanically per §0 — main-worktree
    basename, never the current directory name.
-2. Create `profile.md` in the QA root: what this project does, what it touches (money, live
+2. Create `profile.md` in the QA root, **starting with the front-matter block** — the
+   machine-readable half that `verdict-facts` reads, so no future run has to retype a
+   command into a flag:
+
+   ```
+   ---
+   gates:
+     suite: <the project's real test command, from its own Makefile/CI>
+   test_ids_cmd: <command printing one test id per line>
+   coverage_cmd: <changed-files coverage command, only if such a tool is already present>
+   ---
+   ```
+
+   Omit a key rather than guessing at it: a wrong command measures the wrong thing
+   silently, while a missing one is reported as unmeasurable. Then the prose: what this
+   project does, what it touches (money, live
    accounts, user data, external services), the isolation check to run before any command,
    commands that are forbidden, the real test/lint/coverage commands from the project's own
    Makefile/CI — including the changed-files coverage command and the mutation-testing

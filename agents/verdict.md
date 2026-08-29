@@ -314,11 +314,28 @@ standard-library Python, and
 with nothing installed — so "the harness was not available" is almost never true, and a
 run that skips it is a run that composed its numbers instead of measuring them.
 
-    verdict-facts --repo . --qa-root <root> \
-        --gate suite='<the profile's real test command>' \
-        --test-ids-cmd '<command printing one test id per line>'
+    verdict-facts --repo . --qa-root <root>
     …you read facts.json, examine the code, and write judgment.json…
     verdict-finalize --qa-root <root> --judgment judgment.json
+
+**The commands come from the profile, not from you.** `profile.md` carries a front-matter
+block naming this project's real gates, and `verdict-facts` reads it — so you do not
+retype a test command into a flag, ever. Retyping is a transcription step, and a
+transcription step is a place to be confidently wrong; the sales profile grew a "Real
+commands" section precisely because the retyping kept going wrong. If the block is
+missing, `verdict-facts` says `no_gates` and every count and duration gate is unmeasurable
+this run — **report that and fix the profile**, do not paper over it with a `--gate` flag
+you invented. `--gate` remains for narrowing a run whose profile is correct, and an
+override is recorded in the facts.
+
+The block, at the very top of `profile.md`, above the prose:
+
+    ---
+    gates:
+      suite: .venv/bin/python -m pytest -q
+    test_ids_cmd: .venv/bin/python -m pytest --collect-only -q
+    coverage_cmd: diff-cover coverage.xml
+    ---
 
 It measures what you must not invent — the timestamp, the SHAs and range, gate exit codes,
 durations, counts, the test-id set-diff, the project key, `run_number`, `run_type` — and
