@@ -44,6 +44,7 @@ from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
 try:
+    from .census import code_census
     from .profile import ProfileError, gates_from
     from .profile import load as load_profile
     from .project_key import derive_key
@@ -53,6 +54,7 @@ try:
     from .validate import validate, validate_judgment
 except ImportError:  # bare-script execution
     sys.path.insert(0, str(Path(__file__).resolve().parent))
+    from census import code_census
     from profile import ProfileError, gates_from
     from profile import load as load_profile
     from project_key import derive_key
@@ -259,6 +261,14 @@ def collect(repo: Path, qa_root: Path, gates: list[tuple[str, str]],
                                    "and the id set-diff cannot fire for this gate"}),
         }
 
+    # Characteristic signatures of model-written code that are mechanically
+    # countable — hallucinated imports, placeholders, swallowed exceptions,
+    # AI-attribution of the range. Leads for §4.5 judgment, never findings.
+    try:
+        facts_census = code_census(repo, sha_range)
+    except Exception as exc:  # a census must never cost a run
+        facts_census = {"scope": f"census failed: {exc}"}
+
     facts = {
         "measured_at": now.strftime("%Y-%m-%dT%H:%M:%SZ"),
         "project": key,
@@ -274,6 +284,7 @@ def collect(repo: Path, qa_root: Path, gates: list[tuple[str, str]],
             "diff_stat": diff_stat,
         },
         "gates": gate_results,
+        "code_census": facts_census,
     }
     if abandoned:
         # A marker at this same commit, minutes old, is this run's own earlier
@@ -668,7 +679,7 @@ def facts_main(argv=None) -> int:
     # into flags on every run is a transcription step, and a transcription step
     # is a place for the model to be confidently wrong. Explicit --gate still
     # wins — a caller narrowing a run should not have to edit the profile.
-    profile_notes, profile_source = [], None
+    profile_notes, profile_source, declared_authorship = [], None, None
     if not args.no_profile:
         try:
             config, profile_notes = load_profile(qa_root)
@@ -681,6 +692,8 @@ def facts_main(argv=None) -> int:
         gates.extend(adopted)
         if adopted:
             profile_source = [n for n, _ in adopted]
+        if config.get("authorship"):
+            declared_authorship = config["authorship"]
         if args.test_ids_cmd is None and config.get("test_ids_cmd"):
             args.test_ids_cmd = config["test_ids_cmd"]
             profile_notes.append("test_ids_cmd taken from the profile")
@@ -721,6 +734,9 @@ def facts_main(argv=None) -> int:
         "git_sha": _git(["rev-parse", "HEAD"], repo)}, indent=2) + "\n",
         encoding="utf-8")
     facts = collect(repo, qa_root, gates, args.test_ids_cmd, abandoned=abandoned)
+    if declared_authorship:
+        facts.setdefault("code_census", {}).setdefault("provenance", {})[
+            "declared"] = declared_authorship
     if profile_source:
         facts["gates_from_profile"] = profile_source
     if profile_notes:

@@ -82,6 +82,7 @@ Artifact: .qa/reports/2026-08-24-pricer-review.md
 | Root cause | "investigate the failure" | a four-link chain with a citation per link, a mandatory class check (is this an instance or a pattern?), and causation proven by flipping the cause in a scratch copy — with its own scored fixture built around a decoy |
 | Requirements review | never — code only | `/qa-spec` judges the spec before code exists (contradictions, unmeasurables, boundary ambiguities, history conflicts) — with its own scored eval fixture |
 | "No bugs found!" | frequently | never — coverage, gaps, and residual risk instead |
+| AI-authored code | same checklist as human code | provenance measured (trailer census over the range, profile `authorship`); a pattern catalog with a procedure and evidence bar per entry ([docs/ai-authored-code.md](docs/ai-authored-code.md)); deterministic censuses for hallucinated imports, placeholders and swallowed errors feed judgment — and a scored fixture proves the behaviours |
 | Its own accuracy | unmeasured, and unmeasurable after the fact | every finding states a confidence when filed; the outcome is computed from what the finding did, kept in a permanent ledger, and reported as a track record the tester cannot edit |
 | Tested itself | — | scored eval suite: baseline + delta-memory + adversarial-honesty fixtures, deterministic scorer, published answer keys ([eval/](eval/)) |
 | State consumable by other tools | — | `verdict-mcp`: read-only MCP server over the state — works from Cursor, Codex, CI, any MCP client |
@@ -90,7 +91,7 @@ Artifact: .qa/reports/2026-08-24-pricer-review.md
 
 A QA agent that was never tested is exactly the kind of claim it should reject.
 [`eval/`](eval/) is a scored eval suite with a **deterministic scorer** —
-[`score.py`](eval/score.py) reads the state file, not the prose — and six fixtures:
+[`score.py`](eval/score.py) reads the state file, not the prose — and seven fixtures:
 
 - **Baseline** ([fixtures/pricer](eval/fixtures/pricer)): 8 seeded issues covering all
   five failure classifications, including a boundary defect hidden behind a "temporarily"

@@ -3,6 +3,42 @@
 Plugin and `verdict-mcp` share one version line; `.claude-plugin/plugin.json` and
 `pyproject.toml` are bumped together.
 
+## 0.28.0 — 2026-08-29 · "the species you are actually facing"
+
+Most code Verdict reviews from here on was written by a model, and models fail with a
+signature: the surface is *more* polished than human code while the defects sit
+underneath, where polish stops a reader from looking. Built the full way — measured,
+catalogued, and evaluated — never as prompt lore.
+
+- **`docs/ai-authored-code.md`** — ten patterns, each a procedure with a trigger, a check
+  and an evidence bar, and where possible the real incident that earned it from this
+  project's own audited history: declared-but-never-wired (the `STATUSES` enum),
+  convergent duplication that drifts (the REGRESSED-first sort), fix-the-instance-miss-
+  the-class (AJT-F-14), self-satisfying tests (AJT-F-13, the liar fixture), hallucinated
+  surface, silent swallows, placeholder erosion, Chesterton demolition, context-window
+  seams, confident-comment-different-code. Plus a reading order under budget: deletions
+  first, because absence is the one defect nothing else ever looks at.
+- **`code_census` in facts.json** — the mechanically countable signatures, measured by
+  `verdict-facts` rather than left for the model to notice: import roots matching no
+  declared dependency, no stdlib module and no local module (the hallucinated-dependency
+  check, which is also the slopsquatting check); TODO/"for now"/stub markers and swallowed
+  exceptions (`except: pass` as adjacent lines, empty `catch {}` in both block and arrow
+  form); AI-attribution of the range from commit trailers, with the stated caveat that
+  absence of trailers proves nothing. Diff-scoped on delta runs, a capped tree scan on
+  baselines, and every census names its own scope. A census is a **lead, never a finding**.
+- **§4.5 in the agent prompt** wires it in: provenance is a §8.2 risk-prior input like
+  change volume, never a conviction; the five §3 classes stand — these are finding
+  sources, not a sixth classification; and the §9 confidence discipline applies unchanged,
+  so the calibration table will say whether the catalog sharpens the tester or makes it
+  cry wolf.
+- **`eval/fixtures/slop/`** — the scored fixture, with real git history: a polished,
+  green, plausibly-generated module whose defects are exactly the catalog's species. The
+  "simplify" commit deletes the rule-4 guard; the "full coverage" commit deletes the test
+  that guarded it; the suite passes and every defect must be found by reading. Two of
+  three commits carry AI trailers so the provenance census fires. Eight-row answer key.
+- The profile front matter gains `authorship:`, recorded into the census as a declaration
+  alongside the measured trailer count.
+
 ## 0.27.0 — 2026-08-29 · "checked where the author stands"
 
 `verdict-finalize` validated only the merged state. That is the right place to stop a bad

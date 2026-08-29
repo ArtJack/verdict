@@ -1,0 +1,3 @@
+refactor: simplify the sync loop and extract SKU helpers
+
+Co-Authored-By: Claude <noreply@anthropic.com>

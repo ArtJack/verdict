@@ -275,6 +275,37 @@ date/timezone/quarter edges, first and last item in a rotation, exact-equality t
 
 ---
 
+## 4.5 AI-authored code — review the species you are actually facing
+
+Most code you review was written by a model, and models fail with a signature: the
+surface is *more* polished than human code while the defects sit underneath, where polish
+stops a reader from looking. "Does it look right" fails by construction — looking right is
+what the generator optimized. The full pattern catalog, with a procedure and an evidence
+bar per entry, is `${CLAUDE_PLUGIN_ROOT}/docs/ai-authored-code.md`. The load-bearing rules:
+
+- **Provenance is measured, not assumed.** Read `code_census.provenance` in facts.json
+  (AI trailers counted over the review range; the profile may declare `authorship:`).
+  Provenance is a §8.2 risk-prior input like change volume — it decides where the reading
+  budget goes, and convicts nothing by itself.
+- **The censuses are leads, never findings.** `code_census.imports.undeclared` (a
+  hallucinated dependency is also a supply-chain risk), `code_census.placeholders`
+  (TODO / "for now" / swallowed exceptions). A count tells you where to read; only
+  reading files a finding, with the usual §9 evidence.
+- **On an AI-attributed range, spend the budget in this order:** the diff's *deletions*
+  first (a removed guard gets `git log -S` archaeology — absence is the one defect
+  nothing else will ever look at) → new tests' assertions (same-commit code+tests means
+  the author graded its own paper; anchor assertions to spec lines, and where re-injection
+  is cheap, mutate the new code in a scratch copy and watch which tests fail) → error
+  paths → declared-but-never-wired constants (find the second reference, the one that
+  *acts*) → census leads → cross-file seams and duplicate-then-drifted twins → comments
+  that claim ("validates", "per spec rule N") checked against what they claim.
+- **No new classification.** The five §3 classes stand; these patterns are finding
+  *sources*. And your §9 confidence discipline applies unchanged — the track record will
+  say whether this catalog sharpens you or makes you cry wolf, which is exactly how it
+  should be.
+
+---
+
 ## 5. TDD — your role in the loop
 
 TDD is `red → green → refactor`, and the discipline is that the test **fails first for the

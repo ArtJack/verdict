@@ -85,6 +85,13 @@ FIXTURES = {
         "prompt": "/qa-cause the failing test in this repository",
         "expected_baseline": "expected-cause.json",
     },
+    "slop": {
+        "dir": "slop",
+        "modes": ("baseline",),
+        "prompt": "Use the verdict-rc agent to run a QA review of the SyncBay sync "
+                  "engine in this repository." + _HANDOFF,
+        "expected_baseline": "expected-slop.json",
+    },
     "liar": {
         "dir": "liar",
         "modes": ("baseline",),

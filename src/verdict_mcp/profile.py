@@ -43,7 +43,7 @@ _SCALAR = re.compile(r"^([A-Za-z_][A-Za-z0-9_-]*):[ \t]*(.*)$")
 _NESTED = re.compile(r"^[ \t]{2,}([A-Za-z_][A-Za-z0-9_-]*):[ \t]*(.*)$")
 # What `verdict-facts` actually reads. Anything else is carried through and
 # reported as unread rather than dropped in silence.
-KNOWN = ("gates", "test_ids_cmd", "coverage_cmd")
+KNOWN = ("gates", "test_ids_cmd", "coverage_cmd", "authorship")
 
 
 class ProfileError(ValueError):
