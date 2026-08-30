@@ -3,6 +3,51 @@
 Plugin and `verdict-mcp` share one version line; `.claude-plugin/plugin.json` and
 `pyproject.toml` are bumped together.
 
+## 0.42.0 — 2026-08-30 · "the run history signs itself"
+
+**`--require-harness` was defeated by imitation, not forgery** (`VERDICT-F-12`, filed by
+Verdict auditing itself). Exit 6 rests on two durable signals, and both were satisfiable
+by copying: `state_computed` checks that a key holds a dict, `report_rendered` checks for
+a fixed footer string. Both sit in the committed `.qa/` artifacts a fabricating model
+reads before it writes. Adding `"calibration": {}` and pasting the footer flipped a
+hand-written state from exit 6 to exit 0.
+
+**Each finalized run now signs the run history.** Every `runs.jsonl` row carries
+`chain` = `sha256(previous chain + this row, canonical JSON)`, and `state.json` records
+the same value in `last_run.chain`. The difference from a constant is that the value
+depends on the row beneath it, so a link copied forward from the previous run does not
+verify.
+
+**The state is bound to the link, not just the history.** The first version of this
+signed the history row only — and a laundered `state.json` left `runs.jsonl` untouched,
+so the chain stayed intact and the attack still passed. Caught by running the attack
+rather than by reasoning about it. The row is *derived* from the state, so re-deriving
+it and checking that it still reproduces the recorded link catches an edit made after
+signing. The four cases, exercised end-to-end against a signed copy of this repo's own
+QA root:
+
+| | before | after |
+|---|---|---|
+| honest signed run | 0 | **0** |
+| launder the state in place, imitate both old signals | 0 | **6** |
+| fabricate a run, copy the last link forward | 0 | **6** |
+| project from before the chain existed | 0 | **0** — plus a note |
+
+**Two deliberate limits, both stated rather than hidden.** A history with no links reads
+`unchained`, not broken, so no existing installation starts failing its own gate — but
+the gate now *says* the history is unsigned, because a project that cannot yet be
+protected otherwise looks exactly like one that is. One `verdict-finalize` run signs it.
+And once any row is signed, a later row that drops its link is a break rather than a
+downgrade: without that ratchet a fabricator would simply omit what it cannot compute.
+
+None of this makes fabrication impossible. A model that reimplements the chain correctly
+can still hand-write a state — at which point it has done most of the work the harness
+would have done. What changes is that the cheap version fails loudly.
+
+Also here: the `repo`/`qa_root` fixtures moved to `tests/conftest.py`. Importing them by
+name made every test signature a redefinition of an imported symbol — thirty lint errors
+and a pattern that would have spread with each new test file.
+
 ## 0.41.0 — 2026-08-30 · "the gate can see it too"
 
 0.40.0 taught the session banner that a verdict ages in commits. The banner only

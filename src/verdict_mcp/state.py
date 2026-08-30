@@ -11,6 +11,7 @@ Project resolution, mirroring the agent's §0:
     or to the path itself if it directly contains state.json.
 """
 
+import hashlib
 import json
 import os
 import re
@@ -364,7 +365,51 @@ RENDERED_BY_FINALIZE = "rendered from `state.json` by `verdict-finalize`"
 # step ran, not that `finalize` consumed it, whereas `calibration` is written
 # only by `merge` and the report footer only by the renderer. So the durable
 # pair is what a gate requires; the other two corroborate and are reported.
-DURABLE_SIGNALS = ("state_computed", "report_rendered")
+def chain_link(prev: str, row: dict) -> str:
+    """This run's link in the run-history chain: sha256(prev + canonical row).
+
+    The point is that the value depends on the row's *content*. `report_rendered`
+    checks for a fixed footer string and `state_computed` checks that a key holds
+    a dict — both are satisfiable by copying what is already visible in the
+    committed `.qa/` artifacts, which is how `--require-harness` was shown to be
+    defeated by imitation rather than forgery. A link copied forward from the
+    previous run does not verify against the new row, so imitation stops working.
+
+    Honest about what this is not: nothing here makes fabrication impossible. A
+    model that reimplements the chain correctly can still write a state by hand
+    — at which point it has done most of the work the harness would have done.
+    What changes is that the cheap attack, copy the strings, now fails loudly.
+    """
+    body = {k: v for k, v in row.items() if k != "chain"}
+    payload = (prev or "") + json.dumps(body, sort_keys=True, separators=(",", ":"))
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+
+def verify_chain(rows: list) -> dict:
+    """Recompute the run-history chain → {"status", "first_bad"}.
+
+    status is one of:
+      intact    — every chained row verifies against its predecessor
+      unchained — no row carries a link yet (a project from before this existed)
+      broken    — a link does not verify, or a row after the first chained one
+                  dropped its link. Dropping is a break on purpose: without that
+                  ratchet, a fabricator could simply omit what it cannot compute.
+    """
+    start = next((i for i, r in enumerate(rows)
+                  if isinstance(r, dict) and r.get("chain")), None)
+    if start is None:
+        return {"status": "unchained", "first_bad": None}
+    prev = ""
+    for row in rows[start:]:
+        if not isinstance(row, dict) or not row.get("chain"):
+            return {"status": "broken", "first_bad": (row or {}).get("run_number")}
+        if row["chain"] != chain_link(prev, row):
+            return {"status": "broken", "first_bad": row.get("run_number")}
+        prev = row["chain"]
+    return {"status": "intact", "first_bad": None}
+
+
+DURABLE_SIGNALS = ("state_computed", "report_rendered", "chain_intact")
 
 
 def missing_durable(signals: dict) -> list:
@@ -404,7 +449,38 @@ def harness_signals(state: dict, qa_root=None) -> dict:
         "judgment_written": (root / "judgment.json").is_file(),
         "state_computed": isinstance(state.get("calibration"), dict),
         "report_rendered": RENDERED_BY_FINALIZE in report_raw,
+        # Survives a checkout because runs.jsonl is committed, and unlike the two
+        # above it cannot be satisfied by copying: the link is a function of the
+        # row it signs. A state whose own link disagrees with the history is not
+        # trusted even when the history verifies on its own.
+        "chain_intact": _chain_signal(state, root),
     }
+
+
+def _chain_signal(state: dict, root) -> bool:
+    rows, _ = load_runs(root)
+    result = verify_chain(rows)
+    if result["status"] == "broken":
+        return False
+    recorded = (state.get("last_run") or {}).get("chain")
+    if result["status"] == "unchained":
+        # A project from before the chain existed. Claiming a link the history
+        # does not carry is worse than carrying none, so it is refused.
+        return not recorded
+    last = rows[-1] if rows else {}
+    if not recorded or recorded != last.get("chain"):
+        return False
+    # Once a project is chained, the run this state describes must be in it.
+    if state.get("run_number") != last.get("run_number"):
+        return False
+    # And the state must still be the state that was signed. The link signs the
+    # history row, and the row is *derived* from the state — so re-deriving it
+    # and checking it reproduces the same link binds the two together. Without
+    # this, laundering the verdict and emptying the findings in state.json alone
+    # left an intact chain behind it, which is the hole the chain was added for.
+    earlier = [r for r in rows[:-1] if r.get("chain")]
+    prev = str(earlier[-1]["chain"]) if earlier else ""
+    return chain_link(prev, history_row(state)) == recorded
 
 
 def history_row(state: dict) -> dict:

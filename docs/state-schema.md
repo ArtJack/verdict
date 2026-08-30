@@ -148,6 +148,24 @@ predates the file. The INDEX stays — for humans and git diffs — but it is a 
 this file is the record. Readers skip a torn trailing line (a crash mid-append) and keep
 the last line per run_number.
 
+Each row also carries **`chain`** — `sha256(previous chain + this row, canonical JSON)` —
+and `state.json` records the same value in `last_run.chain`. This is what makes
+`--require-harness` resist imitation rather than only forgery. The two older durable
+signals are a key holding a dict and a fixed footer string, both of which a model can
+satisfy by copying what is already in the committed `.qa/` artifacts; a link cannot be
+copied, because it is a function of the row beneath it. The row is derived from the
+state, so re-deriving it also catches a `state.json` edited after signing — laundering a
+verdict in place leaves the history intact but no longer reproduces the link.
+
+Two deliberate limits. A history with no links at all reads as *unchained*, not broken,
+so a project from before this existed keeps passing its own gate — the gate says so in
+its output rather than staying quiet, and one `verdict-finalize` run signs the history
+from then on. And once any row is signed, a later row that drops its link is a break,
+not a downgrade: without that ratchet a fabricator would simply omit what it cannot
+compute. None of this makes fabrication impossible — a model that reimplements the
+chain correctly can still hand-write a state, at which point it has done most of the
+work the harness would have done. What changes is that the cheap version fails loudly.
+
 ## The outcome ledger — `<qa-root>/outcomes.json`
 
 `state.json` holds open findings and the current run's resolutions; a finding resolved two
