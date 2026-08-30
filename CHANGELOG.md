@@ -3,6 +3,38 @@
 Plugin and `verdict-mcp` share one version line; `.claude-plugin/plugin.json` and
 `pyproject.toml` are bumped together.
 
+## 0.43.0 — 2026-08-30 · "the prompt is a contract too"
+
+`agents/verdict.md` is the product — the judgment lives in it — and it was the largest
+surface here with no automated coverage. Verdict said so about itself in two consecutive
+runs, and both times the honest answer was that measuring what a model *does* with a
+prompt requires running one.
+
+**So this covers the other half, in plain CI with no model.** `tests/test_agent_contract.py`
+holds the prompt to its contract with the code around it: every `${CLAUDE_PLUGIN_ROOT}`
+path it tells the agent to read resolves; every `/verdict:` command and `verdict-*` script
+it tells the agent to run is shipped and declared; every screaming-case enum value it
+teaches is one `validate.py` accepts, and every delta and failure classification the
+harness can write is one the prompt explains; every `§` cross-reference lands; and no
+promised gate exit code is one the gate cannot emit.
+
+That is not behaviour. It is the guarantee that the prompt still describes the system
+that exists — which is precisely what a rename breaks, and which otherwise fails at
+runtime in someone else's repository rather than here. `eval/README.md` now says which
+half is which, because a green suite must not be mistaken for behavioural coverage.
+
+**The first version of the section checker reported a defect that was not one.** It read
+`§8.2` as a missing subsection, when the prompt writes `§N.M` two legitimate ways —
+`§3.5` and `§4.5` are subsection headings, `§8.2` is principle 2 *within* section 8. The
+prompt was correct and the checker was too strict; the checker learned both notations
+rather than the prompt being edited to suit it. A prompt edit is a behaviour change, and
+this release deliberately makes none.
+
+Every contract is mutation-checked: a stale plugin-root path, a route to an unshipped
+command, an undeclared script, a rejected enum value, a dropped delta, and an impossible
+exit code each turn the suite red. Five parametrised enum cases that could only ever skip
+were removed — a permanently-skipped test looks like coverage and is not.
+
 ## 0.42.0 — 2026-08-30 · "the run history signs itself"
 
 **`--require-harness` was defeated by imitation, not forgery** (`VERDICT-F-12`, filed by
