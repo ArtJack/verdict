@@ -1,0 +1,86 @@
+{
+  "findings": {
+    "4996285d": {
+      "confidence": "proven",
+      "first_seen": "2026-08-30",
+      "hash": "4996285d",
+      "id": "VERDICT-F-5",
+      "outcome": "unknown",
+      "outcome_reason": "still open; nothing has settled it",
+      "severity": "Major"
+    },
+    "8da9b0a8": {
+      "confidence": "proven",
+      "first_seen": "2026-08-30",
+      "hash": "8da9b0a8",
+      "id": "VERDICT-F-8",
+      "outcome": "unknown",
+      "outcome_reason": "still open; nothing has settled it",
+      "severity": "Minor"
+    },
+    "a1f3c9d2": {
+      "decided_on": "2026-08-30",
+      "first_seen": "2026-08-28T20:33:24Z",
+      "hash": "a1f3c9d2",
+      "id": "VERDICT-F-1",
+      "outcome": "confirmed",
+      "outcome_reason": "fix-verified: the guarding test failed on re-injection",
+      "severity": "Major"
+    },
+    "a717edb9": {
+      "confidence": "proven",
+      "first_seen": "2026-08-30",
+      "hash": "a717edb9",
+      "id": "VERDICT-F-7",
+      "outcome": "unknown",
+      "outcome_reason": "still open; nothing has settled it",
+      "severity": "Minor"
+    },
+    "b7e04a15": {
+      "decided_on": "2026-08-30",
+      "first_seen": "2026-08-28T20:33:24Z",
+      "hash": "b7e04a15",
+      "id": "VERDICT-F-2",
+      "outcome": "confirmed",
+      "outcome_reason": "fix-verified: the guarding test failed on re-injection",
+      "severity": "Major"
+    },
+    "b9e83573": {
+      "confidence": "proven",
+      "first_seen": "2026-08-30",
+      "hash": "b9e83573",
+      "id": "VERDICT-F-9",
+      "outcome": "unknown",
+      "outcome_reason": "still open; nothing has settled it",
+      "severity": "Major"
+    },
+    "c2d81b6e": {
+      "decided_on": "2026-08-30",
+      "first_seen": "2026-08-28T20:33:24Z",
+      "hash": "c2d81b6e",
+      "id": "VERDICT-F-3",
+      "outcome": "confirmed",
+      "outcome_reason": "fix-verified: the guarding test failed on re-injection",
+      "severity": "Minor"
+    },
+    "d9a52f70": {
+      "first_seen": "2026-08-28T20:33:24Z",
+      "hash": "d9a52f70",
+      "id": "VERDICT-F-4",
+      "outcome": "unknown",
+      "outcome_reason": "resolved but not fix-verified \u2014 absence is not proof",
+      "severity": "Minor"
+    },
+    "f326277a": {
+      "confidence": "proven",
+      "first_seen": "2026-08-30",
+      "hash": "f326277a",
+      "id": "VERDICT-F-6",
+      "outcome": "unknown",
+      "outcome_reason": "still open; nothing has settled it",
+      "severity": "Major"
+    }
+  },
+  "project": "verdict",
+  "schema_version": 1
+}

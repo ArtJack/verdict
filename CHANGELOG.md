@@ -3,6 +3,44 @@
 Plugin and `verdict-mcp` share one version line; `.claude-plugin/plugin.json` and
 `pyproject.toml` are bumped together.
 
+## 0.35.0 — 2026-08-30 · "the tool stops shipping a stale verdict of itself"
+
+The committed `.qa/` was a v0.12-era snapshot, and it was not merely untidy — the self-gate
+was **publishing** it, posting `VERDICT-F-1 | Major/P1 | 0d | Scope guards use abspath not
+realpath` onto every pull request. That finding shipped fixed in v0.12.1. So did the other
+three: `VERDICT-F-2` said `.qa/` was untracked, which stopped being true when someone
+tracked it; F-4 was already resolved.
+
+- **Re-baselined against the current tree**, through the harness, at v0.34.0. All four old
+  findings are recorded `RESOLVED` on evidence rather than deleted — the delta memory is
+  the point. Nine findings tracked, verdict `pass with risks`.
+- **`verdict-validate --at-rest`** checks a state as a *file* rather than as a run that
+  just happened: it drops the "over a day old" rule and nothing else. The two are different
+  questions. Freshness belongs to a run; a committed state is stale by tomorrow morning by
+  construction, and a CI job asking whether the team's checked-in baseline is well-formed
+  should not be told no for the crime of being a week old. A timestamp in the *future*
+  stays a violation either way — that is broken, not old.
+- **CI validates the committed state at rest** before serving it as a verdict, so this
+  cannot silently rot again. The reason is written into the workflow.
+- **`.qa/.gitignore`** separates the shared record from per-run scratch: `state.json`, the
+  reports, `runs.jsonl`, `outcomes.json` and the profile are the team's baseline and belong
+  in git; `facts.json`, `judgment.json` and `state.json.prev` describe one machine's
+  execution and do not.
+
+**What the re-baseline found — four open, all `confidence: proven`, and three of them are
+defects in this project's own last two days of work:**
+
+- `VERDICT-F-5` (Major) — `fixture_freshness`, the tamper-evidence gate, false-fails: it
+  uses `git diff --no-index`, which ignores `.gitignore`, so the gate is not hermetic.
+- `VERDICT-F-6` (Major) — the GitHub Action exposes no `require-harness` input, so the
+  exit-6 check added in 0.22.0 is **unreachable from CI**. The guard exists and CI cannot
+  ask for it.
+- `VERDICT-F-9` (Major) — `verdict-finalize` crashes with a raw `AttributeError` when
+  `judgment.prose` is a string, and the intake validator added in 0.27.0 never checks that
+  field. The check built to explain judgment errors has a hole shaped exactly like one.
+- `VERDICT-F-8` (Minor) — three tests in `test_mutate.py` assert only inside a
+  `for mutant in …` loop, so they pass vacuously if the list is ever empty.
+
 ## 0.34.0 — 2026-08-30 · "the implementer gets the memory too"
 
 - **A `SessionStart` hook puts the tester's findings in front of the next session.** The

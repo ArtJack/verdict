@@ -1,0 +1,8 @@
+# Per-run intermediates: the harness rewrites these every run, and they describe
+# one machine's execution rather than the team's shared baseline. What belongs
+# in git is the record — state.json, the reports, the run history, the outcome
+# ledger, the profile — not the scratch a single run passed through.
+facts.json
+judgment.json
+state.json.prev
+run-in-progress.json

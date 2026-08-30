@@ -1,3 +1,10 @@
+---
+gates:
+  suite: uv run --group dev python -m pytest tests/
+  fixture_freshness: cd eval/fixtures && git diff --no-index pricer pricer_rev_b > /tmp/fresh.diff || true; cmp pricer-delta.diff /tmp/fresh.diff
+test_ids_cmd: uv run --group dev python -m pytest tests/ --collect-only -q -o addopts=
+---
+
 # QA profile — verdict
 
 Project-Key: verdict

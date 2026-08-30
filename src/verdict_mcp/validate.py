@@ -184,12 +184,21 @@ def validate_judgment(judgment, previous=None):
     return bad
 
 
-def validate(state, root: Path, previous=None, now=None):
+def validate(state, root: Path, previous=None, now=None, at_rest=False):
     """Return a list of violation strings. Empty means the state is admissible.
 
     `root` is the QA root the state lives in — the report path is resolved
     against it. `previous` is the prior state when one is available, which is
     what makes the run_number rule checkable.
+
+    `at_rest` checks a state as a *file* rather than as a run that just
+    happened: it drops the "this timestamp is over a day old" rule and nothing
+    else. The two are genuinely different questions. Freshness belongs to a
+    run — a state written now must say it was written now — but a state
+    committed to git is stale by tomorrow morning by construction, and a CI job
+    that wants to know whether the team's checked-in baseline is *well-formed*
+    should not be told "no" for the crime of being a week old. A timestamp in
+    the *future* stays a violation either way: that is broken, not old.
     """
     now = now or datetime.now(timezone.utc)
     bad = []
@@ -231,7 +240,7 @@ def validate(state, root: Path, previous=None, now=None):
             bad.append(f"last_run.timestamp_utc {ts!r} is not ISO-8601 UTC (YYYY-MM-DDThh:mm:ssZ)")
         elif parsed - now > FUTURE_TOLERANCE:
             bad.append(f"last_run.timestamp_utc {ts} is in the future — measure it with `date -u`")
-        elif now - parsed > PAST_TOLERANCE:
+        elif not at_rest and now - parsed > PAST_TOLERANCE:
             bad.append(
                 f"last_run.timestamp_utc {ts} is over a day old — this run did not happen "
                 "then; measure the time with `date -u` rather than recalling it")
@@ -403,6 +412,9 @@ def main(argv=None) -> int:
     ap.add_argument("state", type=Path, help="path to state.json")
     ap.add_argument("--previous", type=Path, default=None,
                     help="prior state.json, enabling the run_number-advanced check")
+    ap.add_argument("--at-rest", action="store_true",
+                    help="check the file's well-formedness, not a run's freshness — for a "
+                         "committed or archived state, which is stale by design")
     ap.add_argument("--quiet", action="store_true")
     args = ap.parse_args(argv)
 
@@ -416,7 +428,7 @@ def main(argv=None) -> int:
         if perr:
             print(f"verdict-validate: --previous {args.previous} {perr}", file=sys.stderr)
             return 2
-    bad = validate(state, args.state.parent, previous)
+    bad = validate(state, args.state.parent, previous, at_rest=args.at_rest)
     if bad:
         print(f"verdict-validate: {len(bad)} violation(s):\n  " + "\n  ".join(bad),
               file=sys.stderr)
