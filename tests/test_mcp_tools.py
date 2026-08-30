@@ -364,3 +364,27 @@ def test_open_findings_are_counted_whatever_the_case_of_the_status(solo_home):
     assert server.get_findings("pricer", "open")["count"] == sum(
         1 for f in state["findings"] if f["status"] == "OPEN")
     assert server.get_trends("pricer")["current"]["open_findings"] > 0
+
+
+def test_get_history_prefers_the_machine_record(solo_home):
+    """runs.jsonl is the database; the INDEX markdown parse is the legacy
+    fallback for history that predates it."""
+    (solo_home / "runs.jsonl").write_text(
+        json.dumps({"run_number": 4, "run_type": "delta", "verdict": "fail",
+                    "timestamp_utc": "2026-08-24T17:30:00Z",
+                    "tests": {"passed": 212, "collected": 213},
+                    "findings": {"open": 2}, "model": "opus"}) + "\n",
+        encoding="utf-8")
+    out = server.get_history("pricer")
+    assert out["source"] == "runs.jsonl" and out["count"] == 1
+    assert "earlier row(s) predating runs.jsonl" in out.get("note", ""), \
+        "the INDEX's older rows must not silently vanish from history"
+
+    trends = server.get_trends("pricer")["runs"]
+    assert trends[0]["tests_passed"] == 212 and trends[0]["model"] == "opus"
+    assert "tests_cell" not in trends[0], "no markdown heuristics on the machine record"
+
+
+def test_get_history_without_the_file_still_parses_the_index(solo_home):
+    out = server.get_history("pricer")
+    assert out["source"].startswith("INDEX.md") and out["count"] >= 1

@@ -73,6 +73,21 @@ how you exhaust tomorrow's window too.
   was, and executed half of itself). `mkdir` is atomic and makes a fine lock; expire it on
   age so a dead run cannot block tomorrow.
 
+**Or skip the hand-rolled loop entirely — `verdict-run` is that loop, shipped:**
+
+```bash
+verdict-run myproject --repo ~/work/myproject --model opus --prompt-file nightly-prompt.txt
+```
+
+It records the run_number the run must beat, exports `VERDICT_STRICT=1` and
+`VERDICT_MODEL` (so the model that signs the verdict is measured into
+`last_run.model` instead of living in your memory), parses a session-limit
+error's stated reset time and waits it out once, retries once when a session
+ends its turn without writing state, and exits with the gate's code —
+`--min-run-number` and `--require-harness` armed by default. Everything after
+a bare `--` goes to the `claude` CLI verbatim (MCP configs, permission flags).
+The sections below describe what it does, for runners you build yourself.
+
 Then gate and notify however you like:
 
 ```bash

@@ -87,7 +87,7 @@ here.
 | `run_type` | yes | `baseline` · `delta` · `re-baseline` — a strict enum, because consumers switch on it |
 | `run_label` | no | Free text describing *this* run when the type alone is too coarse ("merge gate re-gate", "claim verification"). Introduced when a production run smuggled the description into `run_type` and broke every consumer that read it |
 | `run_number` | yes | Monotonic counter |
-| `last_run` | yes | `timestamp_utc`, `git_sha`, `sha_range`, `report` at minimum |
+| `last_run` | yes | `timestamp_utc`, `git_sha`, `sha_range`, `report` at minimum. `model` appears when the launcher exported `VERDICT_MODEL` (verdict-run does): the model that signed the verdict, measured rather than remembered |
 | `isolation_check` | yes | Result of the profile's isolation check (§0) |
 | `gates` | yes | One entry per gate actually run: command, summary line, exit code, and `duration_s` (optional but required to make the week-over-week duration gate measurable) |
 | `tests` | yes | Collected/passed/skipped/failed counts (plus optional `duration_s`) — a silent drop in `collected` is a finding |
@@ -137,6 +137,16 @@ Explicit `--gate` still wins, and the override is recorded in the facts; a run t
 with no gates at all records `no_gates` and says every count and duration gate is
 unmeasurable, because "nothing to measure" and "nobody said what to measure" are different
 states of the world.
+
+## Run history — `<qa-root>/runs.jsonl`
+
+One machine-native JSON line per finalized run: run number and type, verdict, timestamp,
+SHAs, test counts, open findings by severity, delta counts, quarantine size, report path,
+and the signing `model` when it was measured. Appended by `verdict-finalize`; consumed by
+`get_history`/`get_trends`, which fall back to parsing INDEX.md only for history that
+predates the file. The INDEX stays — for humans and git diffs — but it is a render;
+this file is the record. Readers skip a torn trailing line (a crash mid-append) and keep
+the last line per run_number.
 
 ## The outcome ledger — `<qa-root>/outcomes.json`
 

@@ -3,6 +3,33 @@
 Plugin and `verdict-mcp` share one version line; `.claude-plugin/plugin.json` and
 `pyproject.toml` are bumped together.
 
+## 0.29.0 — 2026-08-30 · "the record and the runner"
+
+Two architecture items from the external review, both about closing loops the design
+already implied.
+
+- **`runs.jsonl` — history gets a machine-native store.** The run-over-run time series
+  lived only in INDEX.md, and consumers parsed the markdown table with heuristic column
+  matching. Production defeated that months ago: run-type cells carry prose like "delta
+  (merge gate re-gate: … @ 5b9518d1)", and every reader had to un-parse a rendering. One
+  JSON line per finalized run now — number, type, verdict, timestamp, SHAs, test counts,
+  open-by-severity, delta counts, report. `get_history`/`get_trends` read it first and
+  fall back to the INDEX parse only for history predating the file; the INDEX stays, as a
+  render for humans. Readers skip a torn trailing line and keep the last line per
+  run_number.
+- **`verdict-run` — the nightly script, shipped.** Every adopter so far re-invented the
+  same runner, and each copy re-learned the same three lessons: a headless session can
+  end its turn without writing state (exit 0, a lost night that looks like success); a
+  session-limit error names its reset time; a dead run must not re-serve yesterday's
+  verdict. `verdict-run` is those lessons — records the run_number the run must beat,
+  retries once on each failure mode, gates with `--min-run-number` and `--require-harness`
+  armed by default, and exits with the gate's code. Everything after a bare `--` passes to
+  the `claude` CLI verbatim.
+- **The model that signed the verdict is measured, not remembered.** `verdict-run` exports
+  `VERDICT_MODEL`; `verdict-facts` lands it in `last_run.model` and the history row.
+  Which model is verdict-trusted used to live in the operator's memory; now a consumer
+  reading the state can see which judge signed it.
+
 ## 0.28.0 — 2026-08-29 · "the species you are actually facing"
 
 Most code Verdict reviews from here on was written by a model, and models fail with a

@@ -50,6 +50,7 @@ try:
     from .project_key import derive_key
     from .state import (OUTCOMES_FILE, calibration, is_open, load_outcomes,
                         merge_outcomes, norm_status, order_findings)
+    from .state import RUNS_FILE, history_row
     from .state import home as state_home
     from .validate import validate, validate_judgment
 except ImportError:  # bare-script execution
@@ -60,6 +61,7 @@ except ImportError:  # bare-script execution
     from project_key import derive_key
     from state import (OUTCOMES_FILE, calibration, is_open, load_outcomes,
                        merge_outcomes, norm_status, order_findings)
+    from state import RUNS_FILE, history_row
     from state import home as state_home
     from validate import validate, validate_judgment
 
@@ -282,6 +284,13 @@ def collect(repo: Path, qa_root: Path, gates: list[tuple[str, str]],
             "timestamp_utc": now.strftime("%Y-%m-%dT%H:%M:%SZ"),
             "git_sha": sha, "git_branch": branch, "sha_range": sha_range,
             "diff_stat": diff_stat,
+            # A verdict is only as good as its judge, and which model signed it
+            # used to live only in the operator's memory. The runner that
+            # launched the session knows; it exports VERDICT_MODEL and the
+            # measurement lands here — absent when nothing exported it, never
+            # guessed.
+            **({"model": os.environ["VERDICT_MODEL"]}
+               if os.environ.get("VERDICT_MODEL") else {}),
         },
         "gates": gate_results,
         "code_census": facts_census,
@@ -616,6 +625,12 @@ def write_state(qa_root: Path, state: dict) -> list[str]:
     _atomic_write(qa_root / OUTCOMES_FILE,
                   json.dumps({"schema_version": 1, "project": state.get("project"),
                               "findings": ledger}, indent=2, sort_keys=True) + "\n")
+
+    # One machine-native line per run. Appended, not rewritten: the file is
+    # history, and the tolerant reader (state.load_runs) skips a torn trailing
+    # line rather than dying on it.
+    with (qa_root / RUNS_FILE).open("a", encoding="utf-8") as fh:
+        fh.write(json.dumps(history_row(state), sort_keys=True) + "\n")
 
     reports = qa_root / "reports"
     reports.mkdir(parents=True, exist_ok=True)
