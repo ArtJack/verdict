@@ -21,6 +21,9 @@ from pathlib import Path
 SEVERITY_RANK = {"Blocker": 0, "Critical": 1, "Major": 2, "Minor": 3, "Trivial": 4}
 DELTA_VALUES = {"NEW", "STILL_OPEN", "RESOLVED", "REGRESSED"}
 _DRIVE_PREFIX = re.compile(r"^[A-Za-z]:[\\/]")
+# How far back to look for a rewritten commit's content before calling it
+# diverged. Bounded so the session banner never pays for a deep history.
+_DRIFT_SEARCH = 500
 
 
 def home() -> Path:
@@ -541,18 +544,42 @@ def code_drift(repo, sha, timeout: float = 3.0) -> dict:
         return out
 
     anc = git("merge-base", "--is-ancestor", recorded, out["head"])
-    if anc is None:
-        return out
-    if anc.returncode != 0:
-        out["status"] = "diverged"
+    if anc is None or anc.returncode not in (0, 1):
+        return out  # 0 = ancestor, 1 = not; anything else is an error, not an answer
+
+    if anc.returncode == 0:
+        count = git("rev-list", "--count", f"{recorded}..{out['head']}")
+        if count is None or count.returncode != 0:
+            return out
+        try:
+            out["commits"] = int(count.stdout.strip())
+        except ValueError:
+            return out
+        out["status"] = "behind"
         return out
 
-    count = git("rev-list", "--count", f"{recorded}..{out['head']}")
-    if count is None or count.returncode != 0:
+    # Not an ancestor — but ancestry is not content. A squash merge replaces the
+    # branch with a new commit carrying the identical tree, so every squash-merged
+    # state would otherwise report "this verdict describes different code" about
+    # code that is byte-identical. Ask what the commit *contained*, not where it
+    # sat: walk back for a commit whose tree matches, and the distance to it is
+    # the honest answer. Only when no such commit exists is the code really
+    # different.
+    rec_tree = git("rev-parse", f"{recorded}^{{tree}}")
+    if rec_tree is None or rec_tree.returncode != 0:
         return out
-    try:
-        out["commits"] = int(count.stdout.strip())
-    except ValueError:
+    wanted = rec_tree.stdout.strip()
+
+    walk = git("rev-list", f"--max-count={_DRIFT_SEARCH}", "--format=%T", out["head"])
+    if walk is None or walk.returncode != 0:
         return out
-    out["status"] = "behind"
+    # `rev-list --format` emits "commit <sha>" then the format line, per commit.
+    trees = [ln for ln in walk.stdout.splitlines() if not ln.startswith("commit ")]
+    for distance, tree in enumerate(trees):
+        if tree.strip() == wanted:
+            out["status"] = "current" if distance == 0 else "behind"
+            out["commits"] = distance
+            return out
+
+    out["status"] = "diverged"
     return out

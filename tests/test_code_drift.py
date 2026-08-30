@@ -58,6 +58,57 @@ def test_counts_commits_behind(repo):
     assert code_drift(r, shas[1])["commits"] == 1
 
 
+def squash_merge(r, branch):
+    """What every PR in this repo does: same tree, new commit, broken ancestry."""
+    git(r, "checkout", "-q", "main")
+    subprocess.run(["git", "-C", str(r), "merge", "-q", "--squash", branch],
+                   capture_output=True, text=True)
+    git(r, "commit", "-qm", f"squashed {branch} (#1)")
+    return git(r, "rev-parse", "HEAD")
+
+
+def test_squash_merged_state_is_current_not_diverged(repo):
+    """The defect this file failed to catch the first time.
+
+    Every PR in this repository is squash-merged and `.qa/state.json` is
+    committed, so the sha a state records stops being an ancestor of main the
+    moment its own PR lands. Reporting that as "different code" would fire on
+    main immediately, about code that is byte-identical.
+    """
+    r, _ = repo
+    git(r, "checkout", "-q", "-b", "feat")
+    (r / "work.txt").write_text("w", encoding="utf-8")
+    git(r, "add", "-A")
+    git(r, "commit", "-qm", "work")
+    feat = git(r, "rev-parse", "HEAD")
+    squash_merge(r, "feat")
+
+    assert subprocess.run(["git", "-C", str(r), "merge-base", "--is-ancestor", feat, "HEAD"],
+                          capture_output=True).returncode == 1, "precondition: ancestry is broken"
+    assert not git(r, "diff", "--stat", feat, "HEAD"), "precondition: content is identical"
+
+    d = code_drift(r, feat)
+    assert d["status"] == "current", f"squash merge misread as {d['status']}"
+    assert d["commits"] == 0
+
+
+def test_squash_merged_then_moved_on_reports_the_real_distance(repo):
+    r, _ = repo
+    git(r, "checkout", "-q", "-b", "feat")
+    (r / "work.txt").write_text("w", encoding="utf-8")
+    git(r, "add", "-A")
+    git(r, "commit", "-qm", "work")
+    feat = git(r, "rev-parse", "HEAD")
+    squash_merge(r, "feat")
+    for i in range(2):
+        (r / f"after{i}.txt").write_text("x", encoding="utf-8")
+        git(r, "add", "-A")
+        git(r, "commit", "-qm", f"after{i}")
+
+    d = code_drift(r, feat)
+    assert d["status"] == "behind" and d["commits"] == 2, d
+
+
 def test_diverged_branch_is_not_reported_as_behind(repo):
     """The dangerous case: a verdict measured on code this branch never had."""
     r, shas = repo
@@ -65,7 +116,10 @@ def test_diverged_branch_is_not_reported_as_behind(repo):
     (r / "side.txt").write_text("x", encoding="utf-8")
     git(r, "add", "-A")
     git(r, "commit", "-qm", "side")
-    d = code_drift(r, shas[-1])          # main's tip, unreachable from side
+    (r / "different.txt").write_text("content main never had", encoding="utf-8")
+    git(r, "add", "-A")
+    git(r, "commit", "-qm", "divergent content")
+    d = code_drift(r, shas[-1])          # main's tip: unreachable AND different
     assert d["status"] == "diverged"
     assert d["commits"] is None, "a diverged verdict has no meaningful distance"
 

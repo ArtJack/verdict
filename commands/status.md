@@ -22,8 +22,13 @@ subagent.
      three open Major findings that had all been fixed and merged four hours earlier;
      the seven-day rule could not see it, because the state had not aged, the code had
      moved.
-   - the recorded commit is not in `HEAD`'s history → the verdict describes code this
-     branch never had. Say that plainly; it is not a distance.
+   - the recorded commit is not in `HEAD`'s history → **do not call that divergence
+     yet.** Ancestry is not content. A squash merge replaces a branch with a new
+     commit carrying the identical tree, so the commit a state was written on stops
+     being an ancestor the moment its PR lands — while the code stays byte-identical.
+     Compare trees before you speak: if some commit in `HEAD`'s history has the tree
+     the state recorded, the distance to it is the honest answer. Only when no commit
+     carries that content does the verdict describe code this branch never had.
    - the commit is not in this repository at all (shallow clone, different repo) → say
      the comparison could not be made. Never guess a distance.
    A last run older than 7 days still gets its "stale — run `/verdict:run`" line. Neither

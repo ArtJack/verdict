@@ -62,7 +62,7 @@ outputs:
     description: "pass | pass with risks | blocked | fail | none"
     value: ${{ steps.gate.outputs.verdict }}
   exit-code:
-    description: "The gate exit code (0/1/3/4/5)"
+    description: "The gate exit code (0/1/3/4/5/6)"
     value: ${{ steps.gate.outputs.exit-code }}
   blockers:
     description: "Release blockers as a JSON array"
