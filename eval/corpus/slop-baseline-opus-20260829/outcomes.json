@@ -1,0 +1,156 @@
+{
+  "findings": {
+    "0d9ed29f": {
+      "confidence": "proven",
+      "first_seen": "2026-08-29",
+      "hash": "0d9ed29f",
+      "id": "SLOP-F-011",
+      "outcome": "unknown",
+      "outcome_reason": "still open; nothing has settled it",
+      "proof_method": "counterfactual",
+      "severity": "Minor"
+    },
+    "1c4bbf4f": {
+      "confidence": "proven",
+      "first_seen": "2026-08-29",
+      "hash": "1c4bbf4f",
+      "id": "SLOP-F-012",
+      "outcome": "unknown",
+      "outcome_reason": "still open; nothing has settled it",
+      "proof_method": "differential",
+      "severity": "Major"
+    },
+    "1f1c203e": {
+      "confidence": "proven",
+      "first_seen": "2026-08-29",
+      "hash": "1f1c203e",
+      "id": "SLOP-F-003",
+      "outcome": "unknown",
+      "outcome_reason": "still open; nothing has settled it",
+      "proof_method": "archaeology",
+      "severity": "Critical"
+    },
+    "32e3bca9": {
+      "confidence": "proven",
+      "first_seen": "2026-08-29",
+      "hash": "32e3bca9",
+      "id": "SLOP-F-006",
+      "outcome": "unknown",
+      "outcome_reason": "still open; nothing has settled it",
+      "proof_method": "reading",
+      "severity": "Major"
+    },
+    "3367c57a": {
+      "confidence": "proven",
+      "first_seen": "2026-08-29",
+      "hash": "3367c57a",
+      "id": "SLOP-F-002",
+      "outcome": "unknown",
+      "outcome_reason": "still open; nothing has settled it",
+      "proof_method": "counterfactual",
+      "severity": "Critical"
+    },
+    "7abd7b42": {
+      "confidence": "proven",
+      "first_seen": "2026-08-29",
+      "hash": "7abd7b42",
+      "id": "SLOP-F-009",
+      "outcome": "unknown",
+      "outcome_reason": "still open; nothing has settled it",
+      "proof_method": "counterfactual",
+      "severity": "Major"
+    },
+    "816e9764": {
+      "confidence": "proven",
+      "first_seen": "2026-08-29",
+      "hash": "816e9764",
+      "id": "SLOP-F-004",
+      "outcome": "unknown",
+      "outcome_reason": "still open; nothing has settled it",
+      "proof_method": "differential",
+      "severity": "Major"
+    },
+    "875a6b64": {
+      "confidence": "proven",
+      "first_seen": "2026-08-29",
+      "hash": "875a6b64",
+      "id": "SLOP-F-007",
+      "outcome": "unknown",
+      "outcome_reason": "still open; nothing has settled it",
+      "proof_method": "counterfactual",
+      "severity": "Major"
+    },
+    "b4923a53": {
+      "confidence": "proven",
+      "first_seen": "2026-08-29",
+      "hash": "b4923a53",
+      "id": "SLOP-F-010",
+      "outcome": "unknown",
+      "outcome_reason": "still open; nothing has settled it",
+      "proof_method": "counterfactual",
+      "severity": "Major"
+    },
+    "b63a96f2": {
+      "confidence": "proven",
+      "first_seen": "2026-08-29",
+      "hash": "b63a96f2",
+      "id": "SLOP-F-015",
+      "outcome": "unknown",
+      "outcome_reason": "still open; nothing has settled it",
+      "proof_method": "counterfactual",
+      "severity": "Critical"
+    },
+    "cc54f011": {
+      "confidence": "proven",
+      "first_seen": "2026-08-29",
+      "hash": "cc54f011",
+      "id": "SLOP-F-008",
+      "outcome": "unknown",
+      "outcome_reason": "still open; nothing has settled it",
+      "proof_method": "counterfactual",
+      "severity": "Major"
+    },
+    "da3993c3": {
+      "confidence": "proven",
+      "first_seen": "2026-08-29",
+      "hash": "da3993c3",
+      "id": "SLOP-F-014",
+      "outcome": "unknown",
+      "outcome_reason": "still open; nothing has settled it",
+      "proof_method": "differential",
+      "severity": "Major"
+    },
+    "de379f24": {
+      "confidence": "proven",
+      "first_seen": "2026-08-29",
+      "hash": "de379f24",
+      "id": "SLOP-F-001",
+      "outcome": "unknown",
+      "outcome_reason": "still open; nothing has settled it",
+      "proof_method": "counterfactual",
+      "severity": "Blocker"
+    },
+    "e6dd848e": {
+      "confidence": "proven",
+      "first_seen": "2026-08-29",
+      "hash": "e6dd848e",
+      "id": "SLOP-F-005",
+      "outcome": "unknown",
+      "outcome_reason": "still open; nothing has settled it",
+      "proof_method": "counterfactual",
+      "severity": "Major"
+    },
+    "fa5d321a": {
+      "confidence": "proven",
+      "first_seen": "2026-08-29",
+      "hash": "fa5d321a",
+      "id": "SLOP-F-013",
+      "outcome": "unknown",
+      "outcome_reason": "still open; nothing has settled it",
+      "proof_method": "reading",
+      "severity": "Minor"
+    }
+  },
+  "project": "slop",
+  "schema_version": 1
+}

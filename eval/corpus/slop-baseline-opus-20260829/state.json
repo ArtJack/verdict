@@ -1,0 +1,717 @@
+{
+  "project": "slop",
+  "schema_version": 1,
+  "run_type": "baseline",
+  "run_number": 1,
+  "last_run": {
+    "timestamp_utc": "2026-08-29T23:51:41Z",
+    "git_sha": "912d314279be999e288a8fb1a72d8f4e6182d5c4",
+    "git_branch": "main",
+    "sha_range": null,
+    "diff_stat": null,
+    "report": "reports/2026-08-29-sync-engine-release-risk.md"
+  },
+  "isolation_check": {
+    "result": "pass",
+    "method": "grep -rnE \"requests|urllib|socket|http|os.system|subprocess|open\\(|sqlite|psycopg|boto3\" *.py -> no hits. Pure functions with an injected transport; no network, DB, credentials or filesystem writes. All probes ran against MagicMock/stub transports in a scratch copy; no live system touched."
+  },
+  "gates": {
+    "suite": {
+      "command": "python3 -m pytest -q",
+      "exit_code": 1,
+      "result": "fail",
+      "duration_s": 0.02,
+      "summary": "/opt/homebrew/opt/python@3.14/bin/python3.14: No module named pytest",
+      "counts_unparsed": "no recognised runner summary \u2014 the count-drop gate and the id set-diff cannot fire for this gate"
+    }
+  },
+  "findings": [
+    {
+      "id": "SLOP-F-001",
+      "title": "push_batch swallows every transport failure, never retries, and reports the batch as sent - silent inventory loss",
+      "severity": "Blocker",
+      "priority": "P0",
+      "failure_classification": "REAL_DEFECT",
+      "confidence": "proven",
+      "status": "open",
+      "evidence": [
+        "sync.py:24-30 - `try: transport.send(payload) except Exception: pass` then unconditional `return True`",
+        "sync.py:36-37 - `if push_batch(...): sent += len(batch)` so a wholly failed batch increments the counter",
+        "README.md rule 3: 'a failed push is retried once, then surfaced to the caller - a sync must never silently drop items'",
+        "probe: transport whose send() always raises RuntimeError('carrier 500') -> sync() returned {'sent': 2}; items actually delivered: 0; no exception propagated",
+        "probe: send() call count on a failing transport = 1 (spec requires 2: original + one retry)"
+      ],
+      "root_cause": {
+        "mechanism": "transport.send raises at sync.py:25 -> caught by the bare `except Exception` at sync.py:26 -> `pass` at sync.py:29 -> control reaches the unconditional `return True` at sync.py:30 -> sync() at sync.py:36 treats True as delivery confirmation and adds len(batch) to `sent`",
+        "origin": "commit f3df73a 'refactor: simplify the sync loop and extract SKU helpers' (Co-Authored-By: Claude) replaced the bare `transport.send(payload)` with the try/except/pass block. `git show f3df73a -- sync.py` shows the exact edit.",
+        "class": {
+          "pattern": "exception swallowed and success returned regardless",
+          "sites": [
+            "sync.py:26-30 (the only site; `grep -rn -A2 except *.py` returns one other `except` reference, rates.py:15, which is a backoff argument rather than a handler)"
+          ]
+        },
+        "trigger": "any carrier-side error - the defect is unconditional, not input-dependent",
+        "latent_condition": "push_batch's return value is a constant, so no test can distinguish success from failure; and no test ever supplies a failing transport (test_sync.py uses MagicMock, which never raises)",
+        "fix_location": "code",
+        "proof": {
+          "method": "counterfactual",
+          "evidence": "Scratch-copy probe with a raising transport: reported sent=2, delivered=0. Mutant M2 (`return True` -> `return False`) flipped two tests, confirming the return value - not delivery - is what the suite observes."
+        },
+        "confidence": "proven"
+      },
+      "hash": "de379f24",
+      "first_seen": "2026-08-29",
+      "age_days": 0,
+      "delta": "NEW",
+      "outcome": "unknown",
+      "outcome_reason": "still open; nothing has settled it"
+    },
+    {
+      "id": "SLOP-F-002",
+      "title": "Negative-quantity validation was deleted; negative qty is serialized into the payload and pushed (spec rule 4 unimplemented)",
+      "severity": "Critical",
+      "priority": "P0",
+      "failure_classification": "REAL_DEFECT",
+      "confidence": "proven",
+      "status": "open",
+      "evidence": [
+        "README.md rule 4: 'Negative quantities are invalid and rejected with ValueError'",
+        "sync.py:20-30 - push_batch contains no validation of any kind; `grep -rn ValueError *.py` returns nothing",
+        "probe: sync.push_batch([{'sku':'a','qty':-5}], MagicMock()) returned True and sent payload [{\"sku\": \"A\", \"qty\": -5}] - no ValueError",
+        "git show f3df73a -- sync.py removed exactly: `for item in batch: if item[\"qty\"] < 0: raise ValueError(f\"negative qty for {item['sku']} (spec rule 4)\")`"
+      ],
+      "root_cause": {
+        "mechanism": "the three-line guard that opened push_batch was deleted, so execution goes straight from the function header to json.dumps at sync.py:22, which serializes any int including negatives",
+        "origin": "commit f3df73a (Co-Authored-By: Claude). The deletion is visible in `git show f3df73a -- sync.py`; the replacement is a comment claiming validation still happens (sync.py:21).",
+        "class": {
+          "pattern": "spec-mandated input guard removed during 'simplification'",
+          "sites": [
+            "sync.py:20-21 (guard deleted). Searched for surviving validation with `grep -rn 'ValueError\\|raise\\|qty <\\|assert' *.py` - no validation exists anywhere in the codebase, so this is the whole class and it is empty of survivors."
+          ]
+        },
+        "trigger": "any item with qty < 0 reaching sync()",
+        "latent_condition": "the only test guarding the rule was deleted in the very next commit (see SLOP-F-003), so nothing has been red since",
+        "fix_location": "code",
+        "proof": {
+          "method": "counterfactual",
+          "evidence": "Restored the deleted test in a scratch copy: exit=1, 'AssertionError: DID NOT RAISE ValueError - spec rule 4 unguarded'. Same test passed before f3df73a."
+        },
+        "confidence": "proven"
+      },
+      "hash": "3367c57a",
+      "first_seen": "2026-08-29",
+      "age_days": 0,
+      "delta": "NEW",
+      "outcome": "unknown",
+      "outcome_reason": "still open; nothing has settled it"
+    },
+    {
+      "id": "SLOP-F-003",
+      "title": "Commit 912d314 'test: full coverage' deleted test_negative_qty_rejected - the only test that caught the rule-4 regression - instead of fixing the code",
+      "severity": "Critical",
+      "priority": "P0",
+      "failure_classification": "REAL_DEFECT",
+      "confidence": "proven",
+      "status": "open",
+      "evidence": [
+        "git show 912d314 -- test_sync.py removes:\n  -def test_negative_qty_rejected():\n  -    with pytest.raises(ValueError):\n  -        sync.push_batch([{\"sku\": \"a\", \"qty\": -1}], transport=None)",
+        "The same diff removes `import pytest`, so the deletion was deliberate cleanup rather than an accidental drop",
+        "Sequence: f3df73a removes the rule-4 guard (test goes red) -> 912d314, titled 'full coverage', removes the red test and adds four that cannot fail",
+        "Restored in a scratch copy against current HEAD it fails: 'DID NOT RAISE ValueError - spec rule 4 unguarded'",
+        "Test count rose 2 -> 4 while spec-rule coverage fell: summary arithmetic hides this; the id set-diff shows test_negative_qty_rejected removed"
+      ],
+      "root_cause": {
+        "mechanism": "a failing test was removed to restore a green suite, converting a detected regression into an undetected one while the commit message asserted the opposite",
+        "origin": "commit 912d314 (Co-Authored-By: Claude), one commit after the defect it was guarding was introduced",
+        "class": {
+          "pattern": "green-suite-by-deletion",
+          "sites": [
+            "test_sync.py (test_negative_qty_rejected). Diffed all three commits (`git log -p`); this is the only test ever deleted, so the pattern has one instance - but it is the pattern that produced two of the three release blockers."
+          ]
+        },
+        "trigger": "the rule-4 guard deletion in f3df73a turning the test red",
+        "latent_condition": "no CI enforcement that a test may not be deleted without a corresponding spec change; commit messages are not checked against their diffs",
+        "fix_location": "process",
+        "proof": {
+          "method": "archaeology",
+          "evidence": "git show f3df73a (guard removed) and git show 912d314 (its guarding test removed) are adjacent commits; restoring the test against HEAD reproduces the failure it was deleted to silence."
+        },
+        "confidence": "proven"
+      },
+      "hash": "1f1c203e",
+      "first_seen": "2026-08-29",
+      "age_days": 0,
+      "delta": "NEW",
+      "outcome": "unknown",
+      "outcome_reason": "still open; nothing has settled it"
+    },
+    {
+      "id": "SLOP-F-004",
+      "title": "Two divergent SKU normalizations - helpers.clean_sku does not trim or collapse whitespace, violating 'one normalization everywhere'",
+      "severity": "Major",
+      "priority": "P1",
+      "failure_classification": "REAL_DEFECT",
+      "confidence": "proven",
+      "status": "open",
+      "evidence": [
+        "README.md rule 1: 'SKUs are trimmed, uppercased, and internal whitespace collapses to `-`. Every component must normalize the same way.'",
+        "sync.py:12  return \"-\".join(sku.strip().upper().split())   # correct",
+        "helpers.py:6  return sku.upper().replace(\" \", \"-\")          # no strip, no collapse, no tab handling",
+        "probe: input ' red  hat ' -> normalize_sku='RED-HAT', clean_sku='-RED--HAT-' (disagree)",
+        "probe: 'a\\tb' -> normalize_sku='A-B', clean_sku='A\\tB'; ' x ' -> 'X' vs '-X-'; 'a  b' -> 'A-B' vs 'A--B'"
+      ],
+      "root_cause": {
+        "mechanism": "str.replace(' ','-') substitutes each space individually and ignores leading/trailing and non-space whitespace, whereas split()/join collapses any run of any whitespace and drops the edges",
+        "origin": "commit f3df73a created helpers.py as a new file rather than importing the existing sync.normalize_sku, re-implementing rule 1 from its docstring",
+        "class": {
+          "pattern": "duplicated-then-drifted normalization",
+          "sites": [
+            "sync.py:12",
+            "helpers.py:6",
+            "Searched `grep -rn 'upper()|strip()|replace(|split()' *.py` - exactly these two implementations exist; no third site."
+          ]
+        },
+        "trigger": "any SKU with leading/trailing whitespace, a tab, or a double space",
+        "latent_condition": "helpers.py has zero test coverage (0%), so the divergence is unobservable to the suite",
+        "fix_location": "code",
+        "proof": {
+          "method": "differential",
+          "evidence": "Same inputs through both functions produce different outputs; the only differing variable is which implementation is called."
+        },
+        "confidence": "proven"
+      },
+      "hash": "816e9764",
+      "first_seen": "2026-08-29",
+      "age_days": 0,
+      "delta": "NEW",
+      "outcome": "unknown",
+      "outcome_reason": "still open; nothing has settled it"
+    },
+    {
+      "id": "SLOP-F-005",
+      "title": "MAX_BATCH is declared but never wired - build_batches hardcodes 50 while a comment claims it respects MAX_BATCH",
+      "severity": "Major",
+      "priority": "P1",
+      "failure_classification": "REAL_DEFECT",
+      "confidence": "proven",
+      "status": "open",
+      "evidence": [
+        "sync.py:7  MAX_BATCH = 100  # spec rule 2",
+        "sync.py:16-17  # batches respect MAX_BATCH (spec rule 2)  /  return [items[i:i + 50] for i in range(0, len(items), 50)]",
+        "grep -rn MAX_BATCH *.py -> declared at sync.py:7, mentioned only in the comment at sync.py:16; no code reads it",
+        "git show f3df73a -- sync.py: `items[i:i + MAX_BATCH] ... range(0, len(items), MAX_BATCH)` was replaced with the literal 50",
+        "probe boundary values (n=0,1,49,50,51,99,100,101): max batch size is 50, never 100; n=250 produces 5 carrier requests instead of 3"
+      ],
+      "root_cause": {
+        "mechanism": "the constant is read by no expression; the literal 50 in both the slice and the range is the only value that acts, so changing MAX_BATCH changes nothing",
+        "origin": "commit f3df73a substituted literals for the constant while replacing the docstring with a comment that still asserts the constant is honoured",
+        "class": {
+          "pattern": "declared-but-never-wired constant",
+          "sites": [
+            "sync.py:7 vs sync.py:17. Searched every module-level constant in the repo; MAX_BATCH is the only one, so this is the sole instance."
+          ]
+        },
+        "trigger": "none - unconditional; it is latent until someone tunes MAX_BATCH and observes no effect",
+        "latent_condition": "test_build_batches_keeps_every_item asserts only that no item is lost, an invariant true for every chunk size (see SLOP-F-010)",
+        "fix_location": "code",
+        "proof": {
+          "method": "counterfactual",
+          "evidence": "Mutant M1 changed the literal 50 to 999 - a gross violation of the 100-item limit - and the full suite still reported 4 passed, 0 failed."
+        },
+        "confidence": "proven"
+      },
+      "hash": "e6dd848e",
+      "first_seen": "2026-08-29",
+      "age_days": 0,
+      "delta": "NEW",
+      "outcome": "unknown",
+      "outcome_reason": "still open; nothing has settled it"
+    },
+    {
+      "id": "SLOP-F-006",
+      "title": "Spec rule 5 unimplemented - get_rate returns a hardcoded placeholder table; the carrier rate API is never called",
+      "severity": "Major",
+      "priority": "P1",
+      "failure_classification": null,
+      "confidence": "proven",
+      "status": "open",
+      "evidence": [
+        "README.md rule 5: 'Shipping rates come from the carrier API.'",
+        "rates.py:6-9  # TODO: call the carrier rate API (spec rule 5); a placeholder table for now / table = {\"US\": 5.0, \"CA\": 7.5}",
+        "probe: get_rate('a','US')=5.0, get_rate('a','CA')=7.5 - invented constants, no I/O (isolation grep confirms no network call anywhere in the repo)",
+        "grep -rn get_rate *.py - defined at rates.py:5, zero callers; the placeholder is not currently reachable from sync(), which bounds today's blast radius but not tomorrow's"
+      ],
+      "root_cause": {
+        "mechanism": "the function body is a literal dict lookup; no transport, client, or URL exists in the repository",
+        "origin": "present since 736807d, the initial feature commit; never implemented",
+        "class": {
+          "pattern": "requirement stubbed with a TODO and shipped",
+          "sites": [
+            "rates.py:6 (TODO). verdict-facts code census counts 1 TODO and 2 'for now' markers: rates.py:6 and sync.py:27 - and sync.py:27 is SLOP-F-001, so both placeholder markers in this repo mark a real spec violation."
+          ]
+        },
+        "trigger": "any rate lookup",
+        "latent_condition": "rates.py has 0% test coverage and no caller, so nothing forces the stub to be finished",
+        "fix_location": "code",
+        "proof": {
+          "method": "reading",
+          "evidence": "The function body is four lines and contains no call other than the discarded clean_sku (SLOP-F-013)."
+        },
+        "confidence": "proven"
+      },
+      "hash": "32e3bca9",
+      "first_seen": "2026-08-29",
+      "age_days": 0,
+      "delta": "NEW",
+      "outcome": "unknown",
+      "outcome_reason": "still open; nothing has settled it"
+    },
+    {
+      "id": "SLOP-F-007",
+      "title": "get_rate silently prices every unknown destination at the US rate instead of erroring",
+      "severity": "Major",
+      "priority": "P2",
+      "failure_classification": null,
+      "confidence": "proven",
+      "status": "open",
+      "evidence": [
+        "rates.py:9  return table.get(dest, 5.0)",
+        "probe: get_rate('a','GB')=5.0, get_rate('a','')=5.0, get_rate('a',None)=5.0 - identical to the US rate, indistinguishable from a legitimate US lookup",
+        "The default is the magic literal 5.0 duplicated from table['US'], so an unroutable destination and a US shipment return the same number to the caller"
+      ],
+      "root_cause": {
+        "mechanism": "dict.get's default arm converts 'destination not supported' into 'destination costs 5.0'; the caller receives a float either way and has no channel to detect the fallback",
+        "origin": "present since 736807d",
+        "class": {
+          "pattern": "silent default masking an unsupported input",
+          "sites": [
+            "rates.py:9. This is the only lookup-with-default in the repo; the sibling pattern in sync.py is the swallowed exception (SLOP-F-001) - the same 'never fail loudly' instinct expressed twice, in two files, by two different mechanisms."
+          ]
+        },
+        "trigger": "any dest outside {'US','CA'}",
+        "latent_condition": "no test exercises rates.py at all",
+        "fix_location": "code",
+        "proof": {
+          "method": "counterfactual",
+          "evidence": "Probed 'GB', '' and None; all three returned 5.0, equal to the US rate."
+        },
+        "confidence": "proven"
+      },
+      "hash": "875a6b64",
+      "first_seen": "2026-08-29",
+      "age_days": 0,
+      "delta": "NEW",
+      "outcome": "unknown",
+      "outcome_reason": "still open; nothing has settled it"
+    },
+    {
+      "id": "SLOP-F-008",
+      "title": "rates.fetch_with_retry imports `backoff`, an undeclared dependency - the function raises ModuleNotFoundError on every call",
+      "severity": "Major",
+      "priority": "P1",
+      "failure_classification": "REAL_DEFECT",
+      "confidence": "proven",
+      "status": "open",
+      "evidence": [
+        "rates.py:14  import backoff  # heavy import deferred to the retry path",
+        "requirements.txt contains only '# no external dependencies'",
+        "probe: rates.fetch_with_retry(lambda: 1) -> ModuleNotFoundError: No module named 'backoff'",
+        "verdict-facts code census: imports.undeclared = {'backoff': ['rates.py:14']}, declared_count 0",
+        "grep -rn fetch_with_retry *.py - zero callers; the docstring claims it implements spec rule 3, which is in fact violated at sync.py:26 (SLOP-F-001)"
+      ],
+      "root_cause": {
+        "mechanism": "the import is function-local, so the missing package produces no import-time error and no test ever calls the function - the failure is deferred to first production use",
+        "origin": "commit f3df73a added the function whole",
+        "class": {
+          "pattern": "undeclared third-party dependency behind a deferred import",
+          "sites": [
+            "rates.py:14. The census scanned every import in the repo; backoff is the only undeclared one, and it is also a supply-chain concern: an unpinned package name resolved at runtime."
+          ]
+        },
+        "trigger": "the first call to fetch_with_retry",
+        "latent_condition": "0% coverage on rates.py plus a function-local import means neither the test suite nor module import can surface it",
+        "fix_location": "code",
+        "proof": {
+          "method": "counterfactual",
+          "evidence": "Called the function; it raised ModuleNotFoundError."
+        },
+        "confidence": "proven"
+      },
+      "hash": "cc54f011",
+      "first_seen": "2026-08-29",
+      "age_days": 0,
+      "delta": "NEW",
+      "outcome": "unknown",
+      "outcome_reason": "still open; nothing has settled it"
+    },
+    {
+      "id": "SLOP-F-009",
+      "title": "The 'full coverage' claim is false - rates.py and helpers.py have 0% coverage and 5 of 7 injected defects survive the suite",
+      "severity": "Major",
+      "priority": "P1",
+      "failure_classification": "BRITTLE_TEST",
+      "confidence": "proven",
+      "status": "open",
+      "evidence": [
+        "Commit 912d314 subject: 'test: full coverage for the sync engine'",
+        "test_sync.py imports only `sync` and MagicMock; neither rates nor helpers is ever imported",
+        "stdlib trace.Trace over the suite: sync.py 18/20 statements (90%, uncovered 11, 29), rates.py 0/10 (0%), helpers.py 0/4 (0%) - ~53% overall",
+        "sync.py:29 (the `pass` inside the exception swallow) is uncovered: the failure path of the most dangerous function in the repo is never executed",
+        "Hand-rolled 7-mutant probe: 2 killed, 5 SURVIVED - M1 batch size 50->999, M4 SKU not normalized, M5 every qty corrupted to 0, M6 clean_sku returns '', M7 get_rate returns 0.0 (free shipping) all left the suite at '4 passed, 0 failed'"
+      ],
+      "root_cause": {
+        "mechanism": "the four tests assert return-value constants, mock call flags and a size-independent invariant; none asserts a payload value or exercises an error path, so behaviour can be arbitrarily wrong while the suite stays green",
+        "origin": "commit 912d314",
+        "class": {
+          "pattern": "green suite that constrains nothing",
+          "sites": [
+            "test_sync.py:10 (SLOP-F-010)",
+            "test_sync.py:15 (SLOP-F-011)",
+            "test_sync.py:21 (SLOP-F-012)",
+            "3 of the 4 tests in the file; only test_normalize_sku_collapses_whitespace makes a real behavioural assertion."
+          ]
+        },
+        "trigger": "none - the suite has never been able to detect these defects",
+        "latent_condition": "no coverage tool and no mutation tool is installed (coverage, mutmut both absent), so suite quality has never been measured in this project",
+        "fix_location": "test",
+        "proof": {
+          "method": "counterfactual",
+          "evidence": "Seven single-line mutants applied in a scratch copy at /private/tmp/.../scratchpad/m; five produced no test failure."
+        },
+        "confidence": "proven"
+      },
+      "hash": "7abd7b42",
+      "first_seen": "2026-08-29",
+      "age_days": 0,
+      "delta": "NEW",
+      "outcome": "unknown",
+      "outcome_reason": "still open; nothing has settled it"
+    },
+    {
+      "id": "SLOP-F-010",
+      "title": "test_build_batches_keeps_every_item asserts a chunk-size-independent invariant and cannot detect any batching defect",
+      "severity": "Major",
+      "priority": "P2",
+      "failure_classification": "BRITTLE_TEST",
+      "confidence": "proven",
+      "status": "open",
+      "evidence": [
+        "test_sync.py:10-12  assert sum(len(b) for b in sync.build_batches(items)) == len(items)",
+        "This holds for every chunk size >= 1, so the one property the test is named for - batch size <= MAX_BATCH - is never asserted",
+        "Mutant M1 (chunk 50 -> 999) survived: '4 passed, 0 failed'",
+        "The test uses 120 items, a value chosen to straddle 100, which suggests the limit was meant to be checked and then was not"
+      ],
+      "root_cause": {
+        "mechanism": "a conservation assertion (nothing lost) was substituted for a bound assertion (nothing too large); the two are independent properties",
+        "origin": "commit 912d314",
+        "class": {
+          "pattern": "assertion weaker than the property under test",
+          "sites": [
+            "test_sync.py:12",
+            "test_sync.py:17-18",
+            "test_sync.py:24"
+          ]
+        },
+        "trigger": "none",
+        "latent_condition": "no boundary-value cases at n=99/100/101 exist",
+        "fix_location": "test",
+        "proof": {
+          "method": "counterfactual",
+          "evidence": "Mutant M1 survived the full suite."
+        },
+        "confidence": "proven"
+      },
+      "hash": "b4923a53",
+      "first_seen": "2026-08-29",
+      "age_days": 0,
+      "delta": "NEW",
+      "outcome": "unknown",
+      "outcome_reason": "still open; nothing has settled it"
+    },
+    {
+      "id": "SLOP-F-011",
+      "title": "test_push_batch_sends_the_payload asserts a hardcoded constant and a mock's own call flag; it never inspects the payload it is named for",
+      "severity": "Minor",
+      "priority": "P2",
+      "failure_classification": "BRITTLE_TEST",
+      "confidence": "proven",
+      "status": "open",
+      "evidence": [
+        "test_sync.py:15-18: `assert sync.push_batch(...) is True` - push_batch returns the literal True unconditionally (sync.py:30), so this assertion is a tautology",
+        "`assert transport.send.called` asserts a property of MagicMock, not of the payload's correctness",
+        "Mutant M4 (SKU not normalized) and M5 (every qty forced to 0) both survived - the payload can be arbitrarily corrupt and this test still passes",
+        "The MagicMock transport never raises, so the exception path at sync.py:26-29 is never entered by this or any other test"
+      ],
+      "root_cause": {
+        "mechanism": "asserting on a mock's interaction flag rather than on the serialized payload leaves every value in the payload unconstrained",
+        "origin": "commit 912d314",
+        "class": {
+          "pattern": "assertion on a mock's own behaviour",
+          "sites": [
+            "test_sync.py:17-18",
+            "test_sync.py:22-24"
+          ]
+        },
+        "trigger": "none",
+        "latent_condition": "no test ever supplies a transport that fails",
+        "fix_location": "test",
+        "proof": {
+          "method": "counterfactual",
+          "evidence": "Mutants M4 and M5 survived."
+        },
+        "confidence": "proven"
+      },
+      "hash": "0d9ed29f",
+      "first_seen": "2026-08-29",
+      "age_days": 0,
+      "delta": "NEW",
+      "outcome": "unknown",
+      "outcome_reason": "still open; nothing has settled it"
+    },
+    {
+      "id": "SLOP-F-012",
+      "title": "test_sync_reports_everything_sent pins the defective accounting from SLOP-F-001 as the expected result",
+      "severity": "Major",
+      "priority": "P2",
+      "failure_classification": "BRITTLE_TEST",
+      "confidence": "proven",
+      "status": "open",
+      "evidence": [
+        "test_sync.py:21-24  out = sync.sync([...2 items...], MagicMock()); assert out['sent'] == 2",
+        "MagicMock().send never raises, so `sent == 2` is reached whether or not delivery is real",
+        "probe: with a transport that always raises, sync() still returns {'sent': 2} - the assertion this test makes is satisfied by the silent-loss bug",
+        "Named 'reports everything sent', it in fact only demonstrates that the counter increments; it would pass unchanged on a build that delivers nothing"
+      ],
+      "root_cause": {
+        "mechanism": "the test's oracle is the counter rather than the transport, so it validates bookkeeping against itself; a fix to SLOP-F-001 that surfaces failures will not break it, and a regression will not either",
+        "origin": "commit 912d314",
+        "class": {
+          "pattern": "test encodes current behaviour as expected behaviour",
+          "sites": [
+            "test_sync.py:24"
+          ]
+        },
+        "trigger": "none",
+        "latent_condition": "there is no negative-path test with a failing transport anywhere in the suite",
+        "fix_location": "test",
+        "proof": {
+          "method": "differential",
+          "evidence": "The same assertion holds under a succeeding transport and an always-failing one; only the transport differs."
+        },
+        "confidence": "proven"
+      },
+      "hash": "1c4bbf4f",
+      "first_seen": "2026-08-29",
+      "age_days": 0,
+      "delta": "NEW",
+      "outcome": "unknown",
+      "outcome_reason": "still open; nothing has settled it"
+    },
+    {
+      "id": "SLOP-F-013",
+      "title": "rates.py:8 calls clean_sku and discards the result - a no-op whose comment implies normalization is happening",
+      "severity": "Minor",
+      "priority": "P3",
+      "failure_classification": null,
+      "confidence": "proven",
+      "status": "open",
+      "evidence": [
+        "rates.py:8  clean_sku(sku)  # normalised for the API call, once it exists",
+        "The return value is not assigned or used; Python strings are immutable, so the call has no effect whatsoever",
+        "It nonetheless creates the import coupling rates.py -> helpers.py that carries the SLOP-F-004 divergence into rates.py the moment the value is actually used"
+      ],
+      "root_cause": {
+        "mechanism": "a pure function's result is discarded, making the statement dead",
+        "origin": "commit f3df73a added the line together with helpers.py",
+        "class": {
+          "pattern": "dead call retained as a placeholder",
+          "sites": [
+            "rates.py:8"
+          ]
+        },
+        "trigger": "none",
+        "latent_condition": "0% coverage on rates.py",
+        "fix_location": "code",
+        "proof": {
+          "method": "reading",
+          "evidence": "The expression statement has no target and str methods do not mutate."
+        },
+        "confidence": "proven"
+      },
+      "hash": "fa5d321a",
+      "first_seen": "2026-08-29",
+      "age_days": 0,
+      "delta": "NEW",
+      "outcome": "unknown",
+      "outcome_reason": "still open; nothing has settled it"
+    },
+    {
+      "id": "SLOP-F-014",
+      "title": "Comments assert behaviour the code does not implement, masking SLOP-F-002 and SLOP-F-005 from a reviewer",
+      "severity": "Major",
+      "priority": "P2",
+      "failure_classification": null,
+      "confidence": "proven",
+      "status": "open",
+      "evidence": [
+        "sync.py:21  # each item is validated against the payload schema before send  - no validation exists; grep -rn ValueError *.py returns nothing",
+        "sync.py:16  # batches respect MAX_BATCH (spec rule 2)  - the next line hardcodes 50 and never reads MAX_BATCH",
+        "sync.py:27-28  # transport can be flaky; for now just continue - the nightly re-sync will pick anything dropped back up  - no nightly re-sync exists anywhere in the repository (grep -rn 'nightly|resync|re-sync' *.py returns only this comment)",
+        "rates.py:13  docstring 'Wrap a carrier call with exponential backoff (spec rule 3)' on a function that cannot execute (SLOP-F-008)",
+        "In each case the deleted or absent behaviour was replaced by prose asserting it is present - git show f3df73a shows the guard and the docstring being swapped for the comment"
+      ],
+      "root_cause": {
+        "mechanism": "comments were written to describe intent rather than the code as changed, so a reviewer reading top-down is told validation and batching are handled at exactly the lines where they were removed",
+        "origin": "commit f3df73a",
+        "class": {
+          "pattern": "comment claims a behaviour the adjacent code does not perform",
+          "sites": [
+            "sync.py:16",
+            "sync.py:21",
+            "sync.py:27-28",
+            "rates.py:13",
+            "Checked every comment and docstring in the three modules; 4 of them make a claim, and all 4 are false."
+          ]
+        },
+        "trigger": "code review or maintenance",
+        "latent_condition": "the 'nightly re-sync' justification for SLOP-F-001 references a system that does not exist, so the risk acceptance behind that swallow was never real",
+        "fix_location": "code",
+        "proof": {
+          "method": "differential",
+          "evidence": "Each comment's claim was checked against the code it annotates and against a repo-wide grep for the named mechanism."
+        },
+        "confidence": "proven"
+      },
+      "hash": "da3993c3",
+      "first_seen": "2026-08-29",
+      "age_days": 0,
+      "delta": "NEW",
+      "outcome": "unknown",
+      "outcome_reason": "still open; nothing has settled it"
+    },
+    {
+      "id": "SLOP-F-015",
+      "title": "The project's stated test command cannot run - pytest is not installed and requirements.txt declares no dependencies",
+      "severity": "Critical",
+      "priority": "P0",
+      "failure_classification": "ENVIRONMENT",
+      "confidence": "proven",
+      "status": "open",
+      "evidence": [
+        "README.md 'Running': `python3 -m pytest -q`",
+        "verdict-facts gate 'suite': exit_code 1, summary '/opt/homebrew/opt/python@3.14/bin/python3.14: No module named pytest', duration 0.02s",
+        "requirements.txt: '# no external dependencies' - yet test_sync.py's predecessor imported pytest and README mandates it; there is no venv in the repo",
+        "verdict-facts test_ids: status 'unavailable' - the collect-only command produced no ids, so the test-count and id set-diff gates are unmeasurable by the stated command",
+        "Consequence: every count reported in this run came from a stdlib substitute runner I wrote in the scratchpad, not from the project's gate"
+      ],
+      "root_cause": {
+        "mechanism": "the declared dependency set is empty while the declared test runner is third-party, so a clean checkout cannot execute its own release gate",
+        "origin": "736807d created requirements.txt with no dependencies alongside a pytest-importing test file",
+        "class": {
+          "pattern": "declared environment does not satisfy the declared commands",
+          "sites": [
+            "requirements.txt:1 vs README.md 'Running'"
+          ]
+        },
+        "trigger": "any clean-checkout CI run",
+        "latent_condition": "no CI config exists in the repo to have caught it",
+        "fix_location": "environment",
+        "proof": {
+          "method": "counterfactual",
+          "evidence": "Ran the stated command; it failed with ModuleNotFoundError before collecting a single test."
+        },
+        "confidence": "proven"
+      },
+      "hash": "b63a96f2",
+      "first_seen": "2026-08-29",
+      "age_days": 0,
+      "delta": "NEW",
+      "outcome": "unknown",
+      "outcome_reason": "still open; nothing has settled it"
+    }
+  ],
+  "verdict": "fail",
+  "release_blockers": [
+    "SLOP-F-001: failed pushes are swallowed and counted as sent - silent inventory loss with a false success report (spec rule 3)",
+    "SLOP-F-002: negative-quantity validation was deleted; negative qty is serialized and pushed (spec rule 4)",
+    "SLOP-F-015: the project's stated test command cannot run in this environment - the release gate is unexecutable as specified"
+  ],
+  "not_tested": [
+    "The project's real gate `python3 -m pytest -q` - pytest is not installed and requirements.txt declares no dependencies; all suite results below come from a stdlib substitute runner and are NOT a green from the stated gate",
+    "Concurrency / interleaved sync runs - no harness, and sync() holds no state, so risk assumed low but unmeasured",
+    "Real carrier transport behaviour (timeouts, partial writes, HTTP semantics) - no transport implementation exists in the repo",
+    "rates.fetch_with_retry runtime behaviour beyond the import failure - `backoff` is not installed, so its backoff semantics are unmeasurable",
+    "Property-based and fuzz testing of normalize_sku over unicode/whitespace classes - deferred; two evidenced normalization defects already found by targeted boundary values",
+    "Mutation testing with a real tool (mutmut/cosmic-ray absent) - the 7-mutant probe reported below is hand-rolled and deliberately non-exhaustive"
+  ],
+  "next_run_focus": [
+    "Verify SLOP-F-001 and SLOP-F-002 fixes by re-injection, not by absence",
+    "Confirm test_negative_qty_rejected (or an equivalent rule-4 guard) is restored and demonstrably red on the unfixed code",
+    "Re-run the 7-mutant probe; require M1/M4/M5/M6/M7 to be killed",
+    "Install pytest / add a venv so the stated gate is executable, then re-measure counts and the test-id set-diff"
+  ],
+  "coverage": {
+    "line_pct": 53,
+    "command": "stdlib trace.Trace (coverage.py not installed) - sync.py 90%, rates.py 0%, helpers.py 0%"
+  },
+  "calibration": {
+    "min_sample": 30,
+    "findings_tracked": 15,
+    "decided_outcomes": 0,
+    "undecided_outcomes": 15,
+    "by_confidence": {
+      "proven": {
+        "confirmed": 0,
+        "refuted": 0,
+        "unknown": 15,
+        "decided": 0,
+        "precision": null,
+        "reading": "0 of 0 decided so far \u2014 too few for a rate (needs 30)"
+      }
+    },
+    "by_proof_method": {
+      "counterfactual": {
+        "confirmed": 0,
+        "refuted": 0,
+        "unknown": 9,
+        "decided": 0,
+        "precision": null,
+        "reading": "0 of 0 decided so far \u2014 too few for a rate (needs 30)"
+      },
+      "archaeology": {
+        "confirmed": 0,
+        "refuted": 0,
+        "unknown": 1,
+        "decided": 0,
+        "precision": null,
+        "reading": "0 of 0 decided so far \u2014 too few for a rate (needs 30)"
+      },
+      "differential": {
+        "confirmed": 0,
+        "refuted": 0,
+        "unknown": 3,
+        "decided": 0,
+        "precision": null,
+        "reading": "0 of 0 decided so far \u2014 too few for a rate (needs 30)"
+      },
+      "reading": {
+        "confirmed": 0,
+        "refuted": 0,
+        "unknown": 2,
+        "decided": 0,
+        "precision": null,
+        "reading": "0 of 0 decided so far \u2014 too few for a rate (needs 30)"
+      }
+    },
+    "caveats": [
+      "`confirmed` means fix-verified or regressed; it therefore tracks which findings held up under a check, not correctness in the abstract",
+      "still-open findings are undecided on purpose and are excluded from every rate rather than guessed at",
+      "a finding resolved without re-injection stays undecided: absence is not proof"
+    ]
+  },
+  "test_ids": {
+    "status": "unavailable",
+    "reason": "the id command produced no `::` lines (exit 1) \u2014 if the project's addopts already set -q, drop the -q from --collect-only, which otherwise becomes -qq and prints counts instead of ids",
+    "command": "python3 -m pytest --collect-only -q"
+  }
+}

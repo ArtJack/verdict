@@ -1,0 +1,7 @@
+{
+  "expected": "expected-slop.json",
+  "mode": null,
+  "require_harness": true,
+  "source": "2026-08-29 slop baseline \u2014 first scored run of the AI-authored-code fixture",
+  "model": "opus"
+}
