@@ -583,3 +583,41 @@ def code_drift(repo, sha, timeout: float = 3.0) -> dict:
 
     out["status"] = "diverged"
     return out
+
+
+# Written both ways in the wild: `**Repo-Path:** \`/path\`` in the profiles the
+# agent generates, and a bare `Repo-Path: /path` in hand-written ones. Measured
+# across the live roots rather than assumed — the bold form was the majority and
+# the first pattern here matched none of them.
+_REPO_PATH = re.compile(r"^\*{0,2}Repo-Path:\*{0,2}\s*`?([^`\n]+?)`?\s*$", re.M)
+
+
+def repo_for_root(root) -> Path | None:
+    """The repository a QA root describes, or None if it cannot be determined.
+
+    Team mode is structural — the root *is* `<repo>/.qa`. Solo mode keeps the
+    state outside the repo, so the link is the `Repo-Path:` header the profile
+    records. Returns None rather than guessing: every caller of this treats an
+    unknown repository as "cannot measure", never as "nothing changed".
+
+    Caveat worth knowing before gating on the result: `Repo-Path` records the
+    *main* worktree, by design — that is what makes the project key stable
+    across worktrees. A run executed in a linked worktree therefore records a
+    sha the main worktree's HEAD may never have seen, and the distance measured
+    here is between two different checkouts. Callers that gate on drift should
+    be opt-in for exactly that reason.
+    """
+    if not root:
+        return None
+    root = Path(root)
+    if root.name == ".qa" and (root.parent / ".git").exists():
+        return root.parent
+    profile = root / "profile.md"
+    try:
+        m = _REPO_PATH.search(profile.read_text(encoding="utf-8"))
+    except OSError:
+        return None
+    if not m:
+        return None
+    candidate = Path(m.group(1).strip()).expanduser()
+    return candidate if (candidate / ".git").exists() else None

@@ -261,7 +261,8 @@ steps:
   - uses: actions/checkout@v4
   - uses: ArtJack/verdict@v0
     with:
-      max-age-hours: 48   # a stale verdict is exit 5, never a pass
+      max-age-hours: 48        # a stale verdict is exit 5, never a pass
+      max-commits-behind: 0    # ...and so is one measured before these commits
 ```
 
 **Run mode** (experimental) executes a headless Verdict pass first — on a GitHub-hosted
@@ -271,7 +272,7 @@ instead of API billing (`anthropic-base-url` passes through for Anthropic-compat
 gateways). The same contract is available anywhere as a CLI:
 
 ```bash
-verdict-gate myapp --max-age-hours 24 --fail-on risks
+verdict-gate myapp --max-age-hours 24 --max-commits-behind 0 --fail-on risks
 ```
 
 Exit codes: `0` pass · `1` fail · `2` usage · `3` blocked · `4` no state (the tester never

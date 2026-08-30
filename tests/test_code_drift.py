@@ -192,3 +192,25 @@ def test_future_timestamp_is_named_not_rendered_as_negative_days(repo, tmp_path)
     out = run_banner(r, tmp_path / "qa")
     assert "in the future" in out, out
     assert "-" not in out.splitlines()[0], f"negative day count leaked: {out.splitlines()[0]}"
+
+
+def test_intermediate_commit_of_a_squashed_branch_is_diverged(repo):
+    """Not a gap in the squash fix — the tested content really is gone.
+
+    The fix covers a squash that preserved the tested tree. When a branch gains
+    further commits before squashing, the tree that was measured exists nowhere
+    in the resulting history, so the verdict describes code this branch does not
+    have. `diverged` is the honest answer, and at the gate it means exit 5.
+    """
+    r, _ = repo
+    git(r, "checkout", "-q", "-b", "feat")
+    (r / "first.txt").write_text("1", encoding="utf-8")
+    git(r, "add", "-A")
+    git(r, "commit", "-qm", "first")
+    measured = git(r, "rev-parse", "HEAD")     # a QA run happens here
+    (r / "second.txt").write_text("2", encoding="utf-8")
+    git(r, "add", "-A")
+    git(r, "commit", "-qm", "second")          # then the branch moves on
+    squash_merge(r, "feat")
+
+    assert code_drift(r, measured)["status"] == "diverged"

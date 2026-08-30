@@ -92,6 +92,12 @@ Then gate and notify however you like:
 
 ```bash
 verdict-gate myrepo --max-age-hours 24 --require-harness || notify "QA gate: $?"
+
+# Gating a merge rather than watching a nightly? Add --max-commits-behind 0:
+# a verdict ages in commits as well as hours, and a `pass` measured before the
+# commits you are about to merge is a false green. Leave it off when the run
+# and the gate see different checkouts — a profile's Repo-Path records the main
+# worktree, so a run inside a linked worktree legitimately reports a distance.
 ```
 
 Exit codes: `0` pass · `1` fail · `3` blocked · `4` never ran · `5` stale ·
