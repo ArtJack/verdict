@@ -1,7 +1,7 @@
 {
   "fixture": "refund-spec",
   "phase": "shift-left",
-  "comment": "Answer key for the spec-review eval: /qa-spec on fixtures/refund-spec/SPEC.md. No code exists — every row is a requirements defect. Scored on state.json findings like every other eval; the criteria row checks the report.",
+  "comment": "Answer key for the spec-review eval: /spec on fixtures/refund-spec/SPEC.md. No code exists — every row is a requirements defect. Scored on state.json findings like every other eval; the criteria row checks the report.",
   "rows": [
     {
       "key": "contradiction-instant-vs-5-days",

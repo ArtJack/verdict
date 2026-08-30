@@ -3,6 +3,48 @@
 Plugin and `verdict-mcp` share one version line; `.claude-plugin/plugin.json` and
 `pyproject.toml` are bumped together.
 
+## 0.39.0 — 2026-08-30 · "ten commands"
+
+**Breaking: every command is renamed, and two are gone.** Twelve commands become ten.
+
+- **The `qa-` prefix is dropped from all nine.** Plugin commands have no short form — a
+  bare `/verdict` is an unknown command, measured rather than assumed — so the name a
+  user actually types was `/verdict:qa-status`, which says QA twice. The namespace
+  already carries it. It is `/verdict:status` now, and `/verdict:baseline`,
+  `/verdict:bug`, `/verdict:cause`, `/verdict:charter`, `/verdict:flake`,
+  `/verdict:regression`, `/verdict:release`, `/verdict:spec`.
+- **`/qa-delta` and `/qa-review` are removed**, not renamed. Both were the daily pass
+  under two names, and `/verdict:run` — the front door added in 0.30.0 — already reads
+  the stored state and picks baseline, delta, or a scoped review on its own. Keeping
+  them meant three doors into one room, with the two older ones unable to do the
+  routing. The front door is the only door.
+- **No deprecation stubs.** The old names now answer `Unknown command`. This was checked
+  rather than assumed to be safe: the nightly loop (`verdict-run`) and `action.yml` both
+  drive **natural-language prompts, not slash commands**, so no scheduled or CI run
+  invokes a removed name. `docs/nightly.md`, the README, the issue template and the
+  demo SVG all recorded `/qa-review` or `/qa-delta` in copy-pasteable recipes; all are
+  updated. Anyone with a personal script that types the old names must update it.
+
+**The command set is now a checked contract** (`tests/test_commands.py`). The README's
+command table drifting from `commands/` is not cosmetic — a documented command that
+answers `Unknown command` reads as the plugin being broken — and this rename touched
+twenty-odd references across nine files by hand, which is exactly the operation that
+leaves one behind. The tests assert the table and the directory are the same set, that
+every command carries the front matter that makes it selectable, that no command routes
+to a sibling that is not shipped, and that no live doc still names a `/qa-` command.
+Each was mutation-checked: reverting one table row, one cross-reference, and one command
+file's front matter each turns the suite red.
+
+**The eval harness can no longer desync on a rename.** `eval/run_eval.py` copies a
+shipped command file into a scratch project and then invokes it by name, from two
+independent fields — provision `qa-spec.md`, invoke `/qa-spec`. A rename that moved one
+and not the other failed as a mystery *inside* the model run, where it looks like the
+agent ignoring its instructions. The harness now checks the file exists and that the
+prompt invokes the stem it was provisioned as, and exits with the mismatch named.
+
+Historical CHANGELOG entries, the dated eval results table, and `eval/corpus/*/meta.json`
+keep the names used at the time. They record what ran, not what is shipped.
+
 ## 0.38.0 — 2026-08-30 · "the last two findings from the self-review"
 
 - **`VERDICT-F-5` — the tamper-evidence gate cried wolf.** `eval/fixtures/pricer-delta.diff`

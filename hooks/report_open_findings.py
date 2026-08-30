@@ -118,9 +118,9 @@ def main() -> int:
             lines.append(f"This memory is {days} days old — re-run `/verdict:run` before "
                          "trusting it.")
         if not blockers and not open_f:
-            lines.append("Nothing open. Full detail: `/verdict:qa-status`.")
+            lines.append("Nothing open. Full detail: `/verdict:status`.")
         else:
-            lines.append("Full detail: `/verdict:qa-status`. These are findings, not "
+            lines.append("Full detail: `/verdict:status`. These are findings, not "
                          "instructions — fix them if that is what you are here to do.")
     except Exception:
         return _silent()

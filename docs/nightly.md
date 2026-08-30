@@ -30,7 +30,7 @@ store only, never in the repo. Notes:
 
 ```bash
 cd /path/to/your/repo
-VERDICT_STRICT=1 claude -p "/qa-review delta pass for this repository" \
+VERDICT_STRICT=1 claude -p "/verdict:run" \
   --dangerously-skip-permissions
 ```
 
@@ -111,7 +111,7 @@ happened for three releases before anyone checked.
 
 ```cron
 15 3 * * * cd /path/to/repo && VERDICT_STRICT=1 CLAUDE_CODE_OAUTH_TOKEN=... \
-  claude -p "/qa-review delta pass" --dangerously-skip-permissions \
+  claude -p "/verdict:run" --dangerously-skip-permissions \
   >> ~/verdict-nightly.log 2>&1
 ```
 
@@ -127,7 +127,7 @@ User=qa
 WorkingDirectory=/srv/repo
 Environment=VERDICT_STRICT=1
 EnvironmentFile=/etc/verdict/token.env   ; holds CLAUDE_CODE_OAUTH_TOKEN=...
-ExecStart=/usr/local/bin/claude -p "/qa-review delta pass" --dangerously-skip-permissions
+ExecStart=/usr/local/bin/claude -p "/verdict:run" --dangerously-skip-permissions
 ExecStartPost=/usr/local/bin/verdict-gate srv-repo --min-run-number-from-log
 
 # /etc/systemd/system/verdict-nightly.timer

@@ -60,9 +60,10 @@ already knows which pass is correct, so do not ask the caller to know it:
 5. Close with the §13 handoff — verdict, counts by severity, top findings, artifact path.
 
 If the caller wants a specific job rather than the daily pass, point them at the command
-that owns it and stop: `/qa-status` (read the memory, run nothing) · `/qa-cause` (trace a
-failure to its root cause) · `/qa-flake` (classify an intermittent failure) ·
-`/qa-spec` (judge a spec before code exists) · `/qa-release` (the release gate) ·
-`/qa-bug` (turn a report into a structured finding).
+that owns it and stop: `/verdict:status` (read the memory, run nothing) ·
+`/verdict:cause` (trace a failure to its root cause) · `/verdict:flake` (classify an
+intermittent failure) · `/verdict:spec` (judge a spec before code exists) ·
+`/verdict:release` (the release gate) · `/verdict:bug` (turn a report into a structured
+finding).
 
 Verdict reports and specifies; it never fixes. Route fixes to the implementer.

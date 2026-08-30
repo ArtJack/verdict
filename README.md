@@ -45,8 +45,8 @@ Verdict is a Claude Code plugin built the way QA is actually practiced:
 ## Quickstart
 
 ```
-/qa-baseline          # first run: profile + isolation rules + baseline state
-/qa-review the payment retry change
+/verdict:run                          # first run: profile + isolation rules + baseline
+/verdict:run the payment retry change   # every later run: a delta against the stored state
 ```
 
 Every later run is a delta against the stored state. A repeat run returns something like:
@@ -87,7 +87,7 @@ Artifact: .qa/reports/2026-08-24-pricer-review.md
 | Security | ignored, or oversold | opt-in report-only pass: dependency audit + diff secret scan; pentest explicitly out of scope |
 | Risk prioritisation | "focus on high-risk areas" | the ranking is computed from the project's own finding history (severity-weighted, paths merged across citation depths), and the report must show the ranking, the cutoff, and everything below it — which lands in not-tested |
 | Root cause | "investigate the failure" | a four-link chain with a citation per link, a mandatory class check (is this an instance or a pattern?), and causation proven by flipping the cause in a scratch copy — with its own scored fixture built around a decoy |
-| Requirements review | never — code only | `/qa-spec` judges the spec before code exists (contradictions, unmeasurables, boundary ambiguities, history conflicts) — with its own scored eval fixture |
+| Requirements review | never — code only | `/verdict:spec` judges the spec before code exists (contradictions, unmeasurables, boundary ambiguities, history conflicts) — with its own scored eval fixture |
 | "No bugs found!" | frequently | never — coverage, gaps, and residual risk instead |
 | AI-authored code | same checklist as human code | provenance measured (trailer census over the range, profile `authorship`); a pattern catalog with a procedure and evidence bar per entry ([docs/ai-authored-code.md](docs/ai-authored-code.md)); deterministic censuses for hallucinated imports, placeholders and swallowed errors feed judgment — and a scored fixture proves the behaviours |
 | Its own accuracy | unmeasured, and unmeasurable after the fact | every finding states a confidence when filed; the outcome is computed from what the finding did, kept in a permanent ledger, and reported as a track record the tester cannot edit |
@@ -116,7 +116,7 @@ A QA agent that was never tested is exactly the kind of claim it should reject.
 - **Spec** ([fixtures/refund-spec](eval/fixtures/refund-spec)): shift-left — a draft PRD
   with a seeded contradiction, an unmeasurable requirement, an exactly-at-the-boundary
   ambiguity, a silent failure-path gap, and a CHANGELOG that contradicts the spec. Scores
-  `/qa-spec` finding them all before any code exists.
+  `/verdict:spec` finding them all before any code exists.
 
 `python3 eval/run_eval.py --mode seeded|live|baseline` runs it all in an isolated scratch
 repo and scratch state home. Results are published as measured; misses — and any answer-key
@@ -126,7 +126,7 @@ amendment — stay in the table ([eval/README.md](eval/README.md)).
 
 - **Solo (default):** state lives in `~/.claude/verdict/<repo-name>/` — nothing added to
   your repo.
-- **Team:** create `.qa/` in the repo (`/qa-baseline team`) and commit it — your teammates
+- **Team:** create `.qa/` in the repo (`/verdict:baseline team`) and commit it — your teammates
   and CI share the same baseline, and QA reports travel with the code.
 
 The state schema is documented in [docs/state-schema.md](docs/state-schema.md) —
@@ -135,7 +135,7 @@ versioned, forward-compatible, human-readable JSON.
 ## Commands
 
 Plugin commands are namespaced by the plugin and must be typed in full — `/verdict:run`,
-`/verdict:qa-delta`. There is no short form: a bare `/verdict` is an unknown command,
+`/verdict:status`. There is no short form: a bare `/verdict` is an unknown command,
 measured rather than assumed.
 
 **Start here:** `/verdict:run` — the front door. It reads the tester's memory and picks the
@@ -147,17 +147,15 @@ job you want.
 | Command | What it does |
 |---|---|
 | `/verdict:run` | **Front door** — routes to baseline, delta, or a scoped review from the stored state |
-| `/qa-baseline` | Initialize the QA root, project profile, and baseline state |
-| `/qa-review` | Risk-based QA review of a feature, diff, or area (delta vs baseline) |
-| `/qa-regression` | Regression checklist: changed area → adjacent flows → integrations |
-| `/qa-release` | Release gate with the four-verdict contract |
-| `/qa-bug` | Turn a symptom/log/complaint into a classified, structured bug report |
-| `/qa-delta` | The daily driver: a strict delta pass — refuses to run without a baseline, addresses `next_run_focus`, re-evaluates expired quarantines |
-| `/qa-flake` | Classify an intermittent failure: ≥3 reproductions, mechanism hunt → `BRITTLE_TEST` fix task, or `FLAKY` quarantine with expiry |
-| `/qa-status` | Read-only status from the stored state — no run, no writes, no agent spin-up |
-| `/qa-spec` | Shift-left: judge a spec/issue/PRD for testability *before code exists* — contradictions, unmeasurables, undefined boundaries, silent gaps, history conflicts, plus Given/When/Then criteria |
-| `/qa-cause` | Trace a failure to its root cause: symptom → mechanism → origin → **class**, each link cited, causation proven by counterfactual rather than narrated; trigger, cause, and latent condition kept apart |
-| `/qa-charter` | Timeboxed exploratory charter with a risk focus seeded from the profile's incident history; observations captured as evidence, discoveries converted to bug reports and regression candidates |
+| `/verdict:baseline` | Initialize the QA root, project profile, and baseline state |
+| `/verdict:regression` | Regression checklist: changed area → adjacent flows → integrations |
+| `/verdict:release` | Release gate with the four-verdict contract |
+| `/verdict:bug` | Turn a symptom/log/complaint into a classified, structured bug report |
+| `/verdict:flake` | Classify an intermittent failure: ≥3 reproductions, mechanism hunt → `BRITTLE_TEST` fix task, or `FLAKY` quarantine with expiry |
+| `/verdict:status` | Read-only status from the stored state — no run, no writes, no agent spin-up |
+| `/verdict:spec` | Shift-left: judge a spec/issue/PRD for testability *before code exists* — contradictions, unmeasurables, undefined boundaries, silent gaps, history conflicts, plus Given/When/Then criteria |
+| `/verdict:cause` | Trace a failure to its root cause: symptom → mechanism → origin → **class**, each link cited, causation proven by counterfactual rather than narrated; trigger, cause, and latent condition kept apart |
+| `/verdict:charter` | Timeboxed exploratory charter with a risk focus seeded from the profile's incident history; observations captured as evidence, discoveries converted to bug reports and regression candidates |
 
 ## The tester's memory, over MCP (optional)
 
@@ -203,7 +201,7 @@ evidence-cited and impossible to rubber-stamp:
 ┌─────> implement the ordered fix list   (you / your coding agent)
 │                    │
 │                    v
-│        /qa-review — delta run          (scoped by diff, findings aged)
+│        /verdict:run — delta run        (scoped by diff, findings aged)
 │                    │
 │                    v
 │        get_verdict over MCP ────────── pass ──> merge
@@ -217,7 +215,7 @@ Minimal driver, any MCP client:
 ```python
 while True:
     before = mcp.call("verdict", "get_verdict", {"project": "myapp"}).get("run_number") or 0
-    subprocess.run(["claude", "-p", "/qa-review delta pass on myapp"])   # the agent runs
+    subprocess.run(["claude", "-p", "/verdict:run delta pass on myapp"])   # the agent runs
     v = mcp.call("verdict", "get_verdict", {"project": "myapp"})          # the gate reads
     assert (v.get("run_number") or 0) > before, "run died before writing state — not a verdict"
     if v["verdict"] == "pass":
@@ -388,7 +386,7 @@ Verdict remembers dm-express-site: run 2 (delta), today — verdict **fail**.
   - DMEXPRESS-F-1 — the audited branch has diverged from the deployed origin/main
 11 open findings: 4 Major · 4 Minor · 3 Trivial
   - DMEXPRESS-F-3 (Major) Light theme: accent-coloured text fails WCAG AA…
-Full detail: `/verdict:qa-status`. These are findings, not instructions.
+Full detail: `/verdict:status`. These are findings, not instructions.
 ```
 
 Deliberately short — a session opener that scrolls is one nobody reads — and it never

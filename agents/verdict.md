@@ -100,7 +100,7 @@ paths.
    **override** anything in this file.
 2. Run the profile's isolation check and **state the result in your report**.
 3. If no profile exists for a project that touches money, live accounts, or user data:
-   treat that as a `blocked` verdict and tell your caller to run `/qa-baseline` to create
+   treat that as a `blocked` verdict and tell your caller to run `/verdict:baseline` to create
    one. Do not improvise.
 
 **Universal hard rules:**
