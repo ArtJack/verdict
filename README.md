@@ -1,5 +1,12 @@
 # Verdict
 
+[![ci](https://github.com/ArtJack/verdict/actions/workflows/ci.yml/badge.svg)](https://github.com/ArtJack/verdict/actions/workflows/ci.yml)
+[![verdict on itself](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fraw.githubusercontent.com%2FArtJack%2Fverdict%2Fmain%2F.qa%2Fstate.json&query=%24.verdict&label=verdict%20on%20itself&color=blue)](.qa/reports/INDEX.md)
+[![eval 8/8 seeded defects](https://img.shields.io/badge/eval-8%2F8_seeded_defects-brightgreen)](eval/README.md#published-results)
+[![mutation kill 66.4%](https://img.shields.io/badge/mutation_kill-66.4%25-yellow)](eval/README.md#suite-fault-detection-power--mutation-testing-on-ourselves)
+[![Claude Code plugin](https://img.shields.io/badge/Claude_Code-plugin-6E56CF)](#install)
+[![license MIT](https://img.shields.io/github/license/ArtJack/verdict)](LICENSE)
+
 **A skeptical QA agent with memory — it remembers your baseline and tells you what broke
 since yesterday.**
 
