@@ -1,0 +1,62 @@
+name: release
+
+# Publishes `verdict-qa-mcp` to PyPI via Trusted Publishing (OIDC). There is no
+# API token in this repository and none in the maintainer's shell: PyPI verifies
+# the workflow's identity instead. A leaked token is the usual way a small
+# package gets hijacked, so the safest token is the one that does not exist.
+#
+# Fires on a version tag. Tag only what is already green on main — the tests run
+# again here anyway, because a QA tool that publishes an unrun suite would be
+# arguing against itself.
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.12"
+
+      - name: Run the suite before building anything
+        run: uv run --group dev python -m pytest tests/
+
+      - name: Build sdist and wheel
+        run: uv build
+
+      # Catches a README that PyPI would reject, and prints what is actually in
+      # the sdist — the 0.36.0 build swept in 332 files of agent worktrees
+      # because hatchling honours .gitignore but not .git/info/exclude.
+      - name: Check metadata and show sdist contents
+        run: |
+          uv run --with twine twine check dist/*
+          tar -tzf dist/*.tar.gz | sed 's|^[^/]*/||' | sort | head -40
+          echo "sdist entries: $(tar -tzf dist/*.tar.gz | wc -l)"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    # Must match the environment name in the PyPI trusted publisher exactly, or
+    # the OIDC exchange is refused.
+    environment: pypi
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+      - uses: pypa/gh-action-pypi-publish@release/v1

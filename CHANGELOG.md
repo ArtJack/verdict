@@ -3,6 +3,37 @@
 Plugin and `verdict-mcp` share one version line; `.claude-plugin/plugin.json` and
 `pyproject.toml` are bumped together.
 
+## 0.37.0 — 2026-08-30 · "a name on PyPI, and what the sdist nearly took with it"
+
+The MCP server becomes installable from PyPI. Preparing that release turned up two things
+worth stating plainly.
+
+- **The distribution is `verdict-qa-mcp`, not `verdict-mcp`.** That name was registered on
+  PyPI on 2026-08-23 by an unrelated project in the same niche — an MCP server giving
+  verification feedback to coding agents ([Dgotlieb/verdict-mcp](https://github.com/Dgotlieb/verdict-mcp),
+  four alpha releases). Parallel invention, six days before our launch, and theirs was
+  first. **Only the name PyPI indexes moved**: the console script is still `verdict-mcp`,
+  the import package is still `verdict_mcp`, the plugin is still `verdict`. `__init__.py`
+  moved with it — `version("verdict-qa-mcp")` — because the version lookup keys on the
+  *distribution* name, and leaving it behind would have made every real install report
+  itself as `0+unknown` down the `PackageNotFoundError` path.
+- **The sdist was shipping 332 files of agent session worktrees.** hatchling honours
+  `.gitignore` but not `.git/info/exclude`, which is where `.claude/worktrees/` is excluded
+  — so a default build swept in full duplicate copies of this repo, eval fixtures and all,
+  at 937 KB. Now an anchored allowlist: 32 entries, 124 KB. The anchoring is the load-bearing
+  part — these are gitignore-style globs, so an unanchored `README.md` matched at *any*
+  depth and pulled the worktree copies straight back in through the allowlist that was
+  supposed to stop them. No secrets were in the archive; it was bloat, not a leak. Caught
+  before the first upload, which is the only time it can be caught — a PyPI version number
+  can never be reused.
+- **Published by Trusted Publishing**, tag-triggered, tests re-run in the release job before
+  anything is built. There is no PyPI token in this repository and none on the maintainer's
+  machine: a leaked token is the usual way a small package gets hijacked, and the safest
+  token is the one that does not exist.
+- **`README-pypi.md`** — the plugin README is written for GitHub and a dozen of its links
+  are relative to the repo, which resolve to nothing on a PyPI page. The distribution now
+  ships its own front page describing the server and the CLIs it actually installs.
+
 ## 0.36.0 — 2026-08-30 · "two findings the tool made about itself"
 
 Yesterday's re-baseline reviewed this repository and filed nine findings. These are the two
