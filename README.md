@@ -127,10 +127,11 @@ versioned, forward-compatible, human-readable JSON.
 
 ## Commands
 
-Plugin commands are namespaced by the plugin, so they appear as `/verdict:<command>`;
-where the name is unambiguous your client may accept the short form.
+Plugin commands are namespaced by the plugin and must be typed in full — `/verdict:run`,
+`/verdict:qa-delta`. There is no short form: a bare `/verdict` is an unknown command,
+measured rather than assumed.
 
-**Start here:** `/verdict` — the front door. It reads the tester's memory and picks the
+**Start here:** `/verdict:run` — the front door. It reads the tester's memory and picks the
 right pass itself: no state yet → a baseline; state present → today's delta; arguments
 given → a delta narrowed to what you named. It says which it chose and why. Every command
 below is the same machinery aimed at one specific job, for when you already know which
@@ -138,7 +139,7 @@ job you want.
 
 | Command | What it does |
 |---|---|
-| `/verdict` | **Front door** — routes to baseline, delta, or a scoped review from the stored state |
+| `/verdict:run` | **Front door** — routes to baseline, delta, or a scoped review from the stored state |
 | `/qa-baseline` | Initialize the QA root, project profile, and baseline state |
 | `/qa-review` | Risk-based QA review of a feature, diff, or area (delta vs baseline) |
 | `/qa-regression` | Regression checklist: changed area → adjacent flows → integrations |

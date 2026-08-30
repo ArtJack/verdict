@@ -1,5 +1,5 @@
 ---
-description: "Verdict's front door: reads the tester's memory and runs the right pass — baseline, delta, or a scoped review."
+description: "Run Verdict. The front door: reads the tester's memory and picks the right pass — baseline, delta, or a scoped review."
 argument-hint: "[optional: what to review — a branch, diff range, feature, or area]"
 ---
 
@@ -7,7 +7,7 @@ Run Verdict on this repository, scoped to:
 
 `$ARGUMENTS`
 
-This is the one command a newcomer should need. **Route first, then run** — the state
+This is the one command a newcomer should need (`/verdict:run`). **Route first, then run** — the state
 already knows which pass is correct, so do not ask the caller to know it:
 
 1. Resolve the QA root per §0 (team `.qa/` first, then

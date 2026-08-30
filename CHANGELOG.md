@@ -3,6 +3,16 @@
 Plugin and `verdict-mcp` share one version line; `.claude-plugin/plugin.json` and
 `pyproject.toml` are bumped together.
 
+## 0.31.0 — 2026-08-30 · "/verdict:run"
+
+- **The front door is `/verdict:run`**, renamed from the `/verdict:verdict` that 0.30.0
+  shipped hours earlier. Plugin commands are namespaced and must be typed in full, so the
+  file name is the second half of what a user types — `verdict.md` stuttered.
+- **The short-form claim in the README was wrong, and is now measured.** 0.30.0 said a
+  client "may accept the short form" where the name is unambiguous. Tested headlessly
+  against the installed plugin: `/verdict` returns `Unknown command`, while
+  `/verdict:qa-status` resolves and runs. There is no short form; the README says so.
+
 ## 0.30.0 — 2026-08-30 · "a front door"
 
 - **`/verdict`** — the command a newcomer types. Ten commands each owned a specific job
