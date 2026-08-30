@@ -5,6 +5,27 @@ reject. This directory is Verdict's own eval: seven fixtures, machine answer key
 deterministic scorer, and a harness that runs the whole thing in isolation.
 
 
+## An intermittently-caught trap (open, measured 2026-08-30)
+
+`eval/fixtures/liar/` plants a `conftest.py` that force-skips every collected test. That
+is the most consequential trap in the fixture: when it fires, **no test in the repository
+executes**, so every other green signal is theatre. The answer key therefore demands the
+finding at Blocker or Critical.
+
+Measured at v0.43.0, Opus, n=3: **caught once.** The run that caught it filed
+`LIAR-F-004 [Blocker] conftest.py force-skips every collected test unconditionally, with
+no expiry` — so this is not a blind spot in what the prompt can see; it is a coverage step
+the agent performs inconsistently. Every other row in the fixture passed all three times.
+
+Not yet acted on, deliberately. A prompt edit is a behaviour change, so a fix has to be
+paid for in re-runs — n≥3 on this fixture to show the row improved, plus the pricer and
+slop fixtures to show nothing else moved. That is a decision about model spend, not a
+code change to slip in.
+
+What this does establish: the behavioural half of the coverage is worth what it costs. The
+structural contract in `tests/test_agent_contract.py` is green and would have stayed green
+through every one of these runs.
+
 ## Two halves, and only one of them is free
 
 `agents/verdict.md` is the product — the judgment lives there — and measuring what a
@@ -59,6 +80,8 @@ run's evidence list should show it never looked.
 
 | Date | Model | Fixture / mode | Score | Notes |
 |---|---|---|---|---|
+| 2026-08-30 | Opus (`run_eval.py --fixture pricer --mode seeded`, v0.43.0) | pricer delta (the flagship) | **6/6** | First behavioural measurement since v0.28.0, and the first with the run-history chain live: all four delta classes correct (REGRESSED rounding, NEW bulk threshold, STILL_OPEN floor, RESOLVED env fixture), quarantine released on expiry, verdict `fail`. All five harness signals true end-to-end including `chain_intact` — the v0.42.0 chain works through a real model run, not only in unit tests. |
+| 2026-08-30 | Opus (`run_eval.py --fixture liar`, v0.43.0, **n=3**) | liar (adversarial honesty) | **5/6 · 6/6 · 5/6** | Five of six rows pass every time. The sixth — `conftest-skips-entire-suite`, which requires the finding at Blocker or Critical — hits **1 of 3**. When it lands it lands well (`LIAR-F-004 [Blocker] conftest.py force-skips every collected test unconditionally`); it is simply not reliable. Reported at n=3 rather than n=1 because this project's own doctrine is three reproductions before classifying an intermittent failure, and because the earlier 6/6 below was itself n=1 — it never established that this row was once reliable, so this is a **measured weakness, not a demonstrated regression**. See "An intermittently-caught trap" below. |
 | 2026-08-25 | Opus (Claude Code 2.1.245, headless `-p`) | pricer baseline | **8/8** | All five classifications correct, including the graveyard skip identified as *not* flaky and the stale expectation cited to the CHANGELOG. Quarantined the real flake with a one-week expiry after 8 confirmation re-runs. Also surfaced **3 legitimate findings beyond the answer key** (below). Fixture left byte-identical; answer key confirmed unread. Hand-scored by the fixture author — superseded by `score.py` for later rows. |
 | 2026-08-29 | Opus (`run_eval.py --fixture slop`, v0.28.0) | slop (AI-authored code) | **8/8** | First run of the AI-authored-code fixture, first try, through the full harness (facts measured, judgment written, state computed, report rendered). All seven seeded species found with `confidence: proven`: the rule-3 swallow filed **Blocker**; the deleted rule-4 guard *and* the "full coverage" commit that deleted its test, both pinned to commits by archaeology; the drifted `clean_sku` twin; unwired `MAX_BATCH`; undeclared `backoff` (flagged by `code_census`, then verified); the placeholder rate table; the mock-asserting tests. Read the provenance census (2 of 3 commits AI-attributed) and said so in scope. **7 findings beyond the key**, all legitimate on inspection — including one the fixture author did not seed on purpose: `get_rate` silently prices every unknown destination at the US rate. Verdict `fail`. |
 | 2026-08-29 | Opus (`run_eval.py --fixture cause`, v0.15.0) | rates (root cause) | **6/6** | First run of `/qa-cause`, first try. Named the truncating `to_cents` three modules from the symptom, found the two untested sites carrying the same defect (the class link), reported the mechanism chain, separated the trigger (a test-data commit) from the cause — and **did not blame the decoy**: the recent zone-lookup cache sitting right in the failing path was examined and cleared, not convicted. Verdict `fail`. |
