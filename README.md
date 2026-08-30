@@ -177,14 +177,20 @@ an orchestrator gating a merge, a Cursor or Codex session, a CI step commenting 
 | `list_projects()` / `get_state(project)` | everything with a baseline / the raw state |
 
 ```
-claude mcp add verdict -- uvx --from git+https://github.com/ArtJack/verdict verdict-mcp
+claude mcp add verdict -- uvx --from verdict-qa-mcp verdict-mcp
 ```
+
+The distribution is **`verdict-qa-mcp`** — the console script and the import package are
+still `verdict-mcp` / `verdict_mcp`; only the name PyPI indexes differs, because
+`verdict-mcp` there belongs to an unrelated project. Installing straight from the
+repository also works and needs no release:
+`uvx --from git+https://github.com/ArtJack/verdict verdict-mcp`
 
 `project` is a key from the solo root (`~/.claude/verdict/`, override with `VERDICT_HOME`)
 or a repo path in team mode (resolves `<repo>/.qa/`). Every tool carries a read-only
 annotation and the server never writes — **the tester's memory is public API; the tester's
-pen is not.** Needs `uv` (or `pipx install "git+https://github.com/ArtJack/verdict"`); the
-plugin itself still has zero dependencies and works without the server.
+pen is not.** Needs `uv` (or `pipx install verdict-qa-mcp`); the plugin itself still has
+zero dependencies and works without the server.
 
 ## Closing the loop (without letting the tester fix anything)
 

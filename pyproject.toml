@@ -1,14 +1,40 @@
 [project]
-name = "verdict-mcp"
-version = "0.36.0"
-description = "Read-only MCP server over Verdict QA state: verdicts, findings, flaky quarantine, run history."
-readme = "README.md"
+# The distribution is `verdict-qa-mcp`, not `verdict-mcp`: that name was
+# registered on PyPI on 2026-08-23 by an unrelated project in the same niche
+# (Dgotlieb/verdict-mcp). Only the name PyPI indexes moved — the import
+# package (`verdict_mcp`), every console script, and the plugin are unchanged,
+# so nothing a user types or imports is affected.
+name = "verdict-qa-mcp"
+version = "0.37.0"
+description = "Read-only MCP server and release gate over Verdict QA state: verdicts, findings, flaky quarantine, run history."
+# Not README.md: that one sells the Claude Code plugin and is full of links
+# relative to the repo, which resolve to nothing on PyPI. README-pypi.md
+# describes what this distribution actually installs.
+readme = "README-pypi.md"
 license = { file = "LICENSE" }
 requires-python = ">=3.10"
 dependencies = ["mcp[cli]>=1.27,<2"]
+authors = [{ name = "ArtJack" }]
+keywords = ["qa", "testing", "mcp", "release-gate", "regression", "flaky-tests", "claude-code"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Software Development :: Quality Assurance",
+    "Topic :: Software Development :: Testing",
+]
 
 [project.urls]
 Homepage = "https://github.com/ArtJack/verdict"
+Repository = "https://github.com/ArtJack/verdict"
+Issues = "https://github.com/ArtJack/verdict/issues"
+Changelog = "https://github.com/ArtJack/verdict/blob/main/CHANGELOG.md"
 
 [project.scripts]
 verdict-mcp = "verdict_mcp.server:main"
@@ -24,6 +50,28 @@ build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/verdict_mcp"]
+
+[tool.hatch.build.targets.sdist]
+# An allowlist, not an exclude list. hatchling honours .gitignore but *not*
+# .git/info/exclude, and `.claude/worktrees/` is excluded in the latter — so a
+# default sdist swept in 332 files of agent session worktrees (full duplicate
+# copies of the repo, eval fixtures and all). An allowlist cannot regress that
+# way: a new untracked directory is absent by default rather than published.
+#
+# Every pattern is anchored with a leading slash. These are gitignore-style
+# globs, so an unanchored `README.md` matches at *any* depth — which quietly
+# pulled `.claude/worktrees/<session>/README.md` and its whole repo copy back
+# into the archive even with the allowlist in place.
+include = [
+    "/src/verdict_mcp",
+    "/tests",
+    "/README-pypi.md",
+    "/README.md",
+    "/CHANGELOG.md",
+    "/LICENSE",
+    "/pyproject.toml",
+]
+exclude = ["/.claude"]
 
 [dependency-groups]
 dev = ["pytest>=8", "mutmut>=2.5,<3"]
