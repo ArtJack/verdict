@@ -3,6 +3,17 @@
 Plugin and `verdict-mcp` share one version line; `.claude-plugin/plugin.json` and
 `pyproject.toml` are bumped together.
 
+## 0.30.0 — 2026-08-30 · "a front door"
+
+- **`/verdict`** — the command a newcomer types. Ten commands each owned a specific job
+  and none owned "just run it", so the entry point was knowledge you had to already have:
+  baseline first, then delta, unless a re-baseline trigger tripped. That is routing the
+  state can do itself. `/verdict` resolves the QA root, reads `state.json`, and picks the
+  pass — baseline when there is no history, today's delta when there is, a narrowed delta
+  when you name a target — **and says which it chose and why** rather than silently
+  deciding. Narrowing scope stays legitimate; narrowing the artifact does not, and
+  everything outside the narrowed scope lands in `not_tested`.
+
 ## 0.29.0 — 2026-08-30 · "the record and the runner"
 
 Two architecture items from the external review, both about closing loops the design
