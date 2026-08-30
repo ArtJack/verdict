@@ -32,9 +32,13 @@ already knows which pass is correct, so do not ask the caller to know it:
 4. **Gate your own run, and paste the result verbatim.** Before the handoff, run:
 
    ```
-   python3 ${CLAUDE_PLUGIN_ROOT}/src/verdict_mcp/gate.py <project> \
+   python3 <plugin-root>/src/verdict_mcp/gate.py <project> \
        --require-harness --min-run-number <the run_number you just wrote> --format text
    ```
+
+   `<plugin-root>` is the path §0 resolved. Do **not** type `$CLAUDE_PLUGIN_ROOT` into the
+   shell — it is substituted into these files as text and is not an environment variable,
+   so bash expands it to nothing and the command becomes `python3 /src/...`.
 
    Report its exit code and reason as the first line of your handoff, unedited. This is
    not ceremony — it is the only check that reads what you *actually left on disk* rather

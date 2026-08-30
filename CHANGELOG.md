@@ -3,6 +3,18 @@
 Plugin and `verdict-mcp` share one version line; `.claude-plugin/plugin.json` and
 `pyproject.toml` are bumped together.
 
+## 0.33.1 — 2026-08-30
+
+- **`${CLAUDE_PLUGIN_ROOT}` is text, not an environment variable — now said so.** Claude
+  Code substitutes the token when it *loads* the agent and command files, so the path an
+  agent reads there is real; but `$CLAUDE_PLUGIN_ROOT` in a Bash call expands to nothing,
+  turning `ls $CLAUDE_PLUGIN_ROOT/src` into `ls /src`. Measured directly
+  (`ROOT=[UNSET]`), after a live run on a real project logged one failed command —
+  "Failed to inspect verdict plugin layout" — and recovered on the next step. §0 now
+  states it where the agent first meets the token, and the two places that hand a command
+  line to a shell (§6's harness invocation, `/verdict:run`'s self-gate) say
+  `<plugin-root>` with the resolved path rather than the literal token.
+
 ## 0.33.0 — 2026-08-30 · "the guard that does not need remembering"
 
 - **A `Stop` / `SubagentStop` hook enforces the harness.** Every other check in this system
