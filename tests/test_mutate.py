@@ -23,7 +23,13 @@ FIXTURE = Path(__file__).resolve().parent.parent / "eval" / "fixtures" / "pricer
 def test_every_mutant_changes_exactly_one_line():
     source = (FIXTURE / "pricer.py").read_text(encoding="utf-8")
     original = source.splitlines()
-    for mutant in generate(source):
+    mutants = generate(source)
+    # Asserted before the loop, not inside it. All three tests below used to
+    # check only per-iteration, so a `generate()` that regressed to returning
+    # `[]` would keep them green while the mutation engine produced nothing —
+    # the tool that measures suite quality, its own suite measuring nothing.
+    assert len(mutants) >= 20, f"the operator set collapsed: {len(mutants)} mutants"
+    for mutant in mutants:
         changed = [i for i, (a, b) in enumerate(
             zip(original, apply_to(source, mutant).splitlines())) if a != b]
         assert changed == [mutant["line"] - 1], mutant
@@ -31,7 +37,9 @@ def test_every_mutant_changes_exactly_one_line():
 
 def test_mutants_keep_the_file_parseable():
     source = (FIXTURE / "pricer.py").read_text(encoding="utf-8")
-    for mutant in generate(source):
+    mutants = generate(source)
+    assert mutants, "nothing to parse means nothing was tested"
+    for mutant in mutants:
         compile(apply_to(source, mutant), "pricer.py", "exec")
 
 
