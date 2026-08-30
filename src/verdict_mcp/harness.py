@@ -889,7 +889,10 @@ def render_report(state: dict, prose: dict | None = None) -> str:
     Everything that requires a sentence comes from `prose`, because a rendered
     table is not an explanation and nobody should pretend otherwise.
     """
-    prose = prose or {}
+    # Belt and braces: `validate_judgment` rejects a non-object `prose` with a
+    # message its author can act on, but a renderer that raises AttributeError
+    # on unexpected input is a renderer that loses a whole run to a typo.
+    prose = prose if isinstance(prose, dict) else {}
     last = state.get("last_run") or {}
     out = [f"# QA report — {state.get('project')} · run {state.get('run_number')} "
            f"({state.get('run_type')})", ""]
@@ -957,8 +960,9 @@ def render_report(state: dict, prose: dict | None = None) -> str:
                 out.append(f"- Class: {json.dumps(rc['class'])[:200]}")
         if f.get("carried_forward"):
             out.append(f"- _{f['carried_forward']}_")
-        if prose.get("findings", {}).get(str(f.get("id"))):
-            out += ["", prose["findings"][str(f.get("id"))]]
+        narrative = prose.get("findings")
+        if isinstance(narrative, dict) and narrative.get(str(f.get("id"))):
+            out += ["", narrative[str(f.get("id"))]]
         out.append("")
 
     out += _render_calibration(state.get("calibration") or {})

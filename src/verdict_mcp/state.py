@@ -353,6 +353,19 @@ def calibration(state: dict, min_sample: int = CALIBRATION_MIN_SAMPLE,
 
 
 RENDERED_BY_FINALIZE = "rendered from `state.json` by `verdict-finalize`"
+# The two traces that survive a `git checkout`. `facts.json` and `judgment.json`
+# are per-run scratch — a team-mode `.qa/` gitignores them, so a CI job looking
+# at a fresh checkout finds neither, however honestly the run was measured.
+# They are also the weaker evidence: `facts.json` existing proves the measuring
+# step ran, not that `finalize` consumed it, whereas `calibration` is written
+# only by `merge` and the report footer only by the renderer. So the durable
+# pair is what a gate requires; the other two corroborate and are reported.
+DURABLE_SIGNALS = ("state_computed", "report_rendered")
+
+
+def missing_durable(signals: dict) -> list:
+    """The durable traces absent from `signals` — what a gate refuses over."""
+    return [name for name in DURABLE_SIGNALS if not signals.get(name)]
 
 
 def harness_signals(state: dict, qa_root=None) -> dict:

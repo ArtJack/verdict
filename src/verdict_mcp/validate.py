@@ -117,6 +117,17 @@ def validate_judgment(judgment, previous=None):
     if not isinstance(judgment.get("isolation_check"), dict):
         bad.append("isolation_check must be an object recording the §0 check you ran")
 
+    prose = judgment.get("prose")
+    if prose is not None and not isinstance(prose, dict):
+        bad.append(
+            f"prose must be an object of named sections, not {type(prose).__name__} — "
+            "`{\"scope\": …, \"risks\": …, \"fix_order\": …, \"notes\": …, "
+            "\"findings\": {<id>: …}}`. A bare string here crashed the renderer with a "
+            "raw AttributeError, which told its author nothing about what to change")
+    elif isinstance(prose, dict) and not isinstance(prose.get("findings", {}), dict):
+        bad.append("prose.findings must map a finding id to its narrative, not "
+                   f"{type(prose.get('findings')).__name__}")
+
     findings = judgment.get("findings")
     if not isinstance(findings, list):
         return bad + ["findings must be a list"]
