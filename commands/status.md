@@ -14,6 +14,18 @@ subagent.
 2. Summarize: last verdict, when, and the SHA range · run number and type · open findings
    by severity with ages, REGRESSED first · release blockers · quarantine entries with
    their expiry status · the `not_tested` list · `next_run_focus`.
-3. Call out staleness: a last run older than 7 days gets a "stale — run `/verdict:run`"
-   line, not a silently reheated verdict.
+3. Call out staleness — **in commits, not only in hours.** A verdict ages two ways and
+   the clock only catches one of them. Compare `last_run.git_sha` to the current `HEAD`:
+   - `HEAD` is that commit → the verdict describes the code in front of you.
+   - `HEAD` is *n* commits ahead → say so first, before the findings: "measured *n*
+     commits ago — these may already be fixed." This repository's own state once named
+     three open Major findings that had all been fixed and merged four hours earlier;
+     the seven-day rule could not see it, because the state had not aged, the code had
+     moved.
+   - the recorded commit is not in `HEAD`'s history → the verdict describes code this
+     branch never had. Say that plainly; it is not a distance.
+   - the commit is not in this repository at all (shallow clone, different repo) → say
+     the comparison could not be made. Never guess a distance.
+   A last run older than 7 days still gets its "stale — run `/verdict:run`" line. Neither
+   signal substitutes for the other, and neither is a silently reheated verdict.
 4. **Write nothing.** No state update, no report file, no INDEX row.

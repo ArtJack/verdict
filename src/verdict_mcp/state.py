@@ -14,6 +14,7 @@ Project resolution, mirroring the agent's §0:
 import json
 import os
 import re
+import subprocess
 from datetime import date, datetime, timezone
 from pathlib import Path
 
@@ -487,3 +488,71 @@ def order_findings(findings: list[dict]) -> list[dict]:
             -(f.get("age_days") or 0),
         ),
     )
+
+
+def code_drift(repo, sha, timeout: float = 3.0) -> dict:
+    """How far the code has moved since this state was written.
+
+    A verdict goes stale in two ways and only one of them is a duration. The
+    repo's own state proved the point: written four hours earlier, it named
+    three open Major findings that had all been fixed and merged in the six
+    commits since. Nothing was corrupt — only a run resolves findings — but
+    every consumer read it as current, because the only staleness signal in
+    the product was a seven-day clock and the state was not old. It was
+    *behind*. Measured here once so the session banner, the status command and
+    anything else that reports a stored verdict can say the same thing.
+
+    Returns {"status", "commits", "head"} where status is:
+      current  — HEAD is the commit that was tested
+      behind   — HEAD is `commits` commits ahead of the tested commit
+      diverged — the tested commit is not in HEAD's history
+      unknown  — no git, no recorded sha, or the commit is not in this repo
+
+    Never raises and never blocks: an unreadable repository is `unknown`, not
+    an alarm. A false "you are behind" would train people to ignore the line.
+    """
+    out = {"status": "unknown", "commits": None, "head": None}
+    if not sha or not isinstance(sha, str) or not repo:
+        return out
+
+    def git(*args):
+        try:
+            return subprocess.run(["git", "-C", str(repo), *args],
+                                  capture_output=True, text=True, timeout=timeout)
+        except (OSError, subprocess.SubprocessError):
+            return None
+
+    head = git("rev-parse", "--verify", "HEAD^{commit}")
+    if head is None or head.returncode != 0:
+        return out
+    out["head"] = head.stdout.strip()
+
+    # Resolve the recorded sha in *this* repository. A commit that is absent
+    # (shallow clone, a different repo, a rewritten branch) is unknown, not
+    # diverged: we cannot see far enough to make either claim.
+    rec = git("rev-parse", "--verify", f"{sha.strip()}^{{commit}}")
+    if rec is None or rec.returncode != 0:
+        return out
+    recorded = rec.stdout.strip()
+
+    if recorded == out["head"]:
+        out["status"] = "current"
+        out["commits"] = 0
+        return out
+
+    anc = git("merge-base", "--is-ancestor", recorded, out["head"])
+    if anc is None:
+        return out
+    if anc.returncode != 0:
+        out["status"] = "diverged"
+        return out
+
+    count = git("rev-list", "--count", f"{recorded}..{out['head']}")
+    if count is None or count.returncode != 0:
+        return out
+    try:
+        out["commits"] = int(count.stdout.strip())
+    except ValueError:
+        return out
+    out["status"] = "behind"
+    return out
