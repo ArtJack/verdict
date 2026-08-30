@@ -3,6 +3,30 @@
 Plugin and `verdict-mcp` share one version line; `.claude-plugin/plugin.json` and
 `pyproject.toml` are bumped together.
 
+## 0.32.0 — 2026-08-30 · "gate your own run"
+
+- **`/verdict:run` now gates itself.** Before the handoff it runs
+  `verdict-gate --require-harness --min-run-number <n>` against what it just wrote, and
+  reports the exit code and reason verbatim as the first line of the handoff. The command
+  spells out what each code means and forbids explaining a 6 away.
+- **Why, measured rather than asserted.** A haiku-model run of this command wrote to the
+  default state root while `$VERDICT_HOME` pointed elsewhere, invented a project key
+  (`frontdoor-repo` where the mechanical rule gives `repo`), skipped the harness entirely
+  (no `facts.json`, no `calibration` block), used a finding id outside the required
+  format, and typed `schema_version` as a string — while producing a confident,
+  plausible-looking `FAIL` that found the seeded defect correctly. A separate probe
+  confirmed `$VERDICT_HOME` *did* reach the session's Bash tool, so the variable was
+  ignored, not lost.
+
+  Every one of those violations has a guard already built. **None fired, because nothing
+  invoked them.** The enforcement in this system is downstream of a tool the model must
+  choose to call, and `verdict-run` closes that for scheduled runs by gating from outside;
+  the interactive path had nothing. This step is what invokes them.
+
+  It remains a prompt rule, and prompt rules are exactly what that haiku run ignored — so
+  it is a real improvement for a capable model and an honest partial fix, not a guarantee.
+  The guarantee wants a stop-hook that fires whether or not the model remembers.
+
 ## 0.31.0 — 2026-08-30 · "/verdict:run"
 
 - **The front door is `/verdict:run`**, renamed from the `/verdict:verdict` that 0.30.0
