@@ -21,7 +21,10 @@ from mcp.types import ToolAnnotations
 
 from .state import (
     DELTA_VALUES,
+    resolve_root,
+    repo_for_root,
     calibration,
+    code_drift,
     home,
     hotspots,
     is_open,
@@ -77,6 +80,11 @@ def get_verdict(project: str) -> dict:
         "sha_range": last.get("sha_range"),
         "report": last.get("report"),
         "not_tested": state.get("not_tested", []),
+        # The documented CI loop calls this to decide a merge. A verdict ages in
+        # commits as well as hours, so the caller is told the distance rather
+        # than left to assume the answer still describes the code in hand.
+        "code_drift": code_drift(repo_for_root(resolve_root(project)),
+                                 last.get("git_sha")),
     }
 
 

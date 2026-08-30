@@ -32,6 +32,9 @@ inputs:
   min-run-number:
     description: "Exit 5 (stale) unless run_number reached this — closes the crashed-run race"
     default: ""
+  max-commits-behind:
+    description: "Exit 5 (stale) when the tested commit is more than N behind HEAD, or not in its history"
+    default: ""
   findings:
     description: "Max findings rendered in output and comment"
     default: "10"
@@ -131,6 +134,7 @@ runs:
         FINDINGS: ${{ inputs.findings }}
         MAX_AGE_HOURS: ${{ inputs.max-age-hours }}
         MIN_RUN_NUMBER: ${{ inputs.min-run-number }}
+        MAX_COMMITS_BEHIND: ${{ inputs.max-commits-behind }}
         REQUIRE_HARNESS: ${{ inputs.require-harness }}
       run: |
         # Every value below arrives through env rather than an Actions
@@ -139,6 +143,7 @@ runs:
         ARGS=("$PROJECT" --fail-on "$FAIL_ON" --findings "$FINDINGS")
         [ -n "$MAX_AGE_HOURS" ] && ARGS+=(--max-age-hours "$MAX_AGE_HOURS")
         [ -n "$MIN_RUN_NUMBER" ] && ARGS+=(--min-run-number "$MIN_RUN_NUMBER")
+        [ -n "$MAX_COMMITS_BEHIND" ] && ARGS+=(--max-commits-behind "$MAX_COMMITS_BEHIND")
         [ "$REQUIRE_HARNESS" = "true" ] && ARGS+=(--require-harness)
         GATE="${{ github.action_path }}/src/verdict_mcp/gate.py"
         set +e

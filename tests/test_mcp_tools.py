@@ -137,6 +137,18 @@ def test_get_verdict(solo_home):
     assert out["not_tested"] == ["concurrency under parallel checkout"]
 
 
+def test_get_verdict_reports_code_drift(solo_home):
+    """The documented CI loop calls this to decide a merge, so it is told the
+    distance rather than left to assume the verdict still describes the code."""
+    out = server.get_verdict("pricer")
+    assert "code_drift" in out
+    assert set(out["code_drift"]) == {"status", "commits", "head"}
+    # This fixture's profile records no repository, so the honest answer is
+    # "cannot measure" — never a fabricated zero.
+    assert out["code_drift"]["status"] == "unknown"
+    assert out["code_drift"]["commits"] is None
+
+
 def test_findings_open_orders_regressed_first(solo_home):
     out = server.get_findings("pricer")  # default status="open"
     ids = [f["id"] for f in out["findings"]]

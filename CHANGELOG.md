@@ -3,6 +3,48 @@
 Plugin and `verdict-mcp` share one version line; `.claude-plugin/plugin.json` and
 `pyproject.toml` are bumped together.
 
+## 0.41.0 — 2026-08-30 · "the gate can see it too"
+
+0.40.0 taught the session banner that a verdict ages in commits. The banner only
+misleads a reader. **The gate merges code**, and `get_verdict` over MCP is what the
+documented CI loop calls to make that decision — so both were still blind to the
+same thing, on the side where it costs the most.
+
+- **`verdict-gate --max-commits-behind N`** — exit 5 when the tested commit is more
+  than N behind `HEAD`, and exit 5 unconditionally when it is not in `HEAD`'s history
+  at all. Opt-in, exactly like `--max-age-hours` and `--min-run-number`: existing
+  pipelines do not start failing, and there is a test that says so.
+- **Deliberately silent when the distance cannot be measured.** A shallow clone, an
+  absent commit or an unresolvable repository is `unknown`, and `unknown` never fails
+  the gate. A gate that goes red on a shallow clone is a gate people route around,
+  which costs more than the check earns.
+- **`get_verdict` now returns `code_drift`** alongside the verdict, so a caller
+  deciding a merge is told the distance instead of assuming the answer still
+  describes the code in hand.
+- Exposed as `max-commits-behind` on the Action, and as an opt-in flag on
+  `verdict-run`.
+
+**`state.repo_for_root()`** makes the link the gate needed: a QA root back to the
+repository it describes. Team mode is structural (`<repo>/.qa`); solo mode reads the
+profile's `Repo-Path:` header. Written both ways in the wild — the first pattern
+matched **none** of the six live roots on this machine, because the profiles the
+agent generates use `**Repo-Path:** \`/path\`` and only a hand-written one used the
+bare form. Measured across all of them rather than assumed.
+
+**Why `--max-commits-behind` is opt-in on `verdict-run` and not on by default**, even
+though the run gates its own output moments later: a profile's `Repo-Path` records the
+*main* worktree — that is what keeps the project key stable across worktrees — so a
+run executed inside a linked worktree writes a sha the main worktree's HEAD has never
+seen. Defaulting it on would have turned a healthy nightly red. The caveat is recorded
+next to the function rather than in a commit message.
+
+One thing this release does **not** claim to have fixed. `code_drift` resolves a squash
+merge that preserved the tested tree. When a branch gains further commits before being
+squashed, the tree that was measured exists nowhere in the resulting history, and the
+honest answer is `diverged` — the verdict really does describe code this branch does
+not have. That is now pinned by a test rather than left to be rediscovered as a bug.
+This repository's own committed state is in exactly that position, and the gate says so.
+
 ## 0.40.0 — 2026-08-30 · "a verdict ages in commits"
 
 **A stored verdict goes stale two ways, and only one of them is a clock.** This

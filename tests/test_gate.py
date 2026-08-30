@@ -313,3 +313,99 @@ def test_require_harness_survives_a_checkout_that_drops_the_scratch(tmp_path):
 def test_require_harness_still_refuses_a_state_with_neither_durable_trace(tmp_path):
     proc = gate(tmp_path, "pricer", "--require-harness", home=make_home(tmp_path))
     assert proc.returncode == 6 and "hand-written state" in proc.stdout
+
+
+# --- --max-commits-behind: a verdict ages in commits, not only in hours -------
+#
+# The banner only misleads a reader; this gate merges code. A `pass` measured
+# against a commit the branch has moved past is a false green at the most
+# expensive moment there is. Opt-in, like the other two staleness flags.
+
+def _drift_repo(tmp_path):
+    """A repo with three commits, and a QA home whose profile points at it."""
+    r = tmp_path / "proj"
+    r.mkdir()
+
+    def g(*a):
+        return subprocess.run(["git", "-C", str(r), *a],
+                              capture_output=True, text=True, check=True).stdout.strip()
+
+    g("init", "-q", "-b", "main")
+    g("config", "user.email", "t@e.com")
+    g("config", "user.name", "t")
+    shas = []
+    for i in range(3):
+        (r / f"f{i}.txt").write_text(str(i), encoding="utf-8")
+        g("add", "-A")
+        g("commit", "-qm", f"c{i}")
+        shas.append(g("rev-parse", "HEAD"))
+    return r, shas, g
+
+
+def _drift_home(tmp_path, repo, sha, **overrides):
+    home = make_home(tmp_path, **{**PASSABLE, **overrides})
+    root = home / "pricer"
+    state = json.loads((root / "state.json").read_text(encoding="utf-8"))
+    state["last_run"] = {**state.get("last_run", {}), "git_sha": sha}
+    (root / "state.json").write_text(json.dumps(state), encoding="utf-8")
+    (root / "profile.md").write_text(f"**Repo-Path:** `{repo}`\n", encoding="utf-8")
+    return home
+
+
+def test_drift_within_limit_passes(tmp_path):
+    r, shas, _ = _drift_repo(tmp_path)
+    home = _drift_home(tmp_path, r, shas[1])          # one commit behind
+    proc = gate(tmp_path, "pricer", "--max-commits-behind", "1", home=home)
+    assert proc.returncode == 0, proc.stdout + proc.stderr
+
+
+def test_drift_beyond_limit_is_stale(tmp_path):
+    r, shas, _ = _drift_repo(tmp_path)
+    home = _drift_home(tmp_path, r, shas[0])          # two commits behind
+    proc = gate(tmp_path, "pricer", "--max-commits-behind", "1", home=home)
+    assert proc.returncode == 5, proc.stdout + proc.stderr
+    assert "measured 2 commits ago" in proc.stdout
+
+
+def test_diverged_state_never_gates_a_merge(tmp_path):
+    r, shas, g = _drift_repo(tmp_path)
+    g("checkout", "-q", "-b", "side", shas[0])
+    (r / "elsewhere.txt").write_text("content main never had", encoding="utf-8")
+    g("add", "-A")
+    g("commit", "-qm", "side")
+    home = _drift_home(tmp_path, r, shas[-1])         # main's tip, not on side
+    proc = gate(tmp_path, "pricer", "--max-commits-behind", "99", home=home)
+    assert proc.returncode == 5, proc.stdout + proc.stderr
+    assert "not in this branch's history" in proc.stdout
+
+
+def test_squash_merged_state_still_gates(tmp_path):
+    """The whole point of the F-10 fix, at the gate rather than the banner."""
+    r, shas, g = _drift_repo(tmp_path)
+    g("checkout", "-q", "-b", "feat")
+    (r / "work.txt").write_text("w", encoding="utf-8")
+    g("add", "-A")
+    g("commit", "-qm", "work")
+    feat = g("rev-parse", "HEAD")
+    g("checkout", "-q", "main")
+    subprocess.run(["git", "-C", str(r), "merge", "-q", "--squash", "feat"],
+                   capture_output=True, text=True)
+    g("commit", "-qm", "squashed (#1)")
+    home = _drift_home(tmp_path, r, feat)
+    proc = gate(tmp_path, "pricer", "--max-commits-behind", "0", home=home)
+    assert proc.returncode == 0, "a squash merge must not read as drift\n" + proc.stdout
+
+
+def test_unmeasurable_drift_does_not_fail_the_gate(tmp_path):
+    """A gate that fails on a shallow clone is a gate people route around."""
+    home = _drift_home(tmp_path, tmp_path / "no-such-repo", "deadbeef" * 5)
+    proc = gate(tmp_path, "pricer", "--max-commits-behind", "0", home=home)
+    assert proc.returncode == 0, proc.stdout + proc.stderr
+
+
+def test_flag_absent_means_no_drift_check(tmp_path):
+    """Backward compatibility: existing pipelines must not start failing."""
+    r, shas, _ = _drift_repo(tmp_path)
+    home = _drift_home(tmp_path, r, shas[0])          # two behind, unchecked
+    proc = gate(tmp_path, "pricer", home=home)
+    assert proc.returncode == 0, proc.stdout + proc.stderr

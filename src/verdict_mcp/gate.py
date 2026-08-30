@@ -15,13 +15,23 @@ Exit codes — distinct on purpose; "the tester never ran" must not look like
   2  usage error (argparse convention)
   3  blocked — the tester ran and could not verify
   4  no state / unreadable state — the tester never ran
-  5  stale state — --max-age-hours exceeded or run_number < --min-run-number
+  5  stale state — --max-age-hours exceeded, run_number below
+     --min-run-number, or the code has moved past what was tested
+     (--max-commits-behind)
   6  hand-written state — --require-harness set and the run did not go
      through verdict-facts / verdict-finalize
 
 The stale check exists to close the loop race: capture run_number before
 launching the QA run, then gate with --min-run-number <n+1> — a run that died
 without writing state can no longer launder the previous verdict.
+
+--max-commits-behind closes the other half. A verdict ages in commits as well
+as in hours, and this repository's own state once carried a `pass with risks`
+whose three open Majors had all been fixed and merged. Gating a merge on a
+verdict measured against code that has since moved is a false green at the
+most expensive moment there is. Opt-in, like the other two staleness flags,
+and deliberately silent when the distance cannot be measured — a gate that
+fails on a shallow clone is a gate people route around.
 """
 
 import argparse
@@ -33,13 +43,15 @@ from pathlib import Path
 
 try:
     from .project_key import derive_key
-    from .state import (harness_signals, is_open, load_state, missing_durable,
-                    order_findings, parse_timestamp, resolve_root)
+    from .state import (code_drift, harness_signals, is_open, load_state,
+                    missing_durable, order_findings, parse_timestamp,
+                    repo_for_root, resolve_root)
 except ImportError:  # executed as a bare script (GitHub Action gate mode)
     sys.path.insert(0, str(Path(__file__).resolve().parent))
     from project_key import derive_key
-    from state import (harness_signals, is_open, load_state, missing_durable,
-                   order_findings, parse_timestamp, resolve_root)
+    from state import (code_drift, harness_signals, is_open, load_state,
+                   missing_durable, order_findings, parse_timestamp,
+                   repo_for_root, resolve_root)
 
 MARKER = "<!-- verdict-gate -->"
 
@@ -54,7 +66,7 @@ def _resolve_project(arg):
 
 
 def evaluate(project, fail_on, max_age_hours, min_run_number, now=None,
-             require_harness=False):
+             require_harness=False, max_commits_behind=None):
     """Pure gate decision → a dict with exit_code, reason, and the state facts."""
     state, err = load_state(project)
     if err:
@@ -91,6 +103,21 @@ def evaluate(project, fail_on, max_age_hours, min_run_number, now=None,
                 f"stale: last run at {last.get('timestamp_utc')!r} is older than "
                 f"{max_age_hours}h (or unparseable)"))
             return out
+    if max_commits_behind is not None:
+        root = resolve_root(project)
+        drift = code_drift(repo_for_root(root), last.get("git_sha"))
+        out["code_drift"] = drift
+        if drift["status"] == "diverged":
+            out.update(exit_code=5, reason=(
+                "stale: the tested commit is not in this branch's history — the "
+                "stored verdict describes code this checkout never had"))
+            return out
+        if drift["status"] == "behind" and drift["commits"] > max_commits_behind:
+            out.update(exit_code=5, reason=(
+                f"stale: measured {drift['commits']} commits ago, limit is "
+                f"{max_commits_behind} — the code has moved past what was tested"))
+            return out
+
     # A state whose recorded verdict contradicts its own recorded findings is
     # not a verdict, it is a contradiction, and serving it green is how a
     # false pass reaches a merge. §10 is the arbiter: an open Blocker admits
@@ -270,6 +297,9 @@ def main(argv=None) -> int:
                          "'pass with risks'. 'blocked' always exits 3.")
     ap.add_argument("--max-age-hours", type=float, default=None)
     ap.add_argument("--min-run-number", type=int, default=None)
+    ap.add_argument("--max-commits-behind", type=int, default=None,
+                    help="fail when the tested commit is more than N behind "
+                         "HEAD, or not in its history at all")
     ap.add_argument("--require-harness", action="store_true",
                     help="exit 6 unless the state was produced by verdict-facts / "
                          "verdict-finalize rather than written by hand")
@@ -282,6 +312,7 @@ def main(argv=None) -> int:
 
     project, how = _resolve_project(args.project)
     result = evaluate(project, args.fail_on, args.max_age_hours, args.min_run_number,
+                      max_commits_behind=args.max_commits_behind,
                       require_harness=args.require_harness)
     result["resolved_via"] = how
 

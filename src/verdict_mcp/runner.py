@@ -133,6 +133,13 @@ def main(argv=None) -> int:
     ap.add_argument("--prompt-file", type=Path, default=None)
     ap.add_argument("--timeout-s", type=int, default=3600)
     ap.add_argument("--max-age-hours", type=float, default=24.0)
+    # Opt-in, unlike --require-harness. A profile's Repo-Path records the *main*
+    # worktree, so a run executed in a linked worktree legitimately writes a sha
+    # that main's HEAD has never seen — defaulting this on would fail a healthy
+    # nightly. Set it where the run and the gate see the same checkout.
+    ap.add_argument("--max-commits-behind", type=int, default=None,
+                    help="gate exit 5 when the run's state is more than N commits "
+                         "behind the profile's repository HEAD")
     ap.add_argument("--fail-on", choices=("fail", "risks"), default="fail")
     ap.add_argument("--no-require-harness", dest="require_harness", action="store_false",
                     help="accept a state the harness did not produce (gate exit 6 off)")
@@ -190,7 +197,8 @@ def main(argv=None) -> int:
         break
 
     result = evaluate(project, args.fail_on, args.max_age_hours, before + 1,
-                      require_harness=args.require_harness)
+                      require_harness=args.require_harness,
+                      max_commits_behind=args.max_commits_behind)
     print(f"verdict-run: verdict {result.get('verdict')!r} → exit {result['exit_code']} "
           f"({result['reason']})")
     if result.get("report"):
