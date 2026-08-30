@@ -209,7 +209,7 @@ def get_profile(project: str) -> dict:
     if not path.is_file():
         return {
             "error": f"no profile.md for {project!r}",
-            "hint": "run /qa-baseline to create one",
+            "hint": "run /verdict:baseline to create one",
         }
     out = {"project": state.get("project", project),
            "content": path.read_text(encoding="utf-8")}

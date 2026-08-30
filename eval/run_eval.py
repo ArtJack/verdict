@@ -6,7 +6,7 @@ Fixtures (--fixture):
   pricer-ts  the TypeScript/vitest twin; mode: baseline
   liar       the adversarial honesty fixture; mode: baseline
   spec       the shift-left refund-spec PRD, driven through the shipped
-             /qa-spec command file; mode: baseline
+             /spec command file; mode: baseline
 
 Pricer modes:
   baseline  one model run on rev-A; scored against eval/expected.json
@@ -81,8 +81,8 @@ FIXTURES = {
     "cause": {
         "dir": "rates",
         "modes": ("baseline",),
-        "command_file": "qa-cause.md",
-        "prompt": "/qa-cause the failing test in this repository",
+        "command_file": "cause.md",
+        "prompt": "/cause the failing test in this repository",
         "expected_baseline": "expected-cause.json",
     },
     "slop": {
@@ -102,8 +102,8 @@ FIXTURES = {
     "spec": {
         "dir": "refund-spec",
         "modes": ("baseline",),
-        "command_file": "qa-spec.md",
-        "prompt": "/qa-spec SPEC.md",
+        "command_file": "spec.md",
+        "prompt": "/spec SPEC.md",
         "expected_baseline": "expected-spec.json",
     },
 }
@@ -153,7 +153,15 @@ def provision(checkout: Path, fixture: dict):
         encoding="utf-8")
 
     if fixture.get("command_file"):
-        cmd = (REPO / "commands" / fixture["command_file"]).read_text(encoding="utf-8")
+        src = REPO / "commands" / fixture["command_file"]
+        if not src.exists():
+            raise SystemExit(f"eval: no such command file: {src}")
+        stem = src.stem
+        if not fixture["prompt"].startswith(f"/{stem}"):
+            raise SystemExit(
+                f"eval: command_file {src.name!r} is provisioned as /{stem}, but the "
+                f"prompt invokes {fixture['prompt'].split()[0]!r} — rename desync")
+        cmd = src.read_text(encoding="utf-8")
         cmd = cmd.replace("the `verdict` agent", "the `verdict-rc` agent")
         cdir = checkout / ".claude" / "commands"
         cdir.mkdir(parents=True, exist_ok=True)

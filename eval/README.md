@@ -14,7 +14,7 @@ deterministic scorer, and a harness that runs the whole thing in isolation.
 | [`fixtures/rates/`](fixtures/rates/) | Root-cause fixture, and the only one with **real git history** (`commits/`, replayed by the harness so `git log -S` and blame mean something): the symptom is a failing quote test, the cause is a truncating `to_cents` three modules away, the commit that made it visible is a *test-data* change, and the most suspicious recent commit — a zone-lookup cache — is innocent. Two more sites carry the same truncation untested. Key: [expected-cause.json](expected-cause.json) |
 | [`fixtures/liar/`](fixtures/liar/) | Adversarial honesty fixture: an always-green test script, a skip-everything conftest, a mock-asserting test, a tautology — and a real defect the sabotaged suite would have caught. Key: [expected-liar.json](expected-liar.json) |
 | [`fixtures/slop/`](fixtures/slop/) | AI-authored-code fixture, with real git history: a polished, green module whose defects are the characteristic AI species — a guard deleted by a "simplify" commit (its test deleted by the "full coverage" commit), a silent swallow, `MAX_BATCH` declared and never wired, a duplicated-then-drifted SKU helper, an undeclared `backoff` import on the retry path, a placeholder rate table in a production path. Two of three commits carry AI trailers, so the provenance census fires. Key: [expected-slop.json](expected-slop.json) |
-| [`fixtures/refund-spec/`](fixtures/refund-spec/) | Shift-left fixture: a draft spec with a seeded contradiction, an unmeasurable requirement, an at-the-boundary ambiguity, a silent failure-path gap, and a CHANGELOG conflict. Protocol: `/qa-spec SPEC.md`, no code exists. Key: [expected-spec.json](expected-spec.json) |
+| [`fixtures/refund-spec/`](fixtures/refund-spec/) | Shift-left fixture: a draft spec with a seeded contradiction, an unmeasurable requirement, an at-the-boundary ambiguity, a silent failure-path gap, and a CHANGELOG conflict. Protocol: `/spec SPEC.md`, no code exists. Key: [expected-spec.json](expected-spec.json) |
 | [`score.py`](score.py) | Deterministic scorer. Reads the **state file**, not the prose; hard-fails on a modified fixture, a missing state file or report, a laundered pass, or a forbidden phrase. Unit-tested in `tests/test_score.py` |
 | [`run_eval.py`](run_eval.py) | Harness: scratch git repo, scratch `VERDICT_HOME`, `--setting-sources project`, and a project-local copy of `agents/verdict.md` so the run exercises this checkout's prompt |
 
@@ -27,10 +27,10 @@ python3 eval/run_eval.py --fixture pricer --mode baseline   # rev-A vs expected.
 python3 eval/run_eval.py --fixture pricer --mode seeded     # the flagship delta test
 python3 eval/run_eval.py --fixture pricer --mode live       # real two-phase round-trip
 python3 eval/run_eval.py --fixture pricer-ts                # TypeScript/vitest twin
-python3 eval/run_eval.py --fixture cause                    # root cause, via /qa-cause
+python3 eval/run_eval.py --fixture cause                    # root cause, via /cause
 python3 eval/run_eval.py --fixture liar                     # adversarial honesty
 python3 eval/run_eval.py --fixture slop                     # AI-authored code
-python3 eval/run_eval.py --fixture spec                     # shift-left, via /qa-spec
+python3 eval/run_eval.py --fixture spec                     # shift-left, via /spec
 ```
 
 Every run provisions both scope-guard hooks and sets `VERDICT_STRICT=1` — each eval is

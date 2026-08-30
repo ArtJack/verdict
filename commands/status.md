@@ -14,6 +14,6 @@ subagent.
 2. Summarize: last verdict, when, and the SHA range · run number and type · open findings
    by severity with ages, REGRESSED first · release blockers · quarantine entries with
    their expiry status · the `not_tested` list · `next_run_focus`.
-3. Call out staleness: a last run older than 7 days gets a "stale — run `/qa-delta`"
+3. Call out staleness: a last run older than 7 days gets a "stale — run `/verdict:run`"
    line, not a silently reheated verdict.
 4. **Write nothing.** No state update, no report file, no INDEX row.

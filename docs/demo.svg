@@ -22,7 +22,7 @@
   <text class="t dim" x="80" y="19">verdict — nightly delta run</text>
 
   <g class="t">
-    <text x="20" y="58"><tspan class="grn b">$</tspan><tspan class="fg"> /qa-delta</tspan></text>
+    <text x="20" y="58"><tspan class="grn b">$</tspan><tspan class="fg"> /verdict:run</tspan></text>
 
     <text x="20" y="86"><tspan class="red b">VERDICT: fail</tspan></text>
 

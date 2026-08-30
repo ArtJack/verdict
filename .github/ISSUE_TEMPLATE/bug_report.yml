@@ -38,8 +38,8 @@ body:
       label: Steps to reproduce
       description: Numbered, from a clean start. Include the exact command or prompt.
       placeholder: |
-        1. /qa-baseline solo
-        2. /qa-delta
+        1. /verdict:baseline solo
+        2. /verdict:run
         3. …
     validations:
       required: true
