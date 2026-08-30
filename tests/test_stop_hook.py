@@ -11,7 +11,6 @@ import json
 import os
 import subprocess
 import sys
-import time
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -51,8 +50,11 @@ def qa_root(tmp_path, *, harnessed: bool, fresh: bool = True, name="widget"):
         (root / "reports" / "r.md").write_text("# report\n", encoding="utf-8")
     (root / "state.json").write_text(json.dumps(state), encoding="utf-8")
     if not fresh:
-        old = time.time() - 60 * 60 * 26
-        os.utime(root / "state.json", (old, old))
+        # Old by its *own* record — the file may have been touched a second ago
+        # by a checkout, which is precisely the case that fooled version one.
+        stale = dict(state, last_run=dict(state["last_run"],
+                                          timestamp_utc="2026-08-01T12:00:00Z"))
+        (root / "state.json").write_text(json.dumps(stale), encoding="utf-8")
     return root
 
 
@@ -108,6 +110,35 @@ def test_it_never_blocks_twice(tmp_path, repo):
     for the same reason is a loop, which is worse than a miss."""
     home = qa_root(tmp_path, harnessed=False).parent
     proc = fire({"cwd": str(repo), "stop_hook_active": True}, home=home)
+    assert proc.returncode == 0 and proc.stderr == ""
+
+
+def test_a_freshly_checked_out_repo_says_nothing(tmp_path, repo):
+    """This repo's own CI caught the first version of this hook firing on
+    Verdict's committed team-mode `.qa/`: `git checkout` stamps every file with
+    the current time, so mtime is not evidence that a run happened. Recency now
+    comes from the timestamp the run itself recorded, which copying cannot
+    forge."""
+    root = repo / ".qa"
+    (root / "reports").mkdir(parents=True)
+    (root / "reports" / "r.md").write_text("# report\n", encoding="utf-8")
+    (root / "state.json").write_text(json.dumps({
+        "project": "widget", "schema_version": 1, "run_type": "baseline", "run_number": 1,
+        "last_run": {"timestamp_utc": "2026-08-01T12:00:00Z", "report": "reports/r.md"},
+        "isolation_check": {}, "gates": {}, "findings": [], "verdict": "pass",
+        "release_blockers": [], "not_tested": ["x"]}), encoding="utf-8")
+    os.utime(root / "state.json", None)          # as a fresh checkout leaves it
+    proc = fire({"cwd": str(repo)}, home=tmp_path / "empty")
+    assert proc.returncode == 0 and proc.stderr == ""
+
+
+def test_a_state_with_no_usable_run_time_says_nothing(tmp_path, repo):
+    home = tmp_path / "home"
+    root = home / "widget"
+    (root / "reports").mkdir(parents=True)
+    (root / "state.json").write_text(json.dumps({"project": "widget", "last_run": {}}),
+                                     encoding="utf-8")
+    proc = fire({"cwd": str(repo)}, home=home)
     assert proc.returncode == 0 and proc.stderr == ""
 
 
