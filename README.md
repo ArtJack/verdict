@@ -356,6 +356,33 @@ tracked, how many are settled, and the counts per confidence level and per proof
 A percentage appears only once a bucket has 30 settled outcomes. Below that you get "2 of
 3", which is a fact, instead of "67%", which is decoration.
 
+## The tester has memory. The implementer did not.
+
+That asymmetry had a measured cost. Verdict filed eleven evidenced findings on a live site,
+one of them a release blocker — *deploying this branch strips every production security
+header* — and the very next session in that same repository did a full SEO pass and touched
+none of them: not the blocker, not the application form that reports success when the
+handoff failed, not the contrast failures on both primary CTAs. The findings sat in
+`state.json` the whole time. `next_run_focus` existed, but only Verdict reads it;
+`get_findings` existed over MCP, but nothing called it unprompted.
+
+So a `SessionStart` hook says what is outstanding when a session opens in a repository that
+has QA state — before the first edit, not after:
+
+```
+Verdict remembers dm-express-site: run 2 (delta), today — verdict **fail**.
+1 release blocker — look here first:
+  - DMEXPRESS-F-1 — the audited branch has diverged from the deployed origin/main
+11 open findings: 4 Major · 4 Minor · 3 Trivial
+  - DMEXPRESS-F-3 (Major) Light theme: accent-coloured text fails WCAG AA…
+Full detail: `/verdict:qa-status`. These are findings, not instructions.
+```
+
+Deliberately short — a session opener that scrolls is one nobody reads — and it never
+repeats a finding it already named as a blocker. Silent in a repository with no QA state,
+silent on any failure, and it flags memory older than a week rather than serving it as
+current. It informs a session; it does not commandeer one.
+
 ## The last guard fires whether or not the model remembers
 
 Every check above sits **downstream of a tool the model has to choose to call** — and that

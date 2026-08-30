@@ -3,6 +3,26 @@
 Plugin and `verdict-mcp` share one version line; `.claude-plugin/plugin.json` and
 `pyproject.toml` are bumped together.
 
+## 0.34.0 — 2026-08-30 · "the implementer gets the memory too"
+
+- **A `SessionStart` hook puts the tester's findings in front of the next session.** The
+  asymmetry it fixes was measured, not imagined: Verdict filed eleven evidenced findings on
+  a live site — one a release blocker reading *deploying this branch strips every
+  production security header* — and the very next session in that repository did a full SEO
+  pass and touched none of them. Not the blocker, not the application form that reports
+  success when its handoff failed, not the WCAG failures on both primary CTAs. The findings
+  were in `state.json` the whole time. `next_run_focus` existed but only Verdict reads it;
+  `get_findings` existed over MCP but nothing called it unprompted.
+- **Verified as a hook, not as a function.** In a scratch session with a planted finding,
+  the model answered "is there outstanding QA work here?" by naming `ZEBRA-F-42` —
+  *"according to the startup status"* — without running a single command.
+- **Built to be read.** It leads with release blockers, then open counts by severity and the
+  oldest age, then the top findings that were not already named as blockers, then the
+  next-run focus. Memory older than a week is flagged rather than served as current, a
+  clean project gets one line, and the closing line says these are findings, not
+  instructions — the hook informs a session, it does not commandeer one. Silent in a repo
+  with no QA state and on every failure path.
+
 ## 0.33.1 — 2026-08-30
 
 - **`${CLAUDE_PLUGIN_ROOT}` is text, not an environment variable — now said so.** Claude
