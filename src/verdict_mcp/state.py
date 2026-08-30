@@ -201,6 +201,7 @@ def hotspots(state: dict, limit: int = 10) -> dict:
 CONFIDENCE_LEVELS = ("proven", "probable", "hypothesis", "unstated")
 CALIBRATION_MIN_SAMPLE = 30
 OUTCOMES_FILE = "outcomes.json"
+RUNS_FILE = "runs.jsonl"
 
 
 def finding_key(finding: dict) -> str:
@@ -387,6 +388,80 @@ def harness_signals(state: dict, qa_root=None) -> dict:
         "state_computed": isinstance(state.get("calibration"), dict),
         "report_rendered": RENDERED_BY_FINALIZE in report_raw,
     }
+
+
+def history_row(state: dict) -> dict:
+    """One machine-native line of run history, derived from the state.
+
+    The run-over-run time series used to live only in INDEX.md, and consumers
+    parsed the markdown table with heuristic column matching. That worked until
+    production wrote prose into the cells — run types like "delta (merge gate
+    re-gate: … @ 5b9518d1)" — and every reader had to un-parse a rendering.
+    Markdown is a render target; for history it had become the database. This
+    row is the database; the INDEX stays for humans.
+    """
+    last = state.get("last_run") or {}
+    findings = state.get("findings", []) or []
+    by_sev: dict = {}
+    for f in findings:
+        if is_open(f):
+            sev = str(f.get("severity") or "unknown").strip().capitalize()
+            by_sev[sev] = by_sev.get(sev, 0) + 1
+    by_delta: dict = {}
+    for f in findings:
+        d = f.get("delta") or "?"
+        by_delta[d] = by_delta.get(d, 0) + 1
+    row = {
+        "run_number": state.get("run_number"),
+        "run_type": state.get("run_type"),
+        "verdict": state.get("verdict"),
+        "timestamp_utc": last.get("timestamp_utc"),
+        "git_sha": last.get("git_sha"),
+        "sha_range": last.get("sha_range"),
+        "git_branch": last.get("git_branch"),
+        "tests": state.get("tests"),
+        "findings": {
+            "tracked": len(findings),
+            "open": sum(by_sev.values()),
+            "open_by_severity": by_sev,
+            "delta": by_delta,
+        },
+        "quarantine": len(state.get("flaky_quarantine", []) or []),
+        "report": last.get("report"),
+    }
+    for optional in ("run_label",):
+        if state.get(optional) is not None:
+            row[optional] = state[optional]
+    if last.get("model"):
+        row["model"] = last["model"]
+    return {k: v for k, v in row.items() if v is not None}
+
+
+def load_runs(qa_root) -> tuple[list[dict], int]:
+    """Read `<qa-root>/runs.jsonl` → (rows, skipped_lines).
+
+    Tolerant by design: a torn trailing line from a crash mid-append is skipped
+    and counted, never fatal. Duplicate run_numbers keep the last write — a
+    retried finalize describes the same run better, not a different run.
+    """
+    path = Path(qa_root) / RUNS_FILE
+    if not path.is_file():
+        return [], 0
+    rows: dict = {}
+    skipped = 0
+    for line in path.read_text(encoding="utf-8").splitlines():
+        if not line.strip():
+            continue
+        try:
+            row = json.loads(line)
+        except json.JSONDecodeError:
+            skipped += 1
+            continue
+        if isinstance(row, dict) and isinstance(row.get("run_number"), int):
+            rows[row["run_number"]] = row
+        else:
+            skipped += 1
+    return [rows[n] for n in sorted(rows)], skipped
 
 
 def order_findings(findings: list[dict]) -> list[dict]:

@@ -25,6 +25,7 @@ from .state import (
     home,
     hotspots,
     is_open,
+    load_runs,
     known_projects,
     load_state,
     order_findings,
@@ -119,10 +120,26 @@ def get_quarantine(project: str) -> dict:
 
 @mcp.tool(annotations=_RO)
 def get_history(project: str) -> dict:
-    """Run history parsed from the project's reports/INDEX.md, oldest first."""
+    """Run history, oldest first. Machine-native from runs.jsonl where it
+    exists; the INDEX.md markdown parse remains as the legacy fallback for
+    history that predates the file."""
     state, err = load_state(project)
     if err:
         return err
+    rows, skipped = load_runs(state["_qa_root"])
+    if rows:
+        out = {"project": state.get("project", project), "runs": rows,
+               "count": len(rows), "source": "runs.jsonl"}
+        if skipped:
+            out["skipped_lines"] = skipped
+        index = Path(state["_qa_root"]) / "reports" / "INDEX.md"
+        if index.is_file():
+            legacy = sum(1 for line in index.read_text(encoding="utf-8").splitlines()
+                         if line.strip().startswith("|")) - 2  # header + rule
+            if legacy > len(rows):
+                out["note"] = (f"INDEX.md holds {legacy - len(rows)} earlier row(s) "
+                               "predating runs.jsonl; they remain prose")
+        return out
     index = Path(state["_qa_root"]) / "reports" / "INDEX.md"
     if not index.is_file():
         return {"project": state.get("project", project), "runs": [], "note": "no INDEX.md yet"}
@@ -142,7 +159,8 @@ def get_history(project: str) -> dict:
         if link:
             row["report_path"] = link.group(1)
         rows.append(row)
-    return {"project": state.get("project", project), "runs": rows, "count": len(rows)}
+    return {"project": state.get("project", project), "runs": rows, "count": len(rows),
+            "source": "INDEX.md (legacy markdown parse — cells may be prose)"}
 
 
 @mcp.tool(annotations=_RO)
@@ -211,9 +229,22 @@ def get_trends(project: str) -> dict:
     if err:
         return err
     runs = []
-    index = Path(state["_qa_root"]) / "reports" / "INDEX.md"
-    if index.is_file():
-        history = get_history(project)
+    history = get_history(project)
+    if history.get("source") == "runs.jsonl":
+        for row in history.get("runs", []):
+            tests = row.get("tests") or {}
+            runs.append({
+                "run_number": row.get("run_number"),
+                "date": str(row.get("timestamp_utc") or "")[:10] or None,
+                "run_type": row.get("run_type"),
+                "verdict": row.get("verdict"),
+                "tests_passed": tests.get("passed"),
+                "tests_collected": tests.get("collected"),
+                "open_findings": (row.get("findings") or {}).get("open"),
+                **({"model": row["model"]} if row.get("model") else {}),
+            })
+    elif Path(state["_qa_root"], "reports", "INDEX.md").is_file():
+        # Legacy: heuristic numbers out of markdown cells that may be prose.
         for row in history.get("runs", []):
             tests_cell = next((v for k, v in row.items() if "tests" in k.lower()), "")
             nums = re.findall(r"\d+", str(tests_cell))

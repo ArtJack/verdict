@@ -524,3 +524,56 @@ def test_finalize_rejects_a_bad_judgment_in_the_author_s_own_terms(repo, qa_root
     assert "fix the judgment, not the check" in proc.stderr
     assert "will be filed as NEW" in proc.stderr
     assert not (qa_root / "state.json").exists(), "nothing is written on a bad judgment"
+
+
+# ── runs.jsonl: the machine record of run history ─────────────────────────
+
+def test_every_finalized_run_appends_one_machine_native_history_line(repo, qa_root):
+    """The time series used to live only in INDEX.md, and production wrote
+    prose into its cells — every consumer then had to un-parse a rendering."""
+    from verdict_mcp.state import load_runs
+    facts = collect(repo, qa_root, [])
+    state = merge(facts, judgment(), None)
+    assert write_state(qa_root, state) == []
+    rows, skipped = load_runs(qa_root)
+    assert skipped == 0 and len(rows) == 1
+    row = rows[0]
+    assert row["run_number"] == 1 and row["verdict"] == "pass with risks"
+    assert row["findings"]["open_by_severity"] == {"Major": 1}
+    assert row["findings"]["delta"] == {"NEW": 1}
+    assert row["timestamp_utc"] == facts["last_run"]["timestamp_utc"]
+
+
+def test_a_torn_trailing_line_is_skipped_and_counted_never_fatal(qa_root):
+    from verdict_mcp.state import load_runs
+    (qa_root / "runs.jsonl").write_text(
+        '{"run_number": 1, "verdict": "pass"}\n{"run_number": 2, "verd',
+        encoding="utf-8")
+    rows, skipped = load_runs(qa_root)
+    assert [r["run_number"] for r in rows] == [1] and skipped == 1
+
+
+def test_a_rewritten_run_keeps_the_last_line_not_both(qa_root):
+    from verdict_mcp.state import load_runs
+    (qa_root / "runs.jsonl").write_text(
+        '{"run_number": 1, "verdict": "fail"}\n'
+        '{"run_number": 1, "verdict": "pass with risks"}\n', encoding="utf-8")
+    rows, _ = load_runs(qa_root)
+    assert len(rows) == 1 and rows[0]["verdict"] == "pass with risks"
+
+
+def test_the_model_that_signed_the_verdict_is_measured_not_remembered(repo, qa_root, monkeypatch):
+    """Which model signed a verdict used to live only in the operator's memory.
+    The runner exports VERDICT_MODEL; the measurement lands in last_run and the
+    history row — absent when nothing exported it, never guessed."""
+    monkeypatch.setenv("VERDICT_MODEL", "opus")
+    facts = collect(repo, qa_root, [])
+    assert facts["last_run"]["model"] == "opus"
+    state = merge(facts, judgment(), None)
+    assert write_state(qa_root, state) == []
+    from verdict_mcp.state import load_runs
+    assert load_runs(qa_root)[0][0]["model"] == "opus"
+
+    monkeypatch.delenv("VERDICT_MODEL")
+    bare = collect(repo, qa_root, [])
+    assert "model" not in bare["last_run"]
