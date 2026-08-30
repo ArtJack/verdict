@@ -157,10 +157,11 @@ def provision(checkout: Path, fixture: dict):
         if not src.exists():
             raise SystemExit(f"eval: no such command file: {src}")
         stem = src.stem
-        if not fixture["prompt"].startswith(f"/{stem}"):
+        invoked = fixture["prompt"].split()[0] if fixture["prompt"].split() else ""
+        if invoked != f"/{stem}":
             raise SystemExit(
                 f"eval: command_file {src.name!r} is provisioned as /{stem}, but the "
-                f"prompt invokes {fixture['prompt'].split()[0]!r} — rename desync")
+                f"prompt invokes {invoked!r} — rename desync")
         cmd = src.read_text(encoding="utf-8")
         cmd = cmd.replace("the `verdict` agent", "the `verdict-rc` agent")
         cdir = checkout / ".claude" / "commands"

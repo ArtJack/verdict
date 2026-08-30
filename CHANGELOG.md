@@ -3,6 +3,84 @@
 Plugin and `verdict-mcp` share one version line; `.claude-plugin/plugin.json` and
 `pyproject.toml` are bumped together.
 
+## 0.40.0 — 2026-08-30 · "a verdict ages in commits"
+
+**A stored verdict goes stale two ways, and only one of them is a clock.** This
+repository's own SessionStart banner opened a session announcing three open Major
+findings. All three had been fixed and merged in the six commits since the state was
+written — four hours earlier. Nothing was corrupt: only a run resolves findings. But
+every consumer read the state as current, because the only staleness signal in the
+product was a seven-day rule and the state had not aged. **The code had moved.**
+
+- **`state.code_drift(repo, sha)`** measures that once, for every consumer:
+  `current` · `behind N` · `diverged` · `unknown`. `unknown` is load-bearing rather
+  than a fallback — a shallow clone, an absent commit or a non-repo is not an alarm,
+  because one false "you are behind" teaches people to skip the line.
+- **The session banner puts the qualification above what it qualifies**, so a reader
+  meets *measured 6 commits ago — findings below may already be fixed* before the
+  findings, not after them. `/verdict:status` gains the same rule beside its 7-day
+  one; neither substitutes for the other.
+- **A timestamp in the future rendered as `-26422d ago`.** Fabricated timestamps are a
+  documented failure mode here, and a state that misreports when it was written is a
+  state to distrust. It now says so, and suppresses the 7-day line rather than
+  double-reporting. Surfaced by a test fixture, not by a user.
+
+**Then Verdict ran on itself and found a Major defect in the feature above.**
+`VERDICT-F-10`: ancestry is not content. A squash merge replaces a branch with a new
+commit carrying the identical tree, so `git merge-base --is-ancestor` says *no* the
+moment a PR lands — and `code_drift` called that `diverged`, i.e. *"this verdict
+describes different code"* about code that is byte-identical. Every PR in this
+repository is squash-merged and `.qa/state.json` is committed, so **it would have
+fired on `main` immediately.** Reproduced before accepting it: same tree
+`58b51987`, `git diff --stat` empty, `--is-ancestor` exit 1, verdict `diverged`.
+
+The fix asks what a commit *contained* rather than where it sat — walk back for a
+commit whose tree matches the one recorded, and the distance to it is the honest
+answer; only when no commit carries that content is the code really different.
+Squash-merged now reads `current`, squash-merged-then-two-commits reads `behind 2`,
+genuinely different content still reads `diverged`. A non-`0`/`1` return from
+`--is-ancestor` is an error, not an answer, and reads `unknown`.
+
+Two things Verdict was right to insist on beyond the one line: the same modelling
+error was **duplicated in prose** in `commands/status.md`, where a code-only fix
+would have left the agent making the claim anyway; and both existing divergence
+tests built divergence from content that genuinely differed, so there was no
+negative case — which is how a proven false positive shipped inside 140 lines of
+new tests. Both corrected.
+
+**Also fixed, all filed by that same run:** the rename-desync guard matched the
+command name with `startswith`, so `/specification` satisfied stem `spec`
+(`VERDICT-F-16`); `action.yml` still documented its exit code as `0/1/3/4/5` after
+gaining `6` (`VERDICT-F-14`); and the stale-command-name guard enumerated four
+paths by hand, missing `README-pypi.md` — the page PyPI renders (`VERDICT-F-15`).
+Widening that sweep immediately proved the *pattern* also needed tightening: it
+matched any `/qa-` substring and flagged `.../worktrees/qa-nightly`, a directory
+name. It now names the eleven commands that have ever existed and nothing else.
+
+**The run itself:** run 3, delta over `062feed..0a9269a`, verdict `pass with risks`,
+gate exit 0 under `--require-harness`. All four previously open findings closed
+**fix-verified on demonstrated evidence** rather than on the claim that they were
+fixed — F-5 by differential on the same tree at the same moment, F-6 by driving exit
+6 through the real gate, F-8 by re-injecting the mutant, F-9 on the exact crash
+input. `F-11` is also fixed here: the published sdist included `tests/` but not the
+`eval/`, `hooks/` and `commands/` trees they import, so the distribution's own
+suite could not run — collection error, 123 failures on a `git archive` build.
+`tests/` is now absent rather than completed, because completing it costs ~1.1MB
+against a 124KB archive to ship tests nobody downstream runs, and a suite that
+cannot run is worse than no suite. Built and checked: 88KB, 17 entries, no test
+tree and no session worktrees; the wheel is unchanged, installs clean, and all
+six console scripts answer `--help` reporting 0.40.0.
+
+Two findings remain open and are not addressed here: `F-12`
+(`--require-harness` is defeated by imitation, not just forgery — both durable
+signals are visible in the committed `.qa/` artifacts a fabricating model would
+copy), and `F-13` (`fixture_freshness` reproduces the fixture lossily: mode
+changes, symlink swaps and planted untracked files are invisible, and a missing
+tracked file tracebacks).
+
+`.qa/state.json` here records `F-10` as open: it is what run 3 measured at
+`0a9269a`, and the fix came after. The banner this release adds is what now says so.
+
 ## 0.39.0 — 2026-08-30 · "ten commands"
 
 **Breaking: every command is renamed, and two are gone.** Twelve commands become ten.

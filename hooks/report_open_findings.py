@@ -48,7 +48,7 @@ def main() -> int:
 
     try:
         sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src" / "verdict_mcp"))
-        from state import is_open, order_findings, resolve_root
+        from state import code_drift, is_open, order_findings, resolve_root
         from state import home as state_home
         from project_key import derive_key
     except Exception:
@@ -72,7 +72,13 @@ def main() -> int:
         try:
             ran = datetime.strptime(str(stamp), _ISO_Z).replace(tzinfo=timezone.utc)
             days = (datetime.now(timezone.utc) - ran).days
-            when = "today" if days == 0 else f"{days}d ago"
+            if days < 0:
+                # Clock skew, or a timestamp composed from memory rather than
+                # measured — a documented failure mode in this project. Rendering
+                # it as "-26422d ago" hides that; naming it does not.
+                days, when = None, "at a timestamp in the future"
+            else:
+                when = "today" if days == 0 else f"{days}d ago"
         except (ValueError, TypeError):
             days, when = None, "at an unrecorded time"
 
@@ -85,6 +91,17 @@ def main() -> int:
 
         lines = [f"Verdict remembers {project}: run {state.get('run_number')} "
                  f"({state.get('run_type')}), {when} — verdict **{verdict}**."]
+        # A verdict ages by commits, not only by hours. "today" reads as current
+        # even when every finding below it was fixed and merged this morning, so
+        # the qualification goes first — before anything it qualifies.
+        drift = code_drift(cwd, (state.get("last_run") or {}).get("git_sha"))
+        if drift["status"] == "behind":
+            n = drift["commits"]
+            lines.append(f"Measured {n} commit{'' if n == 1 else 's'} ago — findings "
+                         "below may already be fixed; re-run `/verdict:run`.")
+        elif drift["status"] == "diverged":
+            lines.append("Measured on a commit that is not in this branch's history — "
+                         "this verdict describes different code.")
         # Ids already named as blockers are not repeated below: a session opener
         # that says the same thing twice is one nobody finishes reading.
         named = set()

@@ -8,6 +8,7 @@ it is a documented command that answers `Unknown command`, which reads to a user
 as the plugin being broken.
 """
 
+import re
 from pathlib import Path
 
 import pytest
@@ -58,9 +59,21 @@ def test_command_references_resolve(path: Path):
 
 def test_no_stale_command_names_outside_history():
     """CHANGELOG and dated eval results record the names used at the time; live docs must not."""
-    live = [REPO / "README.md", REPO / "agents" / "verdict.md",
-            REPO / "docs" / "nightly.md", *COMMANDS.glob("*.md")]
+    # Enumerated by hand this listed four paths, and README-pypi.md — the page
+    # PyPI renders — was not one of them. Sweep instead: every tracked doc that
+    # is not a dated record of what once ran.
+    history = {"CHANGELOG.md", "eval/README.md"}
+    live = [p for p in [*REPO.glob("*.md"), *REPO.glob("docs/*.md"),
+                        *REPO.glob("agents/*.md"), *COMMANDS.glob("*.md")]
+            if str(p.relative_to(REPO)).replace("\\", "/") not in history]
+    assert any(p.name == "README-pypi.md" for p in live), "the sweep must reach the PyPI page"
+    # Match commands, not any string starting "/qa-". Widening the sweep first
+    # flagged `.../worktrees/qa-nightly` in docs/project-key.md — a directory
+    # name, not a command. A guard that cries wolf gets deleted, so it names the
+    # eleven commands that have ever existed and nothing else.
+    ever = ("baseline", "bug", "cause", "charter", "delta", "flake",
+            "regression", "release", "review", "spec", "status")
+    stale = re.compile(r"/(?:verdict:)?qa-(?:" + "|".join(ever) + r")\b")
     for f in live:
-        text = f.read_text(encoding="utf-8")
-        assert "/qa-" not in text, f"{f.relative_to(REPO)}: stale /qa- command name"
-        assert "/verdict:qa-" not in text, f"{f.relative_to(REPO)}: stale /verdict:qa- name"
+        hit = stale.search(f.read_text(encoding="utf-8"))
+        assert not hit, f"{f.relative_to(REPO)}: stale command name {hit.group(0)!r}"
