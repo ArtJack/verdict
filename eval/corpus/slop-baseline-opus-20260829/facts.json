@@ -1,0 +1,72 @@
+{
+  "measured_at": "2026-08-29T23:51:41Z",
+  "project": "slop",
+  "project_key_source": "git",
+  "qa_root": "/private/var/folders/95/670m4j2n4738g9pq1tq1mq8c0000gn/T/verdict-eval-ky3sld2h/qa-home/slop",
+  "schema_version": 1,
+  "run_number": 1,
+  "run_type": "baseline",
+  "run_type_reason": "no previous state",
+  "last_run": {
+    "timestamp_utc": "2026-08-29T23:51:41Z",
+    "git_sha": "912d314279be999e288a8fb1a72d8f4e6182d5c4",
+    "git_branch": "main",
+    "sha_range": null,
+    "diff_stat": null
+  },
+  "gates": {
+    "suite": {
+      "command": "python3 -m pytest -q",
+      "exit_code": 1,
+      "result": "fail",
+      "duration_s": 0.02,
+      "summary": "/opt/homebrew/opt/python@3.14/bin/python3.14: No module named pytest",
+      "counts_unparsed": "no recognised runner summary \u2014 the count-drop gate and the id set-diff cannot fire for this gate"
+    }
+  },
+  "code_census": {
+    "scope": "tree scan of 4 source files",
+    "imports": {
+      "undeclared": {
+        "backoff": [
+          "rates.py:14"
+        ]
+      },
+      "declared_count": 0,
+      "caveat": "candidates, not convictions: import names and package names differ (a small alias map covers the famous cases) \u2014 verify before filing"
+    },
+    "placeholders": {
+      "counts": {
+        "todo": 1,
+        "for_now": 2
+      },
+      "samples": {
+        "todo": [
+          "rates.py:6 # TODO: call the carrier rate API (spec rule 5); a placeholder table for now"
+        ],
+        "for_now": [
+          "rates.py:6 # TODO: call the carrier rate API (spec rule 5); a placeholder table for now",
+          "sync.py:27 # transport can be flaky; for now just continue \u2014 the nightly"
+        ]
+      }
+    },
+    "provenance": {
+      "scope": "last 30 commits",
+      "commits": 3,
+      "ai_attributed": 2,
+      "caveat": "absence of trailers is not evidence of human authorship"
+    },
+    "reading": "leads, not findings: counts tell judgment where to look; judgment decides what they mean"
+  },
+  "test_ids": {
+    "status": "unavailable",
+    "reason": "the id command produced no `::` lines (exit 1) \u2014 if the project's addopts already set -q, drop the -q from --collect-only, which otherwise becomes -qq and prints counts instead of ids",
+    "command": "python3 -m pytest --collect-only -q"
+  },
+  "gates_from_profile": [
+    "suite"
+  ],
+  "profile_notes": [
+    "test_ids_cmd taken from the profile"
+  ]
+}
