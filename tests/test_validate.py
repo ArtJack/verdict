@@ -359,3 +359,18 @@ def test_the_cli_exposes_at_rest(root):
     state_path.write_text(json.dumps(old), encoding="utf-8")
     assert run_cli(str(state_path)).returncode == 1
     assert run_cli(str(state_path), "--at-rest").returncode == 0
+
+
+def test_prose_must_be_an_object_of_named_sections(root):
+    """A bare string here crashed the renderer with a raw `AttributeError`,
+    which told its author nothing about what to change — in the very check
+    built to explain judgment errors in the author's own terms."""
+    bad = validate_judgment(judgment(prose="I did a QA pass and it looks fine"))
+    assert any("prose must be an object" in b and "AttributeError" in b for b in bad)
+    assert validate_judgment(judgment(prose={"scope": "the diff", "risks": "rounding"})) == []
+    assert validate_judgment(judgment()) == [], "prose is optional"
+
+
+def test_prose_findings_must_map_ids_to_narratives(root):
+    bad = validate_judgment(judgment(prose={"findings": ["not", "a", "map"]}))
+    assert any("prose.findings must map a finding id" in b for b in bad)

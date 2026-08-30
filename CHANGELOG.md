@@ -3,6 +3,38 @@
 Plugin and `verdict-mcp` share one version line; `.claude-plugin/plugin.json` and
 `pyproject.toml` are bumped together.
 
+## 0.36.0 — 2026-08-30 · "two findings the tool made about itself"
+
+Yesterday's re-baseline reviewed this repository and filed nine findings. These are the two
+that mattered, both defects introduced by this project's own last two days of work.
+
+- **`VERDICT-F-6` — the anti-fabrication check was unreachable from CI.** `--require-harness`
+  shipped in 0.22.0, was wired into `verdict-run` and into `/verdict:run`, had tests for
+  exit 6 — and `action.yml` exposed no input for it, so no workflow could ask, including
+  this repository's own `qa-gate.yml`. A guard nobody can invoke is the failure the Stop
+  hook was built to fix, reappearing one layer up. The Action takes `require-harness` now,
+  and the self-gate turns it on.
+
+  Plumbing it naively would have been wrong in the deployment it exists for. A team-mode
+  `.qa/` gitignores `facts.json` and `judgment.json` — per-run scratch — so a fresh CI
+  checkout finds neither, however honestly the run was measured. The gate now decides on
+  the **durable** traces: `calibration`, written only by `merge`, and the report footer,
+  emitted only by the renderer. Those survive a checkout, and they are the stronger
+  evidence anyway — `facts.json` existing proves the measuring step ran, not that
+  `finalize` consumed it. The other two are reported and no longer required. Verified
+  against this repo's own committed state, which the naive version would have refused.
+
+- **`VERDICT-F-9` — `verdict-finalize` crashed on a string `prose`.** `render_report`
+  called `.get` on it and raised a bare `AttributeError`; the intake validator added in
+  0.27.0 — built precisely to explain judgment errors in the author's own terms — never
+  checked the field. Fixed at both boundaries: `validate_judgment` now names the expected
+  shape and says a bare string crashed the renderer, and the renderer treats any
+  non-object prose as empty, because losing a whole run to a typo is worse than losing a
+  narrative section.
+
+`VERDICT-F-5` (the freshness gate is not hermetic) and `VERDICT-F-8` (vacuous loop tests)
+remain open, aged, and carried.
+
 ## 0.35.0 — 2026-08-30 · "the tool stops shipping a stale verdict of itself"
 
 The committed `.qa/` was a v0.12-era snapshot, and it was not merely untidy — the self-gate

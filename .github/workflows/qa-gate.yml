@@ -34,3 +34,7 @@ jobs:
         uses: ./
         with:
           max-age-hours: 240
+          # Dogfooding the anti-fabrication check. It was reachable from
+          # verdict-run and from /verdict:run and from nowhere in CI, which
+          # Verdict found by reviewing this repository (VERDICT-F-6).
+          require-harness: "true"

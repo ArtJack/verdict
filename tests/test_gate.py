@@ -257,8 +257,9 @@ def test_stale_facts_from_an_earlier_run_do_not_count_as_measured(tmp_path):
     (root / "facts.json").write_text(
         json.dumps({"measured_at": "2020-01-01T00:00:00Z"}), encoding="utf-8")
     proc = gate(tmp_path, "pricer", "--require-harness", "--format", "json", home=home)
-    assert proc.returncode == 6
-    assert json.loads(proc.stdout)["harness"]["facts_measured"] is False
+    assert proc.returncode == 6, "no durable trace either, so the state is refused"
+    assert json.loads(proc.stdout)["harness"]["facts_measured"] is False, \
+        "and the stale facts.json is still not counted as this run's measurement"
 
 
 def test_the_gate_refuses_a_state_that_contradicts_itself(tmp_path):
@@ -284,3 +285,31 @@ def test_an_open_critical_still_allows_pass_with_risks(tmp_path):
     proc = gate(tmp_path, "pricer", state_kwargs={
         "verdict": "pass with risks", "release_blockers": [], "findings": [critical]})
     assert proc.returncode == 0
+
+
+def test_require_harness_survives_a_checkout_that_drops_the_scratch(tmp_path):
+    """A team-mode `.qa/` gitignores facts.json and judgment.json — they are
+    per-run scratch. Requiring all four traces would have failed the exact
+    deployment this check exists for, on a state the harness genuinely produced.
+    The durable pair decides: `calibration` is written only by `merge`, the
+    footer only by the renderer."""
+    home = make_home(tmp_path)
+    root = home / "pricer"
+    state = json.loads((root / "state.json").read_text(encoding="utf-8"))
+    state["calibration"] = {"decided_outcomes": 0}
+    (root / "state.json").write_text(json.dumps(state), encoding="utf-8")
+    (root / "reports").mkdir(exist_ok=True)
+    (root / state["last_run"]["report"]).write_text(
+        "# report\n\n*Countable sections rendered from `state.json` by "
+        "`verdict-finalize`; the prose is the agent's.*\n", encoding="utf-8")
+    # no facts.json, no judgment.json — as a fresh checkout leaves it
+    proc = gate(tmp_path, "pricer", "--require-harness", "--format", "json", home=home)
+    assert proc.returncode == 1, "the fail verdict decides; the run is admissible"
+    signals = json.loads(proc.stdout)["harness"]
+    assert signals["state_computed"] and signals["report_rendered"]
+    assert not signals["facts_measured"], "reported, but not required"
+
+
+def test_require_harness_still_refuses_a_state_with_neither_durable_trace(tmp_path):
+    proc = gate(tmp_path, "pricer", "--require-harness", home=make_home(tmp_path))
+    assert proc.returncode == 6 and "hand-written state" in proc.stdout

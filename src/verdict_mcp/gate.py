@@ -33,13 +33,13 @@ from pathlib import Path
 
 try:
     from .project_key import derive_key
-    from .state import (harness_signals, is_open, load_state, order_findings,
-                    parse_timestamp, resolve_root)
+    from .state import (harness_signals, is_open, load_state, missing_durable,
+                    order_findings, parse_timestamp, resolve_root)
 except ImportError:  # executed as a bare script (GitHub Action gate mode)
     sys.path.insert(0, str(Path(__file__).resolve().parent))
     from project_key import derive_key
-    from state import (harness_signals, is_open, load_state, order_findings,
-                   parse_timestamp, resolve_root)
+    from state import (harness_signals, is_open, load_state, missing_durable,
+                   order_findings, parse_timestamp, resolve_root)
 
 MARKER = "<!-- verdict-gate -->"
 
@@ -115,7 +115,11 @@ def evaluate(project, fail_on, max_age_hours, min_run_number, now=None,
 
     if require_harness:
         signals = harness_signals(state, state.get("_qa_root"))
-        missing = [k for k, ok in signals.items() if not ok]
+        # Only the durable traces decide. A team-mode `.qa/` checked out fresh
+        # has no facts.json or judgment.json — they are per-run scratch — and
+        # refusing over their absence would fail the exact deployment this
+        # check exists for.
+        missing = missing_durable(signals)
         if missing:
             out.update(exit_code=6, harness=signals, reason=(
                 "hand-written state: this run did not go through verdict-facts → "

@@ -17,6 +17,15 @@ inputs:
   fail-on:
     description: "fail (default) or risks — 'risks' also fails 'pass with risks'. blocked always exits 3."
     default: "fail"
+  require-harness:
+    description: >
+      Exit 6 when the state was written by hand rather than produced by
+      verdict-facts / verdict-finalize. Off by default so existing workflows are
+      unchanged; turn it on and CI can refuse a run that composed its numbers
+      instead of measuring them. Checks the traces that survive a checkout —
+      a computed state and a rendered report — because facts.json and
+      judgment.json are per-run scratch a team-mode .qa/ does not commit.
+    default: "false"
   max-age-hours:
     description: "Exit 5 (stale) when the last run is older than this"
     default: ""
@@ -122,6 +131,7 @@ runs:
         FINDINGS: ${{ inputs.findings }}
         MAX_AGE_HOURS: ${{ inputs.max-age-hours }}
         MIN_RUN_NUMBER: ${{ inputs.min-run-number }}
+        REQUIRE_HARNESS: ${{ inputs.require-harness }}
       run: |
         # Every value below arrives through env rather than an Actions
         # expression — see the note in the run step; quoting does not help,
@@ -129,6 +139,7 @@ runs:
         ARGS=("$PROJECT" --fail-on "$FAIL_ON" --findings "$FINDINGS")
         [ -n "$MAX_AGE_HOURS" ] && ARGS+=(--max-age-hours "$MAX_AGE_HOURS")
         [ -n "$MIN_RUN_NUMBER" ] && ARGS+=(--min-run-number "$MIN_RUN_NUMBER")
+        [ "$REQUIRE_HARNESS" = "true" ] && ARGS+=(--require-harness)
         GATE="${{ github.action_path }}/src/verdict_mcp/gate.py"
         set +e
         python3 "$GATE" "${ARGS[@]}" --format github-output | tee -a "$GITHUB_OUTPUT"

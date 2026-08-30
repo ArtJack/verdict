@@ -355,3 +355,12 @@ def test_the_report_and_the_gate_order_findings_identically():
                             "last_run": {"timestamp_utc": NOW}})
     seen = [line.split()[1] for line in report.splitlines() if line.startswith("### ")]
     assert seen == expected, "the report must not have its own opinion about order"
+
+
+def test_the_renderer_never_crashes_on_unexpected_prose():
+    """`validate_judgment` rejects a non-object prose with an actionable message,
+    but a renderer that raises on unexpected input loses a whole run to a typo."""
+    state = {"project": "p", "run_number": 1, "run_type": "baseline", "verdict": "pass",
+             "findings": [], "last_run": {"timestamp_utc": NOW}}
+    for prose in ("a bare string", ["a", "list"], 42, None, {"findings": "not a map"}):
+        assert "# QA report" in render_report(state, prose), repr(prose)
