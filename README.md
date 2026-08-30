@@ -356,6 +356,27 @@ tracked, how many are settled, and the counts per confidence level and per proof
 A percentage appears only once a bucket has 30 settled outcomes. Below that you get "2 of
 3", which is a fact, instead of "67%", which is decoration.
 
+## The last guard fires whether or not the model remembers
+
+Every check above sits **downstream of a tool the model has to choose to call** — and that
+is not a theoretical gap. A real run of `/verdict:run` wrote to the default state root
+while `$VERDICT_HOME` pointed elsewhere, invented a project key, skipped the harness
+entirely, and still produced a confident, plausible `FAIL`. `verdict-validate` would have
+rejected that state and `verdict-gate --require-harness` would have exited 6. Neither
+fired, because nothing invoked them.
+
+So there is a `Stop` hook. When a turn ends it asks one question — *did a QA run just
+leave hand-written state on disk?* — and if so it blocks the stop once and says what to
+redo. It fires on the turn ending, not on the model deciding to check.
+
+The bar for speaking is deliberately high, because it runs at the end of every turn in
+every session where the plugin is enabled: the turn must not already be continuing because
+of this hook (never loop), a QA root must resolve from the session's cwd, its `state.json`
+must have been written in the last half hour, and the harness traces must be missing.
+Anything else exits in about two stat calls — **37 ms**, measured. Every failure path —
+unparseable input, an import that does not resolve, an unreadable state — also exits
+silently: a hook that bricks sessions is worse than the problem it polices.
+
 ## The state contract is machine-checked
 
 Prose in a prompt reduces how often a model invents a value; it cannot stop a model from
