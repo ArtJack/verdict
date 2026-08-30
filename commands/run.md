@@ -29,7 +29,31 @@ already knows which pass is correct, so do not ask the caller to know it:
      fabricate a diff against a commit that is gone.
 3. Run it through the harness (§6): `verdict-facts` → your `judgment.json` →
    `verdict-finalize`. The gates come from the profile; you do not retype commands.
-4. Close with the §13 handoff — verdict, counts by severity, top findings, artifact path.
+4. **Gate your own run, and paste the result verbatim.** Before the handoff, run:
+
+   ```
+   python3 ${CLAUDE_PLUGIN_ROOT}/src/verdict_mcp/gate.py <project> \
+       --require-harness --min-run-number <the run_number you just wrote> --format text
+   ```
+
+   Report its exit code and reason as the first line of your handoff, unedited. This is
+   not ceremony — it is the only check that reads what you *actually left on disk* rather
+   than what you meant to leave, and it has caught every one of these in a real run:
+
+   - **exit 6** — the state was hand-written. You skipped `verdict-facts` /
+     `verdict-finalize` and composed the numbers instead of measuring them. The run is not
+     finished: redo it through the harness. Do not explain the 6 away.
+   - **exit 5** — `run_number` did not advance, so nothing you did reached disk.
+   - **exit 4** — no usable state at all.
+   - **1 / 3 / 0** — a real verdict (fail / blocked / pass) on a run that is admissible.
+
+   A haiku-model run of this very command wrote to the default state root while
+   `$VERDICT_HOME` pointed elsewhere, invented a project key, skipped the harness, and
+   still produced a confident, plausible-looking `FAIL`. Every downstream guard would have
+   caught it; none of them fired, because nothing invoked them. This step is what invokes
+   them.
+
+5. Close with the §13 handoff — verdict, counts by severity, top findings, artifact path.
 
 If the caller wants a specific job rather than the daily pass, point them at the command
 that owns it and stop: `/qa-status` (read the memory, run nothing) · `/qa-cause` (trace a
