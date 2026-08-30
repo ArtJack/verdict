@@ -62,13 +62,21 @@ gate exit 0 under `--require-harness`. All four previously open findings closed
 **fix-verified on demonstrated evidence** rather than on the claim that they were
 fixed — F-5 by differential on the same tree at the same moment, F-6 by driving exit
 6 through the real gate, F-8 by re-injecting the mutant, F-9 on the exact crash
-input. Three of the seven new findings remain open and are not addressed here:
-`F-11` (the published sdist ships `tests/` without the trees they import, so the
-distribution's own suite has a collection error — the wheel is sound), `F-12`
-(`--require-harness` is defeated by imitation: both durable signals are visible in
-the committed `.qa/` artifacts a fabricating model would copy), and `F-13`
-(`fixture_freshness` reproduces the fixture lossily — mode changes, symlink swaps
-and planted untracked files are invisible, and a missing tracked file tracebacks).
+input. `F-11` is also fixed here: the published sdist included `tests/` but not the
+`eval/`, `hooks/` and `commands/` trees they import, so the distribution's own
+suite could not run — collection error, 123 failures on a `git archive` build.
+`tests/` is now absent rather than completed, because completing it costs ~1.1MB
+against a 124KB archive to ship tests nobody downstream runs, and a suite that
+cannot run is worse than no suite. Built and checked: 88KB, 17 entries, no test
+tree and no session worktrees; the wheel is unchanged, installs clean, and all
+six console scripts answer `--help` reporting 0.40.0.
+
+Two findings remain open and are not addressed here: `F-12`
+(`--require-harness` is defeated by imitation, not just forgery — both durable
+signals are visible in the committed `.qa/` artifacts a fabricating model would
+copy), and `F-13` (`fixture_freshness` reproduces the fixture lossily: mode
+changes, symlink swaps and planted untracked files are invisible, and a missing
+tracked file tracebacks).
 
 `.qa/state.json` here records `F-10` as open: it is what run 3 measured at
 `0a9269a`, and the fix came after. The banner this release adds is what now says so.

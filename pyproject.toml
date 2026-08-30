@@ -62,9 +62,15 @@ packages = ["src/verdict_mcp"]
 # globs, so an unanchored `README.md` matches at *any* depth — which quietly
 # pulled `.claude/worktrees/<session>/README.md` and its whole repo copy back
 # into the archive even with the allowlist in place.
+#
+# `/tests` is deliberately absent. It was included, and the trees it imports —
+# eval/, hooks/, commands/ — were not, so the published suite could not run:
+# collection error, 123 failures on a `git archive` build. Adding them costs
+# ~1.1MB against a 124KB archive, roughly ten times the size, to ship tests
+# nobody downstream runs. A suite that cannot run is worse than no suite; the
+# repository is where this project is tested.
 include = [
     "/src/verdict_mcp",
-    "/tests",
     "/README-pypi.md",
     "/README.md",
     "/CHANGELOG.md",
