@@ -4,6 +4,22 @@ A QA agent that has never been tested is exactly the kind of claim Verdict exist
 reject. This directory is Verdict's own eval: seven fixtures, machine answer keys, a
 deterministic scorer, and a harness that runs the whole thing in isolation.
 
+
+## Two halves, and only one of them is free
+
+`agents/verdict.md` is the product — the judgment lives there — and measuring what a
+model *does* with it means running one. That is what this directory is for, and it costs
+an API call per fixture.
+
+`tests/test_agent_contract.py` covers the other half in plain CI, with no model: every
+`${CLAUDE_PLUGIN_ROOT}` path the prompt reads, every command and console script it runs,
+every enum value it teaches, its own `§` cross-references, and the gate exit codes it
+promises. That is not behaviour. It is the guarantee that the prompt is still describing
+the system that exists — which is the half a rename breaks, and the half that fails in
+someone else's repository rather than here.
+
+Behavioural regressions still need a scored run. Neither substitutes for the other.
+
 ## Layout
 
 | Piece | What |
