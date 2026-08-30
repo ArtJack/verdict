@@ -43,15 +43,17 @@ from pathlib import Path
 
 try:
     from .project_key import derive_key
-    from .state import (code_drift, harness_signals, is_open, load_state,
-                    missing_durable, order_findings, parse_timestamp,
-                    repo_for_root, resolve_root)
+    from .state import (code_drift, harness_signals, is_open, load_runs,
+                    load_state, missing_durable, order_findings,
+                    parse_timestamp, repo_for_root, resolve_root,
+                    verify_chain)
 except ImportError:  # executed as a bare script (GitHub Action gate mode)
     sys.path.insert(0, str(Path(__file__).resolve().parent))
     from project_key import derive_key
-    from state import (code_drift, harness_signals, is_open, load_state,
-                   missing_durable, order_findings, parse_timestamp,
-                   repo_for_root, resolve_root)
+    from state import (code_drift, harness_signals, is_open, load_runs,
+                   load_state, missing_durable, order_findings,
+                   parse_timestamp, repo_for_root, resolve_root,
+                   verify_chain)
 
 MARKER = "<!-- verdict-gate -->"
 
@@ -146,6 +148,13 @@ def evaluate(project, fail_on, max_age_hours, min_run_number, now=None,
         # has no facts.json or judgment.json — they are per-run scratch — and
         # refusing over their absence would fail the exact deployment this
         # check exists for.
+        # An unsigned history is not a failure — every project is unsigned until
+        # its next harness run, and failing them all would be a migration by
+        # ambush. It is said out loud, because a project that silently cannot be
+        # protected looks exactly like one that is.
+        rows, _ = load_runs(state.get("_qa_root") or ".")
+        if verify_chain(rows)["status"] == "unchained":
+            out["chain"] = "unchained"
         missing = missing_durable(signals)
         if missing:
             out.update(exit_code=6, harness=signals, reason=(
@@ -179,6 +188,9 @@ def _fmt_text(r, n):
                      f"{f.get('severity')}/{f.get('priority')} {f.get('title', '')}")
     if r.get("not_tested"):
         lines.append("not tested: " + "; ".join(map(str, r["not_tested"])))
+    if r.get("chain") == "unchained":
+        lines.append("note: this run history is unsigned — one verdict-finalize run "
+                     "signs it, after which a hand-edited state cannot pass")
     if r.get("report"):
         lines.append(f"report: {r['report']}")
     if r.get("known_projects"):

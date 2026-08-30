@@ -50,7 +50,7 @@ try:
     from .project_key import derive_key
     from .state import (OUTCOMES_FILE, calibration, is_open, load_outcomes,
                         merge_outcomes, norm_status, order_findings)
-    from .state import RUNS_FILE, history_row
+    from .state import RUNS_FILE, chain_link, history_row, load_runs
     from .state import home as state_home
     from .validate import validate, validate_judgment
 except ImportError:  # bare-script execution
@@ -61,7 +61,7 @@ except ImportError:  # bare-script execution
     from project_key import derive_key
     from state import (OUTCOMES_FILE, calibration, is_open, load_outcomes,
                        merge_outcomes, norm_status, order_findings)
-    from state import RUNS_FILE, history_row
+    from state import RUNS_FILE, chain_link, history_row, load_runs
     from state import home as state_home
     from validate import validate, validate_judgment
 
@@ -621,6 +621,19 @@ def write_state(qa_root: Path, state: dict) -> list[str]:
     _atomic_write(qa_root / "state.json.prev",
                   (qa_root / "state.json").read_text(encoding="utf-8")) \
         if (qa_root / "state.json").is_file() else None
+    # The chain link is computed before the state is written, because the state
+    # records it: a state that names a link the history does not carry is how a
+    # copied literal used to pass. history_row() does not read last_run.chain,
+    # so stamping it here cannot change the row the link signs.
+    prior, _ = load_runs(qa_root)
+    row = history_row(state)
+    earlier = [r for r in prior
+               if isinstance(r.get("run_number"), int)
+               and r["run_number"] < (state.get("run_number") or 0)]
+    prev = str(earlier[-1].get("chain") or "") if earlier else ""
+    row["chain"] = chain_link(prev, row)
+    state.setdefault("last_run", {})["chain"] = row["chain"]
+
     _atomic_write(qa_root / "state.json", json.dumps(state, indent=2) + "\n")
     _atomic_write(qa_root / OUTCOMES_FILE,
                   json.dumps({"schema_version": 1, "project": state.get("project"),
@@ -630,7 +643,7 @@ def write_state(qa_root: Path, state: dict) -> list[str]:
     # history, and the tolerant reader (state.load_runs) skips a torn trailing
     # line rather than dying on it.
     with (qa_root / RUNS_FILE).open("a", encoding="utf-8") as fh:
-        fh.write(json.dumps(history_row(state), sort_keys=True) + "\n")
+        fh.write(json.dumps(row, sort_keys=True) + "\n")
 
     reports = qa_root / "reports"
     reports.mkdir(parents=True, exist_ok=True)

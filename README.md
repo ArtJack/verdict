@@ -404,6 +404,12 @@ entirely, and still produced a confident, plausible `FAIL`. `verdict-validate` w
 rejected that state and `verdict-gate --require-harness` would have exited 6. Neither
 fired, because nothing invoked them.
 
+(That check used to be defeatable by *imitation* rather than forgery — its two durable
+signals were a key holding a dict and a fixed footer string, both copyable straight out
+of the committed artifacts. Verdict found that auditing itself. Each run now signs the
+run history with a hash of the previous link, and the state records it; a link copied
+forward does not verify, and neither does a state edited after signing.)
+
 So there is a `Stop` hook. When a turn ends it asks one question — *did a QA run just
 leave hand-written state on disk?* — and if so it blocks the stop once and says what to
 redo. It fires on the turn ending, not on the model deciding to check.
