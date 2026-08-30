@@ -41,7 +41,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Regenerate and compare
-        run: |
-          cd eval/fixtures
-          git diff --no-index pricer pricer_rev_b > /tmp/fresh.diff || true
-          cmp pricer-delta.diff /tmp/fresh.diff
+        # One definition, shared with the profile's gate. The inline version
+        # this replaces used `git diff --no-index`, which does not honour
+        # .gitignore: running the fixture's own tests once produced
+        # __pycache__/ and the gate reported tampering of a file nobody
+        # touched. A tamper alarm that fires on build artifacts is one people
+        # learn to ignore.
+        run: python3 eval/fixture_freshness.py

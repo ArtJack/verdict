@@ -3,6 +3,33 @@
 Plugin and `verdict-mcp` share one version line; `.claude-plugin/plugin.json` and
 `pyproject.toml` are bumped together.
 
+## 0.38.0 — 2026-08-30 · "the last two findings from the self-review"
+
+- **`VERDICT-F-5` — the tamper-evidence gate cried wolf.** `eval/fixtures/pricer-delta.diff`
+  is the committed record of how rev-A differs from rev-B, regenerated and compared so
+  fixture drift cannot silently change what the seeded eval measures. The comparison used
+  `git diff --no-index`, which **does not honour `.gitignore`** — so running the fixture's
+  own tests once produced `__pycache__/`, the regenerated diff grew, and the gate reported
+  tampering of a file nobody had touched. Reproduced exactly: a 78-line anchor against an
+  86-line regeneration, every extra line a build artifact. A tamper alarm that fires on
+  `__pycache__` is one people learn to ignore, which is worse than not having one.
+
+  `eval/fixture_freshness.py` compares **tracked files only**, copied to a scratch tree —
+  `git ls-files` being the same definition of "the fixture" the repository already uses, so
+  artifacts cannot enter and a real edit, staged or not, still shows. Verified in both
+  directions: a two-line edit to `pricer.py` fails the gate, an untracked file does not.
+  CI and the profile now call that one script, because a gate defined twice is how this
+  repository has already drifted three times.
+
+- **`VERDICT-F-8` — three tests that passed while measuring nothing.** In `test_mutate.py`
+  the assertions lived *inside* `for mutant in generate(source)`, so a `generate()` that
+  regressed to returning `[]` would leave all three green while the mutation engine
+  produced no mutants — the tool that measures suite quality, its own suite measuring
+  nothing. Emptiness is now asserted before the loop. Verified by neutering the operator
+  set: `AssertionError: the operator set collapsed: 0 mutants`, where the old tests passed.
+
+That closes every finding from the self re-baseline: F-1 through F-4 resolved by the
+re-baseline itself, F-6 and F-9 in 0.36.0, F-5 and F-8 here.
 ## 0.37.0 — 2026-08-30 · "a name on PyPI, and what the sdist nearly took with it"
 
 The MCP server becomes installable from PyPI. Preparing that release turned up two things
