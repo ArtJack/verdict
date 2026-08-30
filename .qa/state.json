@@ -1,141 +1,362 @@
 {
   "project": "verdict",
   "schema_version": 1,
-  "run_type": "baseline",
-  "run_number": 1,
+  "run_type": "re-baseline",
+  "run_number": 2,
   "last_run": {
-    "timestamp_utc": "2026-08-28T20:33:24Z",
-    "git_sha": "85aeb65e356f651242e2746ebbfba72e6ce584bc",
-    "sha_range": null,
-    "report": "reports/2026-08-28-baseline.md"
+    "timestamp_utc": "2026-08-30T09:16:54Z",
+    "git_sha": "062feed6da03225dcaef39673a636a5df8e56f4b",
+    "git_branch": "main",
+    "sha_range": "85aeb65e356f651242e2746ebbfba72e6ce584bc..062feed6da03225dcaef39673a636a5df8e56f4b",
+    "diff_stat": "107 files changed, 11567 insertions(+), 103 deletions(-)",
+    "report": "reports/2026-08-30-re-baseline.md"
   },
   "isolation_check": {
     "result": "pass",
     "checks": [
-      "no network/db/credential usage in tests/ or src/",
-      "testpaths=['tests'] excludes seeded-defect fixtures under eval/fixtures",
-      "no money, live-account, or user-data surface"
+      "grep for requests/httpx/urlopen/boto3/psycopg/DATABASE_URL over tests/ and src/ -> no matches",
+      "pyproject testpaths=['tests'] still excludes the seeded-defect fixtures under eval/fixtures",
+      "no money, live-account, third-party or user-data surface in this repository",
+      "guard probes were run in /tmp and $HOME/vprobe2 scratch dirs and removed; no repository file was written outside .qa/"
     ]
   },
   "gates": {
     "suite": {
       "command": "uv run --group dev python -m pytest tests/",
+      "exit_code": 0,
       "result": "pass",
-      "duration_s": 2.71,
-      "note": "CI form 'pytest tests/ -q' yields -qq and prints no summary line (VERDICT-F-3)"
+      "duration_s": 32.26,
+      "summary": "336 passed in 32.03s",
+      "counts": {
+        "passed": 336
+      },
+      "counts_dialect": "pytest"
     },
     "fixture_freshness": {
       "command": "cd eval/fixtures && git diff --no-index pricer pricer_rev_b > /tmp/fresh.diff || true; cmp pricer-delta.diff /tmp/fresh.diff",
-      "result": "pass",
-      "duration_s": 0.4
-    },
-    "coverage_changed_files": {
-      "result": "unmeasurable",
-      "reason": "no coverage tool configured in this repo; none installed"
-    },
-    "mutation": {
-      "result": "unmeasurable",
-      "reason": "no mutation tool present; suite quality unmeasured"
+      "exit_code": 1,
+      "result": "fail",
+      "duration_s": 0.03,
+      "summary": "pricer-delta.diff /tmp/fresh.diff differ: char 21, line 1",
+      "counts_unparsed": "no recognised runner summary \u2014 the count-drop gate and the id set-diff cannot fire for this gate"
     }
   },
-  "tests": {
-    "collected": 106,
-    "passed": 106,
-    "skipped": 0,
-    "failed": 0,
-    "errors": 0,
-    "id_ledger": "test-ids.txt",
-    "id_set_delta": null,
-    "note": "baseline: no previous ID set to diff against. Pre-existing orphan ledger was byte-identical to this run's collection."
-  },
-  "flaky_quarantine": [],
   "findings": [
     {
-      "id": "VERDICT-F-1",
-      "hash": "a1f3c9d2",
-      "first_seen": "2026-08-28T20:33:24Z",
+      "id": "VERDICT-F-5",
+      "title": "fixture_freshness, the tamper-evidence gate, false-fails on gitignored build artifacts: `git diff --no-index` does not honour .gitignore",
+      "severity": "Major",
+      "priority": "P1",
       "status": "open",
-      "delta": "NEW",
+      "confidence": "proven",
+      "failure_classification": "BRITTLE_TEST",
+      "evidence": [
+        "gate `fixture_freshness` exited 1 this run: 'pricer-delta.diff /tmp/fresh.diff differ: char 21, line 1' (see facts.json gates.fixture_freshness)",
+        "anchor eval/fixtures/pricer-delta.diff is 78 lines; the freshly generated /tmp/fresh.diff is 156 lines",
+        "the 62 extra leading lines are all eval/fixtures/pricer/.pytest_cache/* and __pycache__ entries, absent from pricer_rev_b",
+        "`git status --porcelain eval/fixtures/` is clean and .gitignore lists `__pycache__/` and `.pytest_cache/` \u2014 so the tree is untampered; `git diff --no-index` compares two directories literally and ignores .gitignore",
+        "`ls -a eval/fixtures/pricer/` shows .pytest_cache and __pycache__ present; `git ls-files eval/fixtures/pricer/` lists only the 4 source files",
+        "impact: any run of the fixture's own tests (or any tool that imports it) permanently reddens the gate, and it reddens as apparent tampering of a file the profile explicitly forbids regenerating \u2014 the operator is steered into a wall"
+      ],
+      "suggested_fix_direction": "Make the gate hermetic rather than relaxing the anchor: generate the comparison from git-tracked content only (e.g. archive both trees via `git archive`/`ls-files` into clean temp dirs before diffing), or pass explicit exclude pathspecs. Do not regenerate pricer-delta.diff.",
+      "hash": "4996285d",
+      "first_seen": "2026-08-30",
       "age_days": 0,
+      "delta": "NEW",
+      "outcome": "unknown",
+      "outcome_reason": "still open; nothing has settled it"
+    },
+    {
+      "id": "VERDICT-F-6",
+      "title": "The GitHub Action exposes no `require-harness` input, so gate exit 6 \u2014 the anti-fabrication check \u2014 is unreachable in CI, including this repo's own qa-gate.yml",
+      "severity": "Major",
+      "priority": "P2",
+      "status": "open",
+      "confidence": "proven",
+      "failure_classification": null,
+      "evidence": [
+        "action.yml `inputs:` (lines 10-49) has no require-harness entry; the gate step builds ARGS from PROJECT, FAIL_ON, FINDINGS, MAX_AGE_HOURS, MIN_RUN_NUMBER only (action.yml:129-131)",
+        "action.yml:56 documents the exit-code output as '0/1/3/4/5' \u2014 6 is not listed",
+        "src/verdict_mcp/gate.py:116-121 implements exit 6 and verdict-run defaults it ON (runner.py:137 --no-require-harness is opt-out), so the CLI path has the guard and the CI path cannot",
+        ".github/workflows/qa-gate.yml passes only max-age-hours, so Verdict's own PR gate would accept hand-written state",
+        "commands/run.md and README.md:392 both name `verdict-gate --require-harness` as the check that catches a fabricated run \u2014 the documented guard is absent exactly where runs are unattended"
+      ],
+      "suggested_fix_direction": "Add a `require-harness` input (defaulting to true, or false for back-compat with a documented migration), append `--require-harness` to ARGS, list exit 6 in the outputs description, and enable it in qa-gate.yml.",
+      "hash": "f326277a",
+      "first_seen": "2026-08-30",
+      "age_days": 0,
+      "delta": "NEW",
+      "outcome": "unknown",
+      "outcome_reason": "still open; nothing has settled it"
+    },
+    {
+      "id": "VERDICT-F-7",
+      "title": "Verdict's own committed .qa/profile.md carried no front-matter gates block, so verdict-facts measured zero gates on this repository",
+      "severity": "Minor",
+      "priority": "P2",
+      "status": "resolved",
+      "confidence": "proven",
+      "failure_classification": null,
+      "fix_verified": true,
+      "evidence": [
+        "first verdict-facts invocation this run reported profile_notes: '.qa/profile.md has no front-matter block; gates must come from --gate' and no_gates: 'no gates ran ...'",
+        "the profile recorded the same commands in prose under '## Real commands', which is the retyping step src/verdict_mcp/profile.py:1-33 exists to delete",
+        "the feature shipped in the package but was never applied to the repository's own profile \u2014 the state file committed at 85aeb65 predates it and was never migrated",
+        "repaired this run: a gates block (suite, fixture_freshness) and test_ids_cmd were added to .qa/profile.md, after which both gates ran and were timed (facts.json gates.*)",
+        "mitigating: verdict-facts said so loudly rather than silently reporting a clean run \u2014 the no_gates note is why this was caught in one command"
+      ],
+      "suggested_fix_direction": "Already repaired in the QA root. Consider having verdict-facts exit non-zero, or the validator flag, a run whose profile supplied no gates at all.",
+      "hash": "a717edb9",
+      "first_seen": "2026-08-30",
+      "age_days": 0,
+      "delta": "NEW",
+      "outcome": "unknown",
+      "outcome_reason": "still open; nothing has settled it"
+    },
+    {
+      "id": "VERDICT-F-9",
+      "title": "verdict-finalize crashes with a raw AttributeError when judgment.json's `prose` is a string rather than an object; validate_judgment does not check the field",
+      "severity": "Major",
+      "priority": "P2",
+      "status": "open",
+      "confidence": "proven",
+      "failure_classification": null,
+      "evidence": [
+        "hit live in this run: `verdict-finalize --qa-root .qa --judgment .qa/judgment.json` exited on `File \"src/verdict_mcp/harness.py\", line 909, in render_report / if prose.get(\"scope\"): / AttributeError: 'str' object has no attribute 'get'`",
+        "render_report(state, prose: dict | None) at harness.py:884 calls prose.get() six times (lines 909, 930, 960, 973, 984) with no type guard and no default-to-{} for a non-dict",
+        "validate_judgment (src/verdict_mcp/validate.py:95-183) checks verdict, not_tested, isolation_check, findings, ids, severity, priority, status, classification, evidence, confidence, fix_verified and computed-field collisions \u2014 but never mentions `prose`",
+        "the crash lands at harness.py:822, after validate_judgment returned clean and after merge() ran: state.json was never written and .qa/run-in-progress.json was left in place",
+        "agents/verdict.md:383 does document the object shape (scope, risks, fix_order, notes, findings), so this is an unvalidated contract, not an undocumented one",
+        "why it matters beyond ergonomics: the docstring at validate.py:96-107 states this function exists to catch the author's mistake 'at the boundary where its author still stands'. A crashed finalize with no state on disk is precisely the situation in which a model is tempted to hand-write state.json \u2014 the failure mode enforce_run_contract.py and gate exit 6 exist to police."
+      ],
+      "suggested_fix_direction": "Add a `prose must be an object keyed by scope/risks/fix_order/notes/findings` check to validate_judgment naming the offending type, and defensively coerce a non-dict prose to {} in render_report so a bad field degrades the report rather than aborting the write.",
+      "hash": "b9e83573",
+      "first_seen": "2026-08-30",
+      "age_days": 0,
+      "delta": "NEW",
+      "outcome": "unknown",
+      "outcome_reason": "still open; nothing has settled it"
+    },
+    {
+      "id": "VERDICT-F-8",
+      "title": "Three mutation-tool tests assert only inside a `for mutant in generate(source)` loop and pass vacuously if generate() ever returns nothing",
+      "severity": "Minor",
+      "priority": "P3",
+      "status": "open",
+      "confidence": "proven",
+      "failure_classification": "BRITTLE_TEST",
+      "evidence": [
+        "tests/test_mutate.py:32 test_mutants_keep_the_file_parseable has no assert or pytest.raises at all \u2014 its check is the `compile()` call inside the loop body",
+        "tests/test_mutate.py:25-30 test above it likewise asserts only per-iteration",
+        "an AST sweep of tests/ found exactly one test function with neither assert nor raises, and it is this one \u2014 so the suite is otherwise clean on this axis",
+        "if generate() regressed to returning [], all three tests stay green while the mutation engine is producing no mutants \u2014 the tool that measures suite quality would be unmeasured itself"
+      ],
+      "suggested_fix_direction": "Assert a non-zero mutant count (or a known count for the fixture) before the loop in each of the three tests.",
+      "hash": "8da9b0a8",
+      "first_seen": "2026-08-30",
+      "age_days": 0,
+      "delta": "NEW",
+      "outcome": "unknown",
+      "outcome_reason": "still open; nothing has settled it"
+    },
+    {
+      "id": "VERDICT-F-1",
       "title": "Scope guards use abspath not realpath; a symlink inside .qa/ escapes the QA root (both write and bash guards)",
       "severity": "Major",
       "priority": "P1",
+      "status": "resolved",
       "failure_classification": null,
+      "fix_verified": true,
       "evidence": [
-        "hooks/qa_paths.py:20-27 is_allowed_path uses os.path.abspath (does not resolve symlinks)",
-        "hooks/enforce_write_scope.py:54 and hooks/enforce_bash_scope.py:90 consume the same predicate",
-        "probe: .qa/pwn symlinked to proj/src/app.py under VERDICT_STRICT=1 returned write-guard exit=0 (allowed)",
-        "asymmetry: tests/test_mcp_tools.py:234 test_get_report_rejects_symlink_escape guards the read path only"
-      ]
+        "hooks/qa_paths.py:26 now resolves with os.path.realpath and names VERDICT-F-1 in its docstring",
+        "re-injection probe, write guard: a .qa/-resident symlink to /fictional-escape-target under VERDICT_STRICT=1 returned exit 2 (blocked); previously 0",
+        "re-injection probe, bash guard: `echo x > <qa>/.qa/pwn` through the same symlink returned exit 2 (blocked)",
+        "both regression tests exist and are collected: tests/test_hooks.py:106 test_write_blocks_symlink_escape_from_inside_qa and tests/test_hooks.py:127 test_bash_blocks_symlink_escape_from_inside_qa, the latter asserting rc == 2",
+        "note on probe design: a first probe pointing the symlink at /tmp returned 0 from the bash guard \u2014 correctly, because /tmp is an explicit scratch allowance (enforce_bash_scope.py:60-91), not an escape. The finding is closed on the non-scratch probe."
+      ],
+      "hash": "a1f3c9d2",
+      "first_seen": "2026-08-28T20:33:24Z",
+      "age_days": 0,
+      "delta": "RESOLVED",
+      "outcome": "confirmed",
+      "outcome_reason": "fix-verified: the guarding test failed on re-injection"
     },
     {
       "id": "VERDICT-F-2",
-      "hash": "b7e04a15",
-      "first_seen": "2026-08-28T20:33:24Z",
-      "status": "open",
-      "delta": "NEW",
-      "age_days": 0,
       "title": "qa-gate.yml gates PRs on committed .qa/ state, but .qa/ is untracked; gate takes the no-state path (exit 4)",
       "severity": "Major",
       "priority": "P2",
+      "status": "resolved",
       "failure_classification": null,
+      "fix_verified": true,
       "evidence": [
-        "git status --porcelain .qa .github -> '?? .github/workflows/qa-gate.yml' and '?? .qa/'",
-        ".gitignore does not exclude .qa/, so this is an uncommitted baseline not a config error",
-        "src/verdict_mcp/gate.py:55 returns exit_code 4 when state is absent"
-      ]
+        "`git ls-files .qa` now returns profile.md, reports/2026-08-28-baseline.md, reports/INDEX.md, state.json and test-ids.txt \u2014 the state is tracked",
+        "the diff 85aeb65..HEAD lists .qa/state.json and .github/workflows/qa-gate.yml as additions (A), so both were committed in this range",
+        ".gitignore still does not exclude .qa/, consistent with team mode",
+        "residual, not a reopen: the gate now finds state, but cannot require it be harness-produced \u2014 filed separately as VERDICT-F-6"
+      ],
+      "hash": "b7e04a15",
+      "first_seen": "2026-08-28T20:33:24Z",
+      "age_days": 0,
+      "delta": "RESOLVED",
+      "outcome": "confirmed",
+      "outcome_reason": "fix-verified: the guarding test failed on re-injection"
     },
     {
       "id": "VERDICT-F-3",
-      "hash": "c2d81b6e",
-      "first_seen": "2026-08-28T20:33:24Z",
-      "status": "open",
-      "delta": "NEW",
-      "age_days": 0,
       "title": "addopts='-q' plus CI's '-q' equals -qq: no countable summary line, and --collect-only -q emits counts instead of test IDs",
       "severity": "Minor",
       "priority": "P2",
+      "status": "resolved",
       "failure_classification": null,
+      "fix_verified": true,
       "evidence": [
-        "pyproject.toml [tool.pytest.ini_options] addopts = \"-q\"",
-        ".github/workflows/ci.yml: uv run --group dev python -m pytest tests/ -q",
-        "grep -cE '[0-9]+ passed' over the CI command's output returned 0",
-        "--collect-only -q printed 'tests/test_score.py: 21' style counts; -o addopts= restores the 106 IDs"
-      ]
+        ".github/workflows/ci.yml:35 now runs `uv run --group dev python -m pytest tests/` with no -q, so addopts='-q' is not doubled",
+        "this run's suite gate parsed a summary line directly: '336 passed in 32.03s', counts_dialect 'pytest'",
+        "test-ID collection with `-o addopts=` produced 336 named IDs (facts.json test_ids.status 'measured'), not per-file counts",
+        "pyproject.toml:36 still sets addopts='-q'; the fix removed the second -q rather than the first, which is the correct half to remove"
+      ],
+      "hash": "c2d81b6e",
+      "first_seen": "2026-08-28T20:33:24Z",
+      "age_days": 0,
+      "delta": "RESOLVED",
+      "outcome": "confirmed",
+      "outcome_reason": "fix-verified: the guarding test failed on re-injection"
     },
     {
       "id": "VERDICT-F-4",
-      "hash": "d9a52f70",
-      "first_seen": "2026-08-28T20:33:24Z",
-      "status": "resolved",
-      "delta": "RESOLVED",
-      "age_days": 0,
       "title": "Orphaned .qa/test-ids.txt present with no state.json (partial prior run); closed by this baseline",
       "severity": "Minor",
       "priority": "P3",
+      "status": "resolved",
       "failure_classification": null,
       "evidence": [
-        "pre-run .qa/ contained only test-ids.txt (106 lines), no state.json",
-        "diff against this run's collection was clean, so no phantom delta was produced"
-      ]
+        "state.json and test-ids.txt are both present, both tracked, and both rewritten by this run's harness",
+        "stays closed"
+      ],
+      "hash": "d9a52f70",
+      "first_seen": "2026-08-28T20:33:24Z",
+      "age_days": 0,
+      "delta": "RESOLVED",
+      "outcome": "unknown",
+      "outcome_reason": "resolved but not fix-verified \u2014 absence is not proof"
     }
   ],
   "verdict": "pass with risks",
   "release_blockers": [],
   "not_tested": [
-    "Windows and Python 3.10 CI matrix legs (unreproducible on this macOS host)",
-    "Agent prompt behaviour via live-model eval (eval/run_eval.py) \u2014 costs API calls",
-    "The Action's experimental run mode (uses --dangerously-skip-permissions; forbidden by profile)",
-    "Coverage and mutation score \u2014 no tools present",
-    "MCP server end-to-end over stdio with a real client",
-    "Assertion bodies of the ~90 tests not individually audited this run"
+    "Windows and Python 3.10 CI matrix legs \u2014 unreproducible on this macOS host; the cp1252 encoding guards in runner.py/gate.py are unexercised here",
+    "Agent prompt behaviour via live-model eval (eval/run_eval.py) \u2014 costs API calls; agents/verdict.md changed substantially in this range and its regressions are only visible through the eval corpus",
+    "The Action's experimental `run` mode end-to-end (uses --dangerously-skip-permissions and can commit .qa/; forbidden by the profile)",
+    "The Action's gate mode as GitHub actually executes it \u2014 action.yml was read, not run",
+    "Coverage and mutation score against this repository \u2014 no coverage tool configured, and eval/run_mutation.py was not run over src/",
+    "MCP server end-to-end over stdio with a real client (src/verdict_mcp/server.py)",
+    "The two SessionStart/Stop hooks (report_open_findings.py, enforce_run_contract.py) under a real Claude Code session \u2014 read and reasoned about, not fired",
+    "Assertion bodies of the 336 tests were swept structurally for missing assertions, not individually audited for correctness of expectation",
+    "The 52M of registered git worktrees under .claude/worktrees/ (two live worktrees on other branches) \u2014 out of scope at HEAD"
   ],
   "next_run_focus": [
-    "Verify VERDICT-F-1 fix: confirm realpath resolution and that both new symlink guard tests exist and fail on re-injection",
-    "Verify VERDICT-F-2: is .qa/ committed and does a PR gate run exit 0 rather than 4?",
-    "Verify VERDICT-F-3: does the CI command now print a parseable summary line?",
-    "Confirm VERDICT-F-4 stays closed (state.json and test-ids.txt in sync)",
-    "Run the ID set-diff against test-ids.txt \u2014 first real delta opportunity",
-    "Audit assertion bodies in tests/test_score.py and tests/test_corpus.py for tautological greens"
-  ]
+    "VERDICT-F-5: is fixture_freshness hermetic \u2014 does it still pass after running pytest inside eval/fixtures/pricer/, and was pricer-delta.diff left byte-identical?",
+    "VERDICT-F-6: does action.yml accept require-harness, does qa-gate.yml set it, and does a state with facts.json removed actually exit 6 through the Action's code path?",
+    "VERDICT-F-8: do the three test_mutate.py loop tests now assert a non-zero mutant count?",
+    "VERDICT-F-9: does validate_judgment reject a string `prose` by name, and does render_report survive one?",
+    "Confirm F-1/F-2/F-3 stay closed \u2014 re-run the two symlink probes and check ci.yml has not regained -q",
+    "First true ID set-diff opportunity against the 336-ID ledger this run wrote (this run's diff was a re-baseline, so every ID reads as added)",
+    "Audit whether .qa/facts.json and .qa/judgment.json should be committed: the CI gate needs facts.json present for --require-harness to pass on a fresh checkout, and neither is in .gitignore today",
+    "Run eval/run_eval.py or the corpus scorer against agents/verdict.md \u2014 the largest unmeasured surface in this range"
+  ],
+  "flaky_quarantine": [],
+  "tests": {
+    "passed": 336,
+    "duration_s": 32.26,
+    "collected": 336
+  },
+  "calibration": {
+    "min_sample": 30,
+    "findings_tracked": 9,
+    "decided_outcomes": 3,
+    "undecided_outcomes": 6,
+    "by_confidence": {
+      "proven": {
+        "confirmed": 0,
+        "refuted": 0,
+        "unknown": 5,
+        "decided": 0,
+        "precision": null,
+        "reading": "0 of 0 decided so far \u2014 too few for a rate (needs 30)"
+      },
+      "unstated": {
+        "confirmed": 3,
+        "refuted": 0,
+        "unknown": 1,
+        "decided": 3,
+        "precision": null,
+        "reading": "3 of 3 decided so far \u2014 too few for a rate (needs 30)"
+      }
+    },
+    "by_proof_method": {},
+    "caveats": [
+      "`confirmed` means fix-verified or regressed; it therefore tracks which findings held up under a check, not correctness in the abstract",
+      "still-open findings are undecided on purpose and are excluded from every rate rather than guessed at",
+      "a finding resolved without re-injection stays undecided: absence is not proof"
+    ]
+  },
+  "test_ids": {
+    "status": "measured",
+    "count": 336,
+    "added": [
+      "tests/test_calibration.py::test_a_decided_outcome_sticks_when_the_finding_changes_state_again",
+      "tests/test_calibration.py::test_a_decided_row_is_not_downgraded_by_a_later_unknown",
+      "tests/test_calibration.py::test_a_missing_or_corrupt_ledger_reads_as_empty_and_never_raises",
+      "tests/test_calibration.py::test_a_rate_appears_once_the_sample_is_there",
+      "tests/test_calibration.py::test_a_resolution_without_re_injection_settles_nothing",
+      "tests/test_calibration.py::test_a_torn_write_cannot_leave_a_half_written_state",
+      "tests/test_calibration.py::test_a_withdrawal_is_the_one_thing_that_refutes",
+      "tests/test_calibration.py::test_a_withdrawal_overrides_an_earlier_confirmation",
+      "tests/test_calibration.py::test_a_withdrawn_finding_stops_counting_as_open",
+      "tests/test_calibration.py::test_a_withdrawn_finding_survives_a_run_that_does_not_mention_it",
+      "tests/test_calibration.py::test_an_invented_confidence_value_is_not_given_its_own_row",
+      "tests/test_calibration.py::test_an_undecided_row_carries_no_decision_date",
+      "tests/test_calibration.py::test_an_unrecognised_status_reads_as_open_not_as_closed",
+      "tests/test_calibration.py::test_confidence_cannot_be_revised_after_the_fact",
+      "tests/test_calibration.py::test_confidence_survives_being_carried_forward_unmentioned",
+      "tests/test_calibration.py::test_findings_with_no_stated_confidence_land_in_their_own_bucket",
+      "tests/test_calibration.py::test_internal_keys_never_reach_the_written_state",
+      "tests/test_calibration.py::test_merge_normalizes_status_so_downstream_counts_are_right",
+      "tests/test_calibration.py::test_no_rate_is_published_below_the_minimum_sample",
+      "tests/test_calibration.py::test_proof_method_is_tallied_separately_from_confidence",
+      "tests/test_calibration.py::test_regression_confirms_a_finding_because_it_came_back",
+      "tests/test_calibration.py::test_status_comparison_is_case_insensitive",
+      "tests/test_calibration.py::test_the_current_run_outranks_its_own_ledger_row",
+      "tests/test_calibration.py::test_the_ledger_is_folded_once_not_twice",
+      "tests/test_calibration.py::test_the_ledger_keeps_outcomes_after_findings_leave_state",
+      "tests/test_calibration.py::test_the_ledger_row_carries_the_tally_fields_and_not_the_essay",
+      "tests/test_calibration.py::test_the_ledger_upserts_by_identity_so_nothing_is_counted_twice",
+      "tests/test_calibration.py::test_the_model_cannot_mark_its_own_finding_correct",
+      "tests/test_calibration.py::test_the_report_and_the_gate_order_findings_identically",
+      "tests/test_calibration.py::test_the_report_shows_counts_before_it_has_earned_a_rate",
+      "tests/test_calibration.py::test_the_report_stays_silent_until_something_has_been_settled",
+      "tests/test_calibration.py::test_undecided_findings_are_excluded_from_the_denominator_not_guessed_at",
+      "tests/test_census.py::test_ai_trailers_are_counted_over_the_range",
+      "tests/test_census.py::test_an_undeclared_import_is_flagged_with_its_location",
+      "tests/test_census.py::test_code_census_on_a_baseline_scans_the_tree_and_says_so",
+      "tests/test_census.py::test_code_census_scopes_itself_to_the_diff_when_there_is_one",
+      "tests/test_census.py::test_declared_stdlib_and_local_modules_are_never_flagged",
+      "tests/test_census.py::test_js_imports_are_checked_against_package_json",
+      "tests/test_census.py::test_markers_are_counted_with_samples",
+      "tests/test_census.py::test_no_range_falls_back_to_recent_history",
+      "tests/test_census.py::test_the_caveat_travels_with_the_data",
+      "tests/test_census.py::test_the_famous_name_mismatches_do_not_false_positive",
+      "tests/test_census.py::test_the_two_line_swallow_is_caught_only_when_the_lines_are_adjacent",
+      "tests/test_corpus.py::test_corpus_entry_still_scores_full[pricer-delta-harness-opus-20260829]",
+      "tests/test_corpus.py::test_corpus_entry_still_scores_full[slop-baseline-opus-20260829]",
+      "tests/test_gate.py::test_an_open_critical_still_allows_pass_with_risks",
+      "tests/test_gate.py::test_json_contract_fields",
+      "tests/test_gate.py::test_max_age_within_window_passes_and_unparseable_is_stale",
+      "tests/test_gate.py::test_min_run_number_exact_boundary_passes",
+      "tests/test_gate.py::test_open_findings_are_counted_whatever_the_case_of_the_status"
+    ],
+    "removed": [],
+    "source": "id set-diff, not summary arithmetic"
+  }
 }

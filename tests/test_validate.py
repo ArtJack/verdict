@@ -321,3 +321,41 @@ def test_the_judgment_check_holds_the_same_lines_as_the_state_check():
 def test_a_malformed_judgment_does_not_raise():
     assert validate_judgment("not an object") == ["judgment.json is not a JSON object"]
     assert any("findings must be a list" in b for b in validate_judgment(judgment(findings={})))
+
+
+# ── at rest: a file, not a run ────────────────────────────────────────────
+
+def test_at_rest_drops_the_freshness_rule_and_nothing_else(root):
+    """A committed state is stale by tomorrow morning, by construction. Asking
+    whether the team's checked-in baseline is *well-formed* is a different
+    question from whether a run just happened, and this repo shipped a v0.12-era
+    `.qa/` for weeks partly because nothing could ask the first one."""
+    old = good_state()
+    old["last_run"]["timestamp_utc"] = "2026-01-01T12:00:00Z"
+    assert any("over a day old" in b for b in validate(old, root))
+    assert validate(old, root, at_rest=True) == []
+
+
+def test_a_future_timestamp_is_broken_at_rest_too(root):
+    """Old is a property of a file. In the future is a property of a lie."""
+    ahead = good_state()
+    ahead["last_run"]["timestamp_utc"] = now_z(timedelta(days=2))
+    assert any("in the future" in b for b in validate(ahead, root, at_rest=True))
+
+
+def test_at_rest_still_enforces_every_other_rule(root):
+    old = good_state(verdict="pass", findings=[
+        dict(good_state()["findings"][0], severity="Critical", status="open")])
+    old["last_run"]["timestamp_utc"] = "2026-01-01T12:00:00Z"
+    bad = validate(old, root, at_rest=True)
+    assert any("open Critical" in b for b in bad)
+    assert not any("over a day old" in b for b in bad)
+
+
+def test_the_cli_exposes_at_rest(root):
+    state_path = root / "state.json"
+    old = good_state()
+    old["last_run"]["timestamp_utc"] = "2026-01-01T12:00:00Z"
+    state_path.write_text(json.dumps(old), encoding="utf-8")
+    assert run_cli(str(state_path)).returncode == 1
+    assert run_cli(str(state_path), "--at-rest").returncode == 0

@@ -19,6 +19,17 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
+      # The committed state is checked as a *file* before it is served as a
+      # verdict. This repo shipped a v0.12-era `.qa/` for weeks — its gate
+      # comment advertising `VERDICT-F-1 | Major | 0d` on every pull request,
+      # a finding that had been fixed since v0.12.1 — because nothing asked
+      # whether the checked-in baseline was still well-formed. `--at-rest`
+      # drops only the run-freshness rule, which a committed snapshot fails by
+      # construction, and keeps every other rule in the contract.
+      - name: Validate the committed state at rest
+        run: python3 src/verdict_mcp/validate.py .qa/state.json --at-rest
+
       - name: Verdict gate (self)
         uses: ./
         with:
