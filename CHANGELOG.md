@@ -3,6 +3,35 @@
 Plugin and `verdict-mcp` share one version line; `.claude-plugin/plugin.json` and
 `pyproject.toml` are bumped together.
 
+## 0.33.0 — 2026-08-30 · "the guard that does not need remembering"
+
+- **A `Stop` / `SubagentStop` hook enforces the harness.** Every other check in this system
+  sits downstream of a tool the model must choose to call, and yesterday a run of
+  `/verdict:run` demonstrated the gap: it wrote to the default state root while
+  `$VERDICT_HOME` pointed elsewhere, invented a project key, skipped `verdict-facts` and
+  `verdict-finalize` entirely, and produced a confident `FAIL`. Both guards that would have
+  caught it stayed silent because nothing invoked them. The hook fires on the turn ending
+  instead: if a QA run just left hand-written state on disk, it blocks the stop once and
+  says what to redo.
+- **It is built to stay quiet.** Four conditions must all hold before it speaks — not
+  already continuing because of this hook (never loop), a QA root resolves from the
+  session's cwd, `state.json` was written within the last half hour, and the harness traces
+  are missing. Otherwise it exits in about two stat calls: **37 ms measured**, at the end
+  of a turn. Bad JSON, a failed import, an unreadable state — all exit 0 silently, because
+  a hook that bricks sessions is worse than the problem it polices.
+- **Proven as a hook, not just as a function.** Nine unit tests, seven of them about
+  silence; then a live session with hand-written state planted, where the hook intercepted
+  the stop and the model came back with "verdict QA state must flow through the proper
+  harness workflow… never written directly."
+- **And the first version was wrong, caught by this repo's own CI.** It judged recency by
+  the state file's *mtime*, and `git checkout` stamps every file with the current time —
+  so on a fresh CI checkout the hook fired on Verdict's own committed team-mode `.qa/`.
+  mtime is not evidence that a run happened; copying a file is not running one. Recency
+  now comes from the `last_run.timestamp_utc` the run itself recorded, which a copy cannot
+  forge. The same fix removed an `os.getcwd()` fallback for an event with no `cwd`: not
+  knowing where you are is a reason to stay silent, not a reason to look somewhere else.
+  Both cases are now permanent tests.
+
 ## 0.32.0 — 2026-08-30 · "gate your own run"
 
 - **`/verdict:run` now gates itself.** Before the handoff it runs
