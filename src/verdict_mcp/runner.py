@@ -115,6 +115,12 @@ def _qa_root_for(project, repo) -> Path:
 
 
 def main(argv=None) -> int:
+    # The recorded Windows trap, hit for the second time in this repo: cp1252
+    # consoles cannot encode `→`, and a crashed print turns exit codes into
+    # noise. gate.py carries the same guard for the same reason.
+    for stream in (sys.stdout, sys.stderr):
+        if hasattr(stream, "reconfigure"):
+            stream.reconfigure(encoding="utf-8", errors="replace")
     ap = argparse.ArgumentParser(
         prog="verdict-run",
         description="Launch a headless Verdict run and gate the result.",
