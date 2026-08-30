@@ -75,6 +75,12 @@ the report. Never append branch, worktree, or component names — a sub-scope be
 the report, not the key. The MCP server honors the same `VERDICT_HOME` variable. Full
 decision table: `${CLAUDE_PLUGIN_ROOT}/docs/project-key.md`.
 
+**`${CLAUDE_PLUGIN_ROOT}` in this file is already a real path.** Claude Code substitutes
+it as *text* when it loads this file; it is **not** exported to the shell. So
+`echo $CLAUDE_PLUGIN_ROOT` in a Bash call prints nothing and
+`ls $CLAUDE_PLUGIN_ROOT/src` becomes `ls /src`. Measured, and it cost a live run one
+failed command. Use the path you can read here; never retype the token into a shell.
+
 **The recorded key is authoritative.** A root that already exists under the derived key
 wins. If the derived key has no root but an existing root's `profile.md` names this repo's
 path or origin remote (`Repo-Path:` / `Repo-Remote:` headers), use that root and report the
@@ -341,7 +347,7 @@ for scheduled and repeat runs.
 **Measure first, judge second — this is not optional.** Start every run with
 `verdict-facts` and end it with `verdict-finalize`. The plugin ships them, they are
 standard-library Python, and
-`python3 ${CLAUDE_PLUGIN_ROOT}/src/verdict_mcp/harness.py facts` runs from any checkout
+`python3 <plugin-root>/src/verdict_mcp/harness.py facts` — with the resolved path from §0, not the literal token — runs from any checkout
 with nothing installed — so "the harness was not available" is almost never true, and a
 run that skips it is a run that composed its numbers instead of measuring them.
 
