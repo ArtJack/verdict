@@ -45,13 +45,49 @@ _GIT_MUTATORS = {
     "commit", "push", "checkout", "switch", "restore", "reset", "clean",
     "apply", "am", "rebase", "merge", "revert", "cherry-pick", "rm", "mv",
     "stash", "worktree", "config", "tag", "branch",
+    # `pull` is `fetch` plus `merge`: it rewrites the working tree, and its
+    # absence here was the widest git-shaped hole left after the 0.44.0 sweep.
+    "pull", "submodule", "bisect", "update-ref", "update-index", "gc",
+    "prune", "filter-branch", "sparse-checkout", "notes", "replace", "reflog",
 }
+# Sub-verbs that only read. Denying `git submodule status` would be the kind
+# of false positive that gets strict mode switched off.
+_GIT_READONLY_SUBVERBS = {
+    "submodule": {"status", "summary"},
+    "bisect": {"log", "view", "help"},
+    "notes": {"list", "show"},
+    "sparse-checkout": {"list"},
+    "stash": {"list", "show"},
+    "reflog": {"show"},
+    "worktree": {"list"},
+    "tag": {"list"},
+    "branch": {"list"},
+    "config": {"get", "list", "--get", "--list", "--get-all", "-l"},
+}
+# Verbs whose bare form only reports: `git branch` lists, it does not create.
+# `stash`, `gc` and `prune` are deliberately absent — bare, they all act.
+_GIT_READONLY_BARE = {"branch", "tag", "reflog", "notes", "worktree",
+                      "submodule", "bisect", "sparse-checkout", "config"}
 # git global flags that consume the following token as their value. -C and
 # --work-tree also re-point the checkout the mutation lands in.
 _GIT_TREE_FLAGS = {"-C", "--work-tree"}
 _GIT_VALUE_FLAGS = {"-c", "--git-dir", "--namespace", "--exec-path",
                     "--super-prefix", "--config-env", "--attr-source"}
-_WRAPPERS = {"env", "sudo", "command", "nohup", "time", "exec"}
+_WRAPPERS = {"env", "sudo", "doas", "command", "nohup", "time", "exec",
+             "timeout", "nice", "ionice", "stdbuf", "setsid", "chrt",
+             "taskset", "script"}
+# A wrapper's own flags take values too — `sudo -u nobody rm x` left "nobody"
+# as the head and the rm went unseen. Same defect class as the git flags.
+_WRAPPER_VALUE_FLAGS = {"-u", "-g", "-C", "-p", "-U", "-s", "-k", "-n", "-c",
+                        "-P", "--chdir", "--signal", "--kill-after", "--user"}
+_DURATION = re.compile(r"^\d+(?:\.\d+)?[smhd]?$")
+# Shells re-enter the same parser: `bash -c "rm x"` is not opaque the way an
+# interpreter's `-c` is, and refusing to look inside it would be a choice.
+_SHELLS = {"bash", "sh", "zsh", "dash", "ksh", "ash"}
+# A target that cannot be read off the command line at all. Distinct from a
+# path so it can never be mistaken for one — "-" was, and _target_ok waved it
+# through as a flag.
+_UNKNOWABLE = "\x00stdin"
 _ASSIGNMENT = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*=")
 # `> path`, `>> path`, `2> path`, `&> path`, `>| path` — captures the target token.
 _REDIRECT = re.compile(r"(?:^|[^<>])(?:\d?>{1,2}|&>{1,2}|>\|)\s*([^\s;|&<>]+)")
@@ -98,6 +134,8 @@ def _in_checkout(path: str, stop_at: str) -> bool:
 
 def _target_ok(target: str, cwd: str) -> tuple[bool, str]:
     """(allowed, resolved-or-reason) for one candidate write target."""
+    if target == _UNKNOWABLE:
+        return False, "a target read from stdin (pipe the list to a file and name it)"
     if not target or target.startswith(("&", "-")):
         return True, target  # fd duplication or a flag, not a file
     if target.startswith("/dev/"):
@@ -142,7 +180,18 @@ def _tokens(segment: str):
         toks = segment.split()
     while toks and (_ASSIGNMENT.match(toks[0]) or
                     os.path.basename(toks[0]) in _WRAPPERS):
+        wrapper = os.path.basename(toks[0])
         toks = toks[1:]
+        # Eat the wrapper's own options so the real command surfaces as head.
+        while toks:
+            if toks[0] in _WRAPPER_VALUE_FLAGS:
+                toks = toks[2:]
+            elif toks[0].startswith("-"):
+                toks = toks[1:]
+            elif wrapper in ("timeout", "nice", "ionice") and _DURATION.match(toks[0]):
+                toks = toks[1:]      # timeout's duration, nice's level
+            else:
+                break
     return toks
 
 
@@ -156,62 +205,144 @@ def _edits_in_place(tok: str) -> bool:
     return "i" in tok[1:].split(".", 1)[0]
 
 
-def _check_segment(toks, cwd):
-    """Yield (description, candidate-target) pairs for one simple command."""
+def _check_shell(args, cwd, depth):
+    """`bash -c "rm x"` is shell inside shell, and this module parses shell:
+    declining to look would be a choice, not a limit."""
+    for i, t in enumerate(args):
+        if t == "-c" and i + 1 < len(args):
+            for seg in _segments(args[i + 1]):
+                yield from _check_segment(_tokens(seg), cwd, depth + 1)
+            return
+
+
+def _check_xargs(head, args):
+    """`xargs rm` mutates targets that arrive on stdin — unknowable from the
+    command line, which is the case the unresolved-$variable rule refuses."""
+    rest = list(args)
+    while rest:
+        if rest[0] in ("-I", "-i", "-n", "-P", "-d", "-L", "-s", "-a", "-E"):
+            rest = rest[2:]
+        elif rest[0].startswith("-"):
+            rest = rest[1:]
+        else:
+            break
+    if rest and os.path.basename(rest[0]) in _MUTATORS | {"git", "sed", "perl"}:
+        yield (f"{head} {os.path.basename(rest[0])} (targets arrive on stdin "
+               "and cannot be checked)"), _UNKNOWABLE
+
+
+def _check_stream_editor(head, args):
+    """`-i` is rarely written alone: `perl -pi -e` clusters it behind -p and
+    `sed --in-place` spells it out. A startswith("-i") test saw neither."""
+    if not any(_edits_in_place(t) for t in args):
+        return
+    it = iter(args)
+    for t in it:
+        if t in ("-e", "-E", "-f"):
+            next(it, None)        # the script, not a target
+        elif not t.startswith("-"):
+            yield f"{head} in-place", t
+
+
+def _check_git(args, cwd):
+    if any(t in ("--dry-run", "--check") for t in args):
+        return
+    repo, verb, it = cwd, None, iter(args)
+    for t in it:
+        # A global flag that takes a value must have that value eaten, or the
+        # value becomes the "verb" and every mutator hides behind it:
+        # `git -c core.editor=true commit -am x` read as verb
+        # "core.editor=true", which is in no mutator set, and passed.
+        if t in _GIT_TREE_FLAGS:
+            repo = next(it, repo) or repo
+        elif t in _GIT_VALUE_FLAGS:
+            next(it, None)
+        elif t.startswith("--work-tree="):
+            repo = t.split("=", 1)[1] or repo
+        elif t.startswith("-"):
+            continue              # boolean flag, or --flag=value
+        else:
+            verb = t
+            break
+    if verb not in _GIT_MUTATORS:
+        return
+    rest = list(it)
+    # `--get` and `--list` are flags, so a first-non-flag scan walked straight
+    # past them and denied `git config --get user.name`.
+    if any(t in _GIT_READONLY_SUBVERBS.get(verb, set()) for t in rest):
+        return
+    if not rest and verb in _GIT_READONLY_BARE:
+        return                    # `git branch`, `git tag`: listings
+    yield f"git {verb} (mutates the checkout)", repo
+
+
+def _check_awk(args):
+    if not (any(t.startswith("inplace") for t in args)
+            and any(t in ("-i", "--load", "-f") for t in args)):
+        return
+    for t in args:
+        if not t.startswith("-") and t != "inplace" and "{" not in t:
+            yield "awk -i inplace", t
+
+
+def _check_tar(args, cwd):
+    extracting = (any(t.startswith("-") and "x" in t.lstrip("-") for t in args)
+                  or (args and not args[0].startswith("-") and "x" in args[0]))
+    if not extracting:
+        return
+    target, it = cwd, iter(args)
+    for t in it:
+        if t in ("-C", "--directory"):
+            target = next(it, cwd)
+    yield "tar extract (overwrites in place)", target
+
+
+def _check_find(args, cwd):
+    mutates = "-delete" in args
+    for i, t in enumerate(args):
+        if t in ("-exec", "-execdir") and i + 1 < len(args):
+            mutates = mutates or os.path.basename(args[i + 1]) in _MUTATORS
+    if not mutates:
+        return
+    roots = []
+    for t in args:
+        if t.startswith("-"):
+            break
+        roots.append(t)
+    for t in (roots or [cwd]):
+        yield "find -delete/-exec", t
+
+
+def _check_segment(toks, cwd, depth=0):
+    """Yield (description, candidate-target) pairs for one simple command.
+
+    A dispatcher: each command family reads its own arguments, because the
+    combined form outgrew the complexity budget once wrappers, nested shells
+    and six more git verbs went in — and a guard nobody can follow is one
+    nobody extends.
+    """
     if not toks:
         return
     head = os.path.basename(toks[0])
     args = toks[1:]
-    if head == "dd":
+    if head in _SHELLS and depth < 3:
+        yield from _check_shell(args, cwd, depth)
+    elif head in ("xargs", "parallel"):
+        yield from _check_xargs(head, args)
+    elif head == "dd":
         for t in args:
             if t.startswith("of="):
                 yield "dd of=", t[3:]
     elif head in ("sed", "perl"):
-        # `-i` is rarely written alone. `perl -pi -e` clusters it behind -p,
-        # and `sed --in-place` spells it out; a startswith("-i") test saw
-        # neither, so both edited files in place with the guard silent.
-        if any(_edits_in_place(t) for t in args):
-            it = iter(args)
-            for t in it:
-                if t in ("-e", "-E", "-f"):
-                    next(it, None)    # the script/expression, not a target
-                elif not t.startswith("-"):
-                    yield f"{head} in-place", t
+        yield from _check_stream_editor(head, args)
     elif head == "git":
-        if any(t in ("--dry-run", "--check") for t in args):
-            return
-        repo, verb, it = cwd, None, iter(args)
-        for t in it:
-            # A global flag that takes a value must have that value eaten, or
-            # the value becomes the "verb" and every mutator hides behind it:
-            # `git -c core.editor=true commit -am x` read as verb
-            # "core.editor=true", which is in no mutator set, and passed.
-            if t in _GIT_TREE_FLAGS:
-                repo = next(it, repo) or repo
-            elif t in _GIT_VALUE_FLAGS:
-                next(it, None)
-            elif t.startswith("--work-tree="):
-                repo = t.split("=", 1)[1] or repo
-            elif t.startswith("-"):
-                continue          # boolean flag, or --flag=value: no argument
-            else:
-                verb = t
-                break
-        if verb in _GIT_MUTATORS:
-            yield f"git {verb} (mutates the checkout)", repo
+        yield from _check_git(args, cwd)
+    elif head in ("awk", "gawk"):
+        yield from _check_awk(args)
+    elif head == "tar":
+        yield from _check_tar(args, cwd)
     elif head == "find":
-        mutates = "-delete" in args
-        for i, t in enumerate(args):
-            if t in ("-exec", "-execdir") and i + 1 < len(args):
-                mutates = mutates or os.path.basename(args[i + 1]) in _MUTATORS
-        if mutates:
-            roots = []
-            for t in args:
-                if t.startswith("-"):
-                    break
-                roots.append(t)
-            for t in (roots or [cwd]):
-                yield "find -delete/-exec", t
+        yield from _check_find(args, cwd)
     elif head in _MUTATORS:
         for t in args:
             if not t.startswith("-"):

@@ -416,3 +416,71 @@ def test_bash_allows_qa_state_inside_a_temp_checkout(tmp_path):
     rc, err = run_hook("enforce_bash_scope.py",
                        bash_event("tee .qa/state.json", checkout), strict="1")
     assert rc == 0, err
+
+
+# --- second sweep: the same defect classes, one layer out --------------------
+#
+# The 0.44.0 fixes closed six specific commands. Re-probing the same classes —
+# wrappers that hide the head, indirection, and an incomplete verb set — found
+# every one of these still open.
+
+@pytest.mark.parametrize("command", [
+    # Wrappers whose own flags take values, or that were simply not listed.
+    "timeout 5 rm f.txt",
+    "nice -n 10 rm f.txt",
+    "stdbuf -o0 rm f.txt",
+    "sudo -u nobody rm f.txt",
+    # A shell inside a shell. Not opaque the way an interpreter's -c is: this
+    # module parses shell, so declining to look would have been a choice.
+    'bash -c "rm f.txt"',
+    'sh -c "git commit -am x"',
+    # Targets that arrive on stdin cannot be checked, which is the same
+    # situation as an unresolved $variable and gets the same answer.
+    "echo f.txt | xargs rm",
+    "cat list | xargs sed -i s/a/b/",
+    # git verbs the set never had. `pull` is `fetch` + `merge`: it rewrites the
+    # working tree, and it was the widest of these.
+    "git pull",
+    "git submodule update --init",
+    "git bisect start",
+    "git update-ref refs/heads/main HEAD",
+    "git gc --prune=now",
+    "git sparse-checkout set src",
+    "git notes add -m x",
+    "git stash",
+    # Editors that mutate without ever spelling -i.
+    'awk -i inplace "{print}" f.txt',
+    "tar -xf archive.tar",
+])
+def test_bash_blocks_second_sweep_bypasses(repo, command):
+    rc, _ = run_hook("enforce_bash_scope.py", bash_event(command, repo), strict="1")
+    assert rc == 2, f"still open: {command}"
+
+
+@pytest.mark.parametrize("command", [
+    # The wrappers must not swallow innocent work.
+    "timeout 300 pytest -q",
+    "nice -n 5 pytest",
+    'bash -c "pytest -q"',
+    'sh -c "git diff --stat"',
+    "cat list | xargs grep -l needle",
+    # git's read-only forms, including the ones whose marker is a flag and the
+    # ones that only report when bare. `git branch` lists; it does not create.
+    "git branch", "git tag", "git submodule", "git submodule status",
+    "git bisect log", "git stash list", "git reflog", "git notes",
+    "git worktree list", "git config --list", "git config --get user.name",
+    # tar creating an archive reads; only extraction overwrites.
+    "tar -cf archive.tar src",
+    'awk "{print}" f.txt',
+])
+def test_bash_second_sweep_has_no_false_positives(repo, command):
+    rc, err = run_hook("enforce_bash_scope.py", bash_event(command, repo), strict="1")
+    assert rc == 0, f"false positive on {command}: {err}"
+
+
+def test_nested_shell_recursion_is_bounded(repo):
+    """A shell inside a shell inside a shell still terminates."""
+    rc, _ = run_hook("enforce_bash_scope.py",
+                     bash_event('bash -c "sh -c \\"bash -c \\\\\\"echo hi\\\\\\"\\""', repo),
+                     strict="1")
+    assert rc == 0
