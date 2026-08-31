@@ -3,6 +3,49 @@
 Plugin and `verdict-mcp` share one version line; `.claude-plugin/plugin.json` and
 `pyproject.toml` are bumped together.
 
+## 0.45.0 — 2026-08-31 · "the same three mistakes, one layer out"
+
+0.44.0 closed six specific commands an audit had found. Re-probing the *classes*
+those six belonged to — a wrapper that hides the real command, indirection, and a
+verb set that was never finished — found eighteen more still open. Fixing named
+instances is not the same as fixing the defect, and this release is the difference.
+
+**`git pull` was not in the mutator set.** It is `fetch` plus `merge`: it rewrites
+the working tree, and it was the widest git-shaped hole left. So were `submodule`,
+`bisect`, `update-ref`, `gc`, `prune`, `filter-branch`, `sparse-checkout`, `notes`,
+`replace` and `reflog`. Read-only forms are exempted rather than blanket-denied —
+`git branch` lists, `git submodule status` reports, `git config --get` reads — because
+a guard that denies those is one people switch off. The exemption is checked against
+flags too: a first-non-flag scan walked straight past `--get` and denied it.
+
+**Wrappers hid the head.** `timeout`, `nice`, `ionice`, `stdbuf`, `setsid`, `doas`
+and friends were not in the wrapper set at all, so `timeout 5 rm f.txt` read
+`timeout` as the command. Worse, the wrappers that *were* listed had their own
+value-taking flags ignored, so `sudo -u nobody rm f.txt` left `nobody` as the head —
+exactly the git-flag defect from 0.44.0, one call earlier in the chain.
+
+**`bash -c "rm f.txt"` was opaque, and did not have to be.** An interpreter's `-c`
+is genuinely unanalysable and stays out of scope. A *shell's* is not: this module
+is a shell parser. It now re-enters itself on the nested command, bounded to three
+levels.
+
+**`xargs rm` reads its targets from stdin**, where no static check can follow. That
+is the same situation as an unresolved `$variable`, and it now gets the same answer
+instead of passing. The first attempt used `"-"` as the sentinel target, which
+`_target_ok` reads as a flag and waved through — the sentinel is now a value no path
+can collide with.
+
+**Also:** `awk -i inplace` and `tar -x` mutate without ever spelling `-i`.
+
+`_check_segment` outgrew its complexity budget doing all this and is now a dispatcher
+over one function per command family. The budget was not raised: a guard nobody can
+follow is a guard nobody extends, which is how a verb set goes unfinished in the
+first place.
+
+488 tests. Every fix mutation-checked, and every one paired with a false-positive
+case — `timeout 300 pytest`, `bash -c "pytest -q"`, `xargs grep`, `tar -c`, and the
+ten read-only git forms all still pass.
+
 ## 0.44.0 — 2026-08-31 · "the guard had less jurisdiction than it claimed"
 
 An external audit of the strict-mode Bash guard. Six ways past it, one hole in the
