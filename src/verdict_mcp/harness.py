@@ -150,6 +150,26 @@ def _summary_line(output: str) -> str:
     return tail[-1][:300] if tail else ""
 
 
+def executed_nothing(counts: dict) -> str | None:
+    """Did this suite collect tests and then run none of them?
+
+    Arithmetic, not judgment — which is the point. A conftest that skips every
+    collected test leaves a green exit code over zero executed assertions, and
+    it is the most consequential trap there is: every other signal in the run
+    becomes theatre. Left for the model to notice, the adversarial fixture
+    caught it 1 run in 3. Counted here, the judgment step receives it already
+    established, like every other number the harness measures.
+    """
+    if not counts:
+        return None
+    executed = sum(counts.get(k, 0) for k in ("passed", "failed", "errors"))
+    skipped = counts.get("skipped", 0)
+    if executed == 0 and skipped > 0:
+        return (f"all {skipped} collected tests were skipped: the suite executed "
+                "nothing, so its exit code carries no signal about the code")
+    return None
+
+
 def _counts(output: str) -> tuple[dict, str | None]:
     """Parse a runner's summary into counts, and say which dialect was read.
 
@@ -261,6 +281,8 @@ def collect(repo: Path, qa_root: Path, gates: list[tuple[str, str]],
             **({"counts": counts, "counts_dialect": dialect} if counts else
                {"counts_unparsed": "no recognised runner summary — the count-drop gate "
                                    "and the id set-diff cannot fire for this gate"}),
+            **({"executed_nothing": nothing_ran} if (nothing_ran := executed_nothing(counts))
+               else {}),
         }
 
     # Characteristic signatures of model-written code that are mechanically

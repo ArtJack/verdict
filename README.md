@@ -27,9 +27,14 @@ Verdict is a Claude Code plugin built the way QA is actually practiced:
 - **A verdict you can defend.** Every substantial task ends in exactly one of
   `pass | pass with risks | blocked | fail` — an open Blocker forces `fail`, `blocked` is a
   legitimate outcome, and a `pass` always names what was *not* tested.
-- **Read-only on your code, by construction.** No `Edit` tool, a write scope confined to
-  the QA root, and a PreToolUse hook as the backstop. Verdict reports defects; it never
-  patches them — a tester who edits the code they judge isn't independent.
+- **Read-only on your code.** Verdict reports defects; it never patches them — a tester
+  who edits the code they judge isn't independent. Two different strengths hold that
+  line, and they are worth separating. The file tools are structural: there is no `Edit`
+  tool at all, and a PreToolUse hook confines writes to the QA root. **Bash is a
+  heuristic** — a deny-list over mutating commands and redirections, which a determined
+  invocation can still get past, and which an external audit did get past six ways in
+  2026-08. Those are closed and regression-tested, but the honest claim is a guard that
+  raises the cost, not a sandbox. The OS remains the real boundary.
 - **It never says "no bugs found."** Testing shows the presence of defects, not their
   absence. Verdict reports what it covered, what it didn't, and the residual risk.
 

@@ -9,6 +9,7 @@ import json
 import os
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
 import pytest
@@ -44,19 +45,36 @@ def bash_event(command, cwd):
 
 
 @pytest.fixture()
-def repo():
-    # A fictional path OUTSIDE any temp dir: the guards do pure string
-    # analysis, and pytest's real tmp_path sits under the macOS temp tree,
-    # which the Bash guard rightly allow-lists as scratch.
-    return "/fictional/checkout/repo"
+def repo(tmp_path):
+    """A real checkout, because the guards are no longer pure string analysis.
+
+    They used to be, and a fictional path was enough. Two rules now read the
+    filesystem: a team `.qa/` counts only beside a real `.git` (otherwise any
+    nested directory named `.qa` inside the code under test was writable), and
+    a temp root is scratch only where it is not a checkout (otherwise the eval
+    harness's own mkdtemp repo put the code under test out of jurisdiction).
+    Both need a repository that exists.
+    """
+    r = tmp_path / "repo"
+    (r / ".qa" / "reports").mkdir(parents=True)
+    (r / "src").mkdir()
+    subprocess.run(["git", "init", "-q", str(r)], check=True, capture_output=True)
+    return str(r)
 
 
 # --- enforce_write_scope.py -------------------------------------------------
 
-def test_write_allows_team_qa_in_strict():
+def test_write_allows_team_qa_in_strict(repo):
+    rc, err = run_hook("enforce_write_scope.py",
+                       write_event(f"{repo}/.qa/reports/x.md"), strict="1")
+    assert rc == 0, err
+
+
+def test_write_blocks_a_qa_directory_nested_in_the_code(repo):
+    """`<repo>/src/.qa/` is code under test wearing the scope's name."""
     rc, _ = run_hook("enforce_write_scope.py",
-                     write_event("/repo/.qa/reports/x.md"), strict="1")
-    assert rc == 0
+                     write_event(f"{repo}/src/.qa/x"), strict="1")
+    assert rc == 2
 
 
 def test_write_allows_default_solo_root_in_strict():
@@ -110,6 +128,8 @@ def test_write_blocks_symlink_escape_from_inside_qa(tmp_path):
     outside.mkdir()
     qa = tmp_path / "repo" / ".qa"
     qa.mkdir(parents=True)
+    subprocess.run(["git", "init", "-q", str(tmp_path / "repo")],
+                   check=True, capture_output=True)
     link = qa / "link"
     try:
         link.symlink_to(outside)
@@ -132,6 +152,8 @@ def test_bash_blocks_symlink_escape_from_inside_qa(tmp_path):
     # regardless).
     qa = tmp_path / "repo" / ".qa"
     qa.mkdir(parents=True)
+    subprocess.run(["git", "init", "-q", str(tmp_path / "repo")],
+                   check=True, capture_output=True)
     link = qa / "link"
     try:
         link.symlink_to("/fictional-escape-target")
@@ -169,12 +191,28 @@ def test_bash_allows_reads_and_safe_commands(repo, command):
     assert rc == 0, err
 
 
+@pytest.mark.skipif(os.name == "nt", reason="`/tmp` is drive-relative on Windows")
 @pytest.mark.parametrize("command", [
     "echo x > /tmp/scratch-probe.txt",
     "echo x >> /private/tmp/scratch-probe.txt",
     "tee /tmp/notes.txt",
 ])
 def test_bash_allows_plain_tmp_roots(repo, command):
+    """The POSIX temp roots, spelled the way a shell command actually spells them.
+
+    Skipped on Windows on purpose rather than quietly passing: there, `/tmp` is
+    a drive-relative path that resolves against whichever drive the process
+    happens to be on, so the literal asserts nothing about the platform's real
+    temp root. `test_bash_allows_the_platform_temp_root` covers that everywhere.
+    """
+    rc, err = run_hook("enforce_bash_scope.py", bash_event(command, repo), strict="1")
+    assert rc == 0, err
+
+
+@pytest.mark.parametrize("template", ["echo x > {}/probe.txt", "tee {}/notes.txt"])
+def test_bash_allows_the_platform_temp_root(repo, template):
+    """Scratch under the real temp root stays writable on every platform."""
+    command = template.format(tempfile.gettempdir().replace("\\", "/"))
     rc, err = run_hook("enforce_bash_scope.py", bash_event(command, repo), strict="1")
     assert rc == 0, err
 
@@ -300,3 +338,81 @@ def test_bash_allows_when_unparseable_and_no_pattern(repo):
 def test_bash_fails_open_on_malformed_input():
     rc, _ = run_hook("enforce_bash_scope.py", "not json at all", strict="1")
     assert rc == 0
+
+
+# --- bypasses found by external audit, 2026-08-31 ---------------------------
+#
+# Every one of these exited 0 against the shipped guard. They are cheap to
+# close and each was a real path to editing the code under test during a
+# strict run, which is the one thing the guard exists to prevent.
+
+@pytest.mark.parametrize("command", [
+    # A git global flag that takes a value swallowed the verb: the guard read
+    # "core.editor=true" as the subcommand, found it in no mutator set, and
+    # let the commit through.
+    "git -c core.editor=true commit -am x",
+    "git --work-tree . commit -am x",
+    "git --git-dir .git commit -am x",
+    "git --namespace n commit -am x",
+    # In-place editing is rarely spelled `-i`: perl clusters it behind -p and
+    # sed also accepts the long form.
+    "perl -pi -e s/x/y/ f.txt",
+    "perl -i.bak -pe s/x/y/ f.txt",
+    "sed --in-place s/x/y/ f.txt",
+    "sed --in-place=.bak s/x/y/ f.txt",
+    # find was in no mutator set at all.
+    'find . -name "*.py" -delete',
+    'find . -name "*.py" -exec rm {} ;',
+])
+def test_bash_blocks_audited_bypasses(repo, command):
+    rc, _ = run_hook("enforce_bash_scope.py", bash_event(command, repo), strict="1")
+    assert rc == 2, f"bypass still open: {command}"
+
+
+@pytest.mark.parametrize("command", [
+    "git status", "git diff --stat", "git log --oneline -5",
+    "git commit --dry-run -am x",
+    "pytest -q", "sed -n 1p f.txt", "perl -e 'print 1'",
+    'find . -name "*.py"', 'find . -name "*.py" -exec grep -l x {} ;',
+])
+def test_bash_still_allows_read_only_work(repo, command):
+    """The guard earns its place only if a real QA run never trips it."""
+    rc, err = run_hook("enforce_bash_scope.py", bash_event(command, repo), strict="1")
+    assert rc == 0, f"false positive on {command}: {err}"
+
+
+def test_bash_has_jurisdiction_over_a_checkout_in_a_temp_dir(tmp_path):
+    """The hole that made the eval's own guard coverage vacuous.
+
+    The harness builds its scratch repo with mkdtemp, and the whole temp root
+    was allow-listed as scratch — so during every eval run the guard had no
+    jurisdiction over the code under test, and "zero false-positive blocks"
+    described a check that could not fire.
+    """
+    checkout = tmp_path / "checkout"
+    checkout.mkdir()
+    subprocess.run(["git", "init", "-q", str(checkout)], check=True, capture_output=True)
+    rc, _ = run_hook("enforce_bash_scope.py",
+                     bash_event("rm pricer.py", checkout), strict="1")
+    assert rc == 2, "a checkout under a temp root is code under test, not scratch"
+
+
+def test_bash_still_allows_genuine_scratch_in_a_temp_dir(tmp_path):
+    """...while ordinary temp scratch stays writable, or strict mode is a
+    thing people turn off."""
+    scratch = tmp_path / "scratch"
+    scratch.mkdir()
+    rc, err = run_hook("enforce_bash_scope.py",
+                       bash_event("touch cache.db", scratch), strict="1")
+    assert rc == 0, err
+
+
+def test_bash_allows_qa_state_inside_a_temp_checkout(tmp_path):
+    """QA scope outranks the checkout rule: the tester must always be able to
+    write its own findings, wherever the repository happens to live."""
+    checkout = tmp_path / "checkout"
+    (checkout / ".qa").mkdir(parents=True)
+    subprocess.run(["git", "init", "-q", str(checkout)], check=True, capture_output=True)
+    rc, err = run_hook("enforce_bash_scope.py",
+                       bash_event("tee .qa/state.json", checkout), strict="1")
+    assert rc == 0, err

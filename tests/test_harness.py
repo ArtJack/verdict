@@ -540,3 +540,47 @@ def test_the_model_that_signed_the_verdict_is_measured_not_remembered(repo, qa_r
     monkeypatch.delenv("VERDICT_MODEL")
     bare = collect(repo, qa_root, [])
     assert "model" not in bare["last_run"]
+
+
+# --- a suite that ran nothing is a measured fact, not a judgment call -------
+
+def test_executed_nothing_fires_when_every_test_was_skipped():
+    from verdict_mcp.harness import _counts, executed_nothing
+    counts, dialect = _counts("===== 12 skipped in 0.30s =====")
+    assert dialect == "pytest" and counts == {"skipped": 12}
+    assert "executed nothing" in executed_nothing(counts)
+
+
+@pytest.mark.parametrize("summary", [
+    "===== 8 passed, 2 skipped in 1.2s =====",
+    "===== 3 failed, 5 passed in 2.0s =====",
+    "===== 7 passed in 0.4s =====",
+])
+def test_executed_nothing_stays_quiet_on_a_suite_that_ran(summary):
+    """A guard that fires on ordinary skips would be ignored within a week."""
+    from verdict_mcp.harness import _counts, executed_nothing
+    counts, _ = _counts(summary)
+    assert executed_nothing(counts) is None
+
+
+def test_executed_nothing_is_dialect_agnostic():
+    from verdict_mcp.harness import _counts, executed_nothing
+    counts, dialect = _counts("Tests: 4 skipped, 4 total")
+    assert dialect == "jest"
+    assert executed_nothing(counts)
+
+
+def test_executed_nothing_says_nothing_when_counts_were_unparsed():
+    """No counts is 'we could not read it', which is a different problem."""
+    from verdict_mcp.harness import executed_nothing
+    assert executed_nothing({}) is None
+
+
+def test_facts_report_a_skip_all_suite(repo, qa_root):
+    """End to end: the fact reaches judgment.json's author already measured."""
+    from verdict_mcp.harness import collect
+    skip_all = _emit(["===== 12 skipped in 0.30s ====="])
+    facts = collect(repo, qa_root, [("suite", skip_all)])
+    gate = facts["gates"]["suite"]
+    assert "executed_nothing" in gate, gate
+    assert "12 collected tests were skipped" in gate["executed_nothing"]
