@@ -9,6 +9,7 @@ import json
 import os
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
 import pytest
@@ -190,12 +191,28 @@ def test_bash_allows_reads_and_safe_commands(repo, command):
     assert rc == 0, err
 
 
+@pytest.mark.skipif(os.name == "nt", reason="`/tmp` is drive-relative on Windows")
 @pytest.mark.parametrize("command", [
     "echo x > /tmp/scratch-probe.txt",
     "echo x >> /private/tmp/scratch-probe.txt",
     "tee /tmp/notes.txt",
 ])
 def test_bash_allows_plain_tmp_roots(repo, command):
+    """The POSIX temp roots, spelled the way a shell command actually spells them.
+
+    Skipped on Windows on purpose rather than quietly passing: there, `/tmp` is
+    a drive-relative path that resolves against whichever drive the process
+    happens to be on, so the literal asserts nothing about the platform's real
+    temp root. `test_bash_allows_the_platform_temp_root` covers that everywhere.
+    """
+    rc, err = run_hook("enforce_bash_scope.py", bash_event(command, repo), strict="1")
+    assert rc == 0, err
+
+
+@pytest.mark.parametrize("template", ["echo x > {}/probe.txt", "tee {}/notes.txt"])
+def test_bash_allows_the_platform_temp_root(repo, template):
+    """Scratch under the real temp root stays writable on every platform."""
+    command = template.format(tempfile.gettempdir().replace("\\", "/"))
     rc, err = run_hook("enforce_bash_scope.py", bash_event(command, repo), strict="1")
     assert rc == 0, err
 
