@@ -484,3 +484,26 @@ def test_nested_shell_recursion_is_bounded(repo):
                      bash_event('bash -c "sh -c \\"bash -c \\\\\\"echo hi\\\\\\"\\""', repo),
                      strict="1")
     assert rc == 0
+
+
+def test_nested_shell_parses_a_quote_wrapped_command():
+    """The Windows tokenizer keeps quotes; the recursion must survive them.
+
+    `_tokens` runs shlex with posix=False on Windows so that path backslashes
+    are not eaten as escapes — and that mode leaves the quotes on the token.
+    The nested command therefore arrived as the single token '"rm f.txt"' and
+    matched nothing, so shell recursion worked on POSIX and was dead on the
+    platform where it shipped. Driving the helper directly exercises that path
+    from any OS.
+    """
+    import importlib.util
+    spec = importlib.util.spec_from_file_location(
+        "ebs", HOOKS / "enforce_bash_scope.py")
+    ebs = importlib.util.module_from_spec(spec)
+    sys.modules["ebs"] = ebs
+    sys.path.insert(0, str(HOOKS))
+    spec.loader.exec_module(ebs)
+    for quoted in ('"rm f.txt"', "'rm f.txt'"):
+        found = list(ebs._check_shell(["-c", quoted], "/repo", 0))
+        assert found, f"quote-wrapped nested command not parsed: {quoted}"
+        assert found[0][0] == "rm"

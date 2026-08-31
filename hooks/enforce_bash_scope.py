@@ -210,7 +210,15 @@ def _check_shell(args, cwd, depth):
     declining to look would be a choice, not a limit."""
     for i, t in enumerate(args):
         if t == "-c" and i + 1 < len(args):
-            for seg in _segments(args[i + 1]):
+            nested = args[i + 1]
+            # _tokens runs shlex with posix=False on Windows (so path
+            # backslashes survive), and that mode *keeps* the quotes around a
+            # token. Without stripping them the nested command arrived as the
+            # single token '"rm f.txt"' and parsed as nothing at all — the
+            # recursion worked on POSIX and was dead on Windows.
+            if len(nested) >= 2 and nested[0] == nested[-1] and nested[0] in "\"'":
+                nested = nested[1:-1]
+            for seg in _segments(nested):
                 yield from _check_segment(_tokens(seg), cwd, depth + 1)
             return
 
