@@ -3,6 +3,60 @@
 Plugin and `verdict-mcp` share one version line; `.claude-plugin/plugin.json` and
 `pyproject.toml` are bumped together.
 
+## 0.44.0 — 2026-08-31 · "the guard had less jurisdiction than it claimed"
+
+An external audit of the strict-mode Bash guard. Six ways past it, one hole in the
+path predicate, and one claim in the eval README that described a check which could
+not fire. Every one reproduced before it was fixed; every one now has a regression
+test that goes red when the fix is reverted.
+
+**The guard had no jurisdiction where it mattered most.** `_tmp_roots()` allow-listed
+the entire temp root as scratch — and `run_eval.py` builds its checkout with
+`mkdtemp`. So during *every eval run*, the code under test sat outside the guard's
+reach, and CI that clones into `/tmp` was in the same position. The eval README's
+"zero false-positive blocks" was therefore a statement about nothing; the fixture's
+byte-identity is what actually proved the tree was untouched, and the README now says
+so. A temp root is still scratch, but **a git checkout inside one is code under
+test**, not scratch. This was the first thing the fix's own probe demonstrated: a
+test repository created with `mktemp -d` let `rm` through before the change.
+
+**Value-taking git flags swallowed the verb.** The parser consumed `-C` and nothing
+else, so `git -c core.editor=true commit -am x` read `core.editor=true` as the
+subcommand, found it in no mutator set, and passed. Same for `--work-tree`,
+`--git-dir`, `--namespace`. Their arguments are now eaten, and `-C`/`--work-tree`
+re-point the checkout the mutation is judged against.
+
+**In-place editing is rarely spelled `-i`.** The check tested `startswith("-i")`,
+which sees neither `perl -pi -e` (clustered behind `-p`) nor `sed --in-place`. Both
+edited files with the guard silent. Short-option clusters and the long form are now
+read, and `-e`'s script argument is no longer mistaken for a target.
+
+**`find` was in no mutator set at all**, so `find . -delete` and `find -exec rm`
+passed. Both are covered.
+
+**`is_allowed_path` accepted any path with a `.qa` component**, so
+`<repo>/src/.qa/x` — a directory inside the code under test — was writable QA scope.
+Team mode now means the repository's own root: the `.qa` must sit beside a real
+`.git`. QA scope is also checked *before* the temp rule, so a `.qa/` inside a
+repository that happens to live under `/tmp` stays writable — the tester must always
+be able to write its own findings.
+
+**The README oversold the guarantee.** "Read-only on your code, by construction" is
+true of the file tools — there is no `Edit` tool, and a hook confines writes — but
+Bash is a heuristic, and a heuristic that an audit walked past six ways should not be
+described as construction. The claim now separates the two and says the OS is the
+real boundary, matching the wording the case study already used.
+
+**And the 1-in-3 trap is now measured rather than judged.** `eval/fixtures/liar/`
+plants a conftest that skips every collected test; v0.43.0 recorded that Verdict
+caught it 1 run in 3 and left it open, because fixing it looked like a prompt change.
+It is not: "every collected test was skipped" is arithmetic. `executed_nothing()`
+computes it in the harness, and `verdict-facts` reports it per gate, so the judgment
+step receives it already established — the same measure-first rule every other number
+in the run already follows. No prompt was edited.
+
+Found by external audit; reproduced, fixed, and regression-tested here. 449 tests.
+
 ## 0.43.0 — 2026-08-30 · "the prompt is a contract too"
 
 `agents/verdict.md` is the product — the judgment lives in it — and it was the largest

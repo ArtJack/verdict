@@ -46,6 +46,11 @@ _GIT_MUTATORS = {
     "apply", "am", "rebase", "merge", "revert", "cherry-pick", "rm", "mv",
     "stash", "worktree", "config", "tag", "branch",
 }
+# git global flags that consume the following token as their value. -C and
+# --work-tree also re-point the checkout the mutation lands in.
+_GIT_TREE_FLAGS = {"-C", "--work-tree"}
+_GIT_VALUE_FLAGS = {"-c", "--git-dir", "--namespace", "--exec-path",
+                    "--super-prefix", "--config-env", "--attr-source"}
 _WRAPPERS = {"env", "sudo", "command", "nohup", "time", "exec"}
 _ASSIGNMENT = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*=")
 # `> path`, `>> path`, `2> path`, `&> path`, `>| path` — captures the target token.
@@ -74,6 +79,23 @@ def _resolve(target: str, cwd: str) -> str | None:
     return os.path.normpath(expanded)
 
 
+def _in_checkout(path: str, stop_at: str) -> bool:
+    """Is `path` inside a git working tree that lives below `stop_at`?
+
+    Walks up only as far as the temp root, so the scratch tree itself stays
+    writable while anything that is a repository inside it does not.
+    """
+    d = path if os.path.isdir(path) else os.path.dirname(path)
+    while d and d != stop_at and d.startswith(stop_at + os.sep):
+        if os.path.exists(os.path.join(d, ".git")):
+            return True
+        parent = os.path.dirname(d)
+        if parent == d:
+            break
+        d = parent
+    return False
+
+
 def _target_ok(target: str, cwd: str) -> tuple[bool, str]:
     """(allowed, resolved-or-reason) for one candidate write target."""
     if not target or target.startswith(("&", "-")):
@@ -88,10 +110,23 @@ def _target_ok(target: str, cwd: str) -> tuple[bool, str]:
     # inside .qa/) that points outside must not launder the write through the
     # allow-list — VERDICT-F-1, applied consistently.
     resolved = os.path.realpath(resolved)
+    # QA scope first, and deliberately: a team `.qa/` inside a repository that
+    # happens to live under /tmp is still QA state, and the tester must always
+    # be able to write its own findings.
+    if is_allowed_path(resolved):
+        return True, resolved
     for root in _tmp_roots():
         if resolved == root or resolved.startswith(root + os.sep):
+            # Scratch under a temp root is fine — but a checkout under one is
+            # code under test, not scratch. The eval harness builds its repo in
+            # mkdtemp and CI commonly clones there, so blanket-allowing the
+            # temp root left the guard with no jurisdiction over the very code
+            # it exists to protect, and made "zero false-positive blocks" in a
+            # temp-rooted eval a statement about nothing.
+            if _in_checkout(resolved, root):
+                return False, f"{resolved} (a git checkout under {root})"
             return True, resolved
-    return is_allowed_path(resolved), resolved
+    return False, resolved
 
 
 def _segments(command: str):
@@ -111,6 +146,16 @@ def _tokens(segment: str):
     return toks
 
 
+def _edits_in_place(tok: str) -> bool:
+    """Does this sed/perl option turn on in-place editing?"""
+    if tok == "--in-place" or tok.startswith("--in-place="):
+        return True
+    if not tok.startswith("-") or tok.startswith("--"):
+        return False
+    # A short-option cluster, possibly with a backup suffix: -i, -i.bak, -pi.
+    return "i" in tok[1:].split(".", 1)[0]
+
+
 def _check_segment(toks, cwd):
     """Yield (description, candidate-target) pairs for one simple command."""
     if not toks:
@@ -122,22 +167,51 @@ def _check_segment(toks, cwd):
             if t.startswith("of="):
                 yield "dd of=", t[3:]
     elif head in ("sed", "perl"):
-        if any(t == "-i" or t.startswith("-i") for t in args):
-            for t in args:
-                if not t.startswith("-"):
-                    yield f"{head} -i", t
+        # `-i` is rarely written alone. `perl -pi -e` clusters it behind -p,
+        # and `sed --in-place` spells it out; a startswith("-i") test saw
+        # neither, so both edited files in place with the guard silent.
+        if any(_edits_in_place(t) for t in args):
+            it = iter(args)
+            for t in it:
+                if t in ("-e", "-E", "-f"):
+                    next(it, None)    # the script/expression, not a target
+                elif not t.startswith("-"):
+                    yield f"{head} in-place", t
     elif head == "git":
         if any(t in ("--dry-run", "--check") for t in args):
             return
         repo, verb, it = cwd, None, iter(args)
         for t in it:
-            if t == "-C":
-                repo = next(it, cwd)
-            elif not t.startswith("-"):
+            # A global flag that takes a value must have that value eaten, or
+            # the value becomes the "verb" and every mutator hides behind it:
+            # `git -c core.editor=true commit -am x` read as verb
+            # "core.editor=true", which is in no mutator set, and passed.
+            if t in _GIT_TREE_FLAGS:
+                repo = next(it, repo) or repo
+            elif t in _GIT_VALUE_FLAGS:
+                next(it, None)
+            elif t.startswith("--work-tree="):
+                repo = t.split("=", 1)[1] or repo
+            elif t.startswith("-"):
+                continue          # boolean flag, or --flag=value: no argument
+            else:
                 verb = t
                 break
         if verb in _GIT_MUTATORS:
             yield f"git {verb} (mutates the checkout)", repo
+    elif head == "find":
+        mutates = "-delete" in args
+        for i, t in enumerate(args):
+            if t in ("-exec", "-execdir") and i + 1 < len(args):
+                mutates = mutates or os.path.basename(args[i + 1]) in _MUTATORS
+        if mutates:
+            roots = []
+            for t in args:
+                if t.startswith("-"):
+                    break
+                roots.append(t)
+            for t in (roots or [cwd]):
+                yield "find -delete/-exec", t
     elif head in _MUTATORS:
         for t in args:
             if not t.startswith("-"):
@@ -173,8 +247,9 @@ def main() -> int:
     sys.stderr.write(
         f"verdict bash guard (VERDICT_STRICT): {what} targets {resolved!r}, "
         "outside the QA root. Strict QA sessions may only write inside a .qa/ "
-        "directory, $VERDICT_HOME (default ~/.claude/verdict), /dev/*, or temp "
-        "dirs. Findings are reported, never patched in place.\n"
+        "directory, $VERDICT_HOME (default ~/.claude/verdict), /dev/*, or scratch "
+        "under a temp dir — but not a git checkout sitting in one. Findings "
+        "are reported, never patched in place.\n"
     )
     return 2  # block the tool call and show Claude the reason
 
