@@ -655,3 +655,48 @@ def test_gate_durations_do_not_disturb_the_chain(repo, qa_root, tmp_path):
         "gate_durations leaked into the chain body"
     tampered = {"run_number": 5, "verdict": "fail"}
     assert chain_link("", tampered) != link, "the verdict itself must stay signed"
+
+
+# --- verified intact: confirmation is a deliverable --------------------------
+#
+# The first external user's words: the invariants of his money were checked and
+# confirmed intact, the report said so in the middle where nobody reads, and
+# that confirmation is what a tester is paid for. The field is optional by
+# design -- forcing it would push models to invent entries.
+
+def test_verified_intact_travels_from_judgment_to_state_and_report(repo, qa_root, tmp_path):
+    from verdict_mcp.harness import collect
+    facts = collect(repo, qa_root, [])
+    (qa_root / "facts.json").write_text(json.dumps(facts), encoding="utf-8")
+    j = judgment(verified_intact=[
+        "ledger invariant: debits equal credits across all 12 fixtures (pytest -k ledger, 12 passed)",
+    ])
+    jp = tmp_path / "j.json"
+    jp.write_text(json.dumps(j), encoding="utf-8")
+    proc = subprocess.run([sys.executable, str(HARNESS), "finalize",
+                           "--qa-root", str(qa_root), "--judgment", str(jp)],
+                          capture_output=True, text=True)
+    assert proc.returncode == 0, proc.stderr
+    state = json.loads((qa_root / "state.json").read_text(encoding="utf-8"))
+    assert state["verified_intact"] == j["verified_intact"]
+    report = (qa_root / state["last_run"]["report"]).read_text(encoding="utf-8")
+    assert "## Verified intact" in report
+    # Prominence is the point: after the blockers, before Not tested.
+    assert report.index("## Release blockers") < report.index("## Verified intact") \
+        < report.index("## Not tested")
+
+
+def test_verified_intact_is_optional_and_absent_means_no_section(repo, qa_root, tmp_path):
+    from verdict_mcp.harness import collect
+    facts = collect(repo, qa_root, [])
+    (qa_root / "facts.json").write_text(json.dumps(facts), encoding="utf-8")
+    jp = tmp_path / "j.json"
+    jp.write_text(json.dumps(judgment()), encoding="utf-8")
+    proc = subprocess.run([sys.executable, str(HARNESS), "finalize",
+                           "--qa-root", str(qa_root), "--judgment", str(jp)],
+                          capture_output=True, text=True)
+    assert proc.returncode == 0, proc.stderr
+    state = json.loads((qa_root / "state.json").read_text(encoding="utf-8"))
+    report = (qa_root / state["last_run"]["report"]).read_text(encoding="utf-8")
+    assert "## Verified intact" not in report, \
+        "an empty forced section would push models to pad it"

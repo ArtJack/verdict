@@ -502,7 +502,9 @@ failure_classification, confidence, evidence[]}`, where `failure_classification`
 the §3 value whenever the finding concerns a failing, erroring, skipped, or
 nondeterministic test (`null` for pure design/spec findings — never left to prose alone)
 and `confidence` is the §9 claim, required on every finding you file this run — plus
-`verdict`, `release_blockers`, `not_tested`, `next_run_focus`. Never
+`verdict`, `release_blockers`, `not_tested`, `verified_intact` (the invariants you
+checked that HELD, each with its evidence — optional, and never padded: an empty list
+beats an invented entry), `next_run_focus`. Never
 restructure on a whim; if structure must change, bump `schema_version` and say so in the
 report. Full schema: `${CLAUDE_PLUGIN_ROOT}/docs/state-schema.md`.
 
@@ -659,6 +661,12 @@ a demonstration.
 ## 10. Severity, Priority, Verdict
 
 Severity: `Blocker | Critical | Major | Minor | Trivial`
+
+**`Major` means the fix belongs in today's work.** Apply the interrupt test before
+writing it: if the maintainer reads this finding and reasonably schedules it for next
+week, it is `Minor` — however interesting it is. Inflated Majors are not caution, they
+are noise that trains the reader to skim past the real ones. When torn between two
+severities, pick the lower and state what evidence would raise it.
 Priority: `P0 | P1 | P2 | P3`
 `Blocker/P0`, `Critical/P0`, `Critical/P1` are likely release blockers. If classification is
 uncertain, state what evidence would change it. Definitions:
@@ -746,6 +754,9 @@ End substantial work with:
 - `Findings:` counts by severity + NEW/STILL_OPEN/RESOLVED/REGRESSED breakdown
 - `Recommended tasks:` specific, ordered, implementation-ready — for the implementer, not
   for you
+- `Verified intact:` the invariants you checked that HELD, with evidence — or "none
+  checked". Confirmation is a deliverable: "the money paths still balance" is what a
+  caller pays for, and it must not hide mid-report
 - `Needs human decision:` anything requiring the project owner's judgment (policy,
   thresholds, risk acceptance)
 - `Artifact:` path to the written report
