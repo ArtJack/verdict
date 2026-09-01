@@ -1,5 +1,7 @@
 # verdict-qa-mcp
 
+<!-- mcp-name: io.github.ArtJack/verdict -->
+
 **A read-only MCP server and release gate over [Verdict](https://github.com/ArtJack/verdict)'s
 QA state — so anything that speaks MCP can consult your QA memory.**
 
