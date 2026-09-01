@@ -365,6 +365,15 @@ RENDERED_BY_FINALIZE = "rendered from `state.json` by `verdict-finalize`"
 # step ran, not that `finalize` consumed it, whereas `calibration` is written
 # only by `merge` and the report footer only by the renderer. So the durable
 # pair is what a gate requires; the other two corroborate and are reported.
+# Keys the chain does not sign. "chain" is the signature itself. The rest are
+# volatile telemetry added after signing shipped: including them would make
+# `_chain_signal`'s re-derivation of an *old* signed state produce a new-shape
+# row and fail its own binding check — every pre-upgrade state would read as
+# tampered. Tampering with a duration is not worth guarding against; tampering
+# with a verdict is, and that stays signed.
+_CHAIN_EXCLUDED = ("chain", "gate_durations")
+
+
 def chain_link(prev: str, row: dict) -> str:
     """This run's link in the run-history chain: sha256(prev + canonical row).
 
@@ -380,7 +389,7 @@ def chain_link(prev: str, row: dict) -> str:
     — at which point it has done most of the work the harness would have done.
     What changes is that the cheap attack, copy the strings, now fails loudly.
     """
-    body = {k: v for k, v in row.items() if k != "chain"}
+    body = {k: v for k, v in row.items() if k not in _CHAIN_EXCLUDED}
     payload = (prev or "") + json.dumps(body, sort_keys=True, separators=(",", ":"))
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
@@ -522,6 +531,13 @@ def history_row(state: dict) -> dict:
         "quarantine": len(state.get("flaky_quarantine", []) or []),
         "report": last.get("report"),
     }
+    durations = {name: g["duration_s"] for name, g in (state.get("gates") or {}).items()
+                 if isinstance(g, dict) and isinstance(g.get("duration_s"), (int, float))}
+    if durations:
+        # Telemetry for the duration-regression fact: a gate that jumps from 3s
+        # to 65s usually means a test started calling a live service. Excluded
+        # from the chain body (see _CHAIN_EXCLUDED).
+        row["gate_durations"] = durations
     for optional in ("run_label",):
         if state.get(optional) is not None:
             row[optional] = state[optional]

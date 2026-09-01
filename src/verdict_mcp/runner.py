@@ -34,12 +34,14 @@ the `claude` CLI verbatim (MCP configs, permission modes, extra flags).
 import argparse
 import json
 import os
+import queue
 import re
 import shutil
 import subprocess
 import sys
+import threading
 import time
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 from pathlib import Path
 
 try:
@@ -53,6 +55,104 @@ except ImportError:  # bare-script execution
     from project_key import derive_key
     from state import home as state_home
     from state import resolve_root
+
+def _heartbeat_s() -> int:
+    try:
+        return max(1, int(os.environ.get("VERDICT_HEARTBEAT_S", "60")))
+    except ValueError:
+        return 60
+
+
+def _run_streaming(cmd, repo, env, timeout_s):
+    """Run the claude CLI, echoing its output live, with a heartbeat.
+
+    The previous shape — `subprocess.run(capture_output=True)` — was a black
+    box: the nightly log stayed empty for the whole run, a killed parent left
+    no trace at all, and the first external user reported being bitten by
+    exactly that, twice. Lines are echoed to stderr as they arrive (so a
+    redirected log grows in real time and survives a kill mid-run), and when
+    the child says nothing for VERDICT_HEARTBEAT_S seconds (default 60) a
+    heartbeat line says the run is alive and how long it has been quiet.
+
+    Returns (returncode, combined_output); returncode is None on timeout.
+    """
+    proc = subprocess.Popen(cmd, cwd=repo, env=env, stdout=subprocess.PIPE,
+                            stderr=subprocess.STDOUT, text=True,
+                            encoding="utf-8", errors="replace")
+    lines: queue.Queue = queue.Queue()
+
+    def _pump():
+        for line in proc.stdout:
+            lines.put(line)
+        lines.put(None)
+
+    threading.Thread(target=_pump, daemon=True).start()
+    buf = []
+    start = last_output = time.monotonic()
+    heartbeat = _heartbeat_s()
+    while True:
+        remaining = timeout_s - (time.monotonic() - start)
+        if remaining <= 0:
+            proc.kill()
+            proc.wait()
+            return None, "".join(buf)
+        try:
+            item = lines.get(timeout=min(heartbeat, remaining))
+        except queue.Empty:
+            quiet = int(time.monotonic() - last_output)
+            elapsed = int((time.monotonic() - start) // 60)
+            print(f"verdict-run: still running — {elapsed}m elapsed, "
+                  f"no output for {quiet}s", file=sys.stderr, flush=True)
+            continue
+        if item is None:
+            break
+        buf.append(item)
+        last_output = time.monotonic()
+        sys.stderr.write(item)
+        sys.stderr.flush()
+    return proc.wait(), "".join(buf)
+
+
+def _head_sha(repo):
+    try:
+        proc = subprocess.run(["git", "-C", str(repo), "rev-parse", "HEAD"],
+                              capture_output=True, text=True, timeout=10)
+    except (OSError, subprocess.SubprocessError):
+        return None
+    return proc.stdout.strip() if proc.returncode == 0 else None
+
+
+def _unchanged_reason(qa_root, repo):
+    """A skip is earned, not assumed: the exact commit was already judged, and
+    nothing time-based is due. Returns the reason string, or None (= run).
+
+    Answers the objection every low-churn project raises against a nightly —
+    "I don't change code every day" — with arithmetic instead of a schedule:
+    on unchanged days the run costs nothing, on changed days it runs. Note
+    the comparison is exact-sha, not `code_drift`: "behind by one commit" is
+    precisely a reason TO run.
+    """
+    try:
+        state = json.loads((Path(qa_root) / "state.json").read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+    sha = (state.get("last_run") or {}).get("git_sha")
+    head = _head_sha(repo)
+    if not sha or not head or sha != head:
+        return None
+    if not state.get("verdict"):
+        return None
+    today = date.today().isoformat()
+    for q in state.get("flaky_quarantine") or []:
+        until = str((q or {}).get("quarantined_until") or "")
+        # An expired (or unparseable) quarantine must be re-evaluated by a
+        # real run; that re-evaluation is work only a model can do.
+        if not until or until <= today:
+            return None
+    return (f"HEAD unchanged since run {state.get('run_number')} "
+            f"({head[:12]}), no quarantine expiry due — re-gating the standing "
+            "verdict without a model call")
+
 
 DEFAULT_PROMPT = (
     "Use the verdict agent to run today's QA pass on this repository — a delta run "
@@ -137,6 +237,10 @@ def main(argv=None) -> int:
     # worktree, so a run executed in a linked worktree legitimately writes a sha
     # that main's HEAD has never seen — defaulting this on would fail a healthy
     # nightly. Set it where the run and the gate see the same checkout.
+    ap.add_argument("--skip-unchanged", action="store_true",
+                    help="when HEAD equals the last run's sha and no quarantine "
+                         "has expired, re-gate the standing verdict instead of "
+                         "spending a model run")
     ap.add_argument("--max-commits-behind", type=int, default=None,
                     help="gate exit 5 when the run's state is more than N commits "
                          "behind the profile's repository HEAD")
@@ -168,19 +272,29 @@ def main(argv=None) -> int:
     print(f"verdict-run: project {project!r} · repo {repo} · model {args.model} · "
           f"run_number before: {before}", file=sys.stderr)
 
+    if args.skip_unchanged:
+        reason = _unchanged_reason(qa_root, repo)
+        if reason:
+            print(f"verdict-run: skip — {reason}", file=sys.stderr)
+            # max_age deliberately None here: the verdict still describes HEAD
+            # exactly, so time-staleness is not the question. min_run_number
+            # None too — no new run was expected.
+            result = evaluate(project, args.fail_on, None, None,
+                              require_harness=args.require_harness)
+            print(f"verdict-run: verdict {result.get('verdict')!r} → exit "
+                  f"{result['exit_code']} ({result['reason']})", file=sys.stderr)
+            return result["exit_code"]
+
     env = dict(os.environ, VERDICT_STRICT="1", VERDICT_MODEL=args.model)
     cmd = [args.claude_cmd, "-p", prompt, "--model", args.model,
            "--setting-sources", "project", *passthrough]
 
     for attempt in (1, 2):
-        try:
-            proc = subprocess.run(cmd, cwd=repo, env=env, capture_output=True,
-                                  text=True, timeout=args.timeout_s)
-        except subprocess.TimeoutExpired:
+        rc, output = _run_streaming(cmd, repo, env, args.timeout_s)
+        if rc is None:
             print(f"verdict-run: attempt {attempt} timed out after {args.timeout_s}s",
                   file=sys.stderr)
             continue
-        output = proc.stdout + proc.stderr
         wait = seconds_until_reset(output, args.reset_ceiling_s)
         if wait and attempt == 1:
             print(f"verdict-run: session limit; waiting {wait}s for the window to reset",

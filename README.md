@@ -47,6 +47,33 @@ Verdict is a Claude Code plugin built the way QA is actually practiced:
 /plugin install verdict@verdict
 ```
 
+## What installs, and when it runs
+
+Installing a plugin means letting its code run in your sessions, so here is exactly
+what this one does — measured from `hooks/hooks.json`, not summarised from memory.
+Six hook registrations; each starts a `python3` (tens of milliseconds) when its
+event fires:
+
+| Event | Fires on | Script | Silent when |
+|---|---|---|---|
+| `PreToolUse` | `Write`/`Edit`/`MultiEdit`/`NotebookEdit` | write-scope guard | always, unless `VERDICT_STRICT=1` or the caller is the verdict agent itself |
+| `PreToolUse` | `Bash` | bash-scope guard | always, unless `VERDICT_STRICT=1` |
+| `PostToolUse` | `Write`/`Edit`/`MultiEdit` | state validator | unless the written file is literally named `state.json` |
+| `Stop` / `SubagentStop` | end of turn | run-contract check | unless a QA run *in this session* left hand-written state — and it blocks **at most once**, never loops |
+| `SessionStart` | session open | findings banner | unless the repository has QA state |
+
+Every hook **fails open**: malformed input, missing files, or an exception mean
+exit 0 and silence — a broken hook must never brick a session. `VERDICT_STRICT=1`
+is what arms the scope guards, and you set it only for dedicated QA sessions
+(headless, CI, the nightly); in ordinary interactive work the guards are no-ops.
+
+**Prefer not to install globally?** Everything works per-repository: copy
+[agents/verdict.md](agents/verdict.md) into `<repo>/.claude/agents/` and the
+[hooks/hooks.json](hooks/hooks.json) entries into `<repo>/.claude/settings.json`,
+with `${CLAUDE_PLUGIN_ROOT}` replaced by a checkout path. That is exactly how the
+eval harness provisions its scratch projects — [eval/run_eval.py](eval/run_eval.py)
+is the reference implementation.
+
 ## Quickstart
 
 ```
