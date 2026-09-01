@@ -3,6 +3,50 @@
 Plugin and `verdict-mcp` share one version line; `.claude-plugin/plugin.json` and
 `pyproject.toml` are bumped together.
 
+## 0.49.0 — 2026-09-01 · "a check that cannot fire looks green"
+
+Three validator defects, all found by pointing an 8B local model at the liar fixture
+through the real harness. The agent prompt is again **byte-identical** — these are
+harness-side rules, and the error messages carry their own remedy.
+
+**A clean `pass` now needs a suite somebody could read.** `executed_nothing` is the
+defence against a suite that collects tests and runs none of them, and it is arithmetic
+over parsed counts — so it fires only when the runner's summary was legible. The liar
+fixture's own entrypoint is `pytest -q >/dev/null; echo ALL TESTS PASSED; exit 0`, which
+yields `counts_unparsed`; the defence never computed, and a `pass` with zero findings went
+through `finalize` **and** `verdict-gate --require-harness` to **exit 0** over a suite in
+which every test was skipped. The check was disabled by exactly what it guards against.
+Proven by control: the same code behind a legible pytest gate reports
+`executed_nothing: all 3 collected tests were skipped`. `validate` now refuses the
+unqualified `pass` when **no gate in the run produced test counts**. Run-level, not
+per-gate — which is what keeps it quiet: a lint or freshness gate legitimately parses to
+no counts, and naming the test gate would need semantics the harness does not have. This
+repository's own state is the case in point, carrying a parsed `suite` gate beside an
+unparsed `fixture_freshness` one, and it validates clean. `pass with risks` stays
+available; the rule refuses the unqualified verdict, not the run.
+
+**`not_tested: []` was a rule stated and never enforced.** Both validators carried the
+message *"an empty list is a claim of total coverage"* while checking only that the value
+was a list. `[]` is a list — so a `pass` claiming total coverage travelled through
+judgment, merge, state and gate untouched. Now refused on `pass` and `pass with risks`,
+the two verdicts that let code ship. A `fail` or `blocked` run may still leave it empty.
+
+**Evidence is cited so somebody can go and look.** Both validators checked that evidence
+was *present*, never what it held, so `[{"file": "qstats.py", "line": 4}]` counted as a
+cited finding — satisfying the check whose entire purpose is that a reader can follow the
+citation. Entries must now be strings.
+
+Eleven tests, each mutation-checked, each paired with the false-positive case that shapes
+the rule. 529 tests.
+
+Also in this release, from #56: `verdict-qa-mcp` is listed in the MCP Server Registry —
+`server.json` (schema 2025-12-11, `io.github.ArtJack/verdict`) plus the `mcp-name`
+ownership marker in `README-pypi.md`, which the registry reads from the PyPI description.
+That is what claimed this version number: PyPI descriptions are immutable per release, so
+the marker only reaches the registry through a new one. That change bumped `pyproject.toml`
+and left `.claude-plugin/plugin.json` at 0.48.0; the two are supposed to move together, and
+this release re-syncs them.
+
 ## 0.48.0 — 2026-09-01 · "silence is not a sweep"
 
 Two features ported from a parallel working session that had written them against
