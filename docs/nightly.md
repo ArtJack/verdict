@@ -93,6 +93,18 @@ Then gate and notify however you like:
 ```bash
 verdict-gate myrepo --max-age-hours 24 --require-harness || notify "QA gate: $?"
 
+# On a low-churn project, add --skip-unchanged: when HEAD equals the last
+# run's sha and no quarantine has expired, verdict-run re-gates the standing
+# verdict and spends no model run at all. A nightly then costs nothing on the
+# days nothing changed — which is the honest answer to "but I don't change
+# code every day". The comparison is exact-sha: one commit behind is a reason
+# TO run.
+#
+# The runner streams the session transcript into your log as it happens and
+# prints a heartbeat (VERDICT_HEARTBEAT_S, default 60s) when the child goes
+# quiet — so a hung run is visible while it hangs, and a killed run leaves
+# its partial log behind instead of nothing.
+
 # Gating a merge rather than watching a nightly? Add --max-commits-behind 0:
 # a verdict ages in commits as well as hours, and a `pass` measured before the
 # commits you are about to merge is a false green. Leave it off when the run

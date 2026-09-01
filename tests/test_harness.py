@@ -584,3 +584,74 @@ def test_facts_report_a_skip_all_suite(repo, qa_root):
     gate = facts["gates"]["suite"]
     assert "executed_nothing" in gate, gate
     assert "12 collected tests were skipped" in gate["executed_nothing"]
+
+
+# --- a gate dramatically slower than its own history is a measured fact -----
+#
+# The motivating case is external: three tests started calling a live CLI, the
+# suite went 3s -> 65s, a week of subscription quota burned silently -- and the
+# number sat in facts.json the whole run, measured and uncompared.
+
+def test_duration_regression_fires_on_the_reported_case():
+    from verdict_mcp.harness import duration_regressed
+    msg = duration_regressed(65.2, [3.0, 3.1, 3.2, 3.0, 3.1])
+    assert msg and "21x" in msg and "65.2s" in msg
+
+
+@pytest.mark.parametrize("current,priors", [
+    (4.0, [3.0, 3.1, 3.2]),        # slower, but within the factor
+    (0.5, [0.07, 0.07]),           # 7x, but the absolute floor holds
+    (65.0, [3.0]),                 # one prior is not a baseline
+    (65.0, []),                    # no history: no claim
+    (3.0, [3.0, 3.1, 3.2]),        # steady state
+])
+def test_duration_regression_stays_quiet(current, priors):
+    from verdict_mcp.harness import duration_regressed
+    assert duration_regressed(current, priors) is None
+
+
+def test_collect_reports_duration_regression_from_history(repo, qa_root, monkeypatch):
+    """End to end: history in runs.jsonl, comparison in collect, fact in the
+    gate result -- the judgment step receives it established."""
+    import verdict_mcp.harness as h
+    rows = [{"run_number": n, "gate_durations": {"suite": 0.001}} for n in (1, 2, 3)]
+    (qa_root / "runs.jsonl").write_text(
+        "".join(json.dumps(r) + "\n" for r in rows), encoding="utf-8")
+    # The real gate takes ~1s of wall clock; against a 1ms median that is
+    # thousands of x. Only the absolute floor needs lowering to test the wiring.
+    monkeypatch.setattr(h, "_DURATION_ABS_FLOOR_S", 0.0)
+    facts = h.collect(repo, qa_root, [("suite", _emit(["1 passed"]))])
+    gate = facts["gates"]["suite"]
+    assert "duration_regressed" in gate, gate
+    assert "x)" in gate["duration_regressed"]
+
+
+def test_history_rows_carry_gate_durations(repo, qa_root, tmp_path):
+    """finalize writes the telemetry the next run's comparison reads."""
+    from verdict_mcp.harness import collect
+    facts = collect(repo, qa_root, [("suite", _emit(["1 passed"]))])
+    (qa_root / "facts.json").write_text(json.dumps(facts), encoding="utf-8")
+    jp = tmp_path / "j.json"
+    jp.write_text(json.dumps(judgment()), encoding="utf-8")
+    proc = subprocess.run([sys.executable, str(HARNESS), "finalize",
+                           "--qa-root", str(qa_root), "--judgment", str(jp)],
+                          capture_output=True, text=True)
+    assert proc.returncode == 0, proc.stderr
+    row = json.loads((qa_root / "runs.jsonl").read_text(encoding="utf-8").splitlines()[-1])
+    assert "gate_durations" in row and "suite" in row["gate_durations"]
+
+
+def test_gate_durations_do_not_disturb_the_chain(repo, qa_root, tmp_path):
+    """The chain must not sign telemetry: an old state signed before
+    gate_durations existed re-derives its row WITH the field today, and if the
+    field were in the signed body every pre-upgrade state would read as
+    tampered -- including this repository's own committed .qa."""
+    from verdict_mcp.state import chain_link
+    signed_without = {"run_number": 5, "verdict": "pass"}
+    link = chain_link("", signed_without)
+    rederived_with = {"run_number": 5, "verdict": "pass",
+                      "gate_durations": {"suite": 31.3}}
+    assert chain_link("", rederived_with) == link, \
+        "gate_durations leaked into the chain body"
+    tampered = {"run_number": 5, "verdict": "fail"}
+    assert chain_link("", tampered) != link, "the verdict itself must stay signed"

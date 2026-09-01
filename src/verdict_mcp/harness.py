@@ -150,6 +150,45 @@ def _summary_line(output: str) -> str:
     return tail[-1][:300] if tail else ""
 
 
+# A duration jump reads as regression only past both bars: relative (the gate
+# got at least this many times slower than its own median) and absolute (and
+# slower by at least this many seconds). Either alone cries wolf — a 0.07s gate
+# tripling is noise, and a fixed floor alone misses nothing-to-60s jumps on
+# fast suites. Two prior samples minimum: one run is not a baseline.
+_DURATION_FACTOR = 3.0
+_DURATION_ABS_FLOOR_S = 5.0
+_DURATION_MIN_PRIOR = 2
+
+
+def duration_regressed(current_s, prior_durations) -> str | None:
+    """Did this gate get dramatically slower than its own history?
+
+    Arithmetic, not judgment — the same contract as `executed_nothing`. The
+    motivating case is external and specific: three tests started calling a
+    live CLI, the suite went from 3s to 65s, and the run burned a week of
+    subscription quota without anyone noticing — while the number sat in
+    facts.json the whole time, measured and uncompared. The harness now does
+    the comparison, so the judgment step receives "this gate is 21x slower
+    than its own median" as an established fact. A lead for §4.5 judgment
+    (live-service calls, an accidental sleep, a hung retry), never a finding
+    by itself.
+    """
+    if not isinstance(current_s, (int, float)):
+        return None
+    priors = sorted(d for d in (prior_durations or [])
+                    if isinstance(d, (int, float)) and d >= 0)
+    if len(priors) < _DURATION_MIN_PRIOR:
+        return None
+    median = priors[len(priors) // 2]
+    if median <= 0:
+        return None
+    if current_s >= median * _DURATION_FACTOR and             current_s - median >= _DURATION_ABS_FLOOR_S:
+        return (f"took {current_s:.1f}s against a median of {median:.1f}s over the "
+                f"last {len(priors)} runs ({current_s / median:.0f}x) — a test may "
+                "have started calling a live service, sleeping, or hanging on a retry")
+    return None
+
+
 def executed_nothing(counts: dict) -> str | None:
     """Did this suite collect tests and then run none of them?
 
@@ -284,6 +323,19 @@ def collect(repo: Path, qa_root: Path, gates: list[tuple[str, str]],
             **({"executed_nothing": nothing_ran} if (nothing_ran := executed_nothing(counts))
                else {}),
         }
+
+    # Compare each gate's duration against its own history. Prior durations
+    # come from runs.jsonl rows written by finalize (gate_durations, additive
+    # since 0.46.0) — the first runs after an upgrade have no history and stay
+    # silent, which is honest: no baseline, no claim.
+    prior_rows, _ = load_runs(qa_root)
+    for name, g in gate_results.items():
+        priors = [r["gate_durations"][name] for r in prior_rows
+                  if isinstance(r.get("gate_durations"), dict)
+                  and name in r["gate_durations"]][-5:]
+        slow = duration_regressed(g.get("duration_s"), priors)
+        if slow:
+            g["duration_regressed"] = slow
 
     # Characteristic signatures of model-written code that are mechanically
     # countable — hallucinated imports, placeholders, swallowed exceptions,

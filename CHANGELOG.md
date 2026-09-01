@@ -3,6 +3,57 @@
 Plugin and `verdict-mcp` share one version line; `.claude-plugin/plugin.json` and
 `pyproject.toml` are bumped together.
 
+## 0.46.0 — 2026-08-31 · "what the first outside user hit"
+
+The first external run of Verdict — a stranger's financial project, three real
+production defects found in one pass — came back with a review, and this release is
+the four items from it that need no prompt change. (The prompt items — severity
+strictness and a "verified intact" section — wait for one eval-paid release together
+with the owed liar re-measurement, because a prompt edit is a behaviour change.)
+
+**Trust is now the first screen of the README.** Installing a plugin means letting
+its code run in every session, and the reviewer was blunt: he audited the hook
+sources himself, and the average user will not. A table before the Quickstart now
+says exactly what installs — six hook registrations, what each fires on, and when
+each is silent (the scope guards are no-ops without `VERDICT_STRICT=1`; everything
+fails open; the Stop hook blocks at most once and never loops) — plus the
+per-repository install recipe for people who prefer not to install globally.
+
+**A gate dramatically slower than its own history is now a measured fact.** The
+reviewer's project had three tests silently start calling a live CLI: the suite went
+3s → 65s and burned a week of subscription quota, while the number sat in
+facts.json, measured and uncompared. `duration_regressed` does the comparison —
+median of the gate's own last five runs, fired only past both a 3x factor and a 5s
+absolute floor, so a 0.07s gate tripling stays quiet. Prior durations ride in
+`runs.jsonl` as `gate_durations`, deliberately **excluded from the chain body**: had
+they been signed, every pre-upgrade state — including this repository's own
+committed `.qa/` — would re-derive as tampered. Telemetry is not worth signing;
+verdicts still are.
+
+**`verdict-run --skip-unchanged`.** The objection every low-churn project raises
+against a nightly — *"but I don't change code every day"* — answered with
+arithmetic instead of a schedule: when HEAD equals the last run's sha and no
+quarantine has expired, the runner re-gates the standing verdict and spends no
+model run. Exact-sha on purpose, not `code_drift`: one commit behind is a reason
+*to* run. An expired quarantine forces a run even on unchanged code, because
+re-evaluating a flake is work only a model can do. Opt-in — the nightly's
+semantics do not change silently.
+
+**The runner is no longer a black box.** `capture_output=True` meant an empty log
+until the very end and no trace at all if the parent died — the reviewer was bitten
+twice. The transcript now streams into the log as it happens, and a heartbeat line
+(`VERDICT_HEARTBEAT_S`, default 60s) reports elapsed and quiet time whenever the
+child goes silent. A hung run is visible while it hangs.
+
+Also from the review, no code needed: findings-to-PR-comments already exists
+(`verdict-gate --format github-comment`, posted as a sticky comment by the Action) —
+which the reviewer, who read the source closely enough to audit the hooks, did not
+find. That is its own argument for the README change above.
+
+503 tests. Every new contract mutation-checked: disabling the duration comparison,
+dropping the fact before facts.json, ignoring HEAD movement, ignoring quarantine
+expiry, muting the stream, and signing the telemetry each turn the suite red.
+
 ## 0.45.0 — 2026-08-31 · "the same three mistakes, one layer out"
 
 0.44.0 closed six specific commands an audit had found. Re-probing the *classes*

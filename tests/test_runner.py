@@ -163,3 +163,102 @@ print("ARGS:" + "|".join(sys.argv[1:]))
     assert "--mcp-config|extra.json" in proc.stderr + proc.stdout or True
     # the run wrote nothing, so the gate exits 4 — the passthrough is what we test
     assert proc.returncode == 4
+
+
+# --- live output, heartbeat, and the earned skip -----------------------------
+#
+# All three exist because of one external report: the first outside user was
+# bitten twice by the runner's silence (empty log until the very end, killed
+# parent = no trace), and their friend's objection to a nightly — "I don't
+# change code every day" — is answered by arithmetic, not a schedule.
+
+SLOW_TALKER = (
+    'import sys, time\n'
+    'print("first line", flush=True)\n'
+    'time.sleep(2.5)\n'
+    'print("second line", flush=True)\n'
+)
+
+
+def test_runner_streams_output_live_and_heartbeats(tmp_path, repo):
+    home = tmp_path / "home"
+    stub = write_stub(tmp_path, SLOW_TALKER, name="slow")
+    env = {k: v for k, v in os.environ.items() if not k.startswith("VERDICT_")}
+    env["VERDICT_HOME"] = str(home)
+    env["VERDICT_HEARTBEAT_S"] = "1"
+    proc = subprocess.run(
+        [sys.executable, str(RUNNER), "--repo", str(repo),
+         "--claude-cmd", str(stub), "--model", "opus"],
+        capture_output=True, text=True, env=env)
+    # The child's lines must be in the runner's own stream (that is what a
+    # redirected nightly log receives), and the quiet gap must have produced
+    # at least one heartbeat.
+    assert "first line" in proc.stderr
+    assert "second line" in proc.stderr
+    assert "still running" in proc.stderr, "no heartbeat during a 2.5s silence at 1s interval"
+
+
+MARKER_STUB = '''
+import os, pathlib
+pathlib.Path(r"{marker}").write_text("ran", encoding="utf-8")
+print("stub ran")
+'''
+
+
+def _run_with_marker(tmp_path, repo, home, name, *extra):
+    marker = tmp_path / f"{name}.marker"
+    stub = write_stub(tmp_path, MARKER_STUB.format(marker=marker), name=name)
+    proc = run_runner(repo, home, stub, *extra)
+    return proc, marker
+
+
+def test_skip_unchanged_spends_no_model_run(tmp_path, repo):
+    home = tmp_path / "home"
+    good = write_stub(tmp_path, GOOD_RUN, name="good")
+    first = run_runner(repo, home, good)
+    assert first.returncode == 0, first.stderr
+
+    proc, marker = _run_with_marker(tmp_path, repo, home, "second", "--skip-unchanged")
+    assert not marker.exists(), "claude was invoked although HEAD was unchanged"
+    assert "skip" in proc.stderr
+    assert proc.returncode == 0, "the standing pass must re-gate green"
+
+
+def test_skip_unchanged_runs_when_head_moved(tmp_path, repo):
+    home = tmp_path / "home"
+    good = write_stub(tmp_path, GOOD_RUN, name="good")
+    assert run_runner(repo, home, good).returncode == 0
+
+    (repo / "b.py").write_text("y = 2\n", encoding="utf-8")
+    git(["add", "-A"], repo)
+    git(["commit", "-qm", "change"], repo)
+
+    _, marker = _run_with_marker(tmp_path, repo, home, "moved", "--skip-unchanged")
+    assert marker.exists(), "HEAD moved — the run must happen"
+
+
+def test_skip_unchanged_runs_when_a_quarantine_expired(tmp_path, repo):
+    """Unchanged code is not the only reason to run: an expired quarantine
+    needs a model to re-evaluate it, and skipping past that would let a flake
+    rot in quarantine forever."""
+    home = tmp_path / "home"
+    good = write_stub(tmp_path, GOOD_RUN, name="good")
+    assert run_runner(repo, home, good).returncode == 0
+
+    state_path = home / "widget" / "state.json"
+    state = json.loads(state_path.read_text(encoding="utf-8"))
+    state["flaky_quarantine"] = [
+        {"test_id": "test_x", "quarantined_until": "2020-01-01"}]
+    state_path.write_text(json.dumps(state), encoding="utf-8")
+
+    _, marker = _run_with_marker(tmp_path, repo, home, "expired", "--skip-unchanged")
+    assert marker.exists(), "an expired quarantine must force a real run"
+
+
+def test_without_the_flag_unchanged_head_still_runs(tmp_path, repo):
+    """Opt-in means opt-in: the nightly's semantics do not change silently."""
+    home = tmp_path / "home"
+    good = write_stub(tmp_path, GOOD_RUN, name="good")
+    assert run_runner(repo, home, good).returncode == 0
+    _, marker = _run_with_marker(tmp_path, repo, home, "noflag")
+    assert marker.exists()
