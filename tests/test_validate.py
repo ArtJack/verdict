@@ -374,3 +374,15 @@ def test_prose_must_be_an_object_of_named_sections(root):
 def test_prose_findings_must_map_ids_to_narratives(root):
     bad = validate_judgment(judgment(prose={"findings": ["not", "a", "map"]}))
     assert any("prose.findings must map a finding id" in b for b in bad)
+
+
+def test_judgment_verified_intact_must_be_a_list_when_present():
+    """Optional field, strict shape: confirmation entries carry evidence like
+    findings do, and a bare string would flatten that into prose."""
+    bad = validate_judgment(judgment(verified_intact="the ledger held"))
+    assert any("verified_intact" in b for b in bad)
+    ok = validate_judgment(judgment(
+        verified_intact=["ledger invariant held: debits == credits (12 tests)"]))
+    assert not any("verified_intact" in b for b in ok)
+    assert not any("verified_intact" in b for b in validate_judgment(judgment())), \
+        "optional means optional — absence is not an error"

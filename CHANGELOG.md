@@ -3,6 +3,45 @@
 Plugin and `verdict-mcp` share one version line; `.claude-plugin/plugin.json` and
 `pyproject.toml` are bumped together.
 
+## 0.47.0 — 2026-09-01 · "the eval-paid prompt release"
+
+Three prompt/standards changes, none shipped on reasoning alone: a prompt edit is a
+behaviour change, so this release is gated on measurement, and the order was strict —
+measure the standing behaviour first, then edit, then measure again.
+
+**The v0.43.0 debt, paid.** That release measured the liar fixture's
+`conftest-skips-entire-suite` trap at **1 run in 3** and left it open, because fixing it
+looked like a prompt change. It was not — `executed_nothing()` (v0.44.0) computes "every
+collected test was skipped" in the harness. Re-measured here on a prompt byte-identical
+to v0.43.0's: **6/6 three times, the trap caught 3 of 3.** A behavioural gap closed with
+zero prompt change, exactly as the external reviewer predicted. (The n=3 has an honest
+scar, recorded in eval/README: two runs of the first triple completed but their scores
+were lost to an un-saved `tail` — the same silent data loss the v0.46.0 streaming runner
+exists to prevent, hit while measuring.)
+
+**`verified_intact` — confirmation is a deliverable.** The first external user checked
+that his money's invariants held, the report said so mid-body where nobody reads, and
+that confirmation is the thing a tester is actually paid for. Judgment may now carry
+`verified_intact` — the invariants that were checked and HELD, each with evidence — and
+`verdict-finalize` renders it as a **Verified intact** section placed right after the
+release blockers, a headline rather than a footnote. Optional by design and the prompt
+says so plainly: an empty list beats an invented entry, because a forced section is a
+padded one.
+
+**`Major` now means "fix today".** §10 and the severity standard both gain the interrupt
+test: if the maintainer would reasonably schedule a finding for next week, it is Minor,
+however interesting. The reviewer's exact complaint — one of two Majors did not clear the
+bar — and inflated Majors are not caution, they are noise that trains the reader to skim
+past the real ones.
+
+**Control:** the flagship pricer delta held at **6/6** and the liar sweep at **6/6 x3**
+after the edits, so the severity bar moved the `conftest` row (which requires
+Blocker/Critical) nowhere and the handoff change moved the delta classes nowhere.
+
+`_list_shape` was extracted from `validate()`, which the new field pushed over the
+complexity budget — extraction, not a raised threshold, the same discipline the Bash
+guard's dispatcher followed. 506 tests; the three new contracts each mutation-checked.
+
 ## 0.46.0 — 2026-08-31 · "what the first outside user hit"
 
 The first external run of Verdict — a stranger's financial project, three real

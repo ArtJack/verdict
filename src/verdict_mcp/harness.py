@@ -616,6 +616,12 @@ def merge(facts: dict, judgment: dict, previous: dict | None, today: date | None
         "verdict": judgment.get("verdict"),
         "release_blockers": judgment.get("release_blockers", []),
         "not_tested": judgment.get("not_tested", []),
+        # What was checked and HELD. The first external user said it plainly:
+        # the invariants of his money were verified intact, the report said so
+        # in the middle where nobody reads, and that confirmation is the thing
+        # people actually pay a tester for. Optional — a run that verified
+        # nothing intact must not be pushed to invent entries.
+        "verified_intact": judgment.get("verified_intact", []),
     }
     for optional in ("run_label", "next_run_focus", "flaky_quarantine", "coverage"):
         if judgment.get(optional) is not None:
@@ -1057,6 +1063,12 @@ def render_report(state: dict, prose: dict | None = None) -> str:
     blockers = state.get("release_blockers") or []
     out += ["## Release blockers", "",
             "\n".join(f"- {b}" for b in blockers) if blockers else "_None._", ""]
+    vi = state.get("verified_intact") or []
+    if vi:
+        # Placed directly after the blockers, not buried mid-report: the
+        # confirmation that named invariants held is a headline, not a footnote.
+        out += ["## Verified intact", "",
+                "\n".join(f"- {v}" for v in vi), ""]
     out += ["## Not tested", ""]
     nt = state.get("not_tested") or []
     out.append("\n".join(f"- {n}" for n in nt) if nt else

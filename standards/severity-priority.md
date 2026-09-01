@@ -12,7 +12,9 @@ Severity describes user or system impact.
   broken authentication/authorization, severe calculation/reporting error, or outage-level
   failure.
 - `Major`: important feature is broken or unreliable, but a workaround exists or the impact
-  is limited to a non-critical path.
+  is limited to a non-critical path. **The bar is "fix today":** a Major belongs in the
+  current work cycle, not the backlog. If it can reasonably wait a week, it is Minor —
+  severity inflation trains readers to skim, which is how real Majors get missed.
 - `Minor`: small functional defect, confusing behavior, layout issue, or edge case with low
   user/business impact.
 - `Trivial`: typo, cosmetic issue, or low-impact polish problem.

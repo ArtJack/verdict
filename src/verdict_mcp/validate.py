@@ -111,6 +111,9 @@ def validate_judgment(judgment, previous=None):
 
     if judgment.get("verdict") not in VERDICTS:
         bad.append(f"verdict {judgment.get('verdict')!r} is not one of {sorted(VERDICTS)}")
+    if "verified_intact" in judgment and not isinstance(judgment["verified_intact"], list):
+        bad.append("verified_intact must be a list of checked-and-held invariants, "
+                   "each carrying its evidence like any finding would")
     if not isinstance(judgment.get("not_tested"), list):
         bad.append("not_tested must be a list — a `pass` without a stated not-tested list "
                    "is incomplete, and an empty list is a claim of total coverage")
@@ -192,6 +195,20 @@ def validate_judgment(judgment, previous=None):
     if judgment.get("verdict") == "pass" and blocking:
         bad.append("verdict is `pass` with open Critical/Blocker findings: "
                    + ", ".join(blocking) + " — §10 caps that at `pass with risks`")
+    return bad
+
+
+def _list_shape(state) -> list:
+    """The coverage-accounting fields must be lists, or their meaning flattens
+    into prose. Split out of validate() when verified_intact pushed it over
+    the complexity budget — extraction over a raised threshold, same as the
+    Bash guard's dispatcher and for the same reason."""
+    bad = []
+    if "verified_intact" in state and not isinstance(state["verified_intact"], list):
+        bad.append("verified_intact must be a list")
+    if not isinstance(state.get("not_tested"), list):
+        bad.append("not_tested must be a list — a `pass` without a stated not-tested list "
+                   "is incomplete, and an empty list is a claim of total coverage")
     return bad
 
 
@@ -365,9 +382,7 @@ def validate(state, root: Path, previous=None, now=None, at_rest=False):
                     "verdict is `pass` with open Critical/Blocker findings: "
                     + ", ".join(str(b) for b in blocking))
 
-    if not isinstance(state.get("not_tested"), list):
-        bad.append("not_tested must be a list — a `pass` without a stated not-tested list "
-                   "is incomplete, and an empty list is a claim of total coverage")
+    bad.extend(_list_shape(state))
 
     quarantine = state.get("flaky_quarantine")
     if quarantine is not None and not isinstance(quarantine, list):
