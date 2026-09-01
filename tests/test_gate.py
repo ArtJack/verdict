@@ -54,9 +54,14 @@ def gate(tmp_path, *args, home=None, cwd=None, state_kwargs=None):
     # strip only Verdict's own variables so the test home is authoritative.
     env = {k: v for k, v in os.environ.items() if not k.startswith("VERDICT_")}
     env["VERDICT_HOME"] = str(home)
+    # Decode as UTF-8 explicitly. `text=True` alone decodes with the locale
+    # encoding — cp1252 on Windows — while gate.py deliberately reconfigures
+    # its stdout to UTF-8, so every non-ASCII character it writes came back as
+    # mojibake and only on the Windows legs. Latent until an assertion finally
+    # read one: the `Δ` column header of the PR comment's findings table.
     proc = subprocess.run(
         [sys.executable, str(GATE), *args],
-        capture_output=True, text=True, cwd=cwd, env=env,
+        capture_output=True, text=True, encoding="utf-8", cwd=cwd, env=env,
     )
     return proc
 
