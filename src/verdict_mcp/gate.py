@@ -105,10 +105,25 @@ def evaluate(project, fail_on, max_age_hours, min_run_number, now=None,
                 f"stale: last run at {last.get('timestamp_utc')!r} is older than "
                 f"{max_age_hours}h (or unparseable)"))
             return out
+    # Drift is measured on every run and gated only on request. Tying the
+    # measurement to `--max-commits-behind` meant a gate invoked without the
+    # flag could not say the verdict describes a different commit — and the PR
+    # comment, the one surface an outside reader actually sees, is exactly the
+    # invocation that runs without it. This repository's own comment advertised
+    # three long-fixed Majors as `NEW · 0d` with nothing marking the state as
+    # measured elsewhere, while the SessionStart banner, computing the same
+    # drift unconditionally, said so plainly. Reporting welded to enforcing goes
+    # silent the moment enforcing is off, which is the same shape as a check
+    # that cannot fire: what the reader sees is a clean, current-looking report.
+    # Recorded unconditionally, including `unknown`: a JSON consumer that sees
+    # the key can tell "we looked and could not tell" from "we never looked",
+    # and those are different facts. Whether any of it is worth *saying* is one
+    # decision, made once, in `_drift_note` — which stays silent on `unknown`,
+    # because a staleness note nobody can act on costs the real one its
+    # credibility.
+    drift = out["code_drift"] = code_drift(
+        repo_for_root(resolve_root(project)), last.get("git_sha"))
     if max_commits_behind is not None:
-        root = resolve_root(project)
-        drift = code_drift(repo_for_root(root), last.get("git_sha"))
-        out["code_drift"] = drift
         if drift["status"] == "diverged":
             out.update(exit_code=5, reason=(
                 "stale: the tested commit is not in this branch's history — the "
@@ -177,10 +192,30 @@ def evaluate(project, fail_on, max_age_hours, min_run_number, now=None,
     return out
 
 
+def _drift_note(r):
+    """One line saying the verdict describes different code, or nothing at all.
+
+    Shared by the text and comment renderers so the two surfaces cannot drift
+    apart — the failure being fixed here was precisely one surface knowing
+    something the other could not say.
+    """
+    drift = r.get("code_drift") or {}
+    if drift.get("status") == "diverged":
+        return ("measured on a commit that is not in this branch's history — this "
+                "verdict describes different code")
+    if drift.get("status") == "behind" and drift.get("commits"):
+        n = drift["commits"]
+        return (f"measured {n} commit{'s' if n != 1 else ''} ago — the code has moved "
+                "since this verdict was written")
+    return None
+
+
 def _fmt_text(r, n):
     lines = [f"VERDICT: {r.get('verdict') or 'no state'} → exit {r['exit_code']} ({r['reason']})"]
     if r.get("run_number") is not None:
         lines.append(f"run {r['run_number']} ({r.get('run_type')}) · {r.get('last_run_utc')} · {r.get('sha_range')}")
+    if note := _drift_note(r):
+        lines.append(note)
     if r.get("release_blockers"):
         lines.append("release blockers: " + ", ".join(r["release_blockers"]))
     for f in (r.get("findings_open") or [])[:n]:
@@ -204,6 +239,11 @@ def _fmt_comment(r, n):
             f"## Verdict: **{v}** — {r.get('project')} "
             f"(run {r.get('run_number')}, {r.get('run_type')})",
             "", f"_{r['reason']}_", ""]
+    # Above the findings table, not below it: every row beneath this line has to
+    # be read differently once you know the verdict was measured elsewhere, and
+    # a note under the table arrives after the reader has already believed it.
+    if note := _drift_note(r):
+        head += ["> [!WARNING]", f"> Stale: {note}.", ""]
     if r.get("release_blockers"):
         head.append("**Release blockers:** " + ", ".join(r["release_blockers"]))
         head.append("")

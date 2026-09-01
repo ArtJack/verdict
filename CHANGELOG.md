@@ -3,6 +3,33 @@
 Plugin and `verdict-mcp` share one version line; `.claude-plugin/plugin.json` and
 `pyproject.toml` are bumped together.
 
+## 0.49.1 — 2026-09-01 · "reporting welded to enforcing"
+
+**The gate now measures drift on every run and gates on it only when asked.**
+`code_drift` was computed inside the `--max-commits-behind` branch, so a gate invoked
+without that flag — which is exactly how the Action invokes it — could not say the verdict
+described a different commit. No output format could show what was never computed.
+
+Found on this repository's own PR comment, which advertised **VERDICT-F-10, F-11 and F-12
+as `NEW · 0d`** while all three were fixed and released, against a state measured on
+2026-08-30 over a sha range not in the branch. The SessionStart banner, computing the same
+drift unconditionally, said so plainly. One surface knew; the surface an outside
+contributor actually reads could not say it. Reporting welded to enforcing goes silent the
+moment enforcing is off — the same shape as v0.49.0's unreadable gate, one layer out.
+
+Text output gains a drift line; the PR comment gains a `> [!WARNING]` block placed
+**above** the findings table, because every row beneath it has to be read differently once
+you know the verdict was measured elsewhere, and a note under the table arrives after the
+reader has already believed it. `--max-commits-behind` still gates exactly as before.
+`code_drift` is now always recorded in the JSON output, `unknown` included, so a consumer
+can tell "we looked and could not tell" from "we never looked" — and `unknown` is never
+rendered, because a staleness note nobody can act on costs the real one its credibility.
+
+Six tests, four mutations. Two of them survived the first version: the renderers already
+stay quiet on `unknown`, and the text format has no `Stale:` prefix to assert on, so a
+CLI-only test could not fail. The rule is now unit-tested at `_drift_note`, where it
+lives — the same lesson as the Windows `shlex` guard.
+
 ## 0.49.0 — 2026-09-01 · "a check that cannot fire looks green"
 
 Three validator defects, all found by pointing an 8B local model at the liar fixture

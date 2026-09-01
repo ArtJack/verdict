@@ -54,9 +54,14 @@ def gate(tmp_path, *args, home=None, cwd=None, state_kwargs=None):
     # strip only Verdict's own variables so the test home is authoritative.
     env = {k: v for k, v in os.environ.items() if not k.startswith("VERDICT_")}
     env["VERDICT_HOME"] = str(home)
+    # Decode as UTF-8 explicitly. `text=True` alone decodes with the locale
+    # encoding — cp1252 on Windows — while gate.py deliberately reconfigures
+    # its stdout to UTF-8, so every non-ASCII character it writes came back as
+    # mojibake and only on the Windows legs. Latent until an assertion finally
+    # read one: the `Δ` column header of the PR comment's findings table.
     proc = subprocess.run(
         [sys.executable, str(GATE), *args],
-        capture_output=True, text=True, cwd=cwd, env=env,
+        capture_output=True, text=True, encoding="utf-8", cwd=cwd, env=env,
     )
     return proc
 
@@ -409,3 +414,97 @@ def test_flag_absent_means_no_drift_check(tmp_path):
     home = _drift_home(tmp_path, r, shas[0])          # two behind, unchecked
     proc = gate(tmp_path, "pricer", home=home)
     assert proc.returncode == 0, proc.stdout + proc.stderr
+
+
+# --- staleness is reported even when it is not gated -------------------------
+#
+# Found on this repository's own PR comment. `code_drift` was computed only
+# inside the `--max-commits-behind` branch, so a gate run without the flag —
+# which is how the Action invokes it — could not say the verdict described a
+# different commit. The comment advertised three long-fixed Majors as `NEW ·
+# 0d` while the SessionStart banner, computing the same drift unconditionally,
+# said plainly that the code had moved. Reporting welded to enforcing goes
+# silent the moment enforcing is off.
+
+def test_drift_is_reported_without_the_gating_flag(tmp_path):
+    r, shas, _ = _drift_repo(tmp_path)
+    home = _drift_home(tmp_path, r, shas[0])          # two commits behind
+    proc = gate(tmp_path, "pricer", home=home)
+    assert proc.returncode == 0, "reporting drift must not start failing the gate"
+    assert "measured 2 commits ago" in proc.stdout
+
+
+def test_a_diverged_verdict_says_so_in_the_pr_comment(tmp_path):
+    """The surface an outside reader sees, and the one that ran without the
+    flag. The warning sits above the findings table, because every row under it
+    has to be read differently once you know it was measured elsewhere."""
+    r, shas, g = _drift_repo(tmp_path)
+    g("checkout", "-q", "-b", "side", shas[0])
+    (r / "elsewhere.txt").write_text("content main never had", encoding="utf-8")
+    g("add", "-A")
+    g("commit", "-qm", "side")
+    home = _drift_home(tmp_path, r, shas[-1])
+    proc = gate(tmp_path, "pricer", "--format", "github-comment", home=home)
+    assert proc.returncode == 0
+    assert "[!WARNING]" in proc.stdout
+    assert "not in this branch's history" in proc.stdout
+    body = proc.stdout
+    assert body.index("[!WARNING]") < body.index("| Δ |"), \
+        "a note under the table arrives after the reader has believed it"
+
+
+def test_a_current_verdict_carries_no_stale_note(tmp_path):
+    """The false positive that would train readers to skim the line."""
+    r, shas, _ = _drift_repo(tmp_path)
+    home = _drift_home(tmp_path, r, shas[-1])
+    for fmt in ([], ["--format", "github-comment"]):
+        proc = gate(tmp_path, "pricer", *fmt, home=home)
+        assert proc.returncode == 0, proc.stdout + proc.stderr
+        assert "Stale" not in proc.stdout and "measured " not in proc.stdout, fmt
+
+
+def test_unmeasurable_drift_is_recorded_but_never_announced(tmp_path):
+    """`unknown` covers a shallow clone, a missing repo and an unrecognised sha.
+    It is *recorded*, so a JSON consumer can tell "we looked and could not tell"
+    from "we never looked" — and never *rendered*, because a staleness note
+    nobody can act on costs the real one its credibility.
+
+    Written this way after a mutation survived the first version: the renderers
+    already stay quiet on `unknown`, so a test that only read them could not
+    fail. Asserting on the recorded value is what makes the rule testable."""
+    home = _drift_home(tmp_path, tmp_path / "nonexistent-repo", "0" * 40)
+    proc = gate(tmp_path, "pricer", home=home)
+    assert proc.returncode == 0, proc.stdout + proc.stderr
+    assert "Stale" not in proc.stdout and "describes different code" not in proc.stdout
+
+    proc = gate(tmp_path, "pricer", "--format", "json", home=home)
+    assert json.loads(proc.stdout)["code_drift"]["status"] == "unknown"
+
+
+def test_drift_note_says_only_what_is_actionable():
+    """The decision itself, unit-tested, because reading it through a renderer
+    could not fail: the text format has no `Stale:` prefix to assert on, so a
+    note wrongly produced for `unknown` slipped past a CLI-only test twice.
+    Test the helper directly when the contract lives in the helper."""
+    sys.path.insert(0, str(GATE.parent))
+    from gate import _drift_note
+
+    assert _drift_note({"code_drift": {"status": "current"}}) is None
+    assert _drift_note({"code_drift": {"status": "unknown"}}) is None
+    assert _drift_note({}) is None, "a run that never measured says nothing"
+
+    diverged = _drift_note({"code_drift": {"status": "diverged"}})
+    assert "not in this branch's history" in diverged
+
+    assert "1 commit ago" in _drift_note({"code_drift": {"status": "behind", "commits": 1}})
+    assert "4 commits ago" in _drift_note({"code_drift": {"status": "behind", "commits": 4}})
+    assert _drift_note({"code_drift": {"status": "behind", "commits": 0}}) is None, \
+        "behind by nothing is current, not stale"
+
+
+def test_the_gating_flag_still_gates(tmp_path):
+    """Reporting was separated from enforcing; enforcing must be unchanged."""
+    r, shas, _ = _drift_repo(tmp_path)
+    home = _drift_home(tmp_path, r, shas[0])
+    assert gate(tmp_path, "pricer", "--max-commits-behind", "1", home=home).returncode == 5
+    assert gate(tmp_path, "pricer", "--max-commits-behind", "9", home=home).returncode == 0
