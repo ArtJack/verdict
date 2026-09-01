@@ -394,3 +394,111 @@ def test_judgment_verified_intact_must_be_a_list_when_present():
     assert not any("verified_intact" in b for b in ok)
     assert not any("verified_intact" in b for b in validate_judgment(judgment())), \
         "optional means optional — absence is not an error"
+
+
+# --- A clean `pass` needs measured evidence that a test executed -------------
+#
+# Found by running Verdict's own liar fixture through the real harness with a
+# local 8B model standing in for the judgment step. The model never produced a
+# false green — but a judgment that simply believed `ALL TESTS PASSED` did, and
+# it reached exit 0 through `--require-harness`.
+
+def _gate(counts=None, unparsed=True):
+    g = {"command": "./run_tests.sh", "exit_code": 0, "result": "pass", "duration_s": 0.4,
+         "summary": "ALL TESTS PASSED"}
+    if counts:
+        g["counts"], g["counts_dialect"] = counts, "pytest"
+    elif unparsed:
+        g["counts_unparsed"] = "no recognised runner summary"
+    return g
+
+
+def test_pass_cannot_stand_when_no_gate_produced_test_counts(root):
+    """The liar fixture through its own entrypoint: `pytest -q >/dev/null; echo
+    ALL TESTS PASSED; exit 0`. Counts are unparseable, so `executed_nothing`
+    never computes, and a `pass` used to be written over a suite in which every
+    collected test was skipped."""
+    bad = validate(good_state(verdict="pass", gates={"tests": _gate()}), root)
+    assert any("no gate in this run produced test counts" in b for b in bad)
+    assert any("pass with risks" in b for b in bad), "the honest alternative is named"
+
+
+def test_one_readable_gate_is_enough_and_a_lint_gate_is_not_punished(root):
+    """The false positive the rule is shaped to avoid, and the exact shape of
+    this repository's own state: a parsed `suite` gate beside an unparseable
+    `fixture_freshness` one. Lint and freshness gates legitimately have no
+    runner summary, so judging per gate would fire on every real project."""
+    state = good_state(verdict="pass", gates={
+        "suite": _gate(counts={"passed": 512}),
+        "fixture_freshness": _gate()})
+    assert validate(state, root) == []
+
+
+def test_a_run_with_no_gates_claims_no_suite_and_is_left_alone(root):
+    """A spec or design review runs no gates. It is not overclaiming a suite,
+    so it is not asked to account for one."""
+    assert validate(good_state(verdict="pass", gates={}), root) == []
+
+
+def test_pass_with_risks_remains_available_over_an_unreadable_suite(root):
+    """The rule refuses the unqualified verdict, not the run. A tester who
+    cannot read the suite can still ship a judgment — by saying so."""
+    state = good_state(verdict="pass with risks", gates={"tests": _gate()})
+    assert validate(state, root) == []
+
+
+def test_counts_of_zero_do_not_pass_as_measurement(root):
+    """`counts: {}` is what an unparsed run already means; a gate that reports
+    counts must report some."""
+    bad = validate(good_state(verdict="pass", gates={"tests": _gate(counts={})}), root)
+    assert any("no gate in this run produced test counts" in b for b in bad)
+
+
+# --- not_tested: the rule both messages promised but neither enforced --------
+
+def test_empty_not_tested_is_refused_on_a_shipping_verdict(root):
+    """Both validators said "an empty list is a claim of total coverage" while
+    checking only `isinstance(value, list)`. `[]` is a list, so a `pass` with
+    `not_tested: []` travelled through judgment, merge, state and gate."""
+    for verdict in ("pass", "pass with risks"):
+        bad = validate(good_state(verdict=verdict, not_tested=[]), root)
+        assert any("claims total coverage" in b for b in bad), verdict
+    bad = validate_judgment(judgment(verdict="pass", not_tested=[]))
+    assert any("claims total coverage" in b for b in bad)
+
+
+def test_a_failing_run_may_leave_not_tested_empty(root):
+    """The run is stopping; it is not making a coverage claim worth policing."""
+    for verdict in ("fail", "blocked"):
+        assert validate(good_state(verdict=verdict, not_tested=[]), root) == [], verdict
+    assert validate_judgment(judgment(verdict="fail", not_tested=[])) == []
+
+
+def test_not_tested_must_still_be_a_list(root):
+    bad = validate(good_state(not_tested="everything else"), root)
+    assert any("not_tested must be a list" in b for b in bad)
+
+
+# --- evidence is cited so somebody can go and look --------------------------
+
+def test_evidence_entries_must_be_strings(root):
+    """A local model returned `[{"file": "qstats.py", "line": 4}]`, which
+    satisfied the presence check whose entire purpose is that a reader can
+    follow the citation."""
+    state = good_state()
+    state["findings"][0]["evidence"] = [{"file": "pricer.py", "line": 13}]
+    bad = validate(state, root)
+    assert any("evidence[0] is dict, not a string" in b for b in bad)
+
+    f = dict(judgment()["findings"][0], evidence=[{"file": "a.py", "line": 1}])
+    assert any("evidence[0] is dict" in b for b in validate_judgment(judgment(findings=[f])))
+
+
+def test_evidence_must_be_a_list_not_a_bare_string(root):
+    state = good_state()
+    state["findings"][0]["evidence"] = "pricer.py:13 the guard"
+    assert any("evidence must be a list" in b for b in validate(state, root))
+
+
+def test_well_formed_evidence_stays_clean(root):
+    assert validate(good_state(), root) == []

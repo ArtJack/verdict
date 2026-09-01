@@ -101,7 +101,7 @@ here.
 | `findings[].root_cause` | no | The §3.5 chain when one was established: `{mechanism, origin, class{pattern, sites[]}, trigger, latent_condition, fix_location, proof{method, evidence}, confidence}`. `proof.method` is `counterfactual` · `differential` · `archaeology` · `reading`; `fix_location` is `code` · `test` · `spec` · `environment` · `process`; `confidence` is `proven` · `hypothesis`. Carrying it forward means the next run inherits the diagnosis instead of re-deriving it |
 | `verdict` | yes | `pass` · `pass with risks` · `blocked` · `fail` |
 | `release_blockers` | yes | Concrete blockers, or empty |
-| `not_tested` | yes | What was consciously not covered — a silent skip is a reporting failure |
+| `not_tested` | yes | What was consciously not covered — a silent skip is a reporting failure. Must be **non-empty on `pass` and `pass with risks`**: an empty list claims total coverage, which almost no run can say honestly |
 | `next_run_focus` | no | Carries intent to the next run |
 | `coverage` | no | Direction matters, not the absolute number |
 
@@ -156,6 +156,24 @@ higher on each correction; the highest generation for a run number wins, and equ
 generations fall back to the last write, which is what every row written before the field
 existed relies on. Nothing is ever rewritten to mark it stale — the correction is appended,
 and it is the correction that carries the marker.
+
+## A clean `pass` needs a suite somebody could read
+
+`executed_nothing` is the defence against a suite that collects tests and runs none of
+them, and it is arithmetic over parsed counts — so it only fires when the runner's summary
+was legible. A project whose test entrypoint hides that summary
+(`pytest -q >/dev/null; echo ALL TESTS PASSED; exit 0`) yields `counts_unparsed`, the
+defence never computes, and the check ends up disabled by exactly the thing it guards
+against. Measured on the liar fixture: through its own entrypoint a `pass` state gated to
+exit 0 over a suite in which all three tests were skipped; behind a legible pytest gate
+the same code reported `executed_nothing: all 3 collected tests were skipped`.
+
+So `validate` refuses the unqualified `pass` when **no gate in the run produced test
+counts**. The rule is run-level rather than per-gate, and that is what keeps it quiet: a
+lint or freshness gate legitimately parses to no counts, and naming the test gate would
+need semantics the harness does not have. One readable gate anywhere in the run satisfies
+it. A run with no gates configured claimed no suite and is left alone, and
+`pass with risks` stays available — the rule refuses the unqualified verdict, not the run.
 
 ## Silence, resolution, and `full_sweep`
 

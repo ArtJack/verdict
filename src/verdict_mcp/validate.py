@@ -92,6 +92,56 @@ COMPUTED_BY_FINALIZE = ("hash", "first_seen", "age_days", "outcome", "outcome_re
                         "carried_forward")
 
 
+def _evidence_shape(finding, where, fid) -> list:
+    """Evidence entries must be strings — citations a human can follow.
+
+    Both validators checked that evidence was *present* and never what it
+    contained, so `[{"file": "qstats.py", "line": 4}]` counted as a cited
+    finding. It reaches the report renderer as a dict, and it satisfies the
+    check whose whole purpose is that somebody can go and look. A structured
+    citation is not obviously wrong as a design; it is wrong as an accident,
+    arriving from a model that guessed the shape.
+    """
+    evidence = finding.get("evidence")
+    if evidence is None:
+        return []
+    if not isinstance(evidence, list):
+        return [f"{where} ({fid}) evidence must be a list of citation strings, not "
+                f"{type(evidence).__name__}"]
+    return [f"{where} ({fid}) evidence[{i}] is {type(e).__name__}, not a string — cite it "
+            "as text a reader can follow, like 'qstats.py:4 returns queued - in_flight'"
+            for i, e in enumerate(evidence) if not isinstance(e, str)]
+
+
+_SHIPPING = ("pass", "pass with risks")
+
+
+def _not_tested_shape(carrier) -> list:
+    """`not_tested` must be a list, and on a shipping verdict a non-empty one.
+
+    Both validators carried this message — "an empty list is a claim of total
+    coverage" — while checking only that the value was a list. `[]` is a list,
+    so the rule was stated and never enforced, and a `pass` with `not_tested:
+    []` went through judgment, merge, state and gate untouched. A rule the
+    error text promises and the code does not apply is worse than no rule: it
+    reads as covered.
+
+    Enforced on `pass` and `pass with risks` only — the two verdicts that let
+    code ship, and the ones whose credibility rests on the boundary being
+    drawn. A `fail` or `blocked` run is stopping anyway and is not making a
+    coverage claim worth policing here.
+    """
+    value = carrier.get("not_tested")
+    if not isinstance(value, list):
+        return ["not_tested must be a list — a `pass` without a stated not-tested list "
+                "is incomplete, and an empty list is a claim of total coverage"]
+    if not value and carrier.get("verdict") in _SHIPPING:
+        return [f"not_tested is empty on a `{carrier.get('verdict')}` verdict, which "
+                "claims total coverage — name what you did not reach. Nothing was left "
+                "untested is a claim almost no run can make honestly"]
+    return []
+
+
 def validate_judgment(judgment, previous=None):
     """Check `judgment.json` at the boundary where its author still stands.
 
@@ -114,9 +164,7 @@ def validate_judgment(judgment, previous=None):
     if "verified_intact" in judgment and not isinstance(judgment["verified_intact"], list):
         bad.append("verified_intact must be a list of checked-and-held invariants, "
                    "each carrying its evidence like any finding would")
-    if not isinstance(judgment.get("not_tested"), list):
-        bad.append("not_tested must be a list — a `pass` without a stated not-tested list "
-                   "is incomplete, and an empty list is a claim of total coverage")
+    bad.extend(_not_tested_shape(judgment))
     if not isinstance(judgment.get("isolation_check"), dict):
         bad.append("isolation_check must be an object recording the §0 check you ran")
     if "full_sweep" in judgment and not isinstance(judgment["full_sweep"], bool):
@@ -171,6 +219,7 @@ def validate_judgment(judgment, previous=None):
         if _is_open(f) and not (f.get("evidence") or []):
             bad.append(f"{where} ({fid}) is open with no evidence — an uncited finding is a "
                        "HYPOTHESIS, not a finding")
+        bad.extend(_evidence_shape(f, where, fid))
 
         conf = f.get("confidence")
         if conf is not None and conf not in CONFIDENCES:
@@ -209,10 +258,47 @@ def _list_shape(state) -> list:
     bad = []
     if "verified_intact" in state and not isinstance(state["verified_intact"], list):
         bad.append("verified_intact must be a list")
-    if not isinstance(state.get("not_tested"), list):
-        bad.append("not_tested must be a list — a `pass` without a stated not-tested list "
-                   "is incomplete, and an empty list is a claim of total coverage")
+    bad.extend(_not_tested_shape(state))
     return bad
+
+
+def _unmeasured_suite(state) -> list:
+    """A clean `pass` needs measured evidence that some test actually executed.
+
+    `executed_nothing()` is the defence against a suite that collects tests and
+    runs none of them — and it is arithmetic over parsed counts, so it can only
+    fire when the runner's summary was legible. A project whose test entrypoint
+    hides that summary (`pytest -q >/dev/null; echo ALL TESTS PASSED; exit 0`)
+    produces `counts_unparsed`, the defence never computes, and a `pass` used to
+    stand over a suite where every test was skipped. Measured on the liar
+    fixture: through its own entrypoint the state gated to exit 0; with the same
+    code behind a legible pytest gate the harness reported "all 3 collected
+    tests were skipped". The check was disabled by exactly what it guards
+    against.
+
+    So the rule is run-level, not per-gate, which is what keeps it quiet: a lint
+    gate legitimately parses to no counts, and singling gates out by name would
+    need semantics the harness does not have. What is being asserted here is
+    narrower and fully measured — *no gate in this run produced test counts*, so
+    nothing establishes that a test ran at all. `pass with risks` remains
+    available and is the honest verdict; this only refuses the unqualified one.
+    A run with no gates configured is left alone: it claimed no suite, so it is
+    not overclaiming one.
+    """
+    if state.get("verdict") != "pass":
+        return []
+    gates = state.get("gates")
+    if not isinstance(gates, dict) or not gates:
+        return []
+    if any(isinstance(g, dict) and g.get("counts") for g in gates.values()):
+        return []
+    unreadable = sorted(name for name, g in gates.items()
+                        if isinstance(g, dict) and g.get("counts_unparsed"))
+    return ["verdict is `pass`, but no gate in this run produced test counts "
+            f"({', '.join(unreadable) or 'no gate reported a runner summary'}) — so "
+            "nothing measured says a test executed, and the skip-all check cannot fire. "
+            "Read the suite through its runner rather than a wrapper that hides the "
+            "summary, or say `pass with risks` and name the gap in not_tested"]
 
 
 def validate(state, root: Path, previous=None, now=None, at_rest=False):
@@ -375,6 +461,7 @@ def validate(state, root: Path, previous=None, now=None, at_rest=False):
                 bad.append(
                     f"{where} ({fid}) is open with no evidence — an uncited finding is a "
                     "HYPOTHESIS, not a finding")
+            bad.extend(_evidence_shape(f, where, fid))
 
         if state.get("verdict") == "pass":
             blocking = [f.get("id") for f in findings
@@ -386,6 +473,7 @@ def validate(state, root: Path, previous=None, now=None, at_rest=False):
                     + ", ".join(str(b) for b in blocking))
 
     bad.extend(_list_shape(state))
+    bad.extend(_unmeasured_suite(state))
 
     quarantine = state.get("flaky_quarantine")
     if quarantine is not None and not isinstance(quarantine, list):
