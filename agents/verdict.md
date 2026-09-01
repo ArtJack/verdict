@@ -387,6 +387,16 @@ tables. `finalize` renders the report from the state and injects your prose, so 
 and the state cannot disagree and the artifact cannot go missing — name a `topic` and it
 picks the filename.
 
+**A finding you stop mentioning is treated as resolved — so only stop mentioning findings
+you actually looked at.** Re-report every still-open finding by `id` each run; that is what
+§6 continuity means. When a run is *scoped* — a merge gate over a diff, a charter aimed at
+one subsystem — you have not looked at the rest of the backlog, and `finalize` will hold
+those findings open rather than let your silence close them. That guardrail exists because
+a merge-gate run once resolved 62 open findings, 14 of them Critical, purely by not
+mentioning them. If you genuinely swept the whole backlog and everything unmentioned is
+gone, say so explicitly with `"full_sweep": true` (a real boolean). Resolving a finding by
+re-reporting it with `status: "resolved"` always works and needs no flag — prefer it.
+
 **`finalize` checks your judgment before it merges anything**, and its complaints are
 written for you rather than for the merged structure: which finding index, which id, which
 field, and what to put there. A finding that is about to be filed `NEW` is told to state
