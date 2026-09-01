@@ -3,6 +3,55 @@
 Plugin and `verdict-mcp` share one version line; `.claude-plugin/plugin.json` and
 `pyproject.toml` are bumped together.
 
+## 0.48.0 — 2026-09-01 · "silence is not a sweep"
+
+Two features ported from a parallel working session that had written them against
+v0.38.0 — nine releases behind — plus the integration that gap made necessary. Both are
+harness changes; the agent prompt is **byte-identical to v0.47.0**, deliberately: the
+companion prompt paragraph exists, but a prompt edit is eval-paid and the weekly usage
+window is exhausted until Sep 3. It ships once it is measured, not before.
+
+**A scoped run no longer resolves the backlog it never looked at.** A finding the
+previous run had and this run does not mention is normally resolved — that is how a
+backlog drains. But a merge gate over three files says nothing about the rest, and
+production proved it the hard way: one scoped sales run resolved **62 open findings, 14
+of them Critical, purely by not mentioning them**. Now, when more than half the incoming
+open backlog goes unmentioned (and at least five findings do — below that, proportion is
+noise), `merge` holds those findings `STILL_OPEN` with the reason on each
+`carried_forward` instead of resolving them. A run that genuinely swept everything
+declares `"full_sweep": true` on the judgment and gets silence-as-resolution back;
+`validate_judgment` insists it be a real boolean, because a truthy string would grant
+the licence by accident. Resolving explicitly (`status: "resolved"`) always works and
+needs no flag. Holding open is the recoverable error: a stale open finding costs a
+re-read, a wrongly-closed Critical costs the gate.
+
+**Corrections in `runs.jsonl` now say which row won.** The history file is append-only
+by design, and `validate` refuses a second finalize at a run number that did not advance
+— so the retry path (restore `state.json` from `state.json.prev`, re-run) leaves the
+superseded row on disk forever. Each rewrite is now stamped with a `revision`: the
+correction generation, absent on generation zero so every pre-existing row is
+byte-for-byte unchanged, one higher on each correction. `load_runs` awards a duplicated
+run number to the highest generation instead of trusting file order — which one `sort`,
+or one hand-appended row, used to be able to invert.
+
+**The revision is signed, and the binding check knows it.** These features were written
+before the v0.42.0 run-history chain existed, and colliding them naively would have
+produced a false tamper alarm on every legitimate correction: the chain's state-binding
+re-derives the history row from the state, and the state does not know its own
+correction generation. Now the revision travels **inside the signed body** — so bumping
+a stored row's revision to resurrect a superseded verdict breaks the chain loudly at the
+walk — and `_chain_signal` reads the generation back off the signed row before
+re-deriving. Three integration tests pin this: a correction keeps `chain_intact` true, a
+tampered revision reads `broken`, and the chain extends over a correction (run 2 links
+to the winner of run 1) rather than around it.
+
+Also: `.env` joined `.gitignore`; `docs/state-schema.md` documents both features and the
+retry flow that motivates them; six ported tests (the 62-finding production scenario
+verbatim, the full-sweep licence, the ordinary 8-of-10 delta that must keep resolving,
+rollback-then-correct, revision-beats-file-order, garbled-revision-never-wins) plus four
+new ones (floor/share edges exact, a held backlog survives `validate`, and the chain
+trio above). 518 tests.
+
 ## 0.47.0 — 2026-09-01 · "the eval-paid prompt release"
 
 Three prompt/standards changes, none shipped on reasoning alone: a prompt edit is a

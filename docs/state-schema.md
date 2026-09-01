@@ -145,8 +145,37 @@ SHAs, test counts, open findings by severity, delta counts, quarantine size, rep
 and the signing `model` when it was measured. Appended by `verdict-finalize`; consumed by
 `get_history`/`get_trends`, which fall back to parsing INDEX.md only for history that
 predates the file. The INDEX stays — for humans and git diffs — but it is a render;
-this file is the record. Readers skip a torn trailing line (a crash mid-append) and keep
-the last line per run_number.
+this file is the record. Readers skip a torn trailing line (a crash mid-append).
+
+Duplicate run numbers resolve by `revision`, not by file order. They are rarer than they
+look — `validate` refuses a second finalize at a run number that did not advance, so a
+retry means restoring `state.json` from `state.json.prev` and re-running. That rolls back
+every file except this one, because append-only is the point: the superseded row stays on
+disk forever. `revision` is the correction generation, absent on generation zero and one
+higher on each correction; the highest generation for a run number wins, and equal
+generations fall back to the last write, which is what every row written before the field
+existed relies on. Nothing is ever rewritten to mark it stale — the correction is appended,
+and it is the correction that carries the marker.
+
+## Silence, resolution, and `full_sweep`
+
+A finding the previous run had and this run does not mention is normally resolved: the
+tester looked and it was gone, and that is how a backlog drains without ceremony. A
+*scoped* run breaks that inference. A merge gate over three files, or a charter aimed at
+one subsystem, says nothing about the rest of the backlog, and reading its silence as
+"fixed" closes findings nobody looked at.
+
+So silence resolves only at a scale a fix explains better than a narrow run does. When more
+than half the incoming open backlog goes unmentioned (and at least five findings do — below
+that, proportion is noise), those findings are held `STILL_OPEN` with the reason on each
+`carried_forward`, rather than resolved. Holding open is the recoverable error: a stale open
+finding costs a re-read, a wrongly-closed Critical costs the gate.
+
+A run that really did sweep everything sets `"full_sweep": true` on the judgment and gets
+silence-as-resolution back unconditionally. It must be a real boolean — a truthy string
+would grant the licence by accident, so `validate_judgment` rejects one. Resolving a finding
+explicitly, by re-reporting it with `status: "resolved"`, always works and is never subject
+to the guardrail.
 
 Each row also carries **`chain`** — `sha256(previous chain + this row, canonical JSON)` —
 and `state.json` records the same value in `last_run.chain`. This is what makes

@@ -50,7 +50,8 @@ try:
     from .project_key import derive_key
     from .state import (OUTCOMES_FILE, calibration, is_open, load_outcomes,
                         merge_outcomes, norm_status, order_findings)
-    from .state import RUNS_FILE, chain_link, history_row, load_runs
+    from .state import (RUNS_FILE, chain_link, history_row, load_runs,
+                        next_revision)
     from .state import home as state_home
     from .validate import validate, validate_judgment
 except ImportError:  # bare-script execution
@@ -61,7 +62,8 @@ except ImportError:  # bare-script execution
     from project_key import derive_key
     from state import (OUTCOMES_FILE, calibration, is_open, load_outcomes,
                        merge_outcomes, norm_status, order_findings)
-    from state import RUNS_FILE, chain_link, history_row, load_runs
+    from state import (RUNS_FILE, chain_link, history_row, load_runs,
+                       next_revision)
     from state import home as state_home
     from validate import validate, validate_judgment
 
@@ -510,6 +512,24 @@ def _stamp_outcome(finding: dict, prior: dict | None = None) -> dict:
     return {"outcome": "unknown", "outcome_reason": "still open; nothing has settled it"}
 
 
+# Silence-as-resolution has a blast radius. A judgment that stops mentioning a
+# finding usually means it is gone, and that is how a backlog drains without
+# ceremony. But a *scoped* run — a merge gate over three files, a charter aimed
+# at one subsystem — legitimately says nothing about the rest of the backlog,
+# and reading that silence as "fixed" closes findings nobody looked at. Verdict
+# shipped exactly that: a merge-gate run on sales resolved 62 open findings, 14
+# of them Critical, because the judgment only spoke to the diff.
+#
+# So silence still resolves, but not at a scale better explained by a narrow run
+# than by that many fixes. Above the line the findings are held open and carry
+# the reason; a run that really did sweep everything declares `full_sweep` and
+# gets the old behaviour back. Holding open is the recoverable error — a stale
+# open finding costs a re-read, a wrongly-closed Critical costs the gate. Below
+# the floor, proportion is noise: two of three is not evidence of anything.
+CARRY_RESOLVE_FLOOR = 5
+CARRY_RESOLVE_SHARE = 0.5
+
+
 def merge(facts: dict, judgment: dict, previous: dict | None, today: date | None = None,
           ledger: dict | None = None) -> dict:
     """Facts + judgment → a state file, with identity and deltas computed.
@@ -583,7 +603,10 @@ def merge(facts: dict, judgment: dict, previous: dict | None, today: date | None
 
     # A finding the previous run had and this run did not mention is resolved —
     # silence is not the same as an assertion, so it is carried, not dropped.
+    unmentioned, prior_open = [], 0
     for h, prior in prev_by_hash.items():
+        if norm_status(prior.get("status")) == "open":
+            prior_open += 1
         if h in seen:
             continue
         if norm_status(prior.get("status")) == "withdrawn":
@@ -595,9 +618,27 @@ def merge(facts: dict, judgment: dict, previous: dict | None, today: date | None
             continue
         if norm_status(prior.get("status")) == "resolved":
             continue
+        unmentioned.append(prior)
+
+    # One decision for the whole set: whether this run's silence is credible as
+    # resolution at all. Judged on the incoming open backlog, not on what came
+    # back, because the question is how much of it this run actually looked at.
+    held = (not judgment.get("full_sweep")
+            and len(unmentioned) >= CARRY_RESOLVE_FLOOR
+            and len(unmentioned) > CARRY_RESOLVE_SHARE * prior_open)
+    for prior in unmentioned:
         carried = dict(prior)
-        carried.update(status="resolved", delta="RESOLVED",
-                       carried_forward="not reported this run; no longer observed")
+        if held:
+            carried.update(
+                status="open", delta="STILL_OPEN",
+                carried_forward=(
+                    f"not reported this run, and not resolved: {len(unmentioned)} of "
+                    f"{prior_open} open findings went unmentioned, which reads as a "
+                    "scoped run rather than that many fixes — held open. Re-report "
+                    "it, resolve it explicitly, or declare full_sweep."))
+        else:
+            carried.update(status="resolved", delta="RESOLVED",
+                           carried_forward="not reported this run; no longer observed")
         # Silence is not verification. A finding nobody re-reported proves
         # nothing about whether it was real, so it stays undecided — unless an
         # earlier run already settled it, which silence cannot undo either.
@@ -706,7 +747,11 @@ def write_state(qa_root: Path, state: dict) -> list[str]:
     # copied literal used to pass. history_row() does not read last_run.chain,
     # so stamping it here cannot change the row the link signs.
     prior, _ = load_runs(qa_root)
-    row = history_row(state)
+    # The correction generation is stamped before the link is computed, because
+    # the link signs it: a correction is a new row with new content, and signing
+    # it identically to the row it supersedes would make the two rows
+    # indistinguishable to the chain.
+    row = history_row(state, next_revision(qa_root, state.get("run_number")))
     earlier = [r for r in prior
                if isinstance(r.get("run_number"), int)
                and r["run_number"] < (state.get("run_number") or 0)]

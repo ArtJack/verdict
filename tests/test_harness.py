@@ -173,6 +173,83 @@ def test_merge_carries_forward_a_finding_this_run_did_not_mention(repo, qa_root)
     assert "not reported this run" in carried["carried_forward"]
 
 
+def _backlog(n):
+    """`n` prior open findings — the standing backlog a scoped run never reads."""
+    return [{"id": f"W-B-{i}", "hash": f"b{i:07x}", "status": "open",
+             "severity": "Critical", "priority": "P1", "title": f"old thing {i}",
+             "first_seen": date.today().isoformat(), "evidence": [f"z{i}.py:1"]}
+            for i in range(n)]
+
+
+def test_a_scoped_run_does_not_resolve_the_backlog_it_never_looked_at(repo, qa_root):
+    """Production, sales run 10: a merge gate over three files resolved 62 open
+    findings — 14 of them Critical — because the judgment only spoke to the
+    diff. The gate reads open Criticals, so silence from a run that never
+    looked had closed the backlog and would have gated on 3 instead of 17."""
+    facts = collect(repo, qa_root, [])
+    state = merge(facts, judgment(), {"findings": _backlog(62)})
+    carried = [f for f in state["findings"] if str(f["id"]).startswith("W-B-")]
+    assert len(carried) == 62, "a held finding is still tracked, not dropped"
+    assert {f["delta"] for f in carried} == {"STILL_OPEN"}
+    assert {f["status"] for f in carried} == {"open"}
+    assert "62 of 62" in carried[0]["carried_forward"]
+    assert sum(1 for f in state["findings"] if f["status"] == "open") == 63
+
+
+def test_full_sweep_licenses_silence_to_resolve_the_whole_backlog(repo, qa_root):
+    """The guardrail is a default, not a wall. A run that really did sweep
+    everything says so, and silence resolves exactly as it always did."""
+    facts = collect(repo, qa_root, [])
+    state = merge(facts, judgment(full_sweep=True), {"findings": _backlog(62)})
+    carried = [f for f in state["findings"] if str(f["id"]).startswith("W-B-")]
+    assert {f["delta"] for f in carried} == {"RESOLVED"}
+    assert {f["status"] for f in carried} == {"resolved"}
+
+
+def test_silence_still_resolves_when_the_run_reported_most_of_the_backlog(repo, qa_root):
+    """The ordinary case the guardrail must not swallow: a delta run that
+    re-reported 8 of 10 and stopped mentioning 2 is describing two fixes."""
+    facts = collect(repo, qa_root, [])
+    prior = _backlog(10)
+    reported = [{**f, "failure_classification": "REAL_DEFECT", "confidence": "proven"}
+                for f in prior[:8]]
+    state = merge(facts, judgment(findings=reported), {"findings": prior})
+    seen = {}
+    for f in state["findings"]:
+        seen[f["delta"]] = seen.get(f["delta"], 0) + 1
+    assert seen == {"STILL_OPEN": 8, "RESOLVED": 2}
+
+
+def test_the_hold_has_a_floor_and_a_share_and_both_edges_are_exact(repo, qa_root):
+    """Below five unmentioned, proportion is noise and silence resolves even
+    when it is total; at exactly half of a real backlog it still resolves —
+    the hold needs *more* than half. One past either edge, it fires."""
+    facts = collect(repo, qa_root, [])
+    state = merge(facts, judgment(findings=[]), {"findings": _backlog(4)})
+    assert {f["delta"] for f in state["findings"]} == {"RESOLVED"}
+
+    def reported(prior, n):
+        return [{**f, "failure_classification": "REAL_DEFECT",
+                 "confidence": "proven"} for f in prior[:n]]
+
+    prior = _backlog(10)  # 5 of 10 unmentioned: at the share edge, resolves
+    state = merge(facts, judgment(findings=reported(prior, 5)), {"findings": prior})
+    assert sum(f["delta"] == "RESOLVED" for f in state["findings"]) == 5
+
+    prior = _backlog(10)  # 6 of 10 unmentioned: past the edge, held
+    state = merge(facts, judgment(findings=reported(prior, 4)), {"findings": prior})
+    assert sum(f["delta"] == "STILL_OPEN" for f in state["findings"]) == 10
+
+
+def test_a_held_backlog_is_a_state_the_pipeline_will_write(repo, qa_root):
+    """Production held its 62 findings through the full pipeline, not through
+    merge() in isolation — a hold that `validate` then refuses to write is a
+    guardrail that fails at the exact moment it fires."""
+    facts = collect(repo, qa_root, [])
+    state = merge(facts, judgment(), {"findings": _backlog(62)})
+    assert write_state(qa_root, state) == []
+
+
 def test_merge_preserves_unknown_keys_from_the_previous_state(repo, qa_root):
     facts = collect(repo, qa_root, [])
     state = merge(facts, judgment(), {"house_rules": {"kept": True}, "findings": []})
@@ -523,6 +600,45 @@ def test_a_rewritten_run_keeps_the_last_line_not_both(qa_root):
         '{"run_number": 1, "verdict": "pass with risks"}\n', encoding="utf-8")
     rows, _ = load_runs(qa_root)
     assert len(rows) == 1 and rows[0]["verdict"] == "pass with risks"
+
+
+def test_a_correction_appended_after_a_rollback_outranks_the_row_it_corrects(repo, qa_root):
+    """`validate` refuses a second finalize at the same run number, so the way
+    to retry a bad run is to restore state.json and re-run. That rolls back
+    every file except runs.jsonl, which is append-only by design — the stale
+    row stays, and only the revision says which of the two won."""
+    from verdict_mcp.state import load_runs
+    facts = collect(repo, qa_root, [])
+    first = merge(facts, judgment(run_label="first finalize, miscounted"), None)
+    assert write_state(qa_root, first) == []
+    (qa_root / "state.json").unlink()  # the operator's rollback
+    assert write_state(qa_root, merge(facts, judgment(run_label="corrected"), None)) == []
+    lines = (qa_root / "runs.jsonl").read_text(encoding="utf-8").strip().splitlines()
+    assert len(lines) == 2, "history is append-only; the stale row is never removed"
+    assert json.loads(lines[0]).get("revision") is None, "generation zero stays absent"
+    assert json.loads(lines[1])["revision"] == 1
+    rows, _ = load_runs(qa_root)
+    assert len(rows) == 1 and rows[0]["run_label"] == "corrected"
+
+
+def test_a_higher_revision_wins_even_when_it_is_not_the_last_line(qa_root):
+    """The point of the marker. A reader that trusts file order alone is one
+    `sort` — or one hand-appended row — away from a superseded verdict."""
+    from verdict_mcp.state import load_runs
+    (qa_root / "runs.jsonl").write_text(
+        '{"run_number": 1, "verdict": "pass with risks", "revision": 1}\n'
+        '{"run_number": 1, "verdict": "fail"}\n', encoding="utf-8")
+    rows, _ = load_runs(qa_root)
+    assert len(rows) == 1 and rows[0]["verdict"] == "pass with risks"
+
+
+def test_a_garbled_revision_never_outranks_a_real_one(qa_root):
+    from verdict_mcp.state import load_runs
+    (qa_root / "runs.jsonl").write_text(
+        '{"run_number": 1, "verdict": "pass with risks", "revision": 2}\n'
+        '{"run_number": 1, "verdict": "fail", "revision": "later"}\n', encoding="utf-8")
+    rows, _ = load_runs(qa_root)
+    assert rows[0]["verdict"] == "pass with risks"
 
 
 def test_the_model_that_signed_the_verdict_is_measured_not_remembered(repo, qa_root, monkeypatch):
