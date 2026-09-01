@@ -18,7 +18,8 @@ import sys
 from pathlib import Path
 
 from verdict_mcp.harness import collect
-from verdict_mcp.state import harness_signals, missing_durable, verify_chain
+from verdict_mcp.state import (harness_signals, load_runs, missing_durable,
+                               verify_chain)
 
 from conftest import judgment
 
@@ -202,3 +203,48 @@ def test_a_signed_history_says_nothing(repo, qa_root, tmp_path):
         [sys.executable, str(GATE), str(qa_root), "--require-harness"],
         capture_output=True, text=True)
     assert "unsigned" not in proc.stdout
+
+
+def test_a_correction_is_signed_and_the_signal_still_holds(repo, qa_root, tmp_path):
+    """The false alarm the revision stamp must not cause. The binding check
+    re-derives the history row from the state, and the state does not know its
+    own correction generation — that is stamped at write time from the ledger.
+    Read it back off the signed row, or every legitimate correction reports as
+    tampering and the operator learns to ignore the one signal that matters."""
+    finalize(qa_root, repo, tmp_path, run_label="first finalize, miscounted")
+    (qa_root / "state.json").unlink()  # the operator's rollback
+    state = finalize(qa_root, repo, tmp_path, run_label="corrected")
+    raw = [json.loads(line) for line in
+           (qa_root / "runs.jsonl").read_text(encoding="utf-8").splitlines()]
+    assert raw[-1]["revision"] == 1, "the correction is stamped on the row"
+    assert harness_signals(state, qa_root)["chain_intact"] is True
+
+
+def test_bumping_a_stored_revision_breaks_the_chain(repo, qa_root, tmp_path):
+    """`load_runs` awards a duplicated run number to the highest revision, so
+    an edited revision would be a way to resurrect a superseded verdict — if
+    the field were not inside the signed body. It is, so the resurrection dies
+    at the chain walk, before any reader ever compares generations."""
+    finalize(qa_root, repo, tmp_path)
+    path = qa_root / "runs.jsonl"
+    row = json.loads(path.read_text(encoding="utf-8").strip())
+    row["revision"] = 7
+    path.write_text(json.dumps(row, sort_keys=True) + "\n", encoding="utf-8")
+    rows, _ = load_runs(qa_root)
+    assert verify_chain(rows)["status"] == "broken"
+
+
+def test_the_chain_extends_over_a_correction_not_around_it(repo, qa_root, tmp_path):
+    """Run 2 links to the correction that won run 1, and the walk verifies over
+    the winners. The superseded row stays on disk — append-only is the point —
+    but it is no longer part of the story the chain tells."""
+    finalize(qa_root, repo, tmp_path, run_label="first")
+    (qa_root / "state.json").unlink()
+    finalize(qa_root, repo, tmp_path, run_label="corrected")
+    state = finalize(qa_root, repo, tmp_path)  # run 2, nothing unusual about it
+    raw_lines = (qa_root / "runs.jsonl").read_text(encoding="utf-8").splitlines()
+    assert len(raw_lines) == 3, "the stale row is never removed"
+    rows, _ = load_runs(qa_root)
+    assert [r["run_number"] for r in rows] == [1, 2]
+    assert verify_chain(rows)["status"] == "intact"
+    assert harness_signals(state, qa_root)["chain_intact"] is True

@@ -6,3 +6,4 @@ dist/
 *.egg-info/
 uv.lock
 node_modules/
+.env

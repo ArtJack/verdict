@@ -119,6 +119,9 @@ def validate_judgment(judgment, previous=None):
                    "is incomplete, and an empty list is a claim of total coverage")
     if not isinstance(judgment.get("isolation_check"), dict):
         bad.append("isolation_check must be an object recording the §0 check you ran")
+    if "full_sweep" in judgment and not isinstance(judgment["full_sweep"], bool):
+        bad.append("full_sweep must be true or false — it licenses silence to resolve "
+                   "findings wholesale, and a truthy string would grant that by accident")
 
     prose = judgment.get("prose")
     if prose is not None and not isinstance(prose, dict):

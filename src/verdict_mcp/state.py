@@ -489,10 +489,15 @@ def _chain_signal(state: dict, root) -> bool:
     # left an intact chain behind it, which is the hole the chain was added for.
     earlier = [r for r in rows[:-1] if r.get("chain")]
     prev = str(earlier[-1]["chain"]) if earlier else ""
-    return chain_link(prev, history_row(state)) == recorded
+    # The signed row may carry a correction generation, which is stamped at
+    # write time from the ledger and is not derivable from the state — so it is
+    # read back off the row being verified. Tampering with it is not an escape:
+    # the revision travels inside the signed body, so a bumped value breaks the
+    # link it rode in on before this comparison is ever reached.
+    return chain_link(prev, history_row(state, _row_revision(last))) == recorded
 
 
-def history_row(state: dict) -> dict:
+def history_row(state: dict, revision: int = 0) -> dict:
     """One machine-native line of run history, derived from the state.
 
     The run-over-run time series used to live only in INDEX.md, and consumers
@@ -501,6 +506,13 @@ def history_row(state: dict) -> dict:
     re-gate: … @ 5b9518d1)" — and every reader had to un-parse a rendering.
     Markdown is a render target; for history it had become the database. This
     row is the database; the INDEX stays for humans.
+
+    `revision` is the correction generation for this run number, and it is the
+    difference between a ledger a reader can trust and one it can only guess
+    at. The file is append-only, so a corrected re-finalize cannot edit what it
+    corrects — it can only be written after it. Left unmarked, telling the
+    authoritative row from the one it supersedes means trusting file order and
+    nothing else; stamped, the answer is in the record.
     """
     last = state.get("last_run") or {}
     findings = state.get("findings", []) or []
@@ -543,15 +555,61 @@ def history_row(state: dict) -> dict:
             row[optional] = state[optional]
     if last.get("model"):
         row["model"] = last["model"]
+    if revision:
+        # Generation zero stays absent, so a first write is byte-for-byte what
+        # it has always been and no existing row has to be reinterpreted.
+        row["revision"] = revision
     return {k: v for k, v in row.items() if v is not None}
+
+
+def _row_revision(row: dict) -> int:
+    """A history row's correction generation. Absent, malformed, or boolean
+    reads as 0: every row written before revisions existed is generation zero,
+    and a garbled value must never outrank a real one."""
+    value = row.get("revision")
+    if isinstance(value, bool) or not isinstance(value, int):
+        return 0
+    return value if value > 0 else 0
+
+
+def next_revision(qa_root, run_number) -> int:
+    """The generation to stamp on the next row for `run_number`.
+
+    Zero when the ledger has no row for that run yet — the ordinary case. When
+    rows already exist the next generation is one past the highest, so a
+    correction outranks what it corrects without touching it. That happens more
+    easily than it looks: `validate` refuses a second finalize at the same run
+    number, so the way to retry a bad run is to restore `state.json` from
+    `state.json.prev` and re-run — which rolls back every file except this one,
+    because append-only is the point. The stale row stays; this says which row
+    won.
+    """
+    if isinstance(run_number, bool) or not isinstance(run_number, int):
+        return 0
+    path = Path(qa_root) / RUNS_FILE
+    if not path.is_file():
+        return 0
+    highest = -1
+    for line in path.read_text(encoding="utf-8").splitlines():
+        if not line.strip():
+            continue
+        try:
+            row = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if isinstance(row, dict) and row.get("run_number") == run_number:
+            highest = max(highest, _row_revision(row))
+    return highest + 1 if highest >= 0 else 0
 
 
 def load_runs(qa_root) -> tuple[list[dict], int]:
     """Read `<qa-root>/runs.jsonl` → (rows, skipped_lines).
 
     Tolerant by design: a torn trailing line from a crash mid-append is skipped
-    and counted, never fatal. Duplicate run_numbers keep the last write — a
-    retried finalize describes the same run better, not a different run.
+    and counted, never fatal. Duplicate run_numbers resolve by `revision`: the
+    highest generation wins, because a correction is written after the row it
+    corrects and says so. Equal generations fall back to the last write, which
+    is what every row written before revisions existed relies on.
     """
     path = Path(qa_root) / RUNS_FILE
     if not path.is_file():
@@ -567,7 +625,9 @@ def load_runs(qa_root) -> tuple[list[dict], int]:
             skipped += 1
             continue
         if isinstance(row, dict) and isinstance(row.get("run_number"), int):
-            rows[row["run_number"]] = row
+            prior = rows.get(row["run_number"])
+            if prior is None or _row_revision(row) >= _row_revision(prior):
+                rows[row["run_number"]] = row
         else:
             skipped += 1
     return [rows[n] for n in sorted(rows)], skipped

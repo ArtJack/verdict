@@ -278,6 +278,14 @@ def test_a_clean_judgment_passes():
     assert validate_judgment(judgment()) == []
 
 
+def test_full_sweep_must_be_a_real_boolean():
+    """`full_sweep` licenses silence to resolve findings wholesale, so a truthy
+    string granting it by accident is exactly the failure mode to refuse."""
+    assert any("full_sweep" in b for b in validate_judgment(judgment(full_sweep="yes")))
+    assert validate_judgment(judgment(full_sweep=True)) == []
+    assert validate_judgment(judgment(full_sweep=False)) == []
+
+
 def test_a_finding_that_will_be_new_is_told_so_before_the_merge():
     """The whole point of checking here: `validate()` can only say a NEW finding
     lacks confidence *after* the merge decided it was NEW, in the vocabulary of
