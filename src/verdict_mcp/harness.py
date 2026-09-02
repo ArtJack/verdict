@@ -264,10 +264,40 @@ VERIFY_MAX_FINDINGS = 25
 VERIFY_TIMEOUT_S = 120
 
 
-def cited_tests(finding: dict) -> list[str]:
+def resolve_test_id(candidate: str, known) -> str | None:
+    """The collected test id a citation names, or None.
+
+    Evidence is prose, not an index. `_TEST_ID` matches a node id anywhere in
+    it — including inside a quoted source snippet — and running a scraped id
+    measures nothing: it errors at both commits, and an error is not a
+    verification. Live on run 5 of this repository, VERDICT-F-20's record read
+    `t.py::new`, a test that exists in no file here (VERDICT-F-26). So a
+    citation is checked against the ids the collector actually reported, and
+    only a resolved one is ever run.
+
+    Without a ledger (`test_ids_cmd` unset, or collection failed) there is
+    nothing to check against and every citation is tried, as before.
+    """
+    if not known:
+        return candidate
+    cand = candidate.replace("\\", "/").strip()
+    if cand in known:
+        return cand
+    tail = [k for k in known if k.endswith("/" + cand)]
+    if len(tail) == 1:
+        return tail[0]
+    base = cand.split("[", 1)[0]
+    if any(k.split("[", 1)[0] == base for k in known):
+        return base  # pytest expands a base id to its parametrizations
+    fam = {k.split("[", 1)[0] for k in known if k.split("[", 1)[0].endswith("/" + base)}
+    return fam.pop() if len(fam) == 1 else None
+
+
+def cited_tests(finding: dict, known=None) -> list[str]:
     """The tests a finding names — an explicit `verification_test`, or pytest
     node ids inside its evidence. `test_x.py:12` is a line reference, not a
-    test, and does not count."""
+    test, and does not count. With `known`, only ids the collector reported
+    survive, resolved to their collected form."""
     explicit = finding.get("verification_test")
     ids = [explicit] if isinstance(explicit, str) else [str(x) for x in (explicit or []) if x]
     for line in finding.get("evidence") or []:
@@ -275,8 +305,11 @@ def cited_tests(finding: dict) -> list[str]:
     out = []
     for i in ids:
         i = i.strip().rstrip(".,;:")
-        if i and i not in out:
-            out.append(i)
+        if not i:
+            continue
+        resolved = resolve_test_id(i, known)
+        if resolved and resolved not in out:
+            out.append(resolved)
     return out
 
 
@@ -350,7 +383,7 @@ def _remove_scratch(repo: Path, tmp: Path) -> None:
 
 
 def verify_findings(repo: Path, previous: dict | None, test_one_cmd: str | None,
-                    previous_sha: str | None) -> tuple[dict, list[str]]:
+                    previous_sha: str | None, known_ids=None) -> tuple[dict, list[str]]:
     """Re-run each open finding's cited test at HEAD and at the previous
     commit → ({finding id: record}, notes).
 
@@ -370,12 +403,24 @@ def verify_findings(repo: Path, previous: dict | None, test_one_cmd: str | None,
                      "where the test id goes) to re-run each resolved finding's cited test "
                      "at the previous commit and at HEAD")
         return {}, notes
-    cited = [(f, cited_tests(f)) for f in open_prior]
-    uncited = sum(1 for _, t in cited if not t)
-    cited = [(f, t) for f, t in cited if t]
+    known = {str(k).replace("\\", "/") for k in known_ids} if known_ids else None
+    cited, unresolved, uncited = [], [], 0
+    for f in open_prior:
+        resolved = cited_tests(f, known)
+        if resolved:
+            cited.append((f, resolved))
+        elif cited_tests(f):
+            unresolved.append((str(f.get("id") or "?"), cited_tests(f)[0]))
+        else:
+            uncited += 1
     if uncited:
         notes.append(f"{uncited} open finding(s) cite no test id, so the harness cannot "
                      "fix-verify them")
+    if unresolved:
+        shown = ", ".join(f"{fid} ({tid})" for fid, tid in unresolved[:5])
+        more = f" and {len(unresolved) - 5} more" if len(unresolved) > 5 else ""
+        notes.append("cited test is not in the collected id ledger, so nothing was run for "
+                     f"{shown}{more} — a node id in prose is text, not a citation")
     if len(cited) > VERIFY_MAX_FINDINGS:
         notes.append(f"fix verification capped at {VERIFY_MAX_FINDINGS} of {len(cited)} "
                      "findings with a cited test")
@@ -402,14 +447,21 @@ def verify_findings(repo: Path, previous: dict | None, test_one_cmd: str | None,
             rec["at_head"] = head["result"]
             parts = [head.get("summary", "")]
             if scratch is not None:
-                # The fix may have added the test. Copy it back so the old code
-                # meets the new test — that is the counterfactual.
+                # The counterfactual is the NEW test against the OLD source, so
+                # the test file always comes from HEAD. Copying only when the
+                # file was absent read presence of the file as presence of the
+                # test: a regression test appended to an existing test file left
+                # the old file in place, which does not contain that test at all,
+                # so at_previous read `error` and nothing could ever verify
+                # (VERDICT-F-25).
                 test_file = test_id.split("::", 1)[0]
                 src, dst = Path(repo) / test_file, scratch / test_file
-                if not dst.exists() and src.is_file():
+                if src.is_file():
+                    differs = (not dst.exists()) or dst.read_bytes() != src.read_bytes()
                     dst.parent.mkdir(parents=True, exist_ok=True)
                     shutil.copyfile(src, dst)
-                    rec["test_copied_from_head"] = True
+                    if differs:
+                        rec["test_copied_from_head"] = True
                 # The old source must be what runs. An editable install points at
                 # the main checkout regardless of cwd; PYTHONPATH outranks it.
                 pp = [str(p) for p in (scratch / "src", scratch) if p.is_dir()]
@@ -870,7 +922,8 @@ def collect(repo: Path, qa_root: Path, gates: list[tuple[str, str]],
             }
             facts["_test_ids"] = ids
 
-    verification, vnotes = verify_findings(repo, previous, test_one_cmd, prev_sha)
+    verification, vnotes = verify_findings(repo, previous, test_one_cmd, prev_sha,
+                                          known_ids=facts.get("_test_ids"))
     if verification:
         facts["verification"] = verification
     if vnotes:
@@ -1615,12 +1668,24 @@ def render_report(state: dict, prose: dict | None = None) -> str:
         out.append(f"Test-id ledger: **unavailable** — {ids.get('reason', '')}")
     measured = [f for f in state.get("findings", []) if isinstance(f.get("verification"), dict)]
     if measured or state.get("verification_notes"):
-        verified = sum(1 for f in measured
-                       if f.get("fix_verified") is True and f.get("delta") == "RESOLVED")
+        # Counted from the measurement, never from `fix_verified` — that is the
+        # one judgment field here, and counting it inside a block selected by
+        # measurement published run 5's error/error record as "1 verified"
+        # (VERDICT-F-30). Both halves below are the harness's own: `at_*` come
+        # from the re-run, `delta` from merge.
+        def _shows_fix(f):
+            v = f["verification"]
+            return v.get("at_previous") == "fail" and v.get("at_head") == "pass"
+        verified = sum(1 for f in measured if _shows_fix(f) and f.get("delta") == "RESOLVED")
         refused = sum(1 for f in measured if f.get("resolution_refused"))
         out.append(f"Fix verification: {verified} verified · {refused} refused (cited test "
                    f"still fails at HEAD) · {len(measured) - verified - refused} measured but "
                    "not verifiable")
+        unconfirmed = [str(f.get("id")) for f in measured
+                       if f.get("fix_verified") is True and not _shows_fix(f)]
+        if unconfirmed:
+            out.append("  - claims fix_verified the measurement does not show: "
+                       + ", ".join(unconfirmed))
         for note in state.get("verification_notes") or []:
             out.append(f"  - {note}")
     cov = state.get("coverage") or {}

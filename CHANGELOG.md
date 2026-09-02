@@ -3,6 +3,46 @@
 Plugin and `verdict-mcp` share one version line; `.claude-plugin/plugin.json` and
 `pyproject.toml` are bumped together.
 
+## 0.57.0 — 2026-09-02 · "a verification means something"
+
+Run 5 of Verdict on itself was the first run of the fix-verification, diff-coverage and
+artifact-check features shipped the day before. It verified six inherited fixes by
+counterfactual, measured 63% of 1125 changed lines executed — and filed six findings
+against those same features, all with evidence measured in that run. This release closes
+the three that make a verification trustworthy.
+
+**A citation is only a citation if the collector reported it** (VERDICT-F-26). The node-id
+regex matches anywhere in a finding's evidence, including inside a quoted source snippet,
+and the first match was simply run: selection by evidence *order*, not relevance. Run 5's
+record for F-20 read `t.py::new` — a test that exists in no file in this repository. It
+errored at both commits, and an error is not a measurement. Citations are now resolved
+against the collected test-id ledger (exact, path-suffix, or parametrized base id); an id
+the collector never reported is not run, and `verification_notes` names the finding and
+the id. Projects without a `test_ids_cmd` have no ledger to check against and behave
+exactly as before — the filter must not turn verification off to fix a scraping bug.
+
+**The new test meets the old source, appended or not** (VERDICT-F-25). The copy-back into
+the scratch checkout was file-level and conditional on absence, so the commonest real
+shape — a regression test appended to a test file that already existed — left the old
+file in place. That file does not contain the test, so `at_previous` read `error` and no
+such fix could ever verify. The cited test's file now always comes from HEAD, which is
+what the counterfactual asks for; `test_copied_from_head` still means the old copy
+differed or was absent, so the flag keeps its meaning.
+
+**The report counts measurements, not claims** (VERDICT-F-30). The `Fix verification:`
+line selected its findings by the presence of a harness measurement and then counted them
+by `fix_verified` — the one judgment field in the block. Run 5's own report therefore read
+"1 verified · 0 measured but not verifiable" over a record measured error/error: the
+arithmetic emptied the very bucket that would have shown it. The count now comes from
+`at_previous`/`at_head` and the computed `delta`, and a finding claiming `fix_verified`
+that its own measurement does not show is named on the line below.
+
+Every rule is mutation-checked, each with a paired test that must keep passing when the
+rule is reverted. Still open from run 5 and next: F-29 (the coverage run leaves a 95 MB
+`coverage.json` in the committed QA root), F-28 (coverage is in-process only, so
+subprocess-driven tests report their target as unexercised), F-27 (`verdict-issues`
+dedupes on finding id, so a REGRESSED finding is never re-filed).
+
 ## 0.56.0 — 2026-09-02 · "findings meet the tracker"
 
 **`verdict-issues` files each open finding as a GitHub issue, once.** The findings lived
