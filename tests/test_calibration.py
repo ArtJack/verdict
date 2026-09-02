@@ -418,3 +418,24 @@ def test_a_settled_outcome_still_outranks_the_new_rule():
     out = _stamp_outcome(_resolved(fix_verified=True),
                          {"outcome": "confirmed", "outcome_reason": "settled long ago"})
     assert out["outcome"] == "confirmed" and out["outcome_reason"] == "settled long ago"
+
+
+def test_a_regression_is_recorded_on_the_finding_and_carried(tmp_path):
+    """VERDICT-F-34: `delta` is one run's transition. When a finding came back
+    is a fact about the finding, and anything downstream that did not look on
+    that exact run needs it to still be there."""
+    open_f = finding(1)
+    s1 = merge(facts(1), judgment([open_f]), None)
+    s2 = merge(facts(2), judgment([dict(open_f, status="resolved")]), s1)
+    s3 = merge(facts(3), judgment([dict(open_f, status="open")]), s2)
+    assert s3["findings"][0]["delta"] == "REGRESSED"
+    assert s3["findings"][0]["regressed_at_run"] == 3
+    s4 = merge(facts(4), judgment([dict(open_f, status="open")]), s3)
+    assert s4["findings"][0]["delta"] == "STILL_OPEN"
+    assert s4["findings"][0]["regressed_at_run"] == 3, "carried, not recomputed"
+
+
+def test_a_finding_that_never_came_back_carries_no_marker():
+    s1 = merge(facts(1), judgment([finding(1)]), None)
+    s2 = merge(facts(2), judgment([finding(1)]), s1)
+    assert "regressed_at_run" not in s2["findings"][0]

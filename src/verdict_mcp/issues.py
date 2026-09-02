@@ -91,6 +91,13 @@ def render_issue(finding: dict, state: dict, prior: dict | None = None) -> tuple
     return title, "\n".join(lines)
 
 
+def _num(value) -> float:
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return float("-inf")
+
+
 def plan(state: dict, ledger: dict, limit: int | None = None) -> list[tuple[dict, str]]:
     """Open findings paired with the action they need: `create`, `refile` or
     `exists`. Severity order, so a cap files the worst first.
@@ -100,17 +107,24 @@ def plan(state: dict, ledger: dict, limit: int | None = None) -> list[tuple[dict
     while the question a tracker needs answered is "has this *occurrence* been
     filed". A REGRESSED finding — the class the contract ranks first — was
     therefore never re-filed, and the run reported it as already filed while
-    its issue sat closed (VERDICT-F-27). A recurrence is filed again, once per
-    regression: the guard is the run number, so running this twice over the
-    same state still files nothing twice.
+    its issue sat closed (VERDICT-F-27).
+
+    The discriminator is `regressed_at_run`, which the harness stamps when the
+    finding came back and carries forward afterwards — not `delta`, which
+    describes only the transition one run computed and made the filing window
+    exactly one run wide (VERDICT-F-34). A recurrence is filed once per
+    regression, whenever this next runs; filing again over the same regression
+    is what the recorded run number prevents.
     """
-    run = state.get("run_number")
     out = []
     for f in order_findings([f for f in state.get("findings", []) if is_open(f)]):
         prior = ledger.get(str(f.get("id") or ""))
+        came_back = f.get("regressed_at_run")
+        if came_back is None and f.get("delta") == "REGRESSED":
+            came_back = state.get("run_number")  # a state written before 0.63.0
         if not prior:
             action = "create"
-        elif f.get("delta") == "REGRESSED" and prior.get("run_number") != run:
+        elif came_back is not None and _num(came_back) > _num(prior.get("run_number")):
             action = "refile"
         else:
             action = "exists"
