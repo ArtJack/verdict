@@ -3,6 +3,25 @@
 Plugin and `verdict-mcp` share one version line; `.claude-plugin/plugin.json` and
 `pyproject.toml` are bumped together.
 
+## 0.55.0 — 2026-09-02 · "finalize reads its own artifacts back"
+
+**The run-4 discipline, made mechanical.** Run 4 found two harness defects — a state
+re-keyed to the directory name (F-23), an INDEX row dated from the local clock (F-24) —
+not by reading source but by reading its own artifacts back and comparing them, and it
+wrote the lesson down: *the state, the INDEX row, the runs.jsonl row and the report
+describe one run and must agree; where they disagree, the harness composed a value
+instead of measuring it.* That was the agent's habit. `verdict-finalize` does it now,
+after every write, reading each artifact from disk rather than from the objects it meant
+to write: the state on disk is the state just written; the history's last row carries
+this run's number, verdict and signed link; the INDEX row carries the measured date, the
+recorded project and the verdict; the report the state names exists and the INDEX links
+it. A disagreement is a **warning on stderr** — the stream the agent reads — never a
+refusal: the run is recorded and the state is valid, what is wrong is a renderer, and a
+renderer defect is a finding against this harness to be filed.
+
+Both renderers this catches are already fixed; this is what catches the next one. Seven
+tests, each corrupting exactly one artifact after a real finalize.
+
 ## 0.54.0 — 2026-09-02 · "which changed lines any test executed"
 
 **Diff coverage is measured now, at the grain of lines, functions and tests.** "Coverage
