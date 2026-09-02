@@ -3,6 +3,28 @@
 Plugin and `verdict-mcp` share one version line; `.claude-plugin/plugin.json` and
 `pyproject.toml` are bumped together.
 
+## 0.56.0 — 2026-09-02 · "findings meet the tracker"
+
+**`verdict-issues` files each open finding as a GitHub issue, once.** The findings lived
+in a state file only the QA loop read; the people who fix things live in the issue tracker.
+Until these met, a finding waited for someone to open the report — on Sales, 75 open
+findings waited across four runs. `verdict-issues [PROJECT_OR_PATH]` is a **dry run by
+default**: it prints what would be filed, title by title, and creates nothing until
+`--create`. Creation goes through the operator's own `gh` login — no token this tool holds
+— worst severity first, capped by `--limit` (default 20), with optional `--label` and
+`--repo`. A ledger beside the state, `issues.json`, records which finding became which
+issue and is saved after every success, so a crash mid-run files nothing twice and a
+re-run continues where a `gh` failure stopped. The state itself is never touched: it is
+finalize's, and it is chain-signed. Each issue body carries the finding's evidence and a
+`<!-- verdict-finding:ID -->` marker.
+
+Not in this version, on purpose: closing or commenting on issues when findings resolve. A
+closed issue is a human's claim; `fix_verified` is the harness's measurement, and the
+tracker must not be able to overrule the ledger.
+
+Eight tests against a stub `gh` that records what it was asked; three mutations caught
+(dedupe off, ledger saved only at the end, dry run creating anyway).
+
 ## 0.55.0 — 2026-09-02 · "finalize reads its own artifacts back"
 
 **The run-4 discipline, made mechanical.** Run 4 found two harness defects — a state
