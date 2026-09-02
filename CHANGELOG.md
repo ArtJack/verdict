@@ -3,6 +3,38 @@
 Plugin and `verdict-mcp` share one version line; `.claude-plugin/plugin.json` and
 `pyproject.toml` are bumped together.
 
+## 0.50.0 — 2026-09-01 · "the paragraph, measured — and the instrument, fixed"
+
+**The `full_sweep` prompt paragraph ships, eval-paid.** Held out of v0.48.0 because a prompt
+edit is a behaviour change and the usage window looked closed for two days; it wasn't — a
+one-line probe found it open the same afternoon. Measured on v0.49.1's harness: **liar 6/6
+· 6/6 · 6/6, pricer delta 6/6**, against a control of 6/6 ×3 / 6/6 on the byte-identical
+pre-paragraph prompt. The paragraph tells the agent to re-report every open finding by id,
+that a scoped run's silence is *held* rather than read as resolution, and to declare
+`full_sweep: true` only after a genuine whole-backlog sweep. Sales run 14 had already
+exercised it once by accident — the nightly copied an uncommitted prompt — and wrote
+"full_sweep is deliberately false so none of them is resolved by my silence" over 67
+carried findings. That was n=1 on production; this is the measurement.
+
+**The scorer under-scored by filing order.** The first reading of that liar triple was
+**6/6 · 5/6 · 6/6**, and the 5 was the instrument. `score.py` claimed findings greedily in
+answer-key order: the `pending-subtracts` row matches on the single term "pending", the
+agent's *conftest* finding was classified `REAL_DEFECT` and quoted `pending(3, 2)` in its
+counterfactual evidence, and because it was filed first the pending row took it — leaving
+the conftest row, which the agent had answered at **Blocker**, with nothing. Runs 1 and 3
+scored 6/6 only by filing in a luckier order. A scorer whose result depends on filing
+order measures the order, not the agent — and this is the number releases are held or
+shipped on; read naively, it would have called a clean prompt a regression. Row→finding
+is now a maximum matching (Kuhn's augmenting paths) seeded in the old greedy order, so
+every archived corpus run scores exactly as before and a row is re-routed only when that
+frees a finding a later row would otherwise be starved of. Run 2's kept state re-scored
+**6/6** under the fixed scorer with the assignment a human would make. The original
+reading is kept in eval/README as a scar. A starved row's note now says its text match
+was credited elsewhere, instead of reading as if nothing matched.
+
+Both changes together, deliberately: the scorer fix is the evidence chain for the prompt
+claim, and shipping them apart would let either be read without the other. 537 tests.
+
 ## 0.49.1 — 2026-09-01 · "reporting welded to enforcing"
 
 **The gate now measures drift on every run and gates on it only when asked.**

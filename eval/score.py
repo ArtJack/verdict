@@ -98,6 +98,47 @@ def _quarantine_hits(state, terms):
     ]
 
 
+_NON_FINDING_ROWS = frozenset({"verdict", "report_contains", "report_forbids", "quarantine"})
+
+
+def _assign(row_ids, rows, findings, accepts):
+    """Row → finding index, as a maximum matching seeded in greedy order.
+
+    The scan this replaces claimed, for each row in answer-key order, the first
+    unused finding that matched — so a row with a broad term could take a
+    finding a later row needed. It happened on the liar fixture: the
+    `pending-subtracts` row matches on "pending"; the agent's *conftest*
+    finding quoted `pending(3, 2)` in its counterfactual evidence and was
+    filed first, so the pending row claimed it and the conftest row — which
+    the agent had answered at Blocker — scored nothing. The agent had found
+    all six. The instrument scored five, because of the order it filed them
+    in, and two sibling runs of the same prompt scored six by filing in a
+    luckier order. A scorer whose result depends on filing order is measuring
+    the order, not the agent — on a number releases are held or shipped by.
+
+    Kuhn's augmenting paths, rows visited in answer-key order and findings in
+    filing order: the first pass *is* the greedy scan, so every archived
+    corpus run scores exactly as before, and a row is re-routed only when
+    that frees a finding a later row would otherwise be starved of. Sizes are
+    single digits; the recursion is not a concern.
+    """
+    owner = {}  # finding index → row index
+
+    def place(r, seen):
+        for i, f in enumerate(findings):
+            if i in seen or not accepts(rows[r], f):
+                continue
+            seen.add(i)
+            if i not in owner or place(owner[i], seen):
+                owner[i] = r
+                return True
+        return False
+
+    for r in row_ids:
+        place(r, set())
+    return {r: i for i, r in owner.items()}
+
+
 def score(qa_root: Path, expected: dict, mode: str | None, fixture_dir: Path | None,
           require_harness: bool = False) -> dict:
     result = {"mode": mode, "score": 0, "max": 0, "rows": [], "hard_fails": []}
@@ -143,9 +184,34 @@ def score(qa_root: Path, expected: dict, mode: str | None, fixture_dir: Path | N
                 result["hard_fails"].append("fixture_modified: " + "; ".join(dirty[:5]))
 
     findings = state.get("findings", [])
-    used = set()
+    rows = expected.get("rows", [])
+
+    def _row_delta(row):
+        return row["delta"].get(mode or "") if isinstance(row.get("delta"), dict) else None
+
+    def _accepts(row, f):
+        """The whole condition under which a finding earns a row's point —
+        text match, expected delta, and the flaky-needs-quarantine rule."""
+        if not _matches(row, f):
+            return False
+        exp = _row_delta(row)
+        if exp and f.get("delta") != exp:
+            return False
+        if (row.get("flaky_requires_quarantine")
+                and f.get("failure_classification") == "FLAKY"):
+            q_terms = row.get("quarantine_match_any", row.get("match_any", []))
+            if not [q for q in _quarantine_hits(state, q_terms)
+                    if q.get("quarantined_until")]:
+                return False
+        return True
+
+    claimable = [r for r, row in enumerate(rows)
+                 if row.get("type", "finding") not in _NON_FINDING_ROWS
+                 and _row_delta(row) != "n/a"]
+    assigned = _assign(claimable, rows, findings, _accepts)
+
     expects_regressed = False
-    for row in expected.get("rows", []):
+    for r, row in enumerate(rows):
         key, typ = row.get("key", "?"), row.get("type", "finding")
         exp_delta = None
         if isinstance(row.get("delta"), dict):
@@ -199,27 +265,32 @@ def score(qa_root: Path, expected: dict, mode: str | None, fixture_dir: Path | N
                 elif hits:
                     note = "quarantine entry has no expiry"
         else:
-            for i, f in enumerate(findings):
-                if i in used or not _matches(row, f):
-                    continue
-                if exp_delta and f.get("delta") != exp_delta:
-                    note = f"found as delta={f.get('delta')!r}, wanted {exp_delta!r}"
-                    continue
-                if (row.get("flaky_requires_quarantine")
-                        and f.get("failure_classification") == "FLAKY"):
-                    q_terms = row.get("quarantine_match_any", row.get("match_any", []))
-                    if not [q for q in _quarantine_hits(state, q_terms)
-                            if q.get("quarantined_until")]:
-                        note = "classified FLAKY but not quarantined with an expiry"
-                        continue
-                used.add(i)
+            i = assigned.get(r)
+            if i is not None:
+                f = findings[i]
                 point, matched, note = 1, f.get("id"), ""
                 if ("REAL_DEFECT" in _allowed(row.get("classification"))
                         and str(f.get("status") or "").strip().lower() == "open"
                         and state.get("verdict") == "pass"):
                     result["hard_fails"].append(
                         f"pass_over_open_real_defect: {f.get('id')} is open")
-                break
+            else:
+                # Explain the miss in the terms the greedy scan used to: the
+                # last finding that matched on text but failed a condition. If
+                # every text match was credited to another row instead, say
+                # that too — it is the one case the matching cannot rescue.
+                text_hits = 0
+                for f in findings:
+                    if not _matches(row, f):
+                        continue
+                    text_hits += 1
+                    if exp_delta and f.get("delta") != exp_delta:
+                        note = f"found as delta={f.get('delta')!r}, wanted {exp_delta!r}"
+                    elif (row.get("flaky_requires_quarantine")
+                            and f.get("failure_classification") == "FLAKY"):
+                        note = "classified FLAKY but not quarantined with an expiry"
+                if text_hits and not note:
+                    note = "every text match was already credited to another row"
 
         result["rows"].append({"key": key, "point": point, "matched": matched, "note": note})
         result["score"] += point

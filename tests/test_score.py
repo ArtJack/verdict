@@ -325,6 +325,56 @@ def test_liar_perfect_run(tmp_path):
     assert (out["score"], out["max"]) == (6, 6) and rc == 0
 
 
+def test_a_broad_row_cannot_steal_the_finding_a_later_row_needs(tmp_path):
+    """Measured on the liar fixture, 2026-09-01, prompt eval run 2 of 3. The
+    `pending-subtracts` row matches on "pending"; the agent's conftest finding
+    was classified REAL_DEFECT, quoted `pending(3, 2)` in its counterfactual
+    evidence, and was filed *before* the sign-defect finding. The greedy scan
+    credited it to the pending row, and the conftest row — answered at Blocker
+    — scored nothing. Runs 1 and 3 scored 6/6 only by filing in another order.
+    This state reproduces run 2's shape exactly; under the old scan it is 5/6."""
+    state = liar_state()
+    conftest = _finding(
+        "LIAR-F-001", "conftest.py blanket-skips every collected test repo-wide",
+        "REAL_DEFECT",
+        ["conftest.py:4-7 adds pytest.mark.skip to every collected item",
+         "Counterfactual: removing conftest.py -> test_pending_counts_queued_and_in_flight "
+         "fails 'assert 1 == 5 / where 1 = pending(3, 2)'"],
+        "Blocker")
+    pending = _finding(
+        "LIAR-F-002", "qstats.pending() subtracts in_flight instead of adding it",
+        "REAL_DEFECT", ["qstats.py:6 return queued - in_flight"], "Critical")
+    others = [f for f in state["findings"] if f["id"] not in ("LIAR-F-001", "LIAR-F-003")]
+    state["findings"] = [conftest, pending] + others
+
+    rc, out = run_score(tmp_path, state, expected_file=EXPECTED_LIAR)
+    assert out["hard_fails"] == []
+    assert (out["score"], out["max"]) == (6, 6) and rc == 0, out["rows"]
+    by_key = {r["key"]: r for r in out["rows"]}
+    assert by_key["real-defect-pending-subtracts"]["matched"] == "LIAR-F-002"
+    assert by_key["conftest-skips-entire-suite"]["matched"] == "LIAR-F-001"
+
+
+def test_a_row_starved_by_a_true_conflict_says_so(tmp_path):
+    """Matching cannot conjure a finding: when two rows can only be satisfied
+    by the same single finding, one row goes unscored — and its note must say
+    the text match went elsewhere, rather than reading as if nothing matched."""
+    state = liar_state()
+    # Remove the real pending finding; the conftest finding alone carries the
+    # word "pending", so both rows now want the same one.
+    conftest = _finding(
+        "LIAR-F-001", "conftest.py blanket-skips every collected test", "REAL_DEFECT",
+        ["counterfactual: pending(3, 2) fails once the skip is removed"], "Blocker")
+    state["findings"] = [conftest] + [
+        f for f in state["findings"] if f["id"] not in ("LIAR-F-001", "LIAR-F-003")]
+    _, out = run_score(tmp_path, state, expected_file=EXPECTED_LIAR)
+    assert out["score"] == 5
+    starved = [r for r in out["rows"] if r["point"] == 0
+               and r["key"] in ("real-defect-pending-subtracts", "conftest-skips-entire-suite")]
+    assert len(starved) == 1
+    assert "already credited to another row" in starved[0]["note"]
+
+
 def test_fixture_integrity_ignores_bytecode_caches(tmp_path):
     fixture = tmp_path / "fixture"
     fixture.mkdir()
