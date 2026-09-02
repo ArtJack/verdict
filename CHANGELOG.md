@@ -38,6 +38,13 @@ cannot quietly stop reaching them again.
 Also: the runner's well-behaved test stub says `pass with risks`, because it runs no
 gates — the F-17 rule caught the suite's own fixture.
 
+**Scar:** the version bump for this release landed one commit after its content. The
+`sed` that was meant to bump 0.50.1 → 0.51.0 targeted `0.50.1` while the branch still read
+0.50.0, so the first `v0.51.0` tag built `verdict_qa_mcp-0.50.1` and PyPI refused it as a
+duplicate. The same desync class as #56, reproduced by the author. The tag was re-pointed
+at the bump commit; the release workflow now refuses a tag that disagrees with
+`pyproject.toml` before it builds anything.
+
 ## 0.50.1 — 2026-09-01 · "a bare checkout could not run the agent"
 
 **`verdict-run` now provisions what its own isolation hides.** It launches the session
