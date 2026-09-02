@@ -416,8 +416,20 @@ def chain_link(prev: str, row: dict) -> str:
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
 
-def verify_chain(rows: list) -> dict:
-    """Recompute the run-history chain → {"status", "first_bad"}.
+def load_chain_anchor(qa_root) -> dict:
+    """The ratchet, kept in the outcome ledger rather than the history it
+    guards. Missing or unreadable reads as absent — like the ledger itself, a
+    lost file must never fail a run."""
+    try:
+        data = json.loads((Path(qa_root) / OUTCOMES_FILE).read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError, TypeError):
+        return {}
+    anchor = data.get("chain") if isinstance(data, dict) else None
+    return anchor if isinstance(anchor, dict) else {}
+
+
+def verify_chain(rows: list, anchor: dict | None = None) -> dict:
+    """Recompute the run-history chain → {"status", "first_bad"[, "reason"]}.
 
     status is one of:
       intact    — every chained row verifies against its predecessor
@@ -425,10 +437,25 @@ def verify_chain(rows: list) -> dict:
       broken    — a link does not verify, or a row after the first chained one
                   dropped its link. Dropping is a break on purpose: without that
                   ratchet, a fabricator could simply omit what it cannot compute.
+
+    The ratchet held only *within* the history, so deleting `runs.jsonl` and the
+    state's own link returned the project to `unchained` — the one status that
+    is accepted — and the whole signal could be shed by removing a file
+    (VERDICT-F-21). `anchor` closes that: once a project has been chained, the
+    outcome ledger records since when and the last link, and a history that no
+    longer contains that link is broken rather than absent. The ledger is a
+    different file with a different job, so shedding the signal now means
+    destroying the permanent track record too — visible in the next report.
     """
+    anchor = anchor or {}
+    since, last_link = anchor.get("since_run"), anchor.get("last_link")
     start = next((i for i, r in enumerate(rows)
                   if isinstance(r, dict) and r.get("chain")), None)
     if start is None:
+        if last_link:
+            return {"status": "broken", "first_bad": since,
+                    "reason": ("the outcome ledger records this project chained since run "
+                               f"{since}; the run history carries no link at all")}
         return {"status": "unchained", "first_bad": None}
     prev = ""
     for row in rows[start:]:
@@ -437,6 +464,10 @@ def verify_chain(rows: list) -> dict:
         if row["chain"] != chain_link(prev, row):
             return {"status": "broken", "first_bad": row.get("run_number")}
         prev = row["chain"]
+    if last_link and last_link not in {r.get("chain") for r in rows if isinstance(r, dict)}:
+        return {"status": "broken", "first_bad": since,
+                "reason": ("the run the outcome ledger last recorded is not in this "
+                           "history — it was truncated or rewritten below that point")}
     return {"status": "intact", "first_bad": None}
 
 
@@ -490,7 +521,7 @@ def harness_signals(state: dict, qa_root=None) -> dict:
 
 def _chain_signal(state: dict, root) -> bool:
     rows, _ = load_runs(root)
-    result = verify_chain(rows)
+    result = verify_chain(rows, load_chain_anchor(root))
     if result["status"] == "broken":
         return False
     recorded = (state.get("last_run") or {}).get("chain")

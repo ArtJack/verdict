@@ -51,7 +51,8 @@ try:
     from .profile import ProfileError, gates_from
     from .profile import load as load_profile
     from .project_key import derive_key
-    from .state import (OUTCOMES_FILE, calibration, is_open, load_outcomes,
+    from .state import (OUTCOMES_FILE, calibration, is_open, load_chain_anchor,
+                        load_outcomes,
                         merge_outcomes, norm_status, order_findings,
                         project_key_for_root)
     from .state import (RUNS_FILE, chain_link, history_row, load_runs,
@@ -64,7 +65,8 @@ except ImportError:  # bare-script execution
     from profile import ProfileError, gates_from
     from profile import load as load_profile
     from project_key import derive_key
-    from state import (OUTCOMES_FILE, calibration, is_open, load_outcomes,
+    from state import (OUTCOMES_FILE, calibration, is_open, load_chain_anchor,
+                       load_outcomes,
                        merge_outcomes, norm_status, order_findings,
                        project_key_for_root)
     from state import (RUNS_FILE, chain_link, history_row, load_runs,
@@ -1437,8 +1439,16 @@ def write_state(qa_root: Path, state: dict) -> list[str]:
     state.setdefault("last_run", {})["chain"] = row["chain"]
 
     _atomic_write(qa_root / "state.json", json.dumps(state, indent=2) + "\n")
+    # The chain's ratchet lives here rather than in the history it guards: a
+    # signal a fabricator can shed by deleting one file is not a signal
+    # (VERDICT-F-21). Shedding it now means destroying the permanent track
+    # record too, which the next report says out loud.
+    anchor = load_chain_anchor(qa_root)
     _atomic_write(qa_root / OUTCOMES_FILE,
                   json.dumps({"schema_version": 1, "project": state.get("project"),
+                              "chain": {"since_run": anchor.get("since_run")
+                                        or state.get("run_number"),
+                                        "last_link": row["chain"]},
                               "findings": ledger}, indent=2, sort_keys=True) + "\n")
 
     # One machine-native line per run. Appended, not rewritten: the file is

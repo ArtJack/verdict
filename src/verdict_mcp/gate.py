@@ -43,15 +43,15 @@ from pathlib import Path
 
 try:
     from .project_key import derive_key
-    from .state import (code_drift, harness_signals, is_open, load_runs,
-                    load_state, missing_durable, order_findings,
+    from .state import (code_drift, harness_signals, is_open, load_chain_anchor,
+                    load_runs, load_state, missing_durable, order_findings,
                     parse_timestamp, repo_for_root, resolve_root,
                     verify_chain)
 except ImportError:  # executed as a bare script (GitHub Action gate mode)
     sys.path.insert(0, str(Path(__file__).resolve().parent))
     from project_key import derive_key
-    from state import (code_drift, harness_signals, is_open, load_runs,
-                   load_state, missing_durable, order_findings,
+    from state import (code_drift, harness_signals, is_open, load_chain_anchor,
+                   load_runs, load_state, missing_durable, order_findings,
                    parse_timestamp, repo_for_root, resolve_root,
                    verify_chain)
 
@@ -169,8 +169,9 @@ def evaluate(project, fail_on, max_age_hours, min_run_number, now=None,
         # its next harness run, and failing them all would be a migration by
         # ambush. It is said out loud, because a project that silently cannot be
         # protected looks exactly like one that is.
-        rows, _ = load_runs(state.get("_qa_root") or ".")
-        if verify_chain(rows)["status"] == "unchained":
+        root = state.get("_qa_root") or "."
+        rows, _ = load_runs(root)
+        if verify_chain(rows, load_chain_anchor(root))["status"] == "unchained":
             out["chain"] = "unchained"
         missing = missing_durable(signals)
         if missing:
