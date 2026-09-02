@@ -601,6 +601,20 @@ def _apply_verification(entry: dict, prior: dict | None, verification: dict) -> 
 # exact, and that is what the gate is built on.
 
 SUBPROCESS_CONTEXT = "verdict:subprocess"
+_TEST_FILE = re.compile(r"(^|/)(tests?|testing)/|(^|/)(test_[^/]+|[^/]+_test|conftest)\.py$")
+
+
+def is_test_file(path: str) -> bool:
+    """Test code or production code, for a coverage number that means something.
+
+    The executed-under-a-test-context rule is right for production code and
+    structurally wrong for test code: a fixture body and a `def test_*` line
+    never carry a context, so every test file pays a permanent unexercised tax.
+    Blended, the percent then moves with the test/production composition of the
+    diff rather than with coverage — 91% to 78% across two runs of this
+    repository while production coverage rose from 97% to 100% (VERDICT-F-44).
+    """
+    return bool(_TEST_FILE.search(str(path).replace("\\", "/")))
 
 COVERAGE_TIMEOUT_S = 1800
 _HUNK = re.compile(r"^@@ -\d+(?:,\d+)? \+(\d+)(?:,(\d+))? @@")
@@ -756,6 +770,7 @@ def _measure_diff_coverage(repo: Path, scratch: Path, sha_range: str, cmd: str,
 
     per_file: dict = {}
     total_measured = total_executed = total_in_child = 0
+    split = {"production": [0, 0], "tests": [0, 0]}   # [measured, executed]
     touching: set = set()
     never_entered: list = []
     for path, lines in changed.items():
@@ -769,6 +784,7 @@ def _measure_diff_coverage(repo: Path, scratch: Path, sha_range: str, cmd: str,
                               "note": "no test executed it, and no subprocess the suite "
                                       "spawned recorded a line of it"}
             total_measured += len(lines)
+            split["tests" if is_test_file(path) else "production"][0] += len(lines)
             continue
         ctx = f.get("contexts") or {}
         ran = lines & set(f.get("executed_lines") or [])
@@ -800,6 +816,9 @@ def _measure_diff_coverage(repo: Path, scratch: Path, sha_range: str, cmd: str,
         total_measured += len(executed) + len(missing)
         total_executed += len(executed)
         total_in_child += len(only_child)
+        bucket = split["tests" if is_test_file(path) else "production"]
+        bucket[0] += len(executed) + len(missing)
+        bucket[1] += len(executed)
         touching |= tests
         never_entered += [f"{path}:{name}" for name in fns]
     return {"status": "measured", "tool": "coverage.py dynamic contexts", "command": cmd,
@@ -808,6 +827,12 @@ def _measure_diff_coverage(repo: Path, scratch: Path, sha_range: str, cmd: str,
             "changed_lines_executed": total_executed,
             "changed_lines_executed_in_subprocess": total_in_child,
             "subprocess_coverage": "measured" if total_in_child else "none recorded",
+            # Read production first. The blended number above is kept because
+            # it is what the schema has always carried, but it is the one that
+            # moves with composition rather than coverage.
+            "by_kind": {kind: {"changed_lines": m, "changed_lines_executed": e,
+                               "percent": (round(100 * e / m) if m else None)}
+                        for kind, (m, e) in split.items()},
             "percent": (round(100 * total_executed / total_measured) if total_measured else None),
             "per_file": per_file, "tests_touching_diff": sorted(touching)[:50],
             "unexercised_functions": never_entered[:20]}
@@ -1898,6 +1923,19 @@ def render_report(state: dict, prose: dict | None = None) -> str:
                        f"changed lines executed ({cov.get('percent')}%) across "
                        f"{cov['changed_files']} file(s); "
                        f"{len(cov.get('tests_touching_diff') or [])} test(s) touch the diff")
+            kinds = cov.get("by_kind") or {}
+            prod, tests_ = kinds.get("production") or {}, kinds.get("tests") or {}
+            if prod.get("changed_lines") or tests_.get("changed_lines"):
+                out.append(
+                    f"  - production {prod.get('changed_lines_executed', 0)}/"
+                    f"{prod.get('changed_lines', 0)}"
+                    + (f" ({prod['percent']}%)" if prod.get("percent") is not None else "")
+                    + f" · test code {tests_.get('changed_lines_executed', 0)}/"
+                    f"{tests_.get('changed_lines', 0)}"
+                    + (f" ({tests_['percent']}%)" if tests_.get("percent") is not None else "")
+                    + " — read production first; a test file's fixtures and `def` lines "
+                      "never carry a test context, so the blended number moves with the "
+                      "shape of the diff")
             if cov.get("changed_lines_executed_in_subprocess"):
                 out.append(f"  - {cov['changed_lines_executed_in_subprocess']} of them only in a "
                            "subprocess the suite spawned — measured, but no test to name")

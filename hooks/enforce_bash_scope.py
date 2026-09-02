@@ -309,13 +309,32 @@ def _check_awk(args):
 def _check_tar(args, cwd):
     extracting = (any(t.startswith("-") and "x" in t.lstrip("-") for t in args)
                   or (args and not args[0].startswith("-") and "x" in args[0]))
-    if not extracting:
-        return
     target, it = cwd, iter(args)
     for t in it:
         if t in ("-C", "--directory"):
             target = next(it, cwd)
-    yield "tar extract (overwrites in place)", target
+    if extracting:
+        yield "tar extract (overwrites in place)", target
+        return
+    # Creating an archive only reads — unless it is told to delete what it read.
+    # `tar --remove-files -cf <scratch>/loot.tar <checkout>/hooks` is the
+    # archive-then-delete form of the `mv` shape that VERDICT-F-39 was about,
+    # and the handler returned early on anything that was not an extraction
+    # (VERDICT-F-42). The operands of such a command are all sources it removes.
+    if "--remove-files" not in args:
+        return
+    skip = {"-C", "--directory", "-f", "--file"}
+    it = iter(args)
+    for t in it:
+        if t in skip:
+            next(it, None)
+            continue
+        if t.startswith("-"):
+            # `-cf NAME` — the archive itself is written, not removed.
+            if "f" in t.lstrip("-"):
+                next(it, None)
+            continue
+        yield "tar --remove-files (deletes what it archived)", t
 
 
 def _check_find(args, cwd):

@@ -3,6 +3,37 @@
 Plugin and `verdict-mcp` share one version line; `.claude-plugin/plugin.json` and
 `pyproject.toml` are bumped together.
 
+## 0.71.0 — 2026-09-02 · "production is the number to read"
+
+Run 9's two Majors that are code. It also resolved every fix from the previous range —
+F-39, F-36, F-13, F-40 and F-41 — so what follows is what those fixes did not reach.
+
+**Diff coverage reports production and test code separately** (VERDICT-F-44). The percent
+blended both, and test lines carry a structural unexercised tax: a fixture body and a
+`def test_*` line never carry a test context, by the same rule that makes the production
+number trustworthy. So the figure moved with the *shape* of the diff. Across two runs of
+this repository it fell from 91% to 78% while production changed-line coverage rose from
+97% to 100% — a thirteen-point "regression" that was thirty-four of thirty-four production
+lines covered.
+
+That matters because the gate reads it. A release whose diff is mostly tests trips a false
+alarm, and this project's releases are mostly tests; worse, a real production drop can hide
+behind a large green test diff. `coverage.by_kind` now carries both numbers and the report
+leads with production, saying why.
+
+The test is the one the finding asked for: a two-commit fixture adding one unexercised
+production line and forty lines of passing test code. Blended, the percent rises. By kind,
+production reads 0%.
+
+**Archiving the checkout away is refused** (VERDICT-F-42). The bash guard's `tar` handler
+returned early on anything that was not an extraction, so
+`tar --remove-files -cf <scratch>/loot.tar <checkout>/hooks` was permitted — the same
+remove-what-you-read shape as the `mv` regression F-39, in another costume. Creating an
+archive still only reads; creating one that deletes what it archived does not.
+
+The first pass at this shipped without tests, and the mutation check caught that: reverting
+the fix left the suite green. Three tests now cover deleting, not deleting, and extracting.
+
 ## 0.70.0 — 2026-09-02 · "the number a human actually reads"
 
 **The Track record table prints the split** (VERDICT-F-36, the half that stayed open). 0.64.0

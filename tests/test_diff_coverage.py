@@ -355,3 +355,63 @@ def test_a_file_the_render_cannot_read_does_not_lose_the_measurement(tmp_path):
     cov = collect(r, qa, [], coverage_suite_cmd=CMD)["coverage"]
     assert cov["status"] == "measured", cov.get("reason")
     assert cov["per_file"]["mod.py"]["executed"] >= 1, cov["per_file"]["mod.py"]
+
+
+# ── production and test code are two numbers (F-44) ────────────────────────
+
+def test_the_production_percent_falls_when_production_coverage_falls(tmp_path):
+    """VERDICT-F-44, and the probe the finding asked for: a diff that adds one
+    unexercised production line and forty lines of passing test code. Blended,
+    the percent *rises* on the strength of the test lines that happen to carry
+    a context. Read by kind, production falls, which is the fact."""
+    r = tmp_path / "proj"
+    r.mkdir()
+    git(r, "init", "-qb", "main")
+    (r / "mod.py").write_text(MOD_A, encoding="utf-8")
+    (r / "tests").mkdir()
+    (r / "tests" / "test_mod.py").write_text(
+        "import sys\nsys.path.insert(0, '.')\nfrom mod import a\n\n\n"
+        "def test_a():\n    assert a(1) == 2\n", encoding="utf-8")
+    sha = commit(r, "base")
+
+    # one production line nothing calls…
+    (r / "mod.py").write_text(MOD_A + "\n\ndef never_called(x):\n    return x * 3\n",
+                              encoding="utf-8")
+    # …and forty lines of test code that all run
+    extra = "".join(f"\n\ndef test_extra_{i}():\n    assert a({i}) == {i + 1}\n"
+                    for i in range(12))
+    (r / "tests" / "test_mod.py").write_text(
+        (r / "tests" / "test_mod.py").read_text(encoding="utf-8") + extra, encoding="utf-8")
+    commit(r, "one dead production line, plenty of green tests")
+
+    qa = qa_with_previous(tmp_path, sha)
+    cov = collect(r, qa, [], coverage_suite_cmd=CMD)["coverage"]
+    assert cov["status"] == "measured", cov.get("reason")
+    kinds = cov["by_kind"]
+    assert kinds["production"]["changed_lines_executed"] == 0, kinds
+    assert kinds["production"]["percent"] == 0, kinds
+    assert kinds["tests"]["changed_lines_executed"] > 0, kinds
+    # the blended number is the one that hides it
+    assert cov["percent"] > kinds["production"]["percent"], cov["percent"]
+
+
+def test_the_report_reads_production_first(tmp_path):
+    repo, sha_a = base_repo(tmp_path)
+    (repo / "mod.py").write_text(MOD_A + "\n\ndef b(x):\n    return x * 2\n", encoding="utf-8")
+    commit(repo, "add b")
+    qa = qa_with_previous(tmp_path, sha_a)
+    facts = collect(repo, qa, [], coverage_suite_cmd=CMD)
+    state = merge(facts, judgment(), json.loads((qa / "state.json").read_text(encoding="utf-8")))
+    text = render_report(state)
+    assert "production" in text and "read production first" in text, text
+
+
+def test_what_counts_as_a_test_file():
+    from verdict_mcp.harness import is_test_file
+    for path in ("tests/test_x.py", "tests/conftest.py", "src/pkg/test_helper.py",
+                 "a/b/tests/c/d.py", "test/thing.py", "pkg/thing_test.py"):
+        assert is_test_file(path), path
+    for path in ("src/verdict_mcp/harness.py", "hooks/enforce_bash_scope.py",
+                 "eval/fixture_freshness.py", "src/contest.py", "src/latest.py",
+                 "src/pkg/attest.py"):
+        assert not is_test_file(path), path

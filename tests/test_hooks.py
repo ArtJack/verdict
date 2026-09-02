@@ -584,3 +584,37 @@ def test_bash_still_allows_copying_out_which_is_the_whole_point_of_the_last_fix(
                     f"rsync {repo}/src/app.py {scratch}/"):
         rc, err = run_hook("enforce_bash_scope.py", bash_event(command, repo), strict="1")
         assert rc == 0, f"{command}: {err}"
+
+
+def test_bash_blocks_archiving_the_checkout_away(repo, tmp_path):
+    """VERDICT-F-42: the tar handler returned early on anything that was not an
+    extraction, so `tar --remove-files -cf <scratch>/loot.tar <checkout>/hooks`
+    — archive-then-delete, the `mv` shape from F-39 in another costume — was
+    permitted."""
+    scratch = tmp_path / "scratch"
+    scratch.mkdir()
+    for command in (f"tar --remove-files -cf {scratch}/loot.tar {repo}/src",
+                    f"tar --remove-files -czf {scratch}/loot.tgz {repo}"):
+        rc, err = run_hook("enforce_bash_scope.py", bash_event(command, repo), strict="1")
+        assert rc == 2, f"expected deny for: {command}"
+        assert "QA root" in err
+
+
+def test_bash_still_allows_archiving_the_checkout_without_deleting_it(repo, tmp_path):
+    """Reading is not writing. Refusing every `tar -cf` would refuse the backup
+    the re-injection step legitimately makes."""
+    scratch = tmp_path / "scratch"
+    scratch.mkdir()
+    for command in (f"tar -cf {scratch}/backup.tar {repo}/src",
+                    f"tar --remove-files -cf {scratch}/x.tar {scratch}/stuff"):
+        rc, err = run_hook("enforce_bash_scope.py", bash_event(command, repo), strict="1")
+        assert rc == 0, f"{command}: {err}"
+
+
+def test_bash_still_blocks_extracting_into_the_checkout(repo, tmp_path):
+    """The case the handler already covered, which the fix must not disturb."""
+    scratch = tmp_path / "scratch"
+    scratch.mkdir()
+    rc, err = run_hook("enforce_bash_scope.py",
+                       bash_event(f"tar -xf {scratch}/x.tar -C {repo}/src", repo), strict="1")
+    assert rc == 2 and "QA root" in err
