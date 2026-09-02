@@ -1786,14 +1786,33 @@ def _render_calibration(cal: dict) -> list[str]:
         rows = [(k, v) for k, v in store.items() if v.get("decided")]
         if not rows:
             continue
-        lines += [f"| {label} | Held up | Withdrawn | Rate |", "|---|---|---|---|"]
+        # The split, in the artifact a human reads. 0.64.0 recorded
+        # `outcome_basis` and split the counts in the state, and this renderer —
+        # the only place most readers ever see the number — kept printing one
+        # column under a footnote saying a resolution nobody measured settles
+        # nothing, which since that release is false (VERDICT-F-36).
+        split = any(v.get("confirmed_claimed") for _, v in rows)
+        header = ("| Held up | of those, measured | Withdrawn | Rate |" if split
+                  else "| Held up | Withdrawn | Rate |")
+        lines += [f"| {label} {header}", "|---|" + "---|" * (4 if split else 3)]
         for key, v in sorted(rows, key=lambda kv: -kv[1]["decided"]):
             rate = f"{v['precision']:.0%}" if v.get("precision") is not None else "_not yet_"
-            lines.append(f"| {key} | {v['confirmed']} | {v['refuted']} | {rate} |")
+            measured = f" {v.get('confirmed_measured', 0)} |" if split else ""
+            lines.append(f"| {key} | {v['confirmed']} |{measured} {v['refuted']} | {rate} |")
         lines.append("")
+    any_claimed = any(v.get("confirmed_claimed")
+                      for store in (cal.get("by_confidence") or {},
+                                    cal.get("by_proof_method") or {})
+                      for v in store.values())
     lines += [f"*A rate appears once a row has {cal.get('min_sample')} settled outcomes. "
               "Settled means fix-verified or regressed (it held up) against withdrawn "
-              "(it did not); a finding merely resolved is not evidence either way.*", ""]
+              "(it did not); a resolution nobody checked at all settles nothing.*"]
+    if any_claimed:
+        lines += ["", "*`held up` covers two things and they are not equal: a re-injection "
+                  "the harness measured, and one the tester asserted where no measurement "
+                  "contradicts it. The `measured` column is the first kind. Read them "
+                  "apart.*"]
+    lines.append("")
     return lines
 
 

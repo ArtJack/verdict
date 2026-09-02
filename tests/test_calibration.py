@@ -531,3 +531,53 @@ def test_a_row_with_nothing_measured_carries_no_empty_block():
     from verdict_mcp.state import outcome_row
     row = outcome_row({"id": "D-F-2", "hash": "h2", "outcome": "unknown"})
     assert "verification" not in row, row
+
+
+# ── the artifact a human reads says the split too (F-36) ────────────────────
+
+def _rows_for_report(measured, claimed, refuted):
+    rows = []
+    rows += [{"hash": f"m{i}", "outcome": "confirmed", "outcome_basis": "measured",
+              "confidence": "proven"} for i in range(measured)]
+    rows += [{"hash": f"c{i}", "outcome": "confirmed", "outcome_basis": "claimed",
+              "confidence": "proven"} for i in range(claimed)]
+    rows += [{"hash": f"r{i}", "outcome": "refuted", "confidence": "proven"}
+             for i in range(refuted)]
+    return rows
+
+
+def test_the_report_prints_how_many_of_the_confirmations_were_measured():
+    """VERDICT-F-36: 0.64.0 split the counts in the state and left the renderer
+    printing one column — and most readers never see the state."""
+    from verdict_mcp.harness import _render_calibration
+    from verdict_mcp.state import calibration
+    cal = calibration({"findings": _rows_for_report(2, 5, 1)}, min_sample=3)
+    text = "\n".join(_render_calibration(cal))
+    assert "of those, measured" in text, text
+    assert "| proven | 7 | 2 | 1 |" in text, text
+    assert "Read them apart" in text, text
+
+
+def test_the_footnote_no_longer_says_the_opposite_of_the_rule():
+    """It read "a finding merely resolved is not evidence either way", which
+    has been false since 0.64.0: a resolution the tester claims, and nothing
+    contradicts, confirms."""
+    from verdict_mcp.harness import _render_calibration
+    from verdict_mcp.state import calibration
+    cal = calibration({"findings": _rows_for_report(1, 1, 1)}, min_sample=3)
+    text = "\n".join(_render_calibration(cal))
+    assert "merely resolved is not evidence" not in text, text
+    assert "nobody checked at all settles nothing" in text, text
+
+
+def test_a_project_with_nothing_claimed_keeps_the_plain_table():
+    """The column earns its place only where the distinction exists; a project
+    whose confirmations are all measured should not read a caveat about a kind
+    of row it has none of."""
+    from verdict_mcp.harness import _render_calibration
+    from verdict_mcp.state import calibration
+    cal = calibration({"findings": _rows_for_report(3, 0, 1)}, min_sample=3)
+    text = "\n".join(_render_calibration(cal))
+    assert "of those, measured" not in text, text
+    assert "Read them apart" not in text, text
+    assert "| proven | 3 | 1 |" in text, text
