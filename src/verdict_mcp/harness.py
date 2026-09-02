@@ -527,6 +527,8 @@ def _apply_verification(entry: dict, prior: dict | None, verification: dict) -> 
 # under one context and skip it under the next); "executed by any test" is
 # exact, and that is what the gate is built on.
 
+SUBPROCESS_CONTEXT = "verdict:subprocess"
+
 COVERAGE_TIMEOUT_S = 1800
 _HUNK = re.compile(r"^@@ -\d+(?:,\d+)? \+(\d+)(?:,(\d+))? @@")
 _CONTEXT_SUFFIX = re.compile(r"\|(run|setup|teardown|call)$")
@@ -626,7 +628,23 @@ def _measure_diff_coverage(repo: Path, scratch: Path, sha_range: str, cmd: str,
     rc, db, out = scratch / "coverage.rc", scratch / "coverage.db", scratch / "coverage.json"
     rc.write_text("[run]\ndynamic_context = test_function\nrelative_files = True\n"
                   f"data_file = {db}\n[json]\nshow_contexts = True\n", encoding="utf-8")
-    env = dict(os.environ, COVERAGE_RCFILE=str(rc), COVERAGE_FILE=str(db))
+    # A suite that drives its code through child processes measures none of it:
+    # coverage traces the process it starts. Run 5 of this repository read 217
+    # changed lines of issues.py as "0 executed, not imported by anything the
+    # suite executed" while eight tests exercised every one of them through a
+    # CLI subprocess (VERDICT-F-28). coverage ships a startup hook that arms any
+    # Python child when COVERAGE_PROCESS_START names a config; this gives those
+    # children a config of their own whose static `context` is what tells their
+    # lines apart from the parent's import-time execution. Nothing is injected
+    # into the environment — no PYTHONPATH, no sitecustomize — and the parent's
+    # own data is untouched: its lines keep the empty context, as measured.
+    # Where coverage ships no such hook the children go unmeasured and the state
+    # says `subprocess_coverage: none recorded`, which is a gap, not a claim.
+    child_rc = scratch / "child.rc"
+    child_rc.write_text(f"[run]\ncontext = {SUBPROCESS_CONTEXT}\nparallel = True\n"
+                        "relative_files = True\n", encoding="utf-8")
+    env = dict(os.environ, COVERAGE_RCFILE=str(rc), COVERAGE_FILE=str(db),
+               COVERAGE_PROCESS_START=str(child_rc))
     started = time.monotonic()
     try:
         proc = subprocess.run(cmd, cwd=str(repo), shell=True, capture_output=True, text=True,
@@ -656,7 +674,7 @@ def _measure_diff_coverage(repo: Path, scratch: Path, sha_range: str, cmd: str,
                 "reason": f"coverage.json unreadable: {exc}"}
 
     per_file: dict = {}
-    total_measured = total_executed = 0
+    total_measured = total_executed = total_in_child = 0
     touching: set = set()
     never_entered: list = []
     for path, lines in changed.items():
@@ -667,7 +685,8 @@ def _measure_diff_coverage(repo: Path, scratch: Path, sha_range: str, cmd: str,
             # in it is unexercised, and that is the honest count.
             per_file[path] = {"changed": len(lines), "measured": len(lines), "executed": 0,
                               "unexercised_ranges": _ranges(sorted(lines)), "tests": [],
-                              "note": "not imported by anything the suite executed"}
+                              "note": "no test executed it, and no subprocess the suite "
+                                      "spawned recorded a line of it"}
             total_measured += len(lines)
             continue
         ctx = f.get("contexts") or {}
@@ -677,25 +696,37 @@ def _measure_diff_coverage(repo: Path, scratch: Path, sha_range: str, cmd: str,
         # let a brand-new, never-called function read as partly exercised and
         # kept the zero-exercised refusal from ever firing.
         executed = {ln for ln in ran if any(c for c in ctx.get(str(ln), []))}
+        # A child process the suite spawned carries its own static context, so
+        # its lines are non-empty above and count. Which of them ONLY a child
+        # reached is worth saying: they have no test to name.
+        in_test = {ln for ln in ran
+                   if any(c for c in ctx.get(str(ln), []) if c != SUBPROCESS_CONTEXT)}
+        only_child = {ln for ln in ran
+                      if SUBPROCESS_CONTEXT in (ctx.get(str(ln)) or [])} - in_test
         missing = (lines & set(f.get("missing_lines") or [])) | (ran - executed)
         tests = {t for ln in executed for c in ctx.get(str(ln), [])
+                 if c != SUBPROCESS_CONTEXT
                  for t in [_test_id_from_context(c, repo)] if t}
         fns = [name for name, fb in (f.get("functions") or {}).items()
                if name and not fb.get("executed_lines")
                and (set(fb.get("missing_lines") or []) & lines)]
         per_file[path] = {"changed": len(lines), "measured": len(executed) + len(missing),
                           "executed": len(executed),
+                          **({"executed_in_subprocess": len(only_child)} if only_child else {}),
                           "unexercised_ranges": _ranges(sorted(missing)),
                           "tests": sorted(tests)[:10],
                           "unexercised_functions": fns[:10]}
         total_measured += len(executed) + len(missing)
         total_executed += len(executed)
+        total_in_child += len(only_child)
         touching |= tests
         never_entered += [f"{path}:{name}" for name in fns]
     return {"status": "measured", "tool": "coverage.py dynamic contexts", "command": cmd,
             "sha_range": sha_range, "suite_exit_code": proc.returncode, "duration_s": duration,
             "changed_files": len(changed), "changed_lines": total_measured,
             "changed_lines_executed": total_executed,
+            "changed_lines_executed_in_subprocess": total_in_child,
+            "subprocess_coverage": "measured" if total_in_child else "none recorded",
             "percent": (round(100 * total_executed / total_measured) if total_measured else None),
             "per_file": per_file, "tests_touching_diff": sorted(touching)[:50],
             "unexercised_functions": never_entered[:20]}
@@ -1705,6 +1736,9 @@ def render_report(state: dict, prose: dict | None = None) -> str:
                        f"changed lines executed ({cov.get('percent')}%) across "
                        f"{cov['changed_files']} file(s); "
                        f"{len(cov.get('tests_touching_diff') or [])} test(s) touch the diff")
+            if cov.get("changed_lines_executed_in_subprocess"):
+                out.append(f"  - {cov['changed_lines_executed_in_subprocess']} of them only in a "
+                           "subprocess the suite spawned — measured, but no test to name")
             for path, pf in (cov.get("per_file") or {}).items():
                 if pf.get("unexercised_ranges"):
                     rng = ", ".join(f"{a}-{b}" if a != b else str(a)
