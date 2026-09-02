@@ -397,6 +397,17 @@ instead of double-counting them).
 }
 ```
 
+**Measurement outranks the claim.** `fix_verified` reaches a finding from two places: the
+harness sets it when its own re-injection measured fail→pass, and a judgment may claim it
+for a re-injection done by hand. The outcome rule could not tell them apart, so the track
+record recorded `confirmed` over a measurement that never happened — live in this
+repository's ledger for `VERDICT-F-20`, whose cited test exists in no file and was
+measured error/error (VERDICT-F-32). A resolution now confirms when the harness measured
+fail→pass; a claim the harness *measured and did not confirm* settles nothing and says
+what it saw. The claim is not thrown away: where the harness measured nothing at all it is
+the only evidence there is, it still confirms, and the reason says it was claimed. Rows
+already decided are untouched, because a decided outcome sticks.
+
 A decided outcome is never overwritten by a later `unknown` — losing sight of a finding is
 not evidence that nothing was ever settled. Evidence, prose, and root-cause chains stay in
 the reports; the ledger keeps only what a tally needs. A missing or corrupt ledger reads as

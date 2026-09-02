@@ -364,3 +364,57 @@ def test_the_renderer_never_crashes_on_unexpected_prose():
              "findings": [], "last_run": {"timestamp_utc": NOW}}
     for prose in ("a bare string", ["a", "list"], 42, None, {"findings": "not a map"}):
         assert "# QA report" in render_report(state, prose), repr(prose)
+
+
+# ── the ledger reads the measurement, not the flag (F-32) ───────────────────
+
+from verdict_mcp.harness import _stamp_outcome  # noqa: E402
+
+
+def _resolved(**over):
+    return {"id": "D-F-9", "delta": "RESOLVED", "status": "resolved", **over}
+
+
+def test_a_measured_re_injection_confirms():
+    out = _stamp_outcome(_resolved(fix_verified=True,
+                                   verification={"test": "t.py::a", "at_previous": "fail",
+                                                 "at_head": "pass"}))
+    assert out["outcome"] == "confirmed" and "re-injection" in out["outcome_reason"]
+
+
+def test_a_claim_the_harness_could_not_weigh_still_stands():
+    """The claim is not thrown away. On a project the harness cannot measure it
+    is the only evidence there is, and starving the ledger is how the track
+    record died in the first place."""
+    out = _stamp_outcome(_resolved(fix_verified=True))
+    assert out["outcome"] == "confirmed" and "claimed by the tester" in out["outcome_reason"]
+
+
+def test_a_claim_the_measurement_does_not_show_settles_nothing():
+    """VERDICT-F-32, live in this repository's committed ledger: the cited test
+    exists in no file, the harness measured error at both commits, and the row
+    published as `confirmed` on the strength of the flag alone."""
+    out = _stamp_outcome(_resolved(fix_verified=True,
+                                   verification={"test": "t.py::new", "at_previous": "error",
+                                                 "at_head": "error"}))
+    assert out["outcome"] == "unknown", out
+    assert "error → error" in out["outcome_reason"]
+
+
+def test_a_refused_resolution_does_not_confirm_either():
+    out = _stamp_outcome(_resolved(fix_verified=True,
+                                   verification={"test": "t.py::a", "at_previous": "fail",
+                                                 "at_head": "fail"}))
+    assert out["outcome"] == "unknown", out
+
+
+def test_a_resolution_with_neither_is_still_undecided():
+    out = _stamp_outcome(_resolved())
+    assert out["outcome"] == "unknown" and "absence is not proof" in out["outcome_reason"]
+
+
+def test_a_settled_outcome_still_outranks_the_new_rule():
+    """The ledger is permanent: a row decided under any earlier rule stays."""
+    out = _stamp_outcome(_resolved(fix_verified=True),
+                         {"outcome": "confirmed", "outcome_reason": "settled long ago"})
+    assert out["outcome"] == "confirmed" and out["outcome_reason"] == "settled long ago"
