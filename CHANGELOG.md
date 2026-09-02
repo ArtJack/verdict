@@ -3,6 +3,37 @@
 Plugin and `verdict-mcp` share one version line; `.claude-plugin/plugin.json` and
 `pyproject.toml` are bumped together.
 
+## 0.69.0 — 2026-09-02 · "the CLI nobody had tested, and a test its own crash fooled"
+
+The rest of the mutation campaign's survivors. 0.67.0 closed the thirteen in the rule
+bodies; these are the ten around them.
+
+**A test that could not tell a working message from a crash.** `test_cli_exit_codes`
+asserted a violation run exits 1 with `"violation"` somewhere in stderr. Break the very
+line that prints it — `+` for `-` between the two halves of the message — and Python prints
+a traceback that *quotes the source line*, which contains the word `violation(s)`. Exit
+code 1, the word present, test green, message gone. It now asserts there is no traceback
+and that stderr begins with the real prefix.
+
+**`verdict-validate`'s other surfaces had no tests at all.** `--quiet` could be inverted
+and nothing noticed; `--previous` could be ignored entirely, or report its own read error
+under the wrong exit code. All three are pinned, including that a stale `--previous` makes
+the run-number check fire and a good one leaves the state clean.
+
+**Four guards on the state side.** A single unexercised changed line is still refused
+(`> 0`, not `> 1`). `run_number` must be a positive integer rather than a string that
+merely compares. `last_run.report` must be a non-empty string. And the unmeasured-suite
+refusal names *which* gate was unreadable, without sweeping in the lint gate that
+legitimately parses to no counts — with its empty-list fallback pinned too.
+
+**Three twins.** The three rules 0.67.0 fixed on the judgment side were alive again in
+`validate`. Both copies are pinned now.
+
+Twenty-three of the campaign's 53 operator-and-boundary mutants are killed across the two
+releases. What survives is mostly message text, plus two `>` → `>=` mutants at the clock
+tolerances that differ by one second — accepted as equivalent rather than papered over
+with a test that would only ever pass.
+
 ## 0.68.0 — 2026-09-02 · "a copy reads its source; a move removes it"
 
 **Fixes a guard regression 0.65.0 shipped** (VERDICT-F-39, Major/P1, filed by run 8). The
