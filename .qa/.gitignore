@@ -6,3 +6,9 @@ facts.json
 judgment.json
 state.json.prev
 run-in-progress.json
+# Coverage intermediates. The harness writes these to a temp directory since
+# 0.58.0; the names stay listed so a root that ran 0.53–0.57 cannot commit the
+# 95 MB one it was left with (VERDICT-F-29).
+coverage.rc
+coverage.db
+coverage.json

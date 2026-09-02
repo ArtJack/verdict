@@ -194,7 +194,12 @@ dynamic contexts (`coverage_suite_cmd` in the profile — e.g. `.venv/bin/python
 coverage run -m pytest`, or a pytest-cov form with `--cov-context=test`; the harness
 supplies the rcfile through `COVERAGE_RCFILE`), renders the database with `coverage json
 --show-contexts`, and intersects it with the added/modified `.py` lines in the run's commit
-range. A changed file coverage never saw was imported by nothing the suite ran, and every
+range. **The rc file, the coverage database and the rendered JSON are written to a
+temporary directory and removed when the measurement ends.** They used to be written into
+the QA root, which in team mode is the committed directory: run 5 of this repository left
+a 94,987,311-byte `coverage.json` there, ignored by nothing, one `git add .qa` from a
+permanent blob in the repository (VERDICT-F-29). A QA root that ran 0.53–0.57 may still
+hold one; the names are listed in `.qa/.gitignore` so it cannot be committed. A changed file coverage never saw was imported by nothing the suite ran, and every
 changed line in it counts as unexercised — the honest reading.
 
 ```json

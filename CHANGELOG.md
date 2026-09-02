@@ -3,6 +3,26 @@
 Plugin and `verdict-mcp` share one version line; `.claude-plugin/plugin.json` and
 `pyproject.toml` are bumped together.
 
+## 0.58.0 — 2026-09-02 · "scratch is not record"
+
+**The coverage run no longer writes into the QA root** (VERDICT-F-29). The rc file, the
+coverage database and the rendered JSON went to `<qa_root>/coverage.*` — and in team mode
+the QA root *is* the directory committed with the repository. Run 5 of this repository
+left a 94,987,311-byte `coverage.json` there, gitignored by nothing and deleted by
+nothing: one `git add .qa` from a permanent 95 MB blob in the history, where a
+`.gitignore` line is no longer a remedy. All three now live in a temporary directory that
+is removed when the measurement ends, whatever the outcome. A QA root that ran 0.53–0.57
+may still hold one, so the three names are also listed in this repository's
+`.qa/.gitignore`.
+
+Two tests hold it: one asserts the QA root gains no `coverage*` file and that the scratch
+directory this measurement created is gone, and one asserts the same of the repository
+under test. Both fail when the intermediates are pointed back at the QA root.
+
+Still open from run 5: F-28 (coverage is measured in-process only, so a test that
+exercises its target through a subprocess reports every changed line unexercised) and
+F-27 (`verdict-issues` dedupes on finding id, so a REGRESSED finding is never re-filed).
+
 ## 0.57.0 — 2026-09-02 · "a verification means something"
 
 Run 5 of Verdict on itself was the first run of the fix-verification, diff-coverage and
