@@ -10,3 +10,4 @@
 | 2026-09-02 | verdict | delta | pass with risks | 610 / n/a / n/a | +17/−0 | 0/0/4/4 | [2026-09-02-delta-run6.md](reports/2026-09-02-delta-run6.md) |
 | 2026-09-02 | verdict | delta | pass with risks | 624 / n/a / n/a | +14/−0 | 0/0/4/4 | [2026-09-02-delta-run7.md](reports/2026-09-02-delta-run7.md) |
 | 2026-09-02 | verdict | delta | pass with risks | 639 / n/a / n/a | +17/−2 | 0/0/4/4 | [2026-09-02-delta-run8.md](reports/2026-09-02-delta-run8.md) |
+| 2026-09-02 | verdict | delta | pass with risks | 674 / n/a / n/a | +35/−0 | 0/0/5/5 | [2026-09-02-delta-run9.md](reports/2026-09-02-delta-run9.md) |
