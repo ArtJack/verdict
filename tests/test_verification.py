@@ -13,7 +13,7 @@ from datetime import date, datetime, timezone
 
 import verdict_mcp.harness as h
 from verdict_mcp.harness import (cited_tests, collect, merge, render_report,
-                                 resolve_test_id)
+                                 resolve_test_id, select_test)
 from verdict_mcp.validate import validate_judgment
 
 from conftest import judgment
@@ -460,3 +460,92 @@ def test_a_conftest_the_commit_did_not_touch_is_not_reported_as_copied(tmp_path)
     rec = facts["verification"]["P-F-1"]
     assert "support_copied_from_head" not in rec, rec
     assert (rec["at_previous"], rec["at_head"]) == ("fail", "pass"), rec
+
+
+# ── which test, and how it was chosen (F-26) ────────────────────────────────
+
+def test_a_test_the_fix_added_is_preferred_over_one_merely_mentioned(tmp_path):
+    """VERDICT-F-26, measured on run 7: the harness picked a non-guarding test
+    for every finding it verified, because selection was evidence order among
+    valid ids. A test the collector saw for the first time this run is what a
+    fix's own regression test looks like."""
+    repo, sha_a = fixed_repo(tmp_path)
+    qa = tmp_path / "qa"
+    (qa).mkdir(parents=True, exist_ok=True)
+    (qa / "test-ids.txt").write_text("test_pkg.py::test_other\n", encoding="utf-8")
+    previous_state(qa, sha_a, evidence=("test_pkg.py::test_other covers the caller",
+                                        "test_pkg.py::test_pending fails: assert 1 == 5"))
+    facts = collect(repo, qa, [],
+                    test_ids_cmd=_emit(["test_pkg.py::test_other",
+                                        "test_pkg.py::test_pending"]),
+                    test_one_cmd=CMD)
+    rec = facts["verification"]["P-F-1"]
+    assert rec["test"] == "test_pkg.py::test_pending", rec
+    assert rec["selected_by"] == "added_this_run" and rec["candidates"] == 2
+
+
+def test_an_explicit_citation_leads_whatever_the_prose_says(tmp_path):
+    repo, sha_a = fixed_repo(tmp_path)
+    qa = tmp_path / "qa"
+    prev = previous_state(qa, sha_a, evidence=("test_pkg.py::test_other is nearby",))
+    prev["findings"][0]["verification_test"] = "test_pkg.py::test_pending"
+    (qa / "state.json").write_text(json.dumps(prev), encoding="utf-8")
+    facts = collect(repo, qa, [],
+                    test_ids_cmd=_emit(["test_pkg.py::test_other", "test_pkg.py::test_pending"]),
+                    test_one_cmd=CMD)
+    rec = facts["verification"]["P-F-1"]
+    assert rec["test"] == "test_pkg.py::test_pending" and rec["selected_by"] == "explicit"
+
+
+def test_select_test_labels_how_it_chose():
+    f = {"verification_test": "t.py::a"}
+    assert select_test(f, ["t.py::a", "t.py::b"], {"t.py::b"}) == ("t.py::a", "explicit")
+    assert select_test({}, ["t.py::b"], {"t.py::b"}) == ("t.py::b", "added_this_run")
+    assert select_test({}, ["t.py::c"], set()) == ("t.py::c", "first_cited")
+    assert select_test({}, [], set()) == (None, None)
+
+
+def test_a_prose_pick_among_several_may_not_refuse_a_resolution(tmp_path):
+    """The strongest thing a measurement does is overrule the tester. A test
+    chosen by prose order from several is not a citation, and run 7 showed the
+    harness choosing exactly that way."""
+    repo, sha_a = bugged_repo(tmp_path)          # the defect is NOT fixed at HEAD
+    (repo / "test_pkg.py").write_text(
+        TEST + "\n\ndef test_other():\n    assert True\n", encoding="utf-8")
+    commit(repo, "a second test, no fix")
+    qa = tmp_path / "qa"
+    prev = previous_state(qa, sha_a, evidence=("test_pkg.py::test_pending fails",
+                                              "test_pkg.py::test_other is nearby"))
+    # Both ids were already in the ledger, so neither is "the test the fix
+    # added" and the choice really is prose order.
+    (qa / "test-ids.txt").write_text("test_pkg.py::test_pending\ntest_pkg.py::test_other\n",
+                                     encoding="utf-8")
+    facts = collect(repo, qa, [],
+                    test_ids_cmd=_emit(["test_pkg.py::test_pending", "test_pkg.py::test_other"]),
+                    test_one_cmd=CMD)
+    rec = facts["verification"]["P-F-1"]
+    assert rec["selected_by"] == "first_cited" and rec["candidates"] == 2
+    assert rec["at_head"] == "fail"
+    f = merge(facts, resolved(), prev)["findings"][0]
+    assert f["delta"] == "RESOLVED", "an arbitrary pick may not reopen a finding"
+    assert "not_weighed" in f["verification"]
+    assert "verification_test" in f["verification"]["not_weighed"]
+
+
+def test_a_single_cited_test_that_fails_at_head_still_refuses(tmp_path):
+    """The false-positive guard: weakening the arbitrary case must not weaken
+    the real one. One cited test, still failing, still holds the finding open."""
+    repo, sha_a = bugged_repo(tmp_path)
+    (repo / "pkg.py").write_text(BUGGY + "\n# touched, but the defect is untouched\n",
+                                 encoding="utf-8")
+    commit(repo, "a commit that fixes nothing")
+    qa = tmp_path / "qa"
+    prev = previous_state(qa, sha_a)
+    (qa / "test-ids.txt").write_text("test_pkg.py::test_pending\n", encoding="utf-8")
+    facts = collect(repo, qa, [], test_ids_cmd=_emit(["test_pkg.py::test_pending"]),
+                    test_one_cmd=CMD)
+    rec = facts["verification"]["P-F-1"]
+    assert rec["candidates"] == 1 and rec["at_head"] == "fail"
+    f = merge(facts, resolved(), prev)["findings"][0]
+    assert f["delta"] == "STILL_OPEN" and f["status"] == "open"
+    assert "resolution_refused" in f
