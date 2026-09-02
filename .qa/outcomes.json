@@ -2,11 +2,12 @@
   "findings": {
     "043a3a78": {
       "confidence": "proven",
+      "decided_on": "2026-09-02",
       "first_seen": "2026-09-02",
       "hash": "043a3a78",
       "id": "VERDICT-F-32",
-      "outcome": "unknown",
-      "outcome_reason": "still open; nothing has settled it",
+      "outcome": "confirmed",
+      "outcome_reason": "fix-verified: claimed by the tester, with no harness measurement to weigh it against",
       "severity": "Major"
     },
     "0a63b898": {
@@ -39,12 +40,23 @@
     },
     "1f06e26a": {
       "confidence": "proven",
+      "decided_on": "2026-09-02",
       "first_seen": "2026-09-02",
       "hash": "1f06e26a",
       "id": "VERDICT-F-33",
+      "outcome": "confirmed",
+      "outcome_reason": "fix-verified: claimed by the tester, with no harness measurement to weigh it against",
+      "severity": "Minor"
+    },
+    "1f7ed699": {
+      "confidence": "proven",
+      "first_seen": "2026-09-02",
+      "hash": "1f7ed699",
+      "id": "VERDICT-F-35",
       "outcome": "unknown",
       "outcome_reason": "still open; nothing has settled it",
-      "severity": "Minor"
+      "proof_method": "counterfactual",
+      "severity": "Major"
     },
     "2c6cc70b": {
       "confidence": "proven",
@@ -111,7 +123,7 @@
       "hash": "612eee35",
       "id": "VERDICT-F-31",
       "outcome": "unknown",
-      "outcome_reason": "still open; nothing has settled it",
+      "outcome_reason": "claimed fix-verified, but the harness's own re-injection showed pass \u2192 pass, which settles nothing",
       "severity": "Major"
     },
     "7cb4d1ce": {
@@ -123,6 +135,16 @@
       "outcome": "confirmed",
       "outcome_reason": "fix-verified: the guarding test failed on re-injection",
       "severity": "Minor"
+    },
+    "7f0d1ead": {
+      "confidence": "proven",
+      "first_seen": "2026-09-02",
+      "hash": "7f0d1ead",
+      "id": "VERDICT-F-36",
+      "outcome": "unknown",
+      "outcome_reason": "still open; nothing has settled it",
+      "proof_method": "reading",
+      "severity": "Major"
     },
     "8034ffe0": {
       "confidence": "proven",
@@ -152,13 +174,23 @@
       "outcome_reason": "still open; nothing has settled it",
       "severity": "Minor"
     },
+    "87750fc7": {
+      "confidence": "proven",
+      "first_seen": "2026-09-02",
+      "hash": "87750fc7",
+      "id": "VERDICT-F-38",
+      "outcome": "unknown",
+      "outcome_reason": "still open; nothing has settled it",
+      "proof_method": "differential",
+      "severity": "Minor"
+    },
     "887674d8": {
       "confidence": "proven",
       "first_seen": "2026-09-02",
       "hash": "887674d8",
       "id": "VERDICT-F-34",
       "outcome": "unknown",
-      "outcome_reason": "still open; nothing has settled it",
+      "outcome_reason": "claimed fix-verified, but the harness's own re-injection showed pass \u2192 pass, which settles nothing",
       "severity": "Minor"
     },
     "8da9b0a8": {
@@ -311,6 +343,16 @@
       "outcome": "unknown",
       "outcome_reason": "still open; nothing has settled it",
       "severity": "Major"
+    },
+    "fe1f07b3": {
+      "confidence": "proven",
+      "first_seen": "2026-09-02",
+      "hash": "fe1f07b3",
+      "id": "VERDICT-F-37",
+      "outcome": "unknown",
+      "outcome_reason": "still open; nothing has settled it",
+      "proof_method": "differential",
+      "severity": "Minor"
     }
   },
   "project": "verdict",
