@@ -305,10 +305,20 @@ cited test's file always comes from HEAD** — the counterfactual is the new tes
 the old source — and is marked `test_copied_from_head` when the old commit's copy differed
 or was absent. Copying only when the file was *absent* read presence of the file as
 presence of the test, so the commonest real shape, a regression test appended to a test
-file that already existed, could never verify (VERDICT-F-25). The previous commit missing from this clone (a squash-merged
+file that already existed, could never verify (VERDICT-F-25). Every `conftest.py` from the
+repository root down to the test's own directory travels with it too, listed in
+`support_copied_from_head`: a test is not only its file, and a regression test that lands
+with the fixture it needs met an old commit that had never seen that fixture and errored
+there, which is not a measurement (VERDICT-F-33). The previous commit missing from this clone (a squash-merged
 branch head) leaves `at_previous: unavailable`; the HEAD half still runs, so a still-
 failing test still refuses resolution. Bounded: at most 25 findings per run, 120 s per
 test run, so verification cannot become the suite.
+
+`findings[].regressed_at_run` records the run on which a finding came back, and is carried
+forward on every run after. `delta` describes only the transition one run computed, so a
+regression was visible for exactly one run and anything that did not look on that run —
+`verdict-issues` filing a recurrence, for one — could never learn it happened
+(VERDICT-F-34).
 
 `findings[].verification` is written by `verdict-finalize` only. A judgment carrying it is
 rejected — the field is a measurement, and measurements are not claimed. The report's

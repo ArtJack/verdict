@@ -219,3 +219,44 @@ def test_a_finding_that_merely_stayed_open_is_not_refiled(tmp_path):
     proc = run(tmp_path, home, "--create")
     assert "1 already filed" in proc.stdout
     assert len(calls(tmp_path)) == 1
+
+
+def test_a_recurrence_can_still_be_filed_a_run_later(tmp_path):
+    """VERDICT-F-34: the discriminator was `delta`, which describes only the
+    transition one run computed — so the filing window was exactly one run
+    wide. A REGRESSED finding this tool did not happen to see on that run could
+    never be re-filed, and the operator was told it was already filed while the
+    issue sat closed."""
+    home = make_home(tmp_path, [finding("W-F-1", "Critical")])
+    run(tmp_path, home, "--create")
+    # It came back on run 8, nobody ran verdict-issues, and run 9 reports it as
+    # merely still open.
+    restate(home, [dict(finding("W-F-1", "Critical"), delta="STILL_OPEN",
+                        regressed_at_run=8)], 9)
+    proc = run(tmp_path, home, "--create")
+    assert "created 1 (1 recurrence)" in proc.stdout, proc.stdout
+    assert len(calls(tmp_path)) == 2
+    ledger = json.loads((home / "widget" / "issues.json").read_text())
+    assert [p["number"] for p in ledger["W-F-1"]["previous"]] == [1]
+
+
+def test_the_same_regression_is_not_filed_twice_in_later_runs(tmp_path):
+    """The guard has to survive the wider window: run 10, 11 and 12 all carry
+    `regressed_at_run: 8`, and only one issue may come of it."""
+    home = make_home(tmp_path, [finding("W-F-1", "Critical")])
+    run(tmp_path, home, "--create")
+    restate(home, [dict(finding("W-F-1", "Critical"), regressed_at_run=8)], 10)
+    run(tmp_path, home, "--create")
+    restate(home, [dict(finding("W-F-1", "Critical"), regressed_at_run=8)], 11)
+    proc = run(tmp_path, home, "--create")
+    assert "1 already filed" in proc.stdout, proc.stdout
+    assert len(calls(tmp_path)) == 2
+
+
+def test_a_state_written_before_the_marker_still_refiles(tmp_path):
+    """A state from an older harness carries `delta` and no marker at all."""
+    home = make_home(tmp_path, [finding("W-F-1", "Critical")])
+    run(tmp_path, home, "--create")
+    restate(home, [dict(finding("W-F-1", "Critical"), delta="REGRESSED")], 8)
+    proc = run(tmp_path, home, "--create")
+    assert "created 1 (1 recurrence)" in proc.stdout, proc.stdout

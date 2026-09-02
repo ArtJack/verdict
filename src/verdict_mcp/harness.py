@@ -313,6 +313,20 @@ def cited_tests(finding: dict, known=None) -> list[str]:
     return out
 
 
+def _conftest_chain(repo: Path, test_file: str) -> list[str]:
+    """Every `conftest.py` from the repository root down to the test's own
+    directory. pytest's helper mechanism, and the commonest thing a regression
+    test lands beside: the test travels back to the old commit, and without
+    its fixtures it errors there and verifies nothing (VERDICT-F-33)."""
+    parts = Path(test_file).parent.parts
+    out = []
+    for i in range(len(parts) + 1):
+        rel = (Path(*parts[:i]) / "conftest.py") if i else Path("conftest.py")
+        if (Path(repo) / rel).is_file():
+            out.append(rel.as_posix())
+    return out
+
+
 def _one_test_cmd(template: str, test_id: str, repo: Path) -> str:
     """Fill `{id}` in, quoted for the shell, and pin a relative interpreter to
     the repository it was written for: `.venv/bin/python` means nothing inside
@@ -462,6 +476,16 @@ def verify_findings(repo: Path, previous: dict | None, test_one_cmd: str | None,
                     shutil.copyfile(src, dst)
                     if differs:
                         rec["test_copied_from_head"] = True
+                # A test is not only its file. A regression test that lands with
+                # the fixture it needs left that fixture at HEAD, so the old
+                # commit met a test whose conftest it had never seen and
+                # errored — which is not a measurement (VERDICT-F-33).
+                for conf in _conftest_chain(repo, test_file):
+                    csrc, cdst = Path(repo) / conf, scratch / conf
+                    if not cdst.exists() or cdst.read_bytes() != csrc.read_bytes():
+                        cdst.parent.mkdir(parents=True, exist_ok=True)
+                        shutil.copyfile(csrc, cdst)
+                        rec.setdefault("support_copied_from_head", []).append(conf)
                 # The old source must be what runs. An editable install points at
                 # the main checkout regardless of cwd; PYTHONPATH outranks it.
                 pp = [str(p) for p in (scratch / "src", scratch) if p.is_dir()]
@@ -1150,6 +1174,16 @@ def merge(facts: dict, judgment: dict, previous: dict | None, today: date | None
             entry["delta"] = "REGRESSED"
         else:
             entry["delta"] = "STILL_OPEN"
+
+        # When a finding came back, recorded once and carried forever after.
+        # `delta` describes only the transition this run computed, so a
+        # regression was visible for exactly one run: anything downstream that
+        # did not look on that run — `verdict-issues` filing a recurrence, for
+        # one — could never learn it happened (VERDICT-F-34).
+        if entry["delta"] == "REGRESSED":
+            entry["regressed_at_run"] = facts.get("run_number")
+        elif prior and prior.get("regressed_at_run") is not None:
+            entry["regressed_at_run"] = prior["regressed_at_run"]
 
         # The claim is frozen at filing. Calibration scores a prediction, and a
         # confidence revised after the outcome is known is hindsight wearing a

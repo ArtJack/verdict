@@ -187,17 +187,23 @@ def test_a_setup_error_at_the_old_commit_never_reads_as_fail(tmp_path):
 
 def test_an_error_beside_a_failure_is_still_an_error(tmp_path):
     """The rule the pure-collection-error case cannot pin: a summary reading
-    "1 failed, 1 error" must classify as `error`. The fix adds a fixture to
-    conftest.py; the copied-back test file finds pkg (fails honestly) but not
-    the fixture (errors). Read `failed` first and the old commit looks like a
-    clean failure — and the fix looks verified."""
+    "1 failed, 1 error" must classify as `error`. Read `failed` first and the
+    old commit looks like a clean failure — and the fix looks verified.
+
+    The error has to come from something that does NOT travel back to the old
+    commit. It used to be a fixture in conftest.py, until conftest started
+    travelling with the test (VERDICT-F-33) and this scenario quietly stopped
+    producing an error at all. It is now a fixture *inside the test file* whose
+    body imports a function only the fix added: copied back with the file,
+    still unsatisfiable against the old source.
+    """
     repo, sha_a = bugged_repo(tmp_path, with_test=False)
-    (repo / "conftest.py").write_text(
-        "import pytest\n\n@pytest.fixture\ndef helper():\n    return 1\n", encoding="utf-8")
+    (repo / "pkg.py").write_text(FIXED + "\n\ndef helper():\n    return 1\n", encoding="utf-8")
     (repo / "test_pkg.py").write_text(
-        TEST + "\ndef test_with_fixture(helper):\n    assert helper == 1\n", encoding="utf-8")
-    (repo / "pkg.py").write_text(FIXED, encoding="utf-8")
-    commit(repo, "fix + fixture + tests")
+        "import pytest\n\n" + TEST +
+        "\n\n@pytest.fixture\ndef helper():\n    from pkg import helper as h\n    return h()\n"
+        "\n\ndef test_with_fixture(helper):\n    assert helper == 1\n", encoding="utf-8")
+    commit(repo, "fix + a helper the fixture needs + tests")
     qa = tmp_path / "qa"
     prev = previous_state(qa, sha_a)
     facts = collect(repo, qa, [], test_one_cmd=CMD.replace("{id}", "test_pkg.py"))
@@ -407,3 +413,50 @@ def test_a_measured_fix_still_reads_as_verified():
     assert "Fix verification: 1 verified" in text
     assert "0 measured but not verifiable" in text
     assert "claims fix_verified" not in text
+
+
+# ── a test is not only its file (F-33) ──────────────────────────────────────
+
+CONFTEST = "import pytest\n\n\n@pytest.fixture\ndef order():\n    return (3, 2)\n"
+FIXTURE_TEST = ("from pkg import pending\n\n\n"
+                "def test_pending(order):\n    assert pending(*order) == 5\n")
+
+
+def test_a_regression_test_that_lands_with_its_fixture_verifies(tmp_path):
+    """VERDICT-F-33: the copy-back covered the cited test's own file, so a test
+    arriving with the conftest it needs met an old commit that had never seen
+    that fixture. It errored there, and an error is not a measurement."""
+    repo, sha_a = bugged_repo(tmp_path, with_test=False)
+    (repo / "pkg.py").write_text(FIXED, encoding="utf-8")
+    (repo / "conftest.py").write_text(CONFTEST, encoding="utf-8")
+    (repo / "test_pkg.py").write_text(FIXTURE_TEST, encoding="utf-8")
+    commit(repo, "fix + regression test + its fixture")
+    qa = tmp_path / "qa"
+    prev = previous_state(qa, sha_a)
+    facts = collect(repo, qa, [], test_ids_cmd=_emit(["test_pkg.py::test_pending"]),
+                    test_one_cmd=CMD)
+    rec = facts["verification"]["P-F-1"]
+    assert rec.get("support_copied_from_head") == ["conftest.py"], rec
+    assert (rec["at_previous"], rec["at_head"]) == ("fail", "pass"), rec
+    assert merge(facts, resolved(), prev)["findings"][0]["fix_verified"] is True
+
+
+def test_a_conftest_the_commit_did_not_touch_is_not_reported_as_copied(tmp_path):
+    """`support_copied_from_head` must keep meaning "the old commit did not
+    have this, as written"."""
+    r = tmp_path / "proj"
+    r.mkdir()
+    git(r, "init", "-qb", "main")
+    (r / "pkg.py").write_text(BUGGY, encoding="utf-8")
+    (r / "conftest.py").write_text(CONFTEST, encoding="utf-8")
+    (r / "test_pkg.py").write_text(FIXTURE_TEST, encoding="utf-8")
+    sha_a = commit(r, "bug, with the fixture already in place")
+    (r / "pkg.py").write_text(FIXED, encoding="utf-8")
+    commit(r, "fix only")
+    qa = tmp_path / "qa"
+    previous_state(qa, sha_a)
+    facts = collect(r, qa, [], test_ids_cmd=_emit(["test_pkg.py::test_pending"]),
+                    test_one_cmd=CMD)
+    rec = facts["verification"]["P-F-1"]
+    assert "support_copied_from_head" not in rec, rec
+    assert (rec["at_previous"], rec["at_head"]) == ("fail", "pass"), rec

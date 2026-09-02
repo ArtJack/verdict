@@ -3,6 +3,33 @@
 Plugin and `verdict-mcp` share one version line; `.claude-plugin/plugin.json` and
 `pyproject.toml` are bumped together.
 
+## 0.63.0 — 2026-09-02 · "a test is not only its file"
+
+The last two of run 6's four findings, both Minor, both in features shipped hours earlier.
+
+**A regression test travels with its fixtures** (VERDICT-F-33). The copy-back into the
+scratch checkout covered the cited test's own file and nothing else, so the shape that
+lands most often — a regression test *and* the `conftest.py` fixture it needs, in one
+commit — met an old commit that had never seen that fixture, errored there, and verified
+nothing. Every `conftest.py` from the repository root down to the test's directory now
+travels with it, listed in `support_copied_from_head` when the old copy differed or was
+absent.
+
+This one invalidated a test's premise rather than its rule. The scenario pinning "a summary
+reading `1 failed, 1 error` classifies as error" was built on a fixture that *stayed
+behind* — so the fix would have quietly turned that check into a tautology. The error now
+comes from a fixture inside the test file whose body imports a function only the fix added:
+copied back with the file, still unsatisfiable against the old source.
+
+**A recurrence can be filed a run later** (VERDICT-F-34). `verdict-issues` keyed re-filing
+on `delta`, which describes only the transition one run computed — so the window was
+exactly one run wide, and a REGRESSED finding the tool did not happen to see on that run
+could never be re-filed. The operator was told "already filed" while the issue sat closed.
+The harness now stamps `regressed_at_run` on the finding and carries it forward; filing
+compares it against the run recorded in the ledger, so the window stays open until the
+recurrence is filed, and filing twice over one regression is still impossible. A state
+written before this release still re-files from `delta`.
+
 ## 0.62.0 — 2026-09-02 · "measurement outranks the claim"
 
 **The outcome ledger reads the measurement, not the flag** (VERDICT-F-32, filed by run 6).
