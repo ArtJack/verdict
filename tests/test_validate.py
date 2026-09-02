@@ -519,3 +519,152 @@ def test_evidence_must_be_a_list_not_a_bare_string(root):
 
 def test_well_formed_evidence_stays_clean(root):
     assert validate(good_state(), root) == []
+
+
+# ── the judgment validator, pinned (mutation campaign, 2026-09-02) ──────────
+#
+# A mutation campaign over validate.py found 53 non-string mutants surviving
+# the whole 639-test suite, and the shape of the gap was consistent: the rules
+# in `validate` were pinned and their twins in `validate_judgment` were not.
+# That is the wrong way round. `validate` guards the finished state, which the
+# harness computes; `validate_judgment` guards what the *model* writes, and is
+# the first place a fabricated claim is refused.
+
+def test_judgment_fix_verified_must_be_a_boolean():
+    """The twin of the state-side rule, and the one the model reaches first."""
+    f = judgment()["findings"][0]
+    for value in ("yes", 1, "true"):
+        bad = validate_judgment(judgment(findings=[dict(f, fix_verified=value)]))
+        assert any("fix_verified must be true or false" in b for b in bad), value
+    assert validate_judgment(judgment(findings=[dict(f, fix_verified=True)])) == []
+    assert validate_judgment(judgment(findings=[dict(f, fix_verified=False)])) == []
+
+
+def test_judgment_fix_verified_must_cite_the_test_that_failed():
+    f = dict(judgment()["findings"][0], status="resolved", fix_verified=True, evidence=[])
+    bad = validate_judgment(judgment(findings=[f]))
+    assert any("claims fix_verified with no evidence" in b for b in bad), bad
+    kept = dict(f, evidence=["tests/test_x.py::test_y failed at the previous commit"])
+    assert not [b for b in validate_judgment(judgment(findings=[kept]))
+                if "fix_verified" in b]
+
+
+def test_judgment_failure_classification_is_checked_but_optional():
+    """`is not None and not in` — invert either half and a bad value passes or
+    a legitimately absent one is refused."""
+    f = judgment()["findings"][0]
+    bad = validate_judgment(judgment(findings=[dict(f, failure_classification="MADE_UP")]))
+    assert any("failure_classification" in b for b in bad), bad
+    assert validate_judgment(judgment(findings=[dict(f, failure_classification=None)])) == []
+
+
+def test_judgment_refuses_two_findings_with_one_id():
+    """Identity is minted once. Two entries under one id is the shape that
+    makes a delta unreadable."""
+    f = judgment()["findings"][0]
+    bad = validate_judgment(judgment(findings=[dict(f), dict(f, title="a different bug")]))
+    assert any("P-F-1" in b and "findings[0]" in b for b in bad), bad
+
+
+def test_judgment_names_the_finding_that_broke_a_rule():
+    """The index in the message is how an operator finds it. Without it the
+    error names nothing and the reader has to guess which finding."""
+    f = judgment()["findings"][0]
+    bad = validate_judgment(judgment(findings=[dict(f), dict(f, id="P-F-2", severity="Huge")]))
+    assert any("findings[1]" in b for b in bad), bad
+
+
+def test_judgment_checks_every_finding_not_just_the_first():
+    """A loop that stops at the first bad entry hides everything after it."""
+    f = judgment()["findings"][0]
+    bad = validate_judgment(judgment(findings=[dict(f, id="P-F-1", severity="Huge"),
+                                               dict(f, id="P-F-2", priority="P9")]))
+    assert any("P-F-1" in b for b in bad) and any("P-F-2" in b for b in bad), bad
+
+
+def test_judgment_caps_a_pass_that_leaves_a_blocker_open():
+    f = judgment()["findings"][0]
+    crit = dict(f, id="P-F-9", severity="Critical", status="open")
+    bad = validate_judgment(judgment(verdict="pass", findings=[crit]))
+    assert any("open Critical/Blocker" in b and "P-F-9" in b for b in bad), bad
+
+
+def test_judgment_allows_a_pass_with_nothing_open():
+    """The other half: `and` read as `or` refuses every clean pass, and a rule
+    that fires on everything is one nobody reads."""
+    f = dict(judgment()["findings"][0], status="resolved", delta=None)
+    f.pop("delta")
+    assert validate_judgment(judgment(verdict="pass", findings=[f])) == []
+    assert validate_judgment(judgment(verdict="pass", findings=[])) == []
+
+
+def test_judgment_allows_a_resolved_critical_under_a_pass():
+    """Only *open* blockers cap the verdict — one that was fixed this run does
+    not, or no project could ever return to `pass`."""
+    f = dict(judgment()["findings"][0], id="P-F-9", severity="Critical", status="resolved")
+    assert validate_judgment(judgment(verdict="pass", findings=[f])) == []
+
+
+# ── the boundaries nobody was standing on ──────────────────────────────────
+
+def test_the_clock_tolerances_are_where_they_say_they_are(root):
+    """A tolerance no test stands on is a number anybody can widen. Both of
+    these survived a mutation campaign at ±1 unit, which is exactly how a
+    staleness rule quietly stops being one."""
+    # Literal probes, never derived from the constants under test: reading the
+    # value to build the input moves the probe with the mutation and the check
+    # can no longer fail. The first cut of this test did exactly that.
+    # Tolerances are 10 minutes ahead and 1 day behind. Each pair straddles its
+    # boundary closely enough to catch a one-unit move in *either* direction,
+    # with enough margin left that a slow machine cannot flip the result.
+    inside_future = now_z(timedelta(minutes=9, seconds=30))
+    outside_future = now_z(timedelta(minutes=10, seconds=30))
+    inside_past = now_z(-timedelta(hours=23))
+    outside_past = now_z(-timedelta(hours=25))
+
+    def stamp(ts):
+        s = good_state()
+        s["last_run"] = {**s["last_run"], "timestamp_utc": ts}
+        return [b for b in validate(s, root) if "timestamp" in b or "future" in b or "old" in b]
+
+    assert stamp(inside_future) == [], "inside the future tolerance must pass"
+    assert stamp(outside_future), "beyond the future tolerance must be refused"
+    assert stamp(inside_past) == [], "inside the past tolerance must pass"
+    assert stamp(outside_past), "beyond the past tolerance must be refused"
+
+
+def test_a_timestamp_that_is_not_a_string_is_refused(root):
+    """`not isinstance(...) or not match(...)` — read as `and`, a non-string
+    reaches the regex and the rule dies on a TypeError instead of firing."""
+    for value in (20260902, None, ["2026-09-02T00:00:00Z"], {"t": 1}):
+        s = good_state()
+        s["last_run"] = {**s["last_run"], "timestamp_utc": value}
+        bad = validate(s, root)
+        assert any("is not ISO-8601 UTC" in b for b in bad), f"{value!r}: {bad}"
+
+
+def test_verified_intact_must_be_a_list(root):
+    assert any("verified_intact" in b
+               for b in validate(good_state(verified_intact="all good"), root))
+    assert validate(good_state(verified_intact=["the suite is green"]), root) == []
+
+
+def test_the_zero_coverage_refusal_fires_only_on_a_clean_pass(root):
+    """Three guards, each of which survived mutation: the verdict must be
+    `pass`, the coverage must be harness-measured, and the diff must be
+    measured-zero rather than merely small."""
+    zero = {"status": "measured", "changed_lines": 40, "changed_lines_executed": 0}
+    fires = validate(good_state(verdict="pass", coverage=zero), root)
+    assert any("none of the 40 changed lines was executed" in b for b in fires), fires
+
+    # not a clean pass → the agent's call, not the validator's
+    assert not [b for b in validate(good_state(verdict="pass with risks", coverage=zero), root)
+                if "changed lines was executed" in b]
+    # not harness-measured → a written block may not trigger a refusal
+    written = {"status": "declared", "changed_lines": 40, "changed_lines_executed": 0}
+    assert not [b for b in validate(good_state(verdict="pass", coverage=written), root)
+                if "changed lines was executed" in b]
+    # some execution → not the shape this rule is about
+    some = {"status": "measured", "changed_lines": 40, "changed_lines_executed": 1}
+    assert not [b for b in validate(good_state(verdict="pass", coverage=some), root)
+                if "changed lines was executed" in b]

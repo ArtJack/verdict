@@ -387,7 +387,11 @@ def validate(state, root: Path, previous=None, now=None, at_rest=False):
         bad.append("last_run must be an object")
     else:
         ts = last.get("timestamp_utc")
-        parsed = _parse_z(str(ts))
+        # Not `str(ts)`: stringifying first made `_parse_z`'s own type guard
+        # unreachable, so no input could tell a working guard from a broken one
+        # — which is how a mutation campaign found it still alive. Both paths
+        # produce the same message; only one of them is testable.
+        parsed = _parse_z(ts)
         if parsed is None:
             bad.append(f"last_run.timestamp_utc {ts!r} is not ISO-8601 UTC (YYYY-MM-DDThh:mm:ssZ)")
         elif parsed - now > FUTURE_TOLERANCE:
