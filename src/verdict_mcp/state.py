@@ -219,6 +219,16 @@ def finding_key(finding: dict) -> str:
     return ""
 
 
+def _verification_digest(finding: dict):
+    """What the harness measured, small enough to keep forever."""
+    v = finding.get("verification")
+    if not isinstance(v, dict):
+        return None
+    digest = {k: v.get(k) for k in ("test", "at_previous", "at_head", "selected_by")
+              if v.get(k) is not None}
+    return digest or None
+
+
 def outcome_row(finding: dict, decided_on: str | None = None) -> dict:
     """The part of a finding worth keeping forever — a hundred bytes, not a
     finding. Evidence, prose, and root-cause chains stay in the report."""
@@ -236,6 +246,12 @@ def outcome_row(finding: dict, decided_on: str | None = None) -> dict:
         "outcome_basis": finding.get("outcome_basis"),
         "outcome_reason": finding.get("outcome_reason"),
         "first_seen": finding.get("first_seen"),
+        # The measurement, not only the sentence about it. A row outlives the
+        # finding — state.json drops it once resolved — so without this a
+        # `confirmed` cannot be audited at all: 19 of this project's 21
+        # confirmed rows were already unjoinable (VERDICT-F-41). Three fields,
+        # because the row is a hundred bytes and not a finding.
+        "verification": _verification_digest(finding),
     }
     if row["outcome"] in ("confirmed", "refuted") and decided_on:
         row["decided_on"] = decided_on

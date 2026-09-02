@@ -1132,7 +1132,13 @@ def _stamp_outcome(finding: dict, prior: dict | None = None) -> dict:
     v = finding.get("verification")
     attempted = isinstance(v, dict)
     shows_fix = attempted and v.get("at_previous") == "fail" and v.get("at_head") == "pass"
-    contradicts = attempted and v.get("at_head") == "fail"
+    # …but not one the harness itself declined to weigh. `_apply_verification`
+    # stamps `not_weighed` on a test chosen by prose order from several
+    # candidates and refuses to reopen the finding with it; reading the same
+    # record here as a contradiction denied the row anyway, under a reason that
+    # said the opposite of the note beside it (VERDICT-F-40).
+    contradicts = (attempted and v.get("at_head") == "fail"
+                   and not v.get("not_weighed"))
     claimed = finding.get("fix_verified") is True
     if delta == "RESOLVED" and shows_fix:
         return {"outcome": "confirmed", "outcome_basis": "measured",

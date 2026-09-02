@@ -46,7 +46,12 @@ _MUTATORS = {
 # overwriting source, and the guard exists to tell those two apart
 # (VERDICT-F-37). `-t/--target-directory` names the destination instead, and
 # then every operand really is a source.
-_COPIERS = {"cp", "mv", "install", "rsync", "ln"}
+_COPIERS = {"cp", "install", "rsync", "ln"}
+# `mv` is NOT one of them: it writes its destination and *removes* its source.
+# Reading it as a copy let `mv <checkout>/hooks/enforce_bash_scope.py /tmp/`
+# through — the agent moving the guard itself out of the way — one commit after
+# that exact command was denied (VERDICT-F-39). Both ends are targets here.
+_MOVERS = {"mv"}
 _TARGET_FLAGS = ("-t", "--target-directory")
 # git verbs that mutate the working tree, index, refs, or config.
 _GIT_MUTATORS = {
@@ -359,17 +364,22 @@ def _check_segment(toks, cwd, depth=0):
         yield from _check_tar(args, cwd)
     elif head == "find":
         yield from _check_find(args, cwd)
-    elif head in _COPIERS:
-        yield from _check_copier(head, args)
+    elif head in _COPIERS or head in _MOVERS:
+        # rsync only removes sources when told to; asked to, it is a move.
+        moves = head in _MOVERS or "--remove-source-files" in args
+        yield from _check_copier(head, args, moves=moves)
     elif head in _MUTATORS:
         for t in args:
             if not t.startswith("-"):
                 yield head, t
 
 
-def _check_copier(head: str, args: list):
+def _check_copier(head: str, args: list, moves: bool = False):
     """`cp SRC... DST` writes DST and reads the rest. With an explicit
-    `-t DIR`, DIR is the destination and every operand is a source."""
+    `-t DIR`, DIR is the destination and every operand is a source.
+
+    `moves` says the command also *removes* what it read, which makes every
+    source a target as well — `mv`, and `rsync --remove-source-files`."""
     operands, target, expect_dir = [], None, False
     for a in args:
         if expect_dir:
@@ -392,7 +402,11 @@ def _check_copier(head: str, args: list):
         if not operands:
             return
         target = operands[-1]
+        operands = operands[:-1]
     yield head, target
+    if moves:
+        for source in operands:
+            yield head, source
 
 
 def main() -> int:

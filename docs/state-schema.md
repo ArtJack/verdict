@@ -322,6 +322,11 @@ branch head) leaves `at_previous: unavailable`; the HEAD half still runs, so a s
 failing test still refuses resolution. Bounded: at most 25 findings per run, 120 s per
 test run, so verification cannot become the suite.
 
+A ledger row carries `verification` too — the test, both results and how it was chosen,
+four fields and no more. A row outlives its finding, so without the measurement a
+`confirmed` cannot be audited at all once `state.json` drops the finding: 19 of this
+repository's 21 confirmed rows were unjoinable when run 8 tried (VERDICT-F-41).
+
 `findings[].regressed_at_run` records the run on which a finding came back, and is carried
 forward on every run after. `delta` describes only the transition one run computed, so a
 regression was visible for exactly one run and anything that did not look on that run —
