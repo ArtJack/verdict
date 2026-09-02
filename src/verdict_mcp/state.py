@@ -224,7 +224,12 @@ def _verification_digest(finding: dict):
     v = finding.get("verification")
     if not isinstance(v, dict):
         return None
-    digest = {k: v.get(k) for k in ("test", "at_previous", "at_head", "selected_by")
+    # `candidates` is what makes `selected_by: first_cited` readable, and
+    # `not_weighed` is why a confirmation may stand beside a test that failed at
+    # HEAD. Dropping them left a future auditor with a contradiction and no
+    # explanation (VERDICT-F-46).
+    digest = {k: v.get(k) for k in ("test", "at_previous", "at_head", "selected_by",
+                                    "candidates", "not_weighed")
               if v.get(k) is not None}
     return digest or None
 

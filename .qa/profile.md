@@ -78,11 +78,14 @@ Pass when all three hold:
   boundary or guard. Those 53 were re-checked against the whole suite one at a time — the
   only honest way to read a scoped run — and the gap they showed was that
   `validate_judgment`'s rules were unpinned while `validate`'s twins were. Closed across
-  0.67.0 and 0.69.0: 23 of the 53 are now killed, and the campaign finished at 18 killed /
-  35 surviving before that work. What remains is mostly message-text and two `>` → `>=`
-  mutants at the clock tolerances, which differ by one second and are accepted as
-  equivalent. **Re-run before trusting the number**: control the harness first by applying
-  a mutant the tool reports as killed and confirming the suite fails.
+  0.67.0, 0.69.0 and 0.72.0. Run 9 re-measured with the same tool and scope: 391 killed
+  against the original 335, +56. Of its 9 non-string survivors, 2 died against the whole
+  suite, 2 are the clock tolerances accepted as equivalent (one second apart), and **5 were
+  real and unwatched** — the judgment validator's `status` enum, two loop `continue`s, and
+  both PostToolUse hook exit codes. Closed in 0.72.0. The earlier summary here said the
+  residual was "mostly message text", which understated it in the direction that flatters
+  (VERDICT-F-48). **Re-run before trusting the number**: control the harness first by
+  applying a mutant the tool reports as killed and confirming the suite fails.
 
 ## Known risk areas (weight effort here)
 

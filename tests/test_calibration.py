@@ -511,6 +511,35 @@ def test_a_measurement_the_harness_did_weigh_still_denies_it():
     assert out["outcome"] == "unknown", out
 
 
+def test_the_report_says_how_many_confirmations_predate_the_basis(): 
+    """VERDICT-F-45: the table printed `19 | 0` under a caveat calling measured
+    and claimed exhaustive, so a reader subtracted and concluded 19 rested on
+    the tester's word. The state refuses that relabelling; the renderer must
+    too."""
+    from verdict_mcp.harness import _render_calibration
+    from verdict_mcp.state import calibration
+    rows = [{"hash": f"o{i}", "outcome": "confirmed", "confidence": "proven"}
+            for i in range(4)]
+    rows.append({"hash": "c1", "outcome": "confirmed", "outcome_basis": "claimed",
+                 "confidence": "proven"})
+    rows.append({"hash": "r1", "outcome": "refuted", "confidence": "proven"})
+    text = "\n".join(_render_calibration(calibration({"findings": rows}, min_sample=3)))
+    assert "4 of those confirmations were settled before" in text, text
+    assert "neither kind" in text, text
+
+
+def test_no_such_line_when_every_confirmation_carries_a_basis():
+    from verdict_mcp.harness import _render_calibration
+    from verdict_mcp.state import calibration
+    rows = [{"hash": "m1", "outcome": "confirmed", "outcome_basis": "measured",
+             "confidence": "proven"},
+            {"hash": "c1", "outcome": "confirmed", "outcome_basis": "claimed",
+             "confidence": "proven"},
+            {"hash": "r1", "outcome": "refuted", "confidence": "proven"}]
+    text = "\n".join(_render_calibration(calibration({"findings": rows}, min_sample=3)))
+    assert "settled before" not in text, text
+
+
 def test_the_ledger_row_keeps_the_measurement_not_only_the_sentence():
     """VERDICT-F-41: a row outlives its finding, so a `confirmed` with no
     measurement recorded can never be audited — 19 of 21 were unjoinable."""
@@ -525,6 +554,21 @@ def test_the_ledger_row_keeps_the_measurement_not_only_the_sentence():
     assert row["verification"] == {"test": "tests/test_x.py::test_y", "at_previous": "fail",
                                    "at_head": "pass", "selected_by": "explicit"}, row
     assert "summary" not in row["verification"], "a row is a hundred bytes, not a finding"
+
+
+def test_the_digest_keeps_what_makes_the_selection_readable():
+    """VERDICT-F-46: without `candidates`, `selected_by: first_cited` says
+    nothing; without `not_weighed`, a confirmation stands beside a test that
+    failed at HEAD with no explanation at all."""
+    from verdict_mcp.state import outcome_row
+    f = {"id": "D-F-3", "hash": "h3", "outcome": "confirmed", "outcome_basis": "claimed",
+         "verification": {"test": "t.py::a", "at_previous": "pass", "at_head": "fail",
+                          "selected_by": "first_cited", "candidates": 4,
+                          "not_weighed": "chosen by prose order from 4 cited tests",
+                          "summary": "1 passed → 1 failed", "previous_sha": "abc"}}
+    v = outcome_row(f, "2026-09-02")["verification"]
+    assert v["candidates"] == 4 and v["not_weighed"].startswith("chosen by prose order"), v
+    assert "summary" not in v and "previous_sha" not in v, v
 
 
 def test_a_row_with_nothing_measured_carries_no_empty_block():
