@@ -72,8 +72,14 @@ Pass when all three hold:
   named as `coverage_suite_cmd` in the front matter above and run by `verdict-facts` itself
   — the diff-coverage block in `state.json` is its output, not a declaration. Run 7 measured
   122 of 143 changed lines with it.
-- Mutation testing: `mutmut` is in the dev group (`pyproject.toml`). No campaign has been
-  run, so suite quality is unmeasured — which is a gap, not an absent tool.
+- Mutation testing: `mutmut` is in the dev group. First campaign run 2026-09-02 over
+  `src/verdict_mcp/validate.py`: 574 mutants, 335 killed by `tests/test_validate.py` alone;
+  of the 239 survivors, 186 only rewrite a message string and 53 change an operator,
+  boundary or guard. Those 53 were re-checked against the whole suite one at a time — the
+  only honest way to read a scoped run — and the gap they showed was that
+  `validate_judgment`'s rules were unpinned while `validate`'s twins were. Closed in
+  0.67.0. **Re-run before trusting the number**: the harness must be controlled by applying
+  a mutant the tool reports as killed and confirming the suite fails.
 
 ## Known risk areas (weight effort here)
 

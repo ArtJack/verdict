@@ -3,6 +3,44 @@
 Plugin and `verdict-mcp` share one version line; `.claude-plugin/plugin.json` and
 `pyproject.toml` are bumped together.
 
+## 0.67.0 — 2026-09-02 · "the rules that guard the model were the unguarded ones"
+
+**A mutation campaign over `validate.py`**, the last of the six "champion" moves and the
+one that asks whether 639 green assertions are worth anything. `mutmut` was already in the
+dev group and had never been run.
+
+The raw number was not the finding. 574 mutants, 335 killed by `tests/test_validate.py`
+alone — but 239 survivors, of which 186 only rewrite a message string. The 53 that change
+an operator, a boundary or a guard were re-checked one at a time **against the whole
+suite**, and the shape they made was consistent and backwards:
+
+> the rules in `validate` were pinned; their twins in `validate_judgment` were not.
+
+`validate` guards the finished state, which the harness computes and which the chain
+signs. `validate_judgment` guards what the *model* writes, and is the first place a
+fabricated claim is refused. Nine tests now pin it: `fix_verified` must be a boolean and
+must cite the test that failed on re-injection, `failure_classification` is checked but
+optional, two findings may not share one id, the message names which finding broke the
+rule, every finding is checked rather than the first, and a `pass` is capped by an *open*
+Critical or Blocker — with the other half of each rule tested too, because a check that
+fires on everything is one nobody reads.
+
+Four more boundaries on the state side: both clock tolerances, `verified_intact`'s shape,
+and the three guards on the zero-coverage refusal.
+
+**One source change.** `_parse_z(str(ts))` stringified its argument before the function's
+own type guard could see it, so no input could tell a working guard from a broken one —
+which is why the mutation was still alive. It now receives the value as given. Same
+message, same behaviour, and testable.
+
+**Two things worth recording about the campaign itself.** Fifteen consecutive survivors
+with no kills looked wrong, so the instrument was checked before the result was believed:
+applying a mutant the tool reports as *killed* does fail the suite, so the survivals were
+real. And the first cut of the tolerance test derived its probe from the constant under
+test — widen the constant and the probe moves with it, and the check can never fail. It now
+uses literal probes straddling each boundary, and is checked against a move in **both**
+directions.
+
 ## 0.66.0 — 2026-09-02 · "a signal you can delete is not a signal"
 
 **The run-history chain gets a cross-file ratchet** (VERDICT-F-21, open since run 4 and the
