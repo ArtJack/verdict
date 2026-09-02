@@ -461,9 +461,187 @@ def _apply_verification(entry: dict, prior: dict | None, verification: dict) -> 
                              "and passes at HEAD"]
 
 
+# ── diff coverage ──────────────────────────────────────────────────────────
+#
+# "Coverage on changed files must not decrease" was a gate the agent could
+# only declare unmeasurable: the profile named a `coverage_cmd`, nothing ran
+# it, and `coverage` in the state was whatever the judgment wrote. Sales
+# reported the gate unmeasurable four runs in a row. Measured now, and at a
+# finer grain than a percentage — which changed lines no test executed, which
+# changed functions were never entered, which tests touch the diff at all.
+# coverage.py's dynamic contexts carry the test→line map; pytest-cov's
+# `--cov-context=test` writes the same database in node-id form. Both are
+# read. Per-test attribution is a lower bound (a tracer may record a line
+# under one context and skip it under the next); "executed by any test" is
+# exact, and that is what the gate is built on.
+
+COVERAGE_TIMEOUT_S = 1800
+_HUNK = re.compile(r"^@@ -\d+(?:,\d+)? \+(\d+)(?:,(\d+))? @@")
+_CONTEXT_SUFFIX = re.compile(r"\|(run|setup|teardown|call)$")
+
+
+def _changed_lines(repo: Path, sha_range: str) -> dict:
+    """Added/modified line numbers per .py file, in new-side numbering."""
+    diff = _git(["diff", "-U0", "--no-color", "--diff-filter=AM", sha_range, "--", "*.py"], repo)
+    changed: dict = {}
+    current = None
+    for line in (diff or "").splitlines():
+        if line.startswith("+++ b/"):
+            current = line[6:].strip()
+            changed.setdefault(current, set())
+        elif line.startswith("@@") and current is not None:
+            m = _HUNK.match(line)
+            if m:
+                start, count = int(m.group(1)), int(m.group(2) or 1)
+                changed[current].update(range(start, start + count))
+    return {path: lines for path, lines in changed.items() if lines}
+
+
+def _test_id_from_context(ctx: str, repo: Path) -> str | None:
+    """`tests/test_x.py::test_a|run` → the node id. `tests.test_x.test_a` (coverage's
+    own dotted form) → a node id, by finding the longest dotted prefix that is a
+    file under the repo; a package dir and a test class look alike in dots."""
+    ctx = (ctx or "").strip()
+    if not ctx:
+        return None
+    if "::" in ctx:
+        return _CONTEXT_SUFFIX.sub("", ctx)
+    parts = ctx.split(".")
+    for cut in range(len(parts) - 1, 0, -1):
+        if Path(repo, *parts[:cut]).with_suffix(".py").is_file():
+            return "/".join(parts[:cut]) + ".py::" + "::".join(parts[cut:])
+    return ctx
+
+
+def _render_cmd(cmd: str, out: Path) -> str:
+    """The `coverage json` invocation that matches how the suite was run — same
+    interpreter prefix, so the database is read by the coverage that wrote it."""
+    q = ('"' + str(out) + '"') if os.name == "nt" else shlex.quote(str(out))
+    tail = f"-m coverage json --show-contexts -q -o {q}"
+    if "-m coverage run" in cmd:
+        return cmd[:cmd.index("-m coverage run")] + tail
+    if "-m pytest" in cmd:
+        return cmd[:cmd.index("-m pytest")] + tail
+    return f"coverage json --show-contexts -q -o {q}"
+
+
+def _ranges(lines: list) -> list:
+    out: list = []
+    for n in lines:
+        if out and n == out[-1][1] + 1:
+            out[-1][1] = n
+        else:
+            out.append([n, n])
+    return out
+
+
+def measure_diff_coverage(repo: Path, qa_root: Path, sha_range: str | None,
+                          cmd: str | None) -> dict:
+    """Run the suite under coverage.py and intersect the result with the diff.
+
+    → {"status": "measured", ...} with changed/executed line counts, per-file
+    unexercised ranges and never-entered functions, and the tests that touch
+    the diff; or {"status": "unavailable", "reason"} — said, never estimated.
+    """
+    if not cmd:
+        return {"status": "unavailable",
+                "reason": "no coverage_suite_cmd in the profile — set one that runs the suite "
+                          "under coverage.py (e.g. `.venv/bin/python -m coverage run -m pytest`) "
+                          "to measure which changed lines any test executed"}
+    if not sha_range:
+        return {"status": "unavailable",
+                "reason": "no commit range this run (baseline or re-baseline) — diff coverage "
+                          "measures the change since the previous run"}
+    changed = _changed_lines(repo, sha_range)
+    if not changed:
+        return {"status": "measured", "sha_range": sha_range, "changed_files": 0,
+                "changed_lines": 0, "changed_lines_executed": 0,
+                "note": "no .py lines added or modified in the range"}
+
+    qa_root = Path(qa_root)
+    rc, db, out = qa_root / "coverage.rc", qa_root / "coverage.db", qa_root / "coverage.json"
+    rc.write_text("[run]\ndynamic_context = test_function\nrelative_files = True\n"
+                  f"data_file = {db}\n[json]\nshow_contexts = True\n", encoding="utf-8")
+    env = dict(os.environ, COVERAGE_RCFILE=str(rc), COVERAGE_FILE=str(db))
+    db.unlink(missing_ok=True)
+    out.unlink(missing_ok=True)
+    started = time.monotonic()
+    try:
+        proc = subprocess.run(cmd, cwd=str(repo), shell=True, capture_output=True, text=True,
+                              timeout=COVERAGE_TIMEOUT_S, env=env)
+    except (subprocess.TimeoutExpired, OSError) as exc:
+        return {"status": "unavailable", "command": cmd,
+                "reason": f"coverage run did not complete: {type(exc).__name__}"}
+    duration = round(time.monotonic() - started, 2)
+    render = _render_cmd(cmd, out)
+    try:
+        rproc = subprocess.run(render, cwd=str(repo), shell=True, capture_output=True,
+                               text=True, timeout=300, env=env)
+    except (subprocess.TimeoutExpired, OSError) as exc:
+        rproc = None
+        rendered_err = type(exc).__name__
+    else:
+        rendered_err = _summary_line(rproc.stdout + rproc.stderr)
+    if rproc is None or rproc.returncode != 0 or not out.is_file():
+        return {"status": "unavailable", "command": cmd, "render_command": render,
+                "suite_exit_code": proc.returncode, "duration_s": duration,
+                "reason": "the suite ran but the coverage database could not be rendered: "
+                          + rendered_err}
+    try:
+        files = (json.loads(out.read_text(encoding="utf-8")) or {}).get("files") or {}
+    except (OSError, json.JSONDecodeError) as exc:
+        return {"status": "unavailable", "command": cmd,
+                "reason": f"coverage.json unreadable: {exc}"}
+
+    per_file: dict = {}
+    total_measured = total_executed = 0
+    touching: set = set()
+    never_entered: list = []
+    for path, lines in changed.items():
+        f = files.get(path) or files.get(path.replace("/", "\\"))
+        if not f:
+            # coverage reports the files it saw. A changed .py file it never
+            # saw was imported by nothing the suite ran — every changed line
+            # in it is unexercised, and that is the honest count.
+            per_file[path] = {"changed": len(lines), "measured": len(lines), "executed": 0,
+                              "unexercised_ranges": _ranges(sorted(lines)), "tests": [],
+                              "note": "not imported by anything the suite executed"}
+            total_measured += len(lines)
+            continue
+        ctx = f.get("contexts") or {}
+        ran = lines & set(f.get("executed_lines") or [])
+        # Executed *by a test*. A `def` line runs at import under the empty
+        # context and proves nothing about the function it defines; counting it
+        # let a brand-new, never-called function read as partly exercised and
+        # kept the zero-exercised refusal from ever firing.
+        executed = {ln for ln in ran if any(c for c in ctx.get(str(ln), []))}
+        missing = (lines & set(f.get("missing_lines") or [])) | (ran - executed)
+        tests = {t for ln in executed for c in ctx.get(str(ln), [])
+                 for t in [_test_id_from_context(c, repo)] if t}
+        fns = [name for name, fb in (f.get("functions") or {}).items()
+               if name and not fb.get("executed_lines")
+               and (set(fb.get("missing_lines") or []) & lines)]
+        per_file[path] = {"changed": len(lines), "measured": len(executed) + len(missing),
+                          "executed": len(executed),
+                          "unexercised_ranges": _ranges(sorted(missing)),
+                          "tests": sorted(tests)[:10],
+                          "unexercised_functions": fns[:10]}
+        total_measured += len(executed) + len(missing)
+        total_executed += len(executed)
+        touching |= tests
+        never_entered += [f"{path}:{name}" for name in fns]
+    return {"status": "measured", "tool": "coverage.py dynamic contexts", "command": cmd,
+            "sha_range": sha_range, "suite_exit_code": proc.returncode, "duration_s": duration,
+            "changed_files": len(changed), "changed_lines": total_measured,
+            "changed_lines_executed": total_executed,
+            "percent": (round(100 * total_executed / total_measured) if total_measured else None),
+            "per_file": per_file, "tests_touching_diff": sorted(touching)[:50],
+            "unexercised_functions": never_entered[:20]}
+
+
 def collect(repo: Path, qa_root: Path, gates: list[tuple[str, str]],
             test_ids_cmd: str | None = None, abandoned=_UNSET,
-            test_one_cmd: str | None = None) -> dict:
+            test_one_cmd: str | None = None, coverage_suite_cmd: str | None = None) -> dict:
     """Measure everything about this run that is not a judgment."""
     now = datetime.now(timezone.utc)
     previous = None
@@ -697,6 +875,7 @@ def collect(repo: Path, qa_root: Path, gates: list[tuple[str, str]],
         facts["verification"] = verification
     if vnotes:
         facts["verification_notes"] = vnotes
+    facts["coverage"] = measure_diff_coverage(repo, qa_root, sha_range, coverage_suite_cmd)
     return facts
 
 
@@ -928,6 +1107,10 @@ def merge(facts: dict, judgment: dict, previous: dict | None, today: date | None
     for optional in ("run_label", "next_run_focus", "flaky_quarantine", "coverage"):
         if judgment.get(optional) is not None:
             state[optional] = judgment[optional]
+    # Measured coverage outranks written coverage. The judgment may still carry
+    # its own block when the harness had nothing to measure with.
+    if isinstance(facts.get("coverage"), dict) and facts["coverage"].get("status"):
+        state["coverage"] = facts["coverage"]
     if facts.get("tests"):
         state["tests"] = facts["tests"]
     # Computed here rather than left to a consumer: the next run reads
@@ -1086,6 +1269,10 @@ def facts_main(argv=None) -> int:
                     help="command running one test, `{id}` standing for the node id — "
                          "re-runs each open finding's cited test at the previous commit "
                          "and at HEAD to verify fixes (default: the profile's test_one_cmd)")
+    ap.add_argument("--coverage-suite-cmd", default=None,
+                    help="command running the suite under coverage.py (e.g. `.venv/bin/python "
+                         "-m coverage run -m pytest`) — measures which changed lines any test "
+                         "executed (default: the profile's coverage_suite_cmd)")
     ap.add_argument("--out", type=Path, default=None, help="also write facts.json here")
     ap.add_argument("--reuse-if-fresh", action="store_true",
                     help="reuse an existing facts.json when it describes this same HEAD "
@@ -1131,6 +1318,9 @@ def facts_main(argv=None) -> int:
         if args.test_one_cmd is None and config.get("test_one_cmd"):
             args.test_one_cmd = config["test_one_cmd"]
             profile_notes.append("test_one_cmd taken from the profile")
+        if args.coverage_suite_cmd is None and config.get("coverage_suite_cmd"):
+            args.coverage_suite_cmd = config["coverage_suite_cmd"]
+            profile_notes.append("coverage_suite_cmd taken from the profile")
         overridden = [n for n, _ in from_profile if n in named]
         if overridden:
             profile_notes.append(
@@ -1168,7 +1358,7 @@ def facts_main(argv=None) -> int:
         "git_sha": _git(["rev-parse", "HEAD"], repo)}, indent=2) + "\n",
         encoding="utf-8")
     facts = collect(repo, qa_root, gates, args.test_ids_cmd, abandoned=abandoned,
-                    test_one_cmd=args.test_one_cmd)
+                    test_one_cmd=args.test_one_cmd, coverage_suite_cmd=args.coverage_suite_cmd)
     if declared_authorship:
         facts.setdefault("code_census", {}).setdefault("provenance", {})[
             "declared"] = declared_authorship
@@ -1364,6 +1554,25 @@ def render_report(state: dict, prose: dict | None = None) -> str:
                    "not verifiable")
         for note in state.get("verification_notes") or []:
             out.append(f"  - {note}")
+    cov = state.get("coverage") or {}
+    if cov.get("status") == "measured":
+        if cov.get("changed_lines"):
+            out.append(f"Diff coverage: {cov['changed_lines_executed']}/{cov['changed_lines']} "
+                       f"changed lines executed ({cov.get('percent')}%) across "
+                       f"{cov['changed_files']} file(s); "
+                       f"{len(cov.get('tests_touching_diff') or [])} test(s) touch the diff")
+            for path, pf in (cov.get("per_file") or {}).items():
+                if pf.get("unexercised_ranges"):
+                    rng = ", ".join(f"{a}-{b}" if a != b else str(a)
+                                    for a, b in pf["unexercised_ranges"])
+                    fns = ", ".join(pf.get("unexercised_functions") or [])
+                    out.append(f"  - {path}: unexercised lines {rng}"
+                               + (f" — functions never entered: {fns}" if fns else "")
+                               + (f" ({pf['note']})" if pf.get("note") else ""))
+        else:
+            out.append("Diff coverage: no .py lines changed in the range")
+    elif cov.get("status") == "unavailable":
+        out.append(f"Diff coverage: **unmeasurable** — {cov.get('reason', '')}")
 
     if prose.get("risks"):
         out += ["", "## Risks", "", prose["risks"]]

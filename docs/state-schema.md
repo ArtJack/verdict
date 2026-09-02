@@ -119,6 +119,7 @@ gates:
   lint: ruff check .
 test_ids_cmd: .venv/bin/python -m pytest --collect-only -q
 test_one_cmd: .venv/bin/python -m pytest {id} -q
+coverage_suite_cmd: .venv/bin/python -m coverage run -m pytest -q
 coverage_cmd: diff-cover coverage.xml
 ---
 
@@ -180,6 +181,48 @@ earning the strongest verdict (VERDICT-F-17 — the first version of this rule l
 alone). `pass with risks` stays available — the rule refuses the unqualified verdict, not
 the run. A state with `gates: {}` and no `no_gates` predates the fact travelling and is
 left alone.
+
+## Diff coverage — which changed lines any test executed
+
+"Coverage on changed files must not decrease" (§6) was a gate the agent could only declare
+unmeasurable: the profile named a `coverage_cmd`, nothing ran it, and `coverage` in the
+state was whatever the judgment wrote. Sales reported the gate unmeasurable four runs in a
+row. It is measured now, and at a finer grain than a percentage.
+
+**What it measures.** `verdict-facts` runs the suite once more under coverage.py with
+dynamic contexts (`coverage_suite_cmd` in the profile — e.g. `.venv/bin/python -m
+coverage run -m pytest`, or a pytest-cov form with `--cov-context=test`; the harness
+supplies the rcfile through `COVERAGE_RCFILE`), renders the database with `coverage json
+--show-contexts`, and intersects it with the added/modified `.py` lines in the run's commit
+range. A changed file coverage never saw was imported by nothing the suite ran, and every
+changed line in it counts as unexercised — the honest reading.
+
+```json
+"coverage": {
+  "status": "measured", "sha_range": "a1b2c3..d4e5f6",
+  "changed_files": 3, "changed_lines": 213, "changed_lines_executed": 130, "percent": 61,
+  "per_file": {
+    "src/pricer.py": {"changed": 40, "measured": 38, "executed": 12,
+                      "unexercised_ranges": [[81, 99], [104, 110]],
+                      "tests": ["tests/test_pricer.py::test_floor"],
+                      "unexercised_functions": ["apply_bulk"]}
+  },
+  "tests_touching_diff": ["tests/test_pricer.py::test_floor", "…"],
+  "unexercised_functions": ["src/pricer.py:apply_bulk"]
+}
+```
+
+`status: unavailable` with a `reason` when there is no `coverage_suite_cmd`, no commit
+range (a baseline), or the database could not be rendered — said, never estimated. Measured
+coverage outranks a `coverage` block the judgment wrote; the written block survives only
+when the harness had nothing to measure with.
+
+**The one rule.** A clean `pass` over a change **no** test executed is refused by
+`validate`, the same shape as a pass over an unreadable suite. It fires only on the
+measured zero; a diff with some execution is the agent's §6 delta call. Per-test
+attribution (`tests`) is a lower bound — a tracer may record a line under one context and
+skip it under the next — while "executed by any test" is exact, and that is what the rule
+is built on.
 
 ## Fix verification — measured, not claimed
 

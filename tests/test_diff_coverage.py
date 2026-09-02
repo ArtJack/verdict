@@ -1,0 +1,183 @@
+"""Diff coverage: which changed lines any test executed — measured, not declared.
+
+Every test builds a real two-commit repository and runs a real suite under
+coverage.py, because the claim being made is about what the tracer saw.
+"""
+
+import json
+import subprocess
+import sys
+from datetime import datetime, timezone
+from pathlib import Path
+
+from verdict_mcp.harness import (
+    _changed_lines, _render_cmd, _test_id_from_context, collect, merge, render_report)
+from verdict_mcp.validate import validate
+
+from conftest import judgment
+
+CMD = f'"{sys.executable}" -m coverage run -m pytest -q -p no:cacheprovider'
+
+
+def git(repo, *args):
+    return subprocess.run(["git", "-c", "user.email=t@t", "-c", "user.name=t", "-C", str(repo), *args],
+                          capture_output=True, text=True, check=True).stdout.strip()
+
+
+def commit(repo, message):
+    git(repo, "add", "-A")
+    git(repo, "commit", "-qm", message)
+    return git(repo, "rev-parse", "HEAD")
+
+
+MOD_A = "def a(x):\n    return x + 1\n"
+TEST_A = "from mod import a\n\ndef test_a():\n    assert a(1) == 2\n"
+
+
+def base_repo(tmp_path):
+    r = tmp_path / "proj"
+    r.mkdir()
+    git(r, "init", "-qb", "main")
+    (r / "mod.py").write_text(MOD_A, encoding="utf-8")
+    (r / "test_mod.py").write_text(TEST_A, encoding="utf-8")
+    return r, commit(r, "base")
+
+
+def qa_with_previous(tmp_path, sha):
+    qa = tmp_path / "qa"
+    (qa / "reports").mkdir(parents=True)
+    (qa / "reports" / "r.md").write_text("# r", encoding="utf-8")
+    (qa / "state.json").write_text(json.dumps({
+        "project": "proj", "run_number": 1, "run_type": "baseline", "findings": [],
+        "last_run": {"git_sha": sha,
+                     "timestamp_utc": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")},
+    }), encoding="utf-8")
+    return qa
+
+
+def test_changed_lines_are_split_into_executed_and_unexercised(tmp_path):
+    """One changed line inside a tested function, and a new function nothing
+    calls. The tracer sees the first and never enters the second."""
+    r, sha_a = base_repo(tmp_path)
+    (r / "mod.py").write_text("def a(x):\n    return x + 2\n\n\ndef b(x):\n    y = x * 2\n    return y\n",
+                              encoding="utf-8")
+    (r / "test_mod.py").write_text("from mod import a\n\ndef test_a():\n    assert a(1) == 3\n",
+                                   encoding="utf-8")
+    commit(r, "change a, add b")
+    qa = qa_with_previous(tmp_path, sha_a)
+    facts = collect(r, qa, [], coverage_suite_cmd=CMD)
+    cov = facts["coverage"]
+    assert cov["status"] == "measured", cov
+    pf = cov["per_file"]["mod.py"]
+    assert pf["executed"] == 1, pf                      # `return x + 2` ran, under test_a
+    # b's `def` line ran at import — under no test — so the whole of b is
+    # unexercised, def line included. That is the truthful statement.
+    assert pf["unexercised_ranges"] == [[5, 7]], pf
+    assert pf["unexercised_functions"] == ["b"]
+    assert "test_mod.py::test_a" in pf["tests"]
+    assert cov["changed_lines_executed"] < cov["changed_lines"]
+    assert cov["unexercised_functions"] == ["mod.py:b"]
+    assert "test_mod.py::test_a" in cov["tests_touching_diff"]
+
+    state = merge(facts, judgment(), None)
+    report = render_report(state)
+    assert "Diff coverage:" in report and "mod.py: unexercised lines 5-7" in report
+    assert "functions never entered: b" in report
+
+
+def test_a_single_line_hunk_counts(tmp_path):
+    """`@@ -2 +2 @@` carries no count; the default is one line, not zero."""
+    r, sha_a = base_repo(tmp_path)
+    (r / "mod.py").write_text("def a(x):\n    return x + 3\n", encoding="utf-8")
+    commit(r, "one line")
+    assert _changed_lines(r, f"{sha_a}..HEAD") == {"mod.py": {2}}
+
+
+def test_a_pass_over_a_change_no_test_executed_is_refused(tmp_path):
+    r, sha_a = base_repo(tmp_path)
+    (r / "mod.py").write_text(MOD_A + "\n\ndef b(x):\n    return x * 2\n", encoding="utf-8")
+    commit(r, "add b, test nothing")
+    qa = qa_with_previous(tmp_path, sha_a)
+    facts = collect(r, qa, [], coverage_suite_cmd=CMD)
+    assert facts["coverage"]["changed_lines_executed"] == 0
+
+    clean = merge(facts, judgment(verdict="pass", findings=[]), None)
+    bad = validate(clean, qa)
+    assert any("none of the" in b and "changed lines was executed" in b for b in bad), bad
+    honest = merge(facts, judgment(verdict="pass with risks", findings=[]), None)
+    assert validate(honest, qa) == []
+
+
+def test_a_new_file_the_suite_never_imported_is_wholly_unexercised(tmp_path):
+    r, sha_a = base_repo(tmp_path)
+    (r / "extra.py").write_text("def z():\n    return 1\n", encoding="utf-8")
+    commit(r, "new module, untested")
+    qa = qa_with_previous(tmp_path, sha_a)
+    pf = collect(r, qa, [], coverage_suite_cmd=CMD)["coverage"]["per_file"]["extra.py"]
+    assert pf["executed"] == 0 and pf["measured"] == pf["changed"] and "not imported" in pf["note"]
+
+
+def test_without_a_command_it_is_unmeasurable_and_says_how(tmp_path):
+    r, sha_a = base_repo(tmp_path)
+    (r / "mod.py").write_text(MOD_A + "x = 1\n", encoding="utf-8")
+    commit(r, "change")
+    qa = qa_with_previous(tmp_path, sha_a)
+    facts = collect(r, qa, [])
+    assert facts["coverage"]["status"] == "unavailable"
+    assert "coverage_suite_cmd" in facts["coverage"]["reason"]
+    state = merge(facts, judgment(verdict="pass", findings=[]), None)
+    assert validate(state, qa) == [], "unmeasured is not the same as measured-zero"
+    assert "Diff coverage: **unmeasurable**" in render_report(state)
+
+
+def test_a_baseline_has_no_range_to_measure(tmp_path):
+    r, _ = base_repo(tmp_path)
+    qa = tmp_path / "qa"
+    qa.mkdir()
+    cov = collect(r, qa, [], coverage_suite_cmd=CMD)["coverage"]
+    assert cov["status"] == "unavailable" and "no commit range" in cov["reason"]
+
+
+def test_a_range_with_no_python_changes_measures_zero_honestly(tmp_path):
+    r, sha_a = base_repo(tmp_path)
+    (r / "README.md").write_text("docs\n", encoding="utf-8")
+    commit(r, "docs only")
+    qa = qa_with_previous(tmp_path, sha_a)
+    facts = collect(r, qa, [], coverage_suite_cmd=CMD)
+    cov = facts["coverage"]
+    assert cov["status"] == "measured" and cov["changed_lines"] == 0
+    state = merge(facts, judgment(verdict="pass", findings=[]), None)
+    assert validate(state, qa) == []
+    assert "no .py lines changed" in render_report(state)
+
+
+def test_measured_coverage_outranks_a_written_block(tmp_path):
+    r, sha_a = base_repo(tmp_path)
+    (r / "mod.py").write_text("def a(x):\n    return x + 2\n", encoding="utf-8")
+    (r / "test_mod.py").write_text("from mod import a\n\ndef test_a():\n    assert a(1) == 3\n",
+                                   encoding="utf-8")
+    commit(r, "change")
+    qa = qa_with_previous(tmp_path, sha_a)
+    facts = collect(r, qa, [], coverage_suite_cmd=CMD)
+    state = merge(facts, judgment(coverage={"line_pct": 99, "command": "trust me"}), None)
+    assert state["coverage"]["status"] == "measured"
+    without = merge(collect(r, qa, []), judgment(coverage={"line_pct": 99}), None)
+    assert without["coverage"]["status"] == "unavailable", "unavailable is still a measurement"
+
+
+def test_both_context_forms_become_node_ids(tmp_path):
+    (tmp_path / "tests").mkdir()
+    (tmp_path / "tests" / "test_x.py").write_text("", encoding="utf-8")
+    assert _test_id_from_context("tests/test_x.py::test_a|run", tmp_path) == "tests/test_x.py::test_a"
+    assert _test_id_from_context("tests.test_x.test_a", tmp_path) == "tests/test_x.py::test_a"
+    assert _test_id_from_context("tests.test_x.TestK.test_m", tmp_path) == "tests/test_x.py::TestK::test_m"
+    assert _test_id_from_context("", tmp_path) is None
+
+
+def test_the_render_command_keeps_the_suite_interpreter():
+    out = Path("/tmp/c.json")
+    assert _render_cmd(".venv/bin/python -m coverage run -m pytest -q", out).startswith(
+        ".venv/bin/python -m coverage json --show-contexts")
+    assert _render_cmd("uv run python -m pytest --cov --cov-context=test", out).startswith(
+        "uv run python -m coverage json --show-contexts")
+    assert _render_cmd("./run_cov.sh", out).startswith("coverage json --show-contexts")

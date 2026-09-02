@@ -264,6 +264,25 @@ def _list_shape(state) -> list:
     return bad
 
 
+def _unexercised_diff(state) -> list:
+    """A clean `pass` over a change no test executed is the same shape as one
+    over a suite nobody could read: nothing measured says the changed code
+    works. Fires only on the measured zero — a diff with *some* execution is
+    the agent's §6 delta call, not the validator's — and only on harness-
+    measured coverage (`status: measured`), never on a written block."""
+    if state.get("verdict") != "pass":
+        return []
+    cov = state.get("coverage")
+    if not isinstance(cov, dict) or cov.get("status") != "measured":
+        return []
+    changed, executed = cov.get("changed_lines") or 0, cov.get("changed_lines_executed") or 0
+    if changed > 0 and executed == 0:
+        return [f"verdict is `pass`, but none of the {changed} changed lines was executed "
+                "by any test — the change was never exercised by the suite. Add the test, "
+                "or say `pass with risks` and name the gap in not_tested"]
+    return []
+
+
 def _unmeasured_suite(state) -> list:
     """A clean `pass` needs measured evidence that some test actually executed.
 
@@ -490,6 +509,7 @@ def validate(state, root: Path, previous=None, now=None, at_rest=False):
 
     bad.extend(_list_shape(state))
     bad.extend(_unmeasured_suite(state))
+    bad.extend(_unexercised_diff(state))
 
     quarantine = state.get("flaky_quarantine")
     if quarantine is not None and not isinstance(quarantine, list):

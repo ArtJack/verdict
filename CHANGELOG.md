@@ -3,6 +3,38 @@
 Plugin and `verdict-mcp` share one version line; `.claude-plugin/plugin.json` and
 `pyproject.toml` are bumped together.
 
+## 0.54.0 — 2026-09-02 · "which changed lines any test executed"
+
+**Diff coverage is measured now, at the grain of lines, functions and tests.** "Coverage
+on changed files must not decrease" (§6) was a gate the agent could only declare
+unmeasurable: the profile named a `coverage_cmd`, nothing ran it, and `coverage` in the
+state was whatever the judgment wrote. Sales reported the gate unmeasurable four runs in a
+row. `verdict-facts` now runs the suite once more under coverage.py with dynamic contexts
+(`coverage_suite_cmd` in the profile; pytest-cov's `--cov-context=test` form is read too),
+renders the database with `--show-contexts`, and intersects it with the added and modified
+`.py` lines in the run's commit range. The state gets, per changed file, the unexercised
+line ranges, the functions never entered, and the tests that touch the change — and, for
+the run, the count no test executed. A changed file coverage never saw was imported by
+nothing the suite ran; every line in it counts as unexercised, which is the honest reading.
+
+**Executed means executed by a test.** A `def` line runs at import under the empty
+context and proves nothing about the function it defines; counted, it let a brand-new,
+never-called function read as partly exercised and kept the zero-exercised rule from ever
+firing — the first version of the test for that rule failed against its own fixture for
+exactly this reason. Import-time-only lines are unexercised.
+
+**The one rule.** A clean `pass` over a change no test executed is refused by `validate` —
+the same shape as a pass over an unreadable suite. Only on the measured zero; a diff with
+some execution is the agent's §6 delta call. Measured coverage outranks a written block;
+`status: unavailable` with a reason when there is no command, no commit range (a baseline)
+or the database could not be rendered — said, never estimated. Per-test attribution is a
+lower bound (a tracer may record a line under one context and skip it under the next);
+"executed by any test" is exact, and that is what the rule is built on.
+
+Ten tests on real two-commit repositories under a real tracer; five mutations caught,
+including the import-time one. `coverage` joins the dev dependencies. Prompt untouched —
+the measurement is the number §6 always asked for.
+
 ## 0.53.0 — 2026-09-02 · "the loop closes"
 
 **The harness verifies fixes now.** `fix_verified` is the one judgment field that feeds the
