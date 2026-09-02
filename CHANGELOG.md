@@ -3,6 +3,37 @@
 Plugin and `verdict-mcp` share one version line; `.claude-plugin/plugin.json` and
 `pyproject.toml` are bumped together.
 
+## 0.66.0 — 2026-09-02 · "a signal you can delete is not a signal"
+
+**The run-history chain gets a cross-file ratchet** (VERDICT-F-21, open since run 4 and the
+oldest Major on the board). The chain's ratchet lived entirely inside `runs.jsonl`: once a
+row carried a link, dropping a later one was a break. But a history with no links at all
+reads `unchained`, and `unchained` is accepted — deliberately, because every project is
+unsigned until its next harness run and failing them all would be a migration by ambush.
+
+So the entire anti-fabrication signal came off with one `rm`. Delete `runs.jsonl`, drop
+`last_run.chain`, and `--require-harness` exits 0 over a state nothing can vouch for.
+
+`verdict-finalize` now records `chain: {since_run, last_link}` in `outcomes.json` — the
+permanent ledger, a different file with a different job — and `verify_chain` reads it. A
+project with no anchor and no links is still `unchained` and still accepted, so a genuine
+pre-upgrade project is untouched. A project whose ledger says it has been chained, and
+whose history no longer carries that link, is broken.
+
+That covers the forger's best move, which is not an unsigned history but a *correctly
+signed* one begun from a start of their own choosing. Such a history verifies perfectly
+against itself — no internal ratchet can ever see it — and does not contain the run the
+ledger recorded.
+
+**Two of this repository's own tests were encoding the evasion.** Both built their
+"pre-upgrade project" by running a chaining finalize and then stripping the links, which is
+indistinguishable from tampering, and asserted the result was accepted. They now build a
+project that genuinely never chained — no anchor, because nothing ever wrote one — and the
+stripped-but-anchored case is a new test asserting the opposite.
+
+Shedding the signal still is not impossible. It now costs the permanent track record: every
+decided outcome the project ever recorded, and the next report says how many it is tracking.
+
 ## 0.65.0 — 2026-09-02 · "which test, and who chose it"
 
 **Fix verification ranks its candidates** (VERDICT-F-26, open since run 5 and the root of

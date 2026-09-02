@@ -391,6 +391,38 @@ operator's own `gh` login. It does not close or comment on issues when findings 
 a closed issue is a human's claim, `fix_verified` is the harness's measurement, and the
 tracker must not be able to overrule the ledger.
 
+## The chain's ratchet — `outcomes.json` → `chain`
+
+The run-history chain proves a run was not composed by hand, and its ratchet lived entirely
+inside the file it guards: once a row carried a link, a later row that dropped one was a
+break. But a history with *no* links at all reads `unchained`, which is accepted — every
+project is unsigned until its next harness run, and failing them all would be a migration
+by ambush. So the whole signal came off with one `rm`: delete `runs.jsonl`, drop
+`last_run.chain`, and the project is back to the state the chain was built to leave behind
+(VERDICT-F-21).
+
+The ledger carries the ratchet now, because it is a different file with a different job:
+
+```json
+"chain": { "since_run": 7, "last_link": "954f480f0303…" }
+```
+
+Written by `verdict-finalize` beside the outcomes it keeps. `verify_chain(rows, anchor)`
+then reads three cases rather than two:
+
+- no anchor, no links → `unchained`, accepted, said out loud. A project that genuinely
+  predates the chain has no anchor, because nothing ever wrote one.
+- an anchor, and a history with no links → `broken`. Something removed what the ledger
+  records.
+- an anchor whose `last_link` is absent from an otherwise valid history → `broken`. This is
+  the forger's best move: not an unsigned history but a *correctly signed* one begun from a
+  start of their own choosing, which verifies perfectly against itself. An internal ratchet
+  cannot see it; a second file can.
+
+This does not make fabrication impossible, and it is not meant to. Shedding the signal now
+means destroying the permanent track record as well — every decided outcome this project
+ever recorded — and the next report says how many findings it is tracking.
+
 ## The outcome ledger — `<qa-root>/outcomes.json`
 
 `state.json` holds open findings and the current run's resolutions; a finding resolved two
