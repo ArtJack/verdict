@@ -3,6 +3,42 @@
 Plugin and `verdict-mcp` share one version line; `.claude-plugin/plugin.json` and
 `pyproject.toml` are bumped together.
 
+## 0.73.0 — 2026-09-02 · "a counterfactual you did not isolate is evidence of nothing"
+
+**The agent contract names the isolation step** (VERDICT-F-43, run 9's sharpest finding, and
+the only one of its seven whose cure is a prompt change).
+
+The contract tells the tester to prove causation by flipping the suspected cause in a scratch
+copy — and the bash guard was widened in 0.65.0 specifically so `cp -a <checkout> <scratch>`
+would be allowed, for exactly that purpose. A copied tree carries the project's virtualenv,
+and an editable install's `.pth` names the **original** checkout absolutely. `sys.path` puts
+site-packages ahead of nothing, so the scratch imports the unmodified source and every
+injection reads as a no-op.
+
+Verdict measured it rather than reasoning about it: four defects injected into a scratch
+copy, each run twice, identical but for one environment variable.
+
+| | defects caught |
+|---|---|
+| without `PYTHONPATH` | **0 of 4** |
+| with `PYTHONPATH=<scratch>/src` | **4 of 4** |
+
+The blast radius is the reason this is not a footnote. A false negative reads as a green
+counterfactual, which the contract converts into `fix_verified: true`, which becomes a
+`confirmed` ledger row, which the published track record counts as "held up". Silent, and
+self-flattering in precisely the direction those rules exist to prevent.
+
+§3 now carries the step, the one-line check to run before trusting the result
+(`python -c "import <pkg>; print(<pkg>.__file__)"` must print a path inside the scratch), and
+the flat statement that a green counterfactual you did not isolate is evidence of nothing.
+§6's `fix_verified` clause points at it. The harness's own verifier already did this and
+records the `pythonpath` it used; only the agent-facing prose was missing it.
+
+**Prompt edits are eval-paid here, so this one was paid.** The seeded pricer eval scores
+**6/6 with no hard failures** against the edited prompt, matching the published baseline.
+A documentation-shaped change to a prompt is still a behaviour change, and the only way to
+know it did not regress is to run the thing.
+
 ## 0.72.0 — 2026-09-02 · "five guards nobody was watching"
 
 Run 9's four Minor findings. Three are against work from the previous two days, and one is

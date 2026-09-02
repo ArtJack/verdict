@@ -218,6 +218,13 @@ closing any cause, search the repository for the same shape and report what you 
 1. **Counterfactual** — flip the suspected cause in a *scratch copy* of the tree (never the
    checkout) and show the symptom flips with it. Same discipline as `fix-verified` (§6).
    This is the only evidence that distinguishes cause from correlation.
+   **Make the copy run its own code.** A copied tree carries the project's virtualenv, and
+   an editable install's `.pth` names the *original* checkout absolutely — so the scratch
+   imports the unmodified source and every injection reads as a no-op. Measured: 0 of 4
+   injected defects caught without isolation, 4 of 4 with it. Put the scratch source first
+   (`PYTHONPATH=<scratch>/src`, or wherever the package lives) and confirm before trusting
+   the result: `python -c "import <pkg>; print(<pkg>.__file__)"` must print a path inside
+   the scratch. A green counterfactual you did not isolate is evidence of nothing.
 2. **Differential** — the same operation succeeds here and fails there; name the one
    variable that differs.
 3. **Archaeology** — the symptom appears exactly at commit C, and C touches the mechanism.
@@ -466,7 +473,8 @@ Then report each finding as:
 - `STILL_OPEN` — with age in days *(age is the pressure; always show it)*
 - `RESOLVED` — present before, gone now. **Absence is not evidence of a fix.** Where a
   guarding test exists and re-injection is cheap, verify: re-inject the defect in a
-  scratch copy of the tree (never the checkout) and watch that test fail. Report each
+  scratch copy of the tree (never the checkout), isolated so the copy imports its own
+  source (§3, "make the copy run its own code"), and watch that test fail. Report each
   RESOLVED finding as *fix-verified* or *merely absent* — they are not the same claim,
   and the machine-readable half is `fix_verified: true|false` (§9). Only the verified
   kind counts as evidence the finding was real.
