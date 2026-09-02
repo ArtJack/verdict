@@ -3,6 +3,31 @@
 Plugin and `verdict-mcp` share one version line; `.claude-plugin/plugin.json` and
 `pyproject.toml` are bumped together.
 
+## 0.61.0 — 2026-09-02 · "one unreadable file is not the whole measurement"
+
+**Fixes a regression 0.60.0 shipped** (VERDICT-F-31, filed by run 6 against run 5's fix).
+Measuring the suite's child processes means the children record whatever they run —
+including files a test generated in a temp directory that no longer exists by the time
+anything renders the database. `coverage json` aborts on the first source it cannot read,
+so a single throwaway `conftest.py` took down the entire measurement: diff coverage went
+from 63% measured at run 5 to `unavailable` at run 6, on a repository whose suite had not
+changed shape.
+
+The render now sets `ignore_errors`. That is proportion rather than indulgence: a file
+whose source cannot be read is a file no line can be attributed to anyway, and a changed
+file missing from the render still counts as wholly unexercised — the honest fallback that
+was already there.
+
+Verified where it broke, not only in a fixture: against this repository's own full suite
+the measurement is back, at 246 of 275 changed lines executed (89%), with
+`subprocess_coverage: measured` and 34 lines reached only in a child process. Among them,
+28 of `issues.py`'s changed lines — the file run 5 reported as "0 executed, not imported
+by anything the suite executed", which is the false claim 0.60.0 set out to fix.
+
+The regression test builds the failure exactly as the field produced it: a child that
+imports a generated file from a temp directory which is deleted before the render. It
+fails without `ignore_errors`, with the same message the run recorded.
+
 ## 0.60.0 — 2026-09-02 · "the suite's children are the suite"
 
 **Diff coverage measures the subprocesses a suite spawns** (VERDICT-F-28, the last of run
