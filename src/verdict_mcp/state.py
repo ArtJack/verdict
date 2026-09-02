@@ -230,6 +230,10 @@ def outcome_row(finding: dict, decided_on: str | None = None) -> dict:
         "confidence": finding.get("confidence"),
         "proof_method": (root.get("proof") or {}).get("method"),
         "outcome": finding.get("outcome") or "unknown",
+        # Measured by the harness, or asserted by the tester. Both are
+        # `confirmed`; a tally that cannot tell them apart is publishing the
+        # tester's own word as a measurement (VERDICT-F-36).
+        "outcome_basis": finding.get("outcome_basis"),
         "outcome_reason": finding.get("outcome_reason"),
         "first_seen": finding.get("first_seen"),
     }
@@ -311,7 +315,8 @@ def calibration(state: dict, min_sample: int = CALIBRATION_MIN_SAMPLE,
 
     def bucket(store, key):
         return store.setdefault(
-            key, {"confirmed": 0, "refuted": 0, "unknown": 0})
+            key, {"confirmed": 0, "confirmed_measured": 0, "confirmed_claimed": 0,
+                  "refuted": 0, "unknown": 0})
 
     for f in findings:
         outcome = f.get("outcome") or "unknown"
@@ -320,10 +325,17 @@ def calibration(state: dict, min_sample: int = CALIBRATION_MIN_SAMPLE,
         conf = str(f.get("confidence") or "unstated").lower()
         if conf not in CONFIDENCE_LEVELS:
             conf = "unstated"
-        bucket(by_confidence, conf)[outcome] += 1
-        method = ((f.get("root_cause") or {}).get("proof") or {}).get("method")
-        if method:
-            bucket(by_method, str(method).lower())[outcome] += 1
+        basis = str(f.get("outcome_basis") or "").lower()
+        for store, key in ((by_confidence, conf),
+                           *((by_method, str(m).lower()) for m in
+                             [((f.get("root_cause") or {}).get("proof") or {}).get("method")] if m)):
+            counts = bucket(store, key)
+            counts[outcome] += 1
+            # Only what carries a basis is split. A row written before the
+            # field existed has neither, and defaulting it to `claimed` would
+            # relabel history as the tester's word.
+            if outcome == "confirmed" and basis in ("measured", "claimed"):
+                counts["confirmed_" + basis] += 1
 
     def finish(store):
         for key, counts in store.items():
@@ -331,7 +343,14 @@ def calibration(state: dict, min_sample: int = CALIBRATION_MIN_SAMPLE,
             counts["decided"] = decided
             if decided >= min_sample:
                 counts["precision"] = round(counts["confirmed"] / decided, 3)
-                counts["reading"] = f"{counts['confirmed']} of {decided} held up"
+                # Rows written before `outcome_basis` existed have neither
+                # basis, and calling them the tester's word would be a claim of
+                # its own. The split is stated only for what carries one.
+                split = ""
+                if counts["confirmed_measured"] or counts["confirmed_claimed"]:
+                    split = (f" ({counts['confirmed_measured']} measured, "
+                             f"{counts['confirmed_claimed']} on the tester's word)")
+                counts["reading"] = f"{counts['confirmed']} of {decided} held up{split}"
             else:
                 counts["precision"] = None
                 counts["reading"] = (
@@ -352,7 +371,10 @@ def calibration(state: dict, min_sample: int = CALIBRATION_MIN_SAMPLE,
             "findings held up under a check, not correctness in the abstract",
             "still-open findings are undecided on purpose and are excluded from every "
             "rate rather than guessed at",
-            "a finding resolved without re-injection stays undecided: absence is not proof",
+            "a resolution nobody checked at all stays undecided: absence is not proof",
+            "`confirmed` is split by `outcome_basis`: `measured` is the harness's own "
+            "re-injection, `claimed` is the tester's, weighed only by the absence of a "
+            "measurement that contradicts it — read the two numbers separately",
         ],
     }
 

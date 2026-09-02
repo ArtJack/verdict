@@ -407,16 +407,27 @@ instead of double-counting them).
 }
 ```
 
-**Measurement outranks the claim.** `fix_verified` reaches a finding from two places: the
-harness sets it when its own re-injection measured fail→pass, and a judgment may claim it
-for a re-injection done by hand. The outcome rule could not tell them apart, so the track
-record recorded `confirmed` over a measurement that never happened — live in this
-repository's ledger for `VERDICT-F-20`, whose cited test exists in no file and was
-measured error/error (VERDICT-F-32). A resolution now confirms when the harness measured
-fail→pass; a claim the harness *measured and did not confirm* settles nothing and says
-what it saw. The claim is not thrown away: where the harness measured nothing at all it is
-the only evidence there is, it still confirms, and the reason says it was claimed. Rows
-already decided are untouched, because a decided outcome sticks.
+**Measurement outranks the claim; silence does not.** `fix_verified` reaches a finding
+from two places: the harness sets it when its own re-injection measured fail→pass, and a
+judgment may claim it for a re-injection done by hand. The outcome rule could not tell
+them apart, so the track record recorded `confirmed` over a measurement that never
+happened — live in this repository's ledger for `VERDICT-F-20`, whose cited test exists in
+no file and was measured error/error (VERDICT-F-32).
+
+The first correction demoted a claim whenever a measurement had been *attempted*, and
+which test gets attempted is a prose lottery: the same hand-verified claim landed
+`confirmed` when the write-up quoted no node id and `unknown` when it did — four findings
+verified identically, two outcomes, decided by prose (VERDICT-F-35). So an inconclusive
+measurement (pass at both commits, an error, nothing runnable) is silence and changes
+nothing. Only a measurement that *contradicts* the claim does.
+
+`findings[].outcome_basis` records which of the two a `confirmed` rests on: `measured` is
+the harness's own re-injection, `claimed` is the tester's, weighed only by the absence of
+a contradiction. The calibration block counts them separately and its reading names the
+split, because a rate built mostly on the tester's word read exactly like a measured one
+(VERDICT-F-36). A row written before the field existed carries neither, and is left
+uncounted in the split rather than relabelled. Rows already decided are untouched, because
+a decided outcome sticks.
 
 A decided outcome is never overwritten by a later `unknown` — losing sight of a finding is
 not evidence that nothing was ever settled. Evidence, prose, and root-cause chains stay in

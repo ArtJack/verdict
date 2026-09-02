@@ -3,6 +3,34 @@
 Plugin and `verdict-mcp` share one version line; `.claude-plugin/plugin.json` and
 `pyproject.toml` are bumped together.
 
+## 0.64.0 — 2026-09-02 · "silence is not evidence"
+
+Both of run 7's Major findings are against the 0.62.0 ledger rule, three hours old.
+
+**An inconclusive measurement is silence** (VERDICT-F-35). 0.62.0 demoted a claimed
+fix-verification whenever the harness had *attempted* a measurement — and which test it
+attempts is the prose lottery of VERDICT-F-26. The result was live in this repository's
+own ledger: `F-32` and `F-33` recorded `confirmed` because their write-ups quote no node
+id, `F-31` and `F-34` recorded `unknown` because theirs do and the harness ran them to
+`pass → pass`. Four findings, hand-verified the same way by the same agent, two outcomes,
+decided by whether the prose happened to contain a test id.
+
+A measurement that says nothing now changes nothing. Only one that *contradicts* the claim
+does — the guarding test still failing on the code being judged — and by then
+`_apply_verification` has already reopened the finding.
+
+**The tally says which of the two it counted** (VERDICT-F-36). `confirmed` covered both a
+measured re-injection and the tester's own word, as one integer, under a caveat that read
+"a finding resolved without re-injection stays undecided" — the opposite of what the code
+did. `outcome_basis` is now recorded on the finding and in the ledger row, the calibration
+block counts `confirmed_measured` and `confirmed_claimed` separately, and the reading names
+the split: "27 of 30 held up (4 measured, 23 on the tester's word)". The caveat says what
+the rule actually is.
+
+Rows written before the field carry no basis and are left out of the split rather than
+relabelled — defaulting them to `claimed` would rewrite history as the tester's word, and
+there is a test that fails if they are.
+
 ## 0.63.0 — 2026-09-02 · "a test is not only its file"
 
 The last two of run 6's four findings, both Minor, both in features shipped hours earlier.
