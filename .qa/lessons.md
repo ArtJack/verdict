@@ -53,3 +53,35 @@ Discriminator: after any run that resolves findings, read each finding's
 collected test was scraped from prose. When writing evidence, put the
 demonstrating test id first and paraphrase quoted test source rather than
 copying node ids out of it. Filed as VERDICT-F-26.
+
+## 2026-09-02 (run 6) — "this is the only site" was wrong in three of four class links
+Run 5 closed each finding with a `root_cause.class` link asserting the search
+for the same shape found nothing else. Three of the four were incomplete, and
+each incompleteness became this run's residual: F-30 searched *renderers* and
+missed `_stamp_outcome`, where the same claim/measurement confusion still lives
+(now VERDICT-F-32); F-25 searched the copy-back and not what the copied test
+imports (now VERDICT-F-33); F-27's fix keyed on `delta`, a per-run transient,
+and the search for other transient-as-durable uses was never run (now
+VERDICT-F-34). The fixes themselves were sound — eight re-injections, eight
+caught — so the failure was not in the repair but in the sweep.
+Discriminator: a class link must name the search that was run (the pattern, the
+tree, the hits) rather than assert its conclusion. "Searched `fix_verified`
+across src/: four call sites, three benign" is auditable; "this is the single
+site" is not, and it reads identically whether the search was thorough or
+imagined.
+
+## 2026-09-02 (run 6) — the whole `confirmed` column is self-graded, and I added to it
+Auditing `.qa/outcomes.json` after this run's finalize: 19 rows read `confirmed`
+with the reason "fix-verified: the guarding test failed on re-injection", and
+not one of them has a harness measurement in the state to support it. Nine
+belong to findings that have aged out of state entirely, so their claims can no
+longer be audited from the record at all. Five are this run's own — legitimate
+in that each cites a re-injection I actually ran, and indistinguishable in the
+ledger from one I did not. `verification` was `null` this run, so the harness
+measured nothing that could have contradicted me.
+Discriminator: the check is a join, not a read — every `confirmed` row must be
+matched against that finding's `verification` block showing at_previous `fail`
+and at_head `pass`. A run that reports its own precision without performing
+that join is quoting a number it produced. Filed as VERDICT-F-32; until it is
+fixed, treat every published `proven` precision figure for this project as the
+agent's self-assessment.

@@ -1,5 +1,14 @@
 {
   "findings": {
+    "043a3a78": {
+      "confidence": "proven",
+      "first_seen": "2026-09-02",
+      "hash": "043a3a78",
+      "id": "VERDICT-F-32",
+      "outcome": "unknown",
+      "outcome_reason": "still open; nothing has settled it",
+      "severity": "Major"
+    },
     "0a63b898": {
       "confidence": "proven",
       "decided_on": "2026-09-02",
@@ -28,6 +37,15 @@
       "outcome_reason": "still open; nothing has settled it",
       "severity": "Major"
     },
+    "1f06e26a": {
+      "confidence": "proven",
+      "first_seen": "2026-09-02",
+      "hash": "1f06e26a",
+      "id": "VERDICT-F-33",
+      "outcome": "unknown",
+      "outcome_reason": "still open; nothing has settled it",
+      "severity": "Minor"
+    },
     "2c6cc70b": {
       "confidence": "proven",
       "first_seen": "2026-08-30",
@@ -39,11 +57,12 @@
     },
     "44f6d6fe": {
       "confidence": "proven",
+      "decided_on": "2026-09-02",
       "first_seen": "2026-09-02",
       "hash": "44f6d6fe",
       "id": "VERDICT-F-28",
-      "outcome": "unknown",
-      "outcome_reason": "still open; nothing has settled it",
+      "outcome": "confirmed",
+      "outcome_reason": "fix-verified: the guarding test failed on re-injection",
       "severity": "Major"
     },
     "45f73f25": {
@@ -68,38 +87,51 @@
     },
     "4b5ee0b8": {
       "confidence": "proven",
+      "decided_on": "2026-09-02",
       "first_seen": "2026-09-02",
       "hash": "4b5ee0b8",
       "id": "VERDICT-F-27",
-      "outcome": "unknown",
-      "outcome_reason": "still open; nothing has settled it",
+      "outcome": "confirmed",
+      "outcome_reason": "fix-verified: the guarding test failed on re-injection",
       "severity": "Major"
     },
     "5e6ea2a9": {
       "confidence": "proven",
+      "decided_on": "2026-09-02",
       "first_seen": "2026-09-02",
       "hash": "5e6ea2a9",
       "id": "VERDICT-F-29",
+      "outcome": "confirmed",
+      "outcome_reason": "fix-verified: the guarding test failed on re-injection",
+      "severity": "Major"
+    },
+    "612eee35": {
+      "confidence": "proven",
+      "first_seen": "2026-09-02",
+      "hash": "612eee35",
+      "id": "VERDICT-F-31",
       "outcome": "unknown",
       "outcome_reason": "still open; nothing has settled it",
       "severity": "Major"
     },
     "7cb4d1ce": {
       "confidence": "proven",
+      "decided_on": "2026-09-02",
       "first_seen": "2026-09-02",
       "hash": "7cb4d1ce",
       "id": "VERDICT-F-30",
-      "outcome": "unknown",
-      "outcome_reason": "still open; nothing has settled it",
+      "outcome": "confirmed",
+      "outcome_reason": "fix-verified: the guarding test failed on re-injection",
       "severity": "Minor"
     },
     "8034ffe0": {
       "confidence": "proven",
+      "decided_on": "2026-09-02",
       "first_seen": "2026-09-02",
       "hash": "8034ffe0",
       "id": "VERDICT-F-25",
-      "outcome": "unknown",
-      "outcome_reason": "still open; nothing has settled it",
+      "outcome": "confirmed",
+      "outcome_reason": "fix-verified: the guarding test failed on re-injection",
       "severity": "Major"
     },
     "854ec287": {
@@ -116,6 +148,15 @@
       "first_seen": "2026-08-30",
       "hash": "87511860",
       "id": "VERDICT-F-13",
+      "outcome": "unknown",
+      "outcome_reason": "still open; nothing has settled it",
+      "severity": "Minor"
+    },
+    "887674d8": {
+      "confidence": "proven",
+      "first_seen": "2026-09-02",
+      "hash": "887674d8",
+      "id": "VERDICT-F-34",
       "outcome": "unknown",
       "outcome_reason": "still open; nothing has settled it",
       "severity": "Minor"
