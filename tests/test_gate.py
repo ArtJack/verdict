@@ -500,6 +500,7 @@ def test_drift_note_says_only_what_is_actionable():
     assert "4 commits ago" in _drift_note({"code_drift": {"status": "behind", "commits": 4}})
     assert _drift_note({"code_drift": {"status": "behind", "commits": 0}}) is None, \
         "behind by nothing is current, not stale"
+    assert "does not contain" in _drift_note({"code_drift": {"status": "absent"}})
 
 
 def test_the_gating_flag_still_gates(tmp_path):
@@ -508,3 +509,19 @@ def test_the_gating_flag_still_gates(tmp_path):
     home = _drift_home(tmp_path, r, shas[0])
     assert gate(tmp_path, "pricer", "--max-commits-behind", "1", home=home).returncode == 5
     assert gate(tmp_path, "pricer", "--max-commits-behind", "9", home=home).returncode == 0
+
+
+def test_an_absent_commit_is_reported_and_gated_like_divergence(tmp_path):
+    """VERDICT-F-18: a complete clone that lacks the recorded commit used to
+    read as `unknown` and go unmentioned. It is reported in text and in the
+    comment, and under --max-commits-behind it is stale, like divergence."""
+    r, _, _ = _drift_repo(tmp_path)
+    home = _drift_home(tmp_path, r, "0" * 40)
+    proc = gate(tmp_path, "pricer", home=home)
+    assert proc.returncode == 0, proc.stdout + proc.stderr
+    assert "does not contain" in proc.stdout
+    proc = gate(tmp_path, "pricer", "--format", "github-comment", home=home)
+    assert "[!WARNING]" in proc.stdout and "does not contain" in proc.stdout
+    proc = gate(tmp_path, "pricer", "--max-commits-behind", "99", home=home)
+    assert proc.returncode == 5, proc.stdout
+    assert "does not contain the commit at all" in proc.stdout

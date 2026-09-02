@@ -124,10 +124,12 @@ def evaluate(project, fail_on, max_age_hours, min_run_number, now=None,
     drift = out["code_drift"] = code_drift(
         repo_for_root(resolve_root(project)), last.get("git_sha"))
     if max_commits_behind is not None:
-        if drift["status"] == "diverged":
+        if drift["status"] in ("diverged", "absent"):
             out.update(exit_code=5, reason=(
                 "stale: the tested commit is not in this branch's history — the "
-                "stored verdict describes code this checkout never had"))
+                "stored verdict describes code this checkout never had"
+                + (" (and this complete clone does not contain the commit at all)"
+                   if drift["status"] == "absent" else "")))
             return out
         if drift["status"] == "behind" and drift["commits"] > max_commits_behind:
             out.update(exit_code=5, reason=(
@@ -200,6 +202,9 @@ def _drift_note(r):
     something the other could not say.
     """
     drift = r.get("code_drift") or {}
+    if drift.get("status") == "absent":
+        return ("measured on a commit this repository does not contain — this verdict "
+                "describes code this checkout never had")
     if drift.get("status") == "diverged":
         return ("measured on a commit that is not in this branch's history — this "
                 "verdict describes different code")

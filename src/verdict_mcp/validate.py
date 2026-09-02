@@ -282,11 +282,25 @@ def _unmeasured_suite(state) -> list:
     narrower and fully measured — *no gate in this run produced test counts*, so
     nothing establishes that a test ran at all. `pass with risks` remains
     available and is the honest verdict; this only refuses the unqualified one.
-    A run with no gates configured is left alone: it claimed no suite, so it is
-    not overclaiming one.
+    A run that ran no gates at all is the harder case, and the first version of
+    this rule got it backwards: `gates: {}` was left alone, so the weakest
+    possible run — nothing measured — earned the strongest verdict, while a run
+    that measured something unreadable was refused (VERDICT-F-17, filed by
+    Verdict on itself). `gates: {}` is overloaded: a design review that has no
+    suite and a profile missing its gates block look the same. `verdict-facts`
+    says which (`no_gates`), the state carries it now, and that is what is
+    refused — the agent contract already says a missing block is "report that
+    and fix the profile", so this aligns the validator with the prompt rather
+    than the other way round. A state with empty gates and no `no_gates`
+    predates the fact travelling, or was built by hand; it is left alone.
     """
     if state.get("verdict") != "pass":
         return []
+    if state.get("no_gates"):
+        return ["verdict is `pass`, but this run ran no gates at all — neither --gate nor "
+                "a profile front-matter block supplied one, so nothing was measured. Fix "
+                "the profile so the suite is read through its runner, or say `pass with "
+                "risks` and name the gap in not_tested"]
     gates = state.get("gates")
     if not isinstance(gates, dict) or not gates:
         return []

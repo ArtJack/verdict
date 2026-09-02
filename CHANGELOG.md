@@ -3,6 +3,41 @@
 Plugin and `verdict-mcp` share one version line; `.claude-plugin/plugin.json` and
 `pyproject.toml` are bumped together.
 
+## 0.51.0 — 2026-09-01 · "three findings Verdict filed against itself"
+
+The first self-run from a fresh clone came back `blocked` (see 0.50.1) — and in a
+read-only pass with no gates and no hooks, the agent still filed three findings against
+v0.50.0, re-verified them in a second pass, and held their ids in memory so a later run
+would not re-mint them. All three are fixed here. The prompt is untouched.
+
+**VERDICT-F-17 (Major) — the weakest run got the strongest verdict.** v0.49.0's rule
+refused an unqualified `pass` when a gate ran and could not be parsed, and left `gates: {}`
+alone — so a run that measured *nothing* passed clean while a run that measured something
+unreadable was refused. `gates: {}` is overloaded: a design review with no suite and a
+profile missing its gates block look identical. `verdict-facts` already says which
+(`no_gates`); `merge` dropped it at the state boundary. The state carries it now and the
+validator refuses the unqualified `pass` on it — which aligns the code with the agent
+contract, which had said "report that and fix the profile" all along. A state with empty
+gates and no `no_gates` predates the fact travelling and is left alone.
+
+**VERDICT-F-18 (Minor) — `unknown` swallowed an observation.** `code_drift` returned
+`unknown` both for a shallow clone that cannot see far enough and for a *complete* clone
+that provably lacks the recorded commit — and every renderer is silent on `unknown`, by
+v0.49.1's own design. The live instance was the self-run itself: the run-3 base commit was
+a squash-merged branch head that no longer existed anywhere, the clone was complete, and a
+two-day-old verdict was shown with no hint its base commit was unlocatable. A complete
+clone missing a well-formed commit id is `absent` now: rendered in text and in the PR
+comment, said by the SessionStart banner, and stale under `--max-commits-behind` like
+divergence. Only for something shaped like a commit id — a garbled recorded sha is corrupt
+input, not an observation, and garbage still never alarms.
+
+**VERDICT-F-15, the remainder (Trivial)** — an unrecorded pass had minted this as F-19; run 4 folded it back into F-15, whose recorded title already named the two trees. The stale-command-name sweep now reaches `standards/` and
+`templates/`, the two trees an agent reads *during* a run, with reach assertions so it
+cannot quietly stop reaching them again.
+
+Also: the runner's well-behaved test stub says `pass with risks`, because it runs no
+gates — the F-17 rule caught the suite's own fixture.
+
 ## 0.50.1 — 2026-09-01 · "a bare checkout could not run the agent"
 
 **`verdict-run` now provisions what its own isolation hides.** It launches the session

@@ -434,9 +434,26 @@ def test_one_readable_gate_is_enough_and_a_lint_gate_is_not_punished(root):
     assert validate(state, root) == []
 
 
-def test_a_run_with_no_gates_claims_no_suite_and_is_left_alone(root):
-    """A spec or design review runs no gates. It is not overclaiming a suite,
-    so it is not asked to account for one."""
+def test_a_run_that_ran_no_gates_cannot_pass_unqualified(root):
+    """VERDICT-F-17, filed by Verdict on itself: the first version of this rule
+    left `gates: {}` alone, so a run that measured *nothing* got an unqualified
+    `pass` while a run that measured something unreadable was refused. The
+    harness now carries `no_gates` from facts, and that is what is refused —
+    as the agent contract already demanded ("report that and fix the profile")."""
+    state = good_state(verdict="pass", gates={},
+                       no_gates="no gates ran — neither --gate nor a profile block")
+    bad = validate(state, root)
+    assert any("ran no gates at all" in b for b in bad)
+    assert any("Fix the profile" in b for b in bad)
+    # the honest verdict stays available
+    assert validate(good_state(verdict="pass with risks", gates={},
+                               no_gates="no gates ran"), root) == []
+
+
+def test_empty_gates_without_the_fact_is_left_alone(root):
+    """`gates: {}` with no `no_gates` is a state from before the fact travelled,
+    or one built by hand. It is not overclaiming a suite it never mentioned,
+    and refusing it would be a migration by ambush."""
     assert validate(good_state(verdict="pass", gates={}), root) == []
 
 

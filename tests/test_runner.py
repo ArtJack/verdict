@@ -65,7 +65,7 @@ qa_root.mkdir(parents=True, exist_ok=True)
 subprocess.run([sys.executable, r"{HARNESS}", "facts",
                 "--repo", ".", "--qa-root", str(qa_root)], check=True,
                capture_output=True)
-judgment = {{"verdict": "pass", "release_blockers": [], "not_tested": ["x"],
+judgment = {{"verdict": "pass with risks", "release_blockers": [], "not_tested": ["x"],
             "isolation_check": {{"result": "pass"}}, "topic": "nightly",
             "findings": []}}
 (qa_root / "judgment.json").write_text(json.dumps(judgment), encoding="utf-8")

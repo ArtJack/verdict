@@ -63,10 +63,15 @@ def test_no_stale_command_names_outside_history():
     # PyPI renders — was not one of them. Sweep instead: every tracked doc that
     # is not a dated record of what once ran.
     history = {"CHANGELOG.md", "eval/README.md"}
+    # standards/ and templates/ were still outside the sweep after it was
+    # widened (the remainder of VERDICT-F-15) — the two trees an agent reads *during* a run.
     live = [p for p in [*REPO.glob("*.md"), *REPO.glob("docs/*.md"),
-                        *REPO.glob("agents/*.md"), *COMMANDS.glob("*.md")]
+                        *REPO.glob("agents/*.md"), *COMMANDS.glob("*.md"),
+                        *REPO.glob("standards/*.md"), *REPO.glob("templates/*.md")]
             if str(p.relative_to(REPO)).replace("\\", "/") not in history]
     assert any(p.name == "README-pypi.md" for p in live), "the sweep must reach the PyPI page"
+    assert any(p.name == "release-gate.md" for p in live), "the sweep must reach standards/"
+    assert any(p.name == "test-case.md" for p in live), "the sweep must reach templates/"
     # Match commands, not any string starting "/qa-". Widening the sweep first
     # flagged `.../worktrees/qa-nightly` in docs/project-key.md — a directory
     # name, not a command. A guard that cries wolf gets deleted, so it names the
