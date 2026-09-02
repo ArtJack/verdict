@@ -138,9 +138,43 @@ def test_cli_exit_codes(root):
 
     (root / "bad.json").write_text(json.dumps(good_state(verdict="nope")), encoding="utf-8")
     proc = run_cli(str(root / "bad.json"))
-    assert proc.returncode == 1 and "violation" in proc.stderr
+    assert proc.returncode == 1
+    # Not merely "violation" somewhere in stderr: a crash inside this very
+    # print prints the offending source line, which contains the word, and the
+    # assertion could not tell a working message from a traceback.
+    assert "Traceback" not in proc.stderr, proc.stderr
+    assert proc.stderr.startswith("verdict-validate: 1 violation(s):"), proc.stderr
+    assert "verdict 'nope'" in proc.stderr
 
     assert run_cli(str(root / "missing.json")).returncode == 2
+
+
+def test_cli_quiet_says_nothing_when_the_state_is_good(root):
+    (root / "state.json").write_text(json.dumps(good_state()), encoding="utf-8")
+    loud = run_cli(str(root / "state.json"))
+    quiet = run_cli(str(root / "state.json"), "--quiet")
+    assert loud.returncode == quiet.returncode == 0
+    assert "satisfies the state contract" in loud.stdout
+    assert quiet.stdout.strip() == "", quiet.stdout
+
+
+def test_cli_reads_the_previous_state_and_reports_its_own_errors(root, tmp_path):
+    """`--previous` enables the run-number-advanced check. An unreadable one is
+    a usage error about *that* file, not a silent fallback to no comparison."""
+    (root / "state.json").write_text(json.dumps(good_state(run_number=4)), encoding="utf-8")
+    prev = tmp_path / "prev.json"
+    prev.write_text(json.dumps(good_state(run_number=9)), encoding="utf-8")
+    stale = run_cli(str(root / "state.json"), "--previous", str(prev))
+    assert stale.returncode == 1, stale.stderr
+    assert "run_number" in stale.stderr
+
+    missing = run_cli(str(root / "state.json"), "--previous", str(tmp_path / "nope.json"))
+    assert missing.returncode == 2, missing.stderr
+    assert "--previous" in missing.stderr
+
+    prev.write_text(json.dumps(good_state(run_number=3)), encoding="utf-8")
+    ok = run_cli(str(root / "state.json"), "--previous", str(prev))
+    assert ok.returncode == 0, ok.stderr
 
 
 def test_hook_blocks_a_bad_write_and_ignores_other_files(root):
@@ -668,3 +702,60 @@ def test_the_zero_coverage_refusal_fires_only_on_a_clean_pass(root):
     some = {"status": "measured", "changed_lines": 40, "changed_lines_executed": 1}
     assert not [b for b in validate(good_state(verdict="pass", coverage=some), root)
                 if "changed lines was executed" in b]
+
+
+# ── the guards the campaign found on the state side ────────────────────────
+
+def test_a_single_unexercised_changed_line_is_still_refused(root):
+    """`changed > 0`, not `> 1`. A one-line change nothing executed is the
+    same claim as a forty-line one."""
+    one = {"status": "measured", "changed_lines": 1, "changed_lines_executed": 0}
+    assert any("none of the 1 changed lines was executed" in b
+               for b in validate(good_state(verdict="pass", coverage=one), root))
+
+
+def test_a_run_number_must_be_a_positive_integer(root):
+    """`not isinstance(...) or < 1` — read as `and`, a string run number
+    reaches every downstream comparison."""
+    for value in ("4", 0, -1, None, 4.5):
+        assert any("run_number" in b for b in validate(good_state(run_number=value), root)), value
+    assert validate(good_state(run_number=1), root) == []
+
+
+def test_the_report_field_must_be_a_non_empty_string(root):
+    """Same shape: `not isinstance(...) or not strip()`."""
+    for value in (None, 42, "", "   ", []):
+        s = good_state()
+        s["last_run"] = {**s["last_run"], "report": value}
+        assert any("report" in b for b in validate(s, root)), value
+
+
+def test_the_state_validator_names_and_checks_every_finding_too(root):
+    """The twins of the judgment-side rules closed in 0.67.0 — the campaign
+    found the same three alive again on this side."""
+    f = good_state()["findings"][0]
+    bad = validate(good_state(findings=[dict(f, id="PRC-F-1", severity="Huge"),
+                                        dict(f, id="PRC-F-2", hash="b2",
+                                             failure_classification="MADE_UP")]), root)
+    assert any("findings[0]" in b and "PRC-F-1" in b for b in bad), bad
+    assert any("findings[1]" in b and "failure_classification" in b for b in bad), bad
+
+
+def test_the_unmeasured_suite_refusal_names_which_gate_was_unreadable(root):
+    """Run-level and only over an unqualified `pass`. `isinstance(g, dict) and
+    g.get(...)` — read as `or`, every gate is listed as unreadable including the
+    lint gate that legitimately parses to no counts."""
+    s = good_state(verdict="pass", tests={},
+                   gates={"suite": {"exit_code": 0, "counts_unparsed": True},
+                          "lint": {"exit_code": 0}})
+    bad = " ".join(b for b in validate(s, root) if "no gate in this run produced" in b)
+    assert bad, "the rule must fire over a pass with no counts"
+    assert "suite" in bad and "lint" not in bad, bad
+
+
+def test_the_same_refusal_says_so_when_no_gate_reported_anything(root):
+    """The `or` fallback: with nothing to list, the message must still say what
+    happened rather than trailing off into empty parentheses."""
+    s = good_state(verdict="pass", tests={}, gates={"lint": {"exit_code": 0}})
+    bad = " ".join(b for b in validate(s, root) if "no gate in this run produced" in b)
+    assert "no gate reported a runner summary" in bad, bad
