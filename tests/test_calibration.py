@@ -489,3 +489,45 @@ def test_the_caveat_no_longer_contradicts_the_rule():
     caveats = " ".join(calibration({"findings": []}, min_sample=3)["caveats"])
     assert "resolved without re-injection stays undecided" not in caveats
     assert "nobody checked at all stays undecided" in caveats
+
+
+def test_a_measurement_the_harness_declined_to_weigh_does_not_deny_the_row():
+    """VERDICT-F-40: `_apply_verification` stamps `not_weighed` on a test chosen
+    by prose order from several candidates and refuses to reopen the finding
+    with it. Reading the same record here as a contradiction denied the row
+    anyway, under a reason saying the opposite of the note beside it."""
+    weak = {"test": "t.py::unrelated", "at_previous": "pass", "at_head": "fail",
+            "selected_by": "first_cited", "candidates": 3,
+            "not_weighed": "chosen by prose order from 3 cited tests"}
+    out = _stamp_outcome(_resolved(fix_verified=True, verification=weak))
+    assert out["outcome"] == "confirmed" and out["outcome_basis"] == "claimed", out
+
+
+def test_a_measurement_the_harness_did_weigh_still_denies_it():
+    """The false-positive guard: one deliberately chosen test, still failing."""
+    strong = {"test": "t.py::a", "at_previous": "fail", "at_head": "fail",
+              "selected_by": "explicit", "candidates": 1}
+    out = _stamp_outcome(_resolved(fix_verified=True, verification=strong))
+    assert out["outcome"] == "unknown", out
+
+
+def test_the_ledger_row_keeps_the_measurement_not_only_the_sentence():
+    """VERDICT-F-41: a row outlives its finding, so a `confirmed` with no
+    measurement recorded can never be audited — 19 of 21 were unjoinable."""
+    from verdict_mcp.state import outcome_row
+    f = {"id": "D-F-1", "hash": "h1", "severity": "Major", "confidence": "proven",
+         "outcome": "confirmed", "outcome_basis": "measured",
+         "outcome_reason": "fix-verified: the guarding test failed on re-injection",
+         "verification": {"test": "tests/test_x.py::test_y", "at_previous": "fail",
+                          "at_head": "pass", "selected_by": "explicit",
+                          "previous_sha": "abc123", "summary": "1 failed → 1 passed"}}
+    row = outcome_row(f, "2026-09-02")
+    assert row["verification"] == {"test": "tests/test_x.py::test_y", "at_previous": "fail",
+                                   "at_head": "pass", "selected_by": "explicit"}, row
+    assert "summary" not in row["verification"], "a row is a hundred bytes, not a finding"
+
+
+def test_a_row_with_nothing_measured_carries_no_empty_block():
+    from verdict_mcp.state import outcome_row
+    row = outcome_row({"id": "D-F-2", "hash": "h2", "outcome": "unknown"})
+    assert "verification" not in row, row

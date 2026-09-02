@@ -3,6 +3,32 @@
 Plugin and `verdict-mcp` share one version line; `.claude-plugin/plugin.json` and
 `pyproject.toml` are bumped together.
 
+## 0.68.0 — 2026-09-02 · "a copy reads its source; a move removes it"
+
+**Fixes a guard regression 0.65.0 shipped** (VERDICT-F-39, Major/P1, filed by run 8). The
+copier fix taught the strict bash guard that a copy only writes its destination — true of
+`cp`, `install`, `rsync` and `ln`, and not of `mv`, which was in the list with them. So the
+guard began permitting `mv <checkout>/hooks/enforce_bash_scope.py /tmp/`: the agent moving
+the guard itself out of the way, one commit after that exact command was denied.
+
+`mv` now yields every operand, source and destination alike, and so does
+`rsync --remove-source-files`. Copying *out* of the checkout still works, which was the
+whole point of the previous fix, and copying *into* it is still refused. All four
+directions are probed by tests, and the over-correction — treating every copy as a move —
+fails three of them.
+
+**A measurement the harness declined to weigh no longer denies a ledger row**
+(VERDICT-F-40). `_apply_verification` stamps `not_weighed` on a test chosen by prose order
+from several candidates and refuses to reopen a finding with it. The outcome rule read the
+same record, saw a failure at HEAD, and denied the row anyway — under a reason saying the
+opposite of the note sitting beside it. Two layers, one record, contradictory readings.
+
+**The ledger keeps the measurement, not only the sentence about it** (VERDICT-F-41). A row
+outlives its finding, so a `confirmed` could not be audited once `state.json` dropped it:
+19 of this repository's 21 confirmed rows were unjoinable when run 8 went looking, which is
+the join run 7 had asked the next run to perform. Rows now carry the test, both results and
+how the test was chosen — four fields, because a row is a hundred bytes and not a finding.
+
 ## 0.67.0 — 2026-09-02 · "the rules that guard the model were the unguarded ones"
 
 **A mutation campaign over `validate.py`**, the last of the six "champion" moves and the

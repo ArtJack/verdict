@@ -548,3 +548,39 @@ def test_bash_reads_an_explicit_target_directory(repo, tmp_path):
                         bash_event(f"cp --target-directory={repo}/src {scratch}/a.py", repo),
                         strict="1")
     assert eq == 2, err2
+
+
+def test_bash_blocks_moving_anything_out_of_the_checkout(repo, tmp_path):
+    """VERDICT-F-39, a regression 0.65.0 shipped: `mv` was read as a copy, and
+    a copy only writes its destination. But `mv` also *removes* its source — so
+    the guard began permitting `mv <checkout>/hooks/enforce_bash_scope.py /tmp/`,
+    the agent moving the guard itself out of the way, one commit after that
+    exact command was denied."""
+    scratch = tmp_path / "scratch"
+    scratch.mkdir()
+    for command in (f"mv {repo}/src/app.py {scratch}/app.py",
+                    f"mv {repo}/.qa/../src/app.py {scratch}/",
+                    f"rsync --remove-source-files {repo}/src/app.py {scratch}/"):
+        rc, err = run_hook("enforce_bash_scope.py", bash_event(command, repo), strict="1")
+        assert rc == 2, f"expected deny for: {command}"
+        assert "QA root" in err
+
+
+def test_bash_still_allows_a_move_that_touches_neither_end_of_the_checkout(repo, tmp_path):
+    """The false-positive guard: treating a move's source as a target must not
+    make every move a refusal."""
+    scratch = tmp_path / "scratch"
+    scratch.mkdir()
+    rc, err = run_hook("enforce_bash_scope.py",
+                       bash_event(f"mv {scratch}/a.py {scratch}/b.py", repo), strict="1")
+    assert rc == 0, err
+
+
+def test_bash_still_allows_copying_out_which_is_the_whole_point_of_the_last_fix(repo, tmp_path):
+    """`cp` reads its source. Repairing `mv` must not undo VERDICT-F-37."""
+    scratch = tmp_path / "scratch"
+    scratch.mkdir()
+    for command in (f"cp -a {repo} {scratch}/tree2",
+                    f"rsync {repo}/src/app.py {scratch}/"):
+        rc, err = run_hook("enforce_bash_scope.py", bash_event(command, repo), strict="1")
+        assert rc == 0, f"{command}: {err}"
