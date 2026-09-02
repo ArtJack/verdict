@@ -1238,6 +1238,66 @@ def write_state(qa_root: Path, state: dict) -> list[str]:
     return []
 
 
+def check_artifacts(qa_root: Path, state: dict) -> list[str]:
+    """Re-read what finalize just wrote and make the four artifacts agree.
+
+    Run 4 of this repository found two harness defects — a state re-keyed to
+    the directory name, an INDEX row dated from the local clock — not by
+    reading source but by reading its own artifacts back and comparing them:
+    the state, the INDEX row, the runs.jsonl row and the report describe one
+    run and must agree, and where they disagree the harness composed a value
+    instead of measuring it. That was the agent's discipline; this is the
+    harness's. Every check reads from disk, not from the objects in memory,
+    because "what did we mean to write" is the question the lesson warns
+    against.
+    """
+    problems: list[str] = []
+    root = Path(qa_root)
+    run = state.get("run_number")
+    last = state.get("last_run") or {}
+
+    on_disk = _read_json(root / "state.json") or {}
+    if on_disk.get("run_number") != run or on_disk.get("verdict") != state.get("verdict"):
+        problems.append(f"state.json on disk (run {on_disk.get('run_number')}, verdict "
+                        f"{on_disk.get('verdict')!r}) is not the state just written "
+                        f"(run {run}, verdict {state.get('verdict')!r})")
+
+    rows, _ = load_runs(root)
+    row = rows[-1] if rows else {}
+    if row.get("run_number") != run:
+        problems.append(f"runs.jsonl ends at run {row.get('run_number')}, the state says {run}")
+    else:
+        if row.get("chain") != last.get("chain"):
+            problems.append("runs.jsonl's last link is not the one last_run.chain records")
+        if row.get("verdict") != state.get("verdict"):
+            problems.append(f"runs.jsonl records verdict {row.get('verdict')!r}, the state "
+                            f"says {state.get('verdict')!r}")
+
+    index = root / "reports" / "INDEX.md"
+    lines = [ln for ln in index.read_text(encoding="utf-8").splitlines()
+             if ln.startswith("| ") and not ln.startswith("| Date")] if index.is_file() else []
+    cells = [c.strip() for c in lines[-1].strip().strip("|").split("|")] if lines else []
+    stamp = str(last.get("timestamp_utc") or "")[:10]
+    if not cells:
+        problems.append("INDEX.md has no run row")
+    else:
+        if cells[0] != stamp:
+            problems.append(f"INDEX row is dated {cells[0]}, the state was measured {stamp}")
+        if len(cells) > 1 and cells[1] != str(state.get("project")):
+            problems.append(f"INDEX row names project {cells[1]!r}, the state says "
+                            f"{state.get('project')!r}")
+        if len(cells) > 3 and cells[3] != str(state.get("verdict")):
+            problems.append(f"INDEX row records verdict {cells[3]!r}, the state says "
+                            f"{state.get('verdict')!r}")
+
+    report = str(last.get("report") or "")
+    if not report or not (root / report).is_file():
+        problems.append(f"the report the state names ({report or 'none'}) is not on disk")
+    elif cells and Path(report).name not in lines[-1]:
+        problems.append(f"INDEX row does not link the report the state names ({Path(report).name})")
+    return problems
+
+
 def _read_json(path: Path):
     try:
         return json.loads(path.read_text(encoding="utf-8"))
@@ -1438,6 +1498,15 @@ def finalize_main(argv=None) -> int:
         return 1
     marker = qa_root / "run-in-progress.json"
     marker.unlink(missing_ok=True)
+    disagreements = check_artifacts(qa_root, state)
+    if disagreements:
+        # Loud, on the stream the agent reads, and not a refusal: the run is
+        # recorded and the state is valid. What is wrong is a renderer, and a
+        # renderer defect is a finding about this harness — file it.
+        print("verdict-finalize: WARNING — the artifacts this run wrote disagree with each "
+              f"other ({len(disagreements)}); where they disagree the harness composed a "
+              "value instead of measuring it. File it as a finding against verdict:\n  "
+              + "\n  ".join(disagreements), file=sys.stderr)
     print(f"verdict-finalize: wrote {qa_root / 'state.json'} and {report_path} "
           f"(run {state['run_number']}, {state['run_type']}, verdict {state['verdict']!r}), "
           f"appended the INDEX row, cleared the run marker")
