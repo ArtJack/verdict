@@ -16,3 +16,26 @@ trivial cost (old-vs-new on the same tree for F-5; generate()->[] for F-8;
 a string prose through finalize for F-9). Doing that turned four RESOLVED
 findings into four fix-verified ones, and the same probes are what surfaced
 F-13's five residual gaps in the F-5 fix. Cheap; do it by default.
+
+## 2026-09-02 — a re-derived finding got a new id for a defect already tracked
+An unrecorded run minted VERDICT-F-19 for "the stale-command-name sweep misses
+standards/ and templates/". That defect was already VERDICT-F-15, filed
+2026-08-30, whose own recorded title names `standards/* and templates/*`
+explicitly. F-15 had been *partially* fixed in between — the sweep was widened
+to README-pypi.md and docs/ — and the partial fix made the remainder read as a
+new problem. Filing it again would have double-counted one defect under two ids
+and reset a known gap's age to zero.
+Discriminator: before minting an id, grep the existing findings' titles AND
+evidence for the file path, not for the wording of the symptom. The wording
+changes when a fix lands halfway; the path does not. Id F-19 is left unused.
+
+## 2026-09-02 — verify the artifacts you wrote, not just the code you reviewed
+The pre-handoff self-check (§13) is what caught VERDICT-F-23 and VERDICT-F-24 —
+the state's `project` silently re-keyed from `verdict` to `verdict-clone`, and
+an INDEX row dated a day off the state's own UTC timestamp. Both were defects in
+the harness, and both were sitting in the artifacts this run had just produced.
+Neither would have been found by reading source; both were obvious the moment
+the written files were read back and compared against each other.
+Discriminator: after finalize, diff the state, the INDEX row, the runs.jsonl row
+and the report filename against each other. They describe one run and must
+agree; where they disagree, the harness composed a value instead of measuring it.
