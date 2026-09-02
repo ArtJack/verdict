@@ -39,3 +39,17 @@ the written files were read back and compared against each other.
 Discriminator: after finalize, diff the state, the INDEX row, the runs.jsonl row
 and the report filename against each other. They describe one run and must
 agree; where they disagree, the harness composed a value instead of measuring it.
+
+## 2026-09-02 — evidence prose is executable input, not just narrative
+Run 4 wrote VERDICT-F-20's evidence with a test's source quoted verbatim,
+including the literal node id `t.py::new` from an assertion's expected value.
+Run 5's harness (new in v0.53.0) scrapes pytest node ids out of evidence text
+to choose which test to re-run, took that fabricated id as F-20's demonstrating
+test, and could not fix-verify a finding that was genuinely fixed. A probe then
+showed the worse case: a cross-reference to another finding's still-failing
+test, quoted in evidence, force-reopens a correctly-resolved finding.
+Discriminator: after any run that resolves findings, read each finding's
+`verification.test` back and check it against test-ids.txt. An id that is not a
+collected test was scraped from prose. When writing evidence, put the
+demonstrating test id first and paraphrase quoted test source rather than
+copying node ids out of it. Filed as VERDICT-F-26.
