@@ -4,6 +4,7 @@ gates:
   fixture_freshness: python3 eval/fixture_freshness.py
 test_ids_cmd: uv run --group dev python -m pytest tests/ --collect-only -q -o addopts=
 test_one_cmd: uv run --group dev python -m pytest {id} -q -p no:cacheprovider -o addopts=
+coverage_suite_cmd: uv run --group dev python -m coverage run -m pytest tests/ -q -o addopts=
 ---
 
 # QA profile — verdict
