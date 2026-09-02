@@ -49,7 +49,8 @@ try:
     from .profile import load as load_profile
     from .project_key import derive_key
     from .state import (OUTCOMES_FILE, calibration, is_open, load_outcomes,
-                        merge_outcomes, norm_status, order_findings)
+                        merge_outcomes, norm_status, order_findings,
+                        project_key_for_root)
     from .state import (RUNS_FILE, chain_link, history_row, load_runs,
                         next_revision)
     from .state import home as state_home
@@ -61,7 +62,8 @@ except ImportError:  # bare-script execution
     from profile import load as load_profile
     from project_key import derive_key
     from state import (OUTCOMES_FILE, calibration, is_open, load_outcomes,
-                       merge_outcomes, norm_status, order_findings)
+                       merge_outcomes, norm_status, order_findings,
+                       project_key_for_root)
     from state import (RUNS_FILE, chain_link, history_row, load_runs,
                        next_revision)
     from state import home as state_home
@@ -276,6 +278,21 @@ def collect(repo: Path, qa_root: Path, gates: list[tuple[str, str]],
                 abandoned = {"note": "unreadable marker"}
 
     key, key_source = derive_key(repo)
+    # The recorded key is authoritative (§0). A profile that names its
+    # Project-Key — or a previous state that already carries one — wins over
+    # whatever this directory happens to be called. Nothing in the harness read
+    # the header until run 4 of this repository, executed from a clone named
+    # `verdict-clone`, re-keyed the committed team-mode state and its INDEX to
+    # a second project name (VERDICT-F-23). In team mode `.qa/` is committed
+    # and travels with the repository, so any clone, CI checkout or agent
+    # worktree with a different directory name would have done the same.
+    recorded = project_key_for_root(qa_root)
+    if recorded and recorded != key:
+        key, key_source = recorded, "profile"
+    else:
+        prior = _read_json(Path(qa_root) / "state.json") if qa_root else None
+        if isinstance(prior, dict) and prior.get("project") and prior["project"] != key:
+            key, key_source = str(prior["project"]), "state"
     sha = _git(["rev-parse", "HEAD"], repo)
     branch = _git(["rev-parse", "--abbrev-ref", "HEAD"], repo)
     prev_sha = ((previous or {}).get("last_run") or {}).get("git_sha")
@@ -438,11 +455,23 @@ def collect(repo: Path, qa_root: Path, gates: list[tuple[str, str]],
             # added or removed on the next run.
             before = ([x.strip() for x in ledger.read_text(encoding="utf-8").splitlines() if x.strip()]
                       if ledger.is_file() else [])
+            added = sorted(set(ids) - set(before))
+            removed = sorted(set(before) - set(ids))
             facts["test_ids"] = {
                 "status": "measured",
                 "count": len(ids),
-                "added": sorted(set(ids) - set(before))[:50],
-                "removed": sorted(set(before) - set(ids))[:50],
+                # The counts come from the untruncated sets; only the lists are
+                # capped, for display. The renderer used to take len() of the
+                # capped list, so a mass deletion read as "−50" under a line
+                # claiming set-diff accounting — the display cap had silently
+                # become the ceiling of the number the gate reported. Live on
+                # run 4 of this repository: "+50" where the truth was +166
+                # (VERDICT-F-20).
+                "added_count": len(added),
+                "removed_count": len(removed),
+                "added": added[:50],
+                "removed": removed[:50],
+                "truncated": len(added) > 50 or len(removed) > 50,
                 "source": "id set-diff, not summary arithmetic",
             }
             facts["_test_ids"] = ids
@@ -704,8 +733,21 @@ def index_row(state: dict) -> str:
     bcmm = "/".join(str(sev.get(s, 0)) for s in ("Blocker", "Critical", "Major", "Minor"))
     report = str((state.get("last_run") or {}).get("report") or "")
     name = Path(report).name
-    return (f"| {date.today().isoformat()} | {state['project']} | {state['run_type']} "
-            f"| {state['verdict']} | {counts} | n/a | {bcmm} | [{name}]({report}) |")
+    # Measured, not composed. The Date cell came from the local clock while every
+    # other stamp in the run is UTC, so a row written after 17:00 on a UTC-7 host
+    # carried yesterday's date permanently — run 4 of this repository reads
+    # 09-01 against a state stamped 09-02T04:44Z. And the Δ-tests cell was the
+    # literal "n/a" whatever the set-diff had measured (VERDICT-F-24).
+    stamp = str((state.get("last_run") or {}).get("timestamp_utc") or "")
+    day = stamp[:10] if len(stamp) >= 10 else "n/a"
+    ids = state.get("test_ids") or {}
+    if ids.get("status") == "measured":
+        delta = (f"+{ids.get('added_count', len(ids.get('added', [])))}/"
+                 f"−{ids.get('removed_count', len(ids.get('removed', [])))}")
+    else:
+        delta = "n/a"
+    return (f"| {day} | {state['project']} | {state['run_type']} "
+            f"| {state['verdict']} | {counts} | {delta} | {bcmm} | [{name}]({report}) |")
 
 
 INDEX_HEADER = ("| Date | Project | Run type | Verdict | Tests (pass/skip/fail) | Δ tests "
@@ -1069,8 +1111,13 @@ def render_report(state: dict, prose: dict | None = None) -> str:
         out += ["", f"Tests: {counted}"]
     ids = state.get("test_ids") or {}
     if ids.get("status") == "measured":
-        out.append(f"Test-id ledger: {ids['count']} ids · +{len(ids.get('added', []))} "
-                   f"/ −{len(ids.get('removed', []))} (set-diff, not summary arithmetic)")
+        # Counts, not list lengths: the lists are capped at 50 for display and a
+        # state from before the counts travelled falls back to the old reading.
+        added_n = ids.get("added_count", len(ids.get("added", [])))
+        removed_n = ids.get("removed_count", len(ids.get("removed", [])))
+        out.append(f"Test-id ledger: {ids['count']} ids · +{added_n} / −{removed_n} "
+                   "(set-diff, not summary arithmetic)"
+                   + (" — id lists truncated to 50 each" if ids.get("truncated") else ""))
     elif ids.get("status") == "unavailable":
         out.append(f"Test-id ledger: **unavailable** — {ids.get('reason', '')}")
 

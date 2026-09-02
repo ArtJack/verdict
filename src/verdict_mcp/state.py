@@ -763,6 +763,24 @@ def code_drift(repo, sha, timeout: float = 3.0) -> dict:
 # across the live roots rather than assumed — the bold form was the majority and
 # the first pattern here matched none of them.
 _REPO_PATH = re.compile(r"^\*{0,2}Repo-Path:\*{0,2}\s*`?([^`\n]+?)`?\s*$", re.M)
+_PROJECT_KEY = re.compile(r"^\*{0,2}Project-Key:\*{0,2}\s*`?([^`\n]+?)`?\s*$", re.M)
+
+
+def project_key_for_root(root) -> str | None:
+    """The project key a QA root's profile records, or None.
+
+    Same two spellings as `Repo-Path` (bold and bare), same reason. This is the
+    §0 "recorded key is authoritative" rule made mechanical: until it existed,
+    `derive_key` was the only source of identity the harness consulted, and a
+    checkout under a different directory name re-keyed a committed state
+    (VERDICT-F-23).
+    """
+    try:
+        text = (Path(root) / "profile.md").read_text(encoding="utf-8")
+    except OSError:
+        return None
+    m = _PROJECT_KEY.search(text)
+    return m.group(1).strip() if m else None
 
 
 def repo_for_root(root) -> Path | None:
