@@ -37,8 +37,11 @@ import hashlib
 import json
 import os
 import re
+import shlex
+import shutil
 import subprocess
 import sys
+import tempfile
 import time
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
@@ -246,8 +249,221 @@ def _parse_marker_time(value):
         return None
 
 
+# ── fix verification ───────────────────────────────────────────────────────
+#
+# `fix_verified` is the one judgment field that feeds the track record, and it
+# was almost never set: re-injecting a defect by hand is the step every run
+# skipped, so resolutions stayed `unknown` and the calibration ledger starved —
+# 95 of 110 Sales findings undecided, no precision rate publishable. The
+# harness does the re-injection now, the way the contract asks the tester to:
+# run the test that demonstrates the defect at the commit before the fix and at
+# HEAD. Measured, bounded, and honest about what it could not tell.
+
+_TEST_ID = re.compile(r"([\w./\\-]+\.py::[\w.:]+(?:\[[^\]\n]*\])?)")
+VERIFY_MAX_FINDINGS = 25
+VERIFY_TIMEOUT_S = 120
+
+
+def cited_tests(finding: dict) -> list[str]:
+    """The tests a finding names — an explicit `verification_test`, or pytest
+    node ids inside its evidence. `test_x.py:12` is a line reference, not a
+    test, and does not count."""
+    explicit = finding.get("verification_test")
+    ids = [explicit] if isinstance(explicit, str) else [str(x) for x in (explicit or []) if x]
+    for line in finding.get("evidence") or []:
+        ids += _TEST_ID.findall(str(line))
+    out = []
+    for i in ids:
+        i = i.strip().rstrip(".,;:")
+        if i and i not in out:
+            out.append(i)
+    return out
+
+
+def _one_test_cmd(template: str, test_id: str, repo: Path) -> str:
+    """Fill `{id}` in, quoted for the shell, and pin a relative interpreter to
+    the repository it was written for: `.venv/bin/python` means nothing inside
+    a scratch checkout, and the point of the scratch checkout is the source."""
+    quoted = ('"' + test_id.replace('"', '') + '"') if os.name == "nt" else shlex.quote(test_id)
+    cmd = template.replace("{id}", quoted)
+    head, sep, rest = cmd.partition(" ")
+    first = head.strip("\"'")
+    if first and not os.path.isabs(first) and ("/" in first or "\\" in first) \
+            and (Path(repo) / first).exists():
+        cmd = str((Path(repo) / first).resolve()) + sep + rest
+    return cmd
+
+
+def _classify(proc, output: str) -> str:
+    """pass / fail / error, read from the runner's parsed summary, never from
+    the exit code alone. A setup error exits 1 exactly like a failing assertion
+    does, and reading it as `fail` at the old commit would mint a verification
+    the code never earned. `fail` is only ever a parsed failure count with no
+    errors beside it; an unparsed non-zero exit is `error`."""
+    counts, _ = _counts(output)
+    if counts:
+        if counts.get("errors"):
+            return "error"
+        if counts.get("failed"):
+            return "fail"
+        if counts.get("passed"):
+            return "pass"
+        return "error"  # collected but ran nothing — skipped is not a pass
+    if proc is not None and proc.returncode == 0:
+        return "pass"
+    return "error"
+
+
+def _run_test(template: str, test_id: str, cwd, repo: Path, timeout: float,
+              pythonpath: list | None = None) -> dict:
+    cmd = _one_test_cmd(template, test_id, repo)
+    env = dict(os.environ)
+    if pythonpath:
+        env["PYTHONPATH"] = os.pathsep.join([*pythonpath, env.get("PYTHONPATH", "")]).rstrip(os.pathsep)
+    try:
+        proc = subprocess.run(cmd, cwd=str(cwd), shell=True, capture_output=True, text=True,
+                              timeout=timeout, env=env)
+    except subprocess.TimeoutExpired:
+        return {"result": "error", "summary": f"timed out after {timeout:.0f}s"}
+    except OSError as exc:
+        return {"result": "error", "summary": str(exc)}
+    output = proc.stdout + proc.stderr
+    return {"result": _classify(proc, output), "summary": _summary_line(output),
+            "exit_code": proc.returncode}
+
+
+def _scratch_checkout(repo: Path, sha: str):
+    """A detached worktree of `sha`, or None when the commit is not here. The
+    checkout tree itself is never touched; the worktree lives in a temp dir and
+    is removed when verification ends."""
+    tmp = Path(tempfile.mkdtemp(prefix="verdict-verify-"))
+    proc = _run(["git", "-C", str(repo), "worktree", "add", "--detach", "-q", str(tmp), sha])
+    if proc.returncode != 0:
+        shutil.rmtree(tmp, ignore_errors=True)
+        return None
+    return tmp
+
+
+def _remove_scratch(repo: Path, tmp: Path) -> None:
+    _run(["git", "-C", str(repo), "worktree", "remove", "--force", str(tmp)])
+    shutil.rmtree(tmp, ignore_errors=True)
+
+
+def verify_findings(repo: Path, previous: dict | None, test_one_cmd: str | None,
+                    previous_sha: str | None) -> tuple[dict, list[str]]:
+    """Re-run each open finding's cited test at HEAD and at the previous
+    commit → ({finding id: record}, notes).
+
+    A record's `at_previous`/`at_head` are `pass`, `fail`, `error` or
+    `unavailable`. `merge` turns fail→pass into `fix_verified`, refuses a
+    resolution whose test still fails at HEAD, and leaves everything else
+    alone: pass at both commits means the test did not demonstrate the defect
+    — or the old source was not what ran — and the harness cannot tell which.
+    """
+    notes: list[str] = []
+    open_prior = [f for f in ((previous or {}).get("findings") or [])
+                  if isinstance(f, dict) and is_open(f)]
+    if not open_prior:
+        return {}, notes
+    if not test_one_cmd:
+        notes.append("fix verification off: set `test_one_cmd` in the profile (with `{id}` "
+                     "where the test id goes) to re-run each resolved finding's cited test "
+                     "at the previous commit and at HEAD")
+        return {}, notes
+    cited = [(f, cited_tests(f)) for f in open_prior]
+    uncited = sum(1 for _, t in cited if not t)
+    cited = [(f, t) for f, t in cited if t]
+    if uncited:
+        notes.append(f"{uncited} open finding(s) cite no test id, so the harness cannot "
+                     "fix-verify them")
+    if len(cited) > VERIFY_MAX_FINDINGS:
+        notes.append(f"fix verification capped at {VERIFY_MAX_FINDINGS} of {len(cited)} "
+                     "findings with a cited test")
+        cited = cited[:VERIFY_MAX_FINDINGS]
+    if not cited:
+        return {}, notes
+
+    scratch = None
+    if previous_sha:
+        scratch = _scratch_checkout(repo, str(previous_sha))
+        if scratch is None:
+            notes.append(f"previous commit {str(previous_sha)[:7]} is not in this repository "
+                         "— verification ran at HEAD only")
+    else:
+        notes.append("no previous commit recorded — verification ran at HEAD only")
+
+    results: dict = {}
+    try:
+        for finding, tests in cited:
+            test_id = tests[0]
+            rec = {"test": test_id, "previous_sha": previous_sha,
+                   "at_previous": "unavailable", "at_head": None}
+            head = _run_test(test_one_cmd, test_id, repo, repo, VERIFY_TIMEOUT_S)
+            rec["at_head"] = head["result"]
+            parts = [head.get("summary", "")]
+            if scratch is not None:
+                # The fix may have added the test. Copy it back so the old code
+                # meets the new test — that is the counterfactual.
+                test_file = test_id.split("::", 1)[0]
+                src, dst = Path(repo) / test_file, scratch / test_file
+                if not dst.exists() and src.is_file():
+                    dst.parent.mkdir(parents=True, exist_ok=True)
+                    shutil.copyfile(src, dst)
+                    rec["test_copied_from_head"] = True
+                # The old source must be what runs. An editable install points at
+                # the main checkout regardless of cwd; PYTHONPATH outranks it.
+                pp = [str(p) for p in (scratch / "src", scratch) if p.is_dir()]
+                prev = _run_test(test_one_cmd, test_id, scratch, repo, VERIFY_TIMEOUT_S,
+                                 pythonpath=pp)
+                rec["at_previous"] = prev["result"]
+                rec["pythonpath"] = pp
+                parts.insert(0, prev.get("summary", ""))
+            rec["summary"] = " → ".join(p for p in parts if p)
+            results[str(finding.get("id"))] = rec
+    finally:
+        if scratch is not None:
+            _remove_scratch(repo, scratch)
+    return results, notes
+
+
+def _apply_verification(entry: dict, prior: dict | None, verification: dict) -> None:
+    """Stamp the measurement on a finding, and refuse a resolution it contradicts.
+
+    Runs before the outcome is derived, so a verified fix reaches the ledger as
+    `confirmed` and a refused one stays undecided. A cited test that still
+    fails at HEAD overrides both an explicit `resolved` and silence: neither a
+    claim nor an absence can close a finding whose demonstrating test fails on
+    the code being judged.
+    """
+    key = str(entry.get("id") or (prior or {}).get("id") or "")
+    rec = verification.get(key) if verification else None
+    if not rec:
+        return
+    entry["verification"] = rec
+    resolving = entry.get("delta") == "RESOLVED"
+    if rec.get("at_head") == "fail":
+        if resolving:
+            entry["status"] = "open"
+            entry["delta"] = "STILL_OPEN"
+            entry.pop("fix_verified", None)
+            entry["resolution_refused"] = (
+                f"{rec['test']} still fails at HEAD — measured by verdict-facts, so the "
+                "resolution is not accepted")
+            if "carried_forward" in entry:
+                entry["carried_forward"] = ("not reported this run, but its cited test still "
+                                            "fails at HEAD — held open by measurement")
+        return
+    if resolving and rec.get("at_previous") == "fail" and rec.get("at_head") == "pass":
+        entry["fix_verified"] = True
+        sha7 = str(rec.get("previous_sha") or "")[:7]
+        entry["evidence"] = [*(str(e) for e in (entry.get("evidence") or [])),
+                             f"verification (measured): {rec['test']} fails at {sha7} "
+                             "and passes at HEAD"]
+
+
 def collect(repo: Path, qa_root: Path, gates: list[tuple[str, str]],
-            test_ids_cmd: str | None = None, abandoned=_UNSET) -> dict:
+            test_ids_cmd: str | None = None, abandoned=_UNSET,
+            test_one_cmd: str | None = None) -> dict:
     """Measure everything about this run that is not a judgment."""
     now = datetime.now(timezone.utc)
     previous = None
@@ -475,6 +691,12 @@ def collect(repo: Path, qa_root: Path, gates: list[tuple[str, str]],
                 "source": "id set-diff, not summary arithmetic",
             }
             facts["_test_ids"] = ids
+
+    verification, vnotes = verify_findings(repo, previous, test_one_cmd, prev_sha)
+    if verification:
+        facts["verification"] = verification
+    if vnotes:
+        facts["verification_notes"] = vnotes
     return facts
 
 
@@ -627,6 +849,7 @@ def merge(facts: dict, judgment: dict, previous: dict | None, today: date | None
         # prediction's clothes.
         if prior and prior.get("confidence"):
             entry["confidence"] = prior["confidence"]
+        _apply_verification(entry, prior, facts.get("verification") or {})
         entry.update(_stamp_outcome(entry, prior))
         findings.append(entry)
 
@@ -668,9 +891,10 @@ def merge(facts: dict, judgment: dict, previous: dict | None, today: date | None
         else:
             carried.update(status="resolved", delta="RESOLVED",
                            carried_forward="not reported this run; no longer observed")
-        # Silence is not verification. A finding nobody re-reported proves
-        # nothing about whether it was real, so it stays undecided — unless an
-        # earlier run already settled it, which silence cannot undo either.
+        # Silence is not verification — but measurement is. A finding nobody
+        # re-reported proves nothing by itself; its cited test, re-run at both
+        # commits, can still settle it either way.
+        _apply_verification(carried, prior, facts.get("verification") or {})
         carried.update(_stamp_outcome(carried, prior))
         findings.append(carried)
 
@@ -688,6 +912,8 @@ def merge(facts: dict, judgment: dict, previous: dict | None, today: date | None
         # here, so the validator could only see the ambiguous shape and chose
         # leniency — an unqualified `pass` over zero measurement (VERDICT-F-17).
         **({"no_gates": facts["no_gates"]} if facts.get("no_gates") else {}),
+        **({"verification_notes": facts["verification_notes"]}
+           if facts.get("verification_notes") else {}),
         "findings": findings,
         "verdict": judgment.get("verdict"),
         "release_blockers": judgment.get("release_blockers", []),
@@ -856,6 +1082,10 @@ def facts_main(argv=None) -> int:
                     help="a gate to run and measure; repeatable")
     ap.add_argument("--test-ids-cmd", default=None,
                     help="command printing one test id per line, for set-diff accounting")
+    ap.add_argument("--test-one-cmd", default=None,
+                    help="command running one test, `{id}` standing for the node id — "
+                         "re-runs each open finding's cited test at the previous commit "
+                         "and at HEAD to verify fixes (default: the profile's test_one_cmd)")
     ap.add_argument("--out", type=Path, default=None, help="also write facts.json here")
     ap.add_argument("--reuse-if-fresh", action="store_true",
                     help="reuse an existing facts.json when it describes this same HEAD "
@@ -898,6 +1128,9 @@ def facts_main(argv=None) -> int:
         if args.test_ids_cmd is None and config.get("test_ids_cmd"):
             args.test_ids_cmd = config["test_ids_cmd"]
             profile_notes.append("test_ids_cmd taken from the profile")
+        if args.test_one_cmd is None and config.get("test_one_cmd"):
+            args.test_one_cmd = config["test_one_cmd"]
+            profile_notes.append("test_one_cmd taken from the profile")
         overridden = [n for n, _ in from_profile if n in named]
         if overridden:
             profile_notes.append(
@@ -934,7 +1167,8 @@ def facts_main(argv=None) -> int:
         # The commit is what separates "my own retry" from "last night died".
         "git_sha": _git(["rev-parse", "HEAD"], repo)}, indent=2) + "\n",
         encoding="utf-8")
-    facts = collect(repo, qa_root, gates, args.test_ids_cmd, abandoned=abandoned)
+    facts = collect(repo, qa_root, gates, args.test_ids_cmd, abandoned=abandoned,
+                    test_one_cmd=args.test_one_cmd)
     if declared_authorship:
         facts.setdefault("code_census", {}).setdefault("provenance", {})[
             "declared"] = declared_authorship
@@ -1120,6 +1354,16 @@ def render_report(state: dict, prose: dict | None = None) -> str:
                    + (" — id lists truncated to 50 each" if ids.get("truncated") else ""))
     elif ids.get("status") == "unavailable":
         out.append(f"Test-id ledger: **unavailable** — {ids.get('reason', '')}")
+    measured = [f for f in state.get("findings", []) if isinstance(f.get("verification"), dict)]
+    if measured or state.get("verification_notes"):
+        verified = sum(1 for f in measured
+                       if f.get("fix_verified") is True and f.get("delta") == "RESOLVED")
+        refused = sum(1 for f in measured if f.get("resolution_refused"))
+        out.append(f"Fix verification: {verified} verified · {refused} refused (cited test "
+                   f"still fails at HEAD) · {len(measured) - verified - refused} measured but "
+                   "not verifiable")
+        for note in state.get("verification_notes") or []:
+            out.append(f"  - {note}")
 
     if prose.get("risks"):
         out += ["", "## Risks", "", prose["risks"]]
