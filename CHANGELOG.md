@@ -3,6 +3,31 @@
 Plugin and `verdict-mcp` share one version line; `.claude-plugin/plugin.json` and
 `pyproject.toml` are bumped together.
 
+## 0.70.0 — 2026-09-02 · "the number a human actually reads"
+
+**The Track record table prints the split** (VERDICT-F-36, the half that stayed open). 0.64.0
+recorded `outcome_basis` and split the counts in `state.json` — and left `_render_calibration`
+printing one `Held up` column under a footnote reading *"a finding merely resolved is not
+evidence either way"*, which that same release made false. Run 8 measured it: the renderer was
+byte-identical to the version run 7 had cited, so the fix had reached the state and stopped
+before the artifact almost everyone reads.
+
+The table now carries an `of those, measured` column, and a caveat under it saying `held up`
+covers two unequal things. Both appear only where something was actually claimed — a project
+whose confirmations are all measured keeps the plain table and reads no caveat about a kind of
+row it does not have. The footnote says what the rule is.
+
+**The fixture-freshness gate reproduces the fixture, not its text** (VERDICT-F-13, the oldest
+Minor). It rebuilt the pair with `copyfile`, which copies bytes: an executable bit flipped or a
+symlink swapped for a regular file came back identical and the gate reported OK over a changed
+fixture. It now uses `copy2(follow_symlinks=False)`, so `git diff` reports mode and type
+changes as what they are. A tracked file missing from the working tree is reported instead of
+tracebacking, and an untracked file planted under the fixture — which no committed diff can
+describe — is named and refused.
+
+That gate had no tests. It has four now, one per blind spot, each failing when its fix is
+reverted.
+
 ## 0.69.0 — 2026-09-02 · "the CLI nobody had tested, and a test its own crash fooled"
 
 The rest of the mutation campaign's survivors. 0.67.0 closed the thirteen in the rule

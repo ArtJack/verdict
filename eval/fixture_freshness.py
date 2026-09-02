@@ -40,18 +40,40 @@ def _git(args, cwd, check=True):
 
 
 def regenerate() -> str:
-    """The rev-A → rev-B diff, over tracked files only."""
+    """The rev-A → rev-B diff, reproducing the fixture rather than its text.
+
+    `copyfile` copies bytes: it drops the mode and follows symlinks, so an
+    executable bit flipped or a symlink swapped for a regular file reproduced
+    identically and the gate saw nothing. `copy2(follow_symlinks=False)` carries
+    both, and `git diff` reports them as the mode and type changes they are
+    (VERDICT-F-13).
+    """
     listed = _git(["ls-files", "-z", *PAIR], REPO).split("\0")
     tracked = [p for p in listed if p]
     if not tracked:
         raise SystemExit("fixture_freshness: no tracked files under the fixture pair — "
                          "either the paths moved or this is not the repository root")
+    # A file git knows about and the working tree does not is a broken fixture,
+    # not a crash. It used to reach `copyfile` and traceback.
+    missing = [rel for rel in tracked if not (REPO / rel).exists()
+               and not (REPO / rel).is_symlink()]
+    if missing:
+        raise SystemExit("fixture_freshness: tracked file(s) missing from the working "
+                         "tree, so the fixture cannot be reproduced: " + ", ".join(missing))
+    # Untracked files under the fixture are invisible to a diff built from
+    # `ls-files`, so an eval run would read a fixture the anchor never described.
+    # `--exclude-standard` keeps .gitignore'd scratch out of it.
+    planted = [p for p in _git(["ls-files", "-z", "--others", "--exclude-standard", *PAIR],
+                               REPO).split("\0") if p]
+    if planted:
+        raise SystemExit("fixture_freshness: untracked file(s) under the fixture pair, "
+                         "which no committed diff can describe: " + ", ".join(planted))
     work = Path(tempfile.mkdtemp(prefix="verdict-freshness-"))
     try:
         for rel in tracked:
             dest = work / rel
             dest.parent.mkdir(parents=True, exist_ok=True)
-            shutil.copyfile(REPO / rel, dest)
+            shutil.copy2(REPO / rel, dest, follow_symlinks=False)
         return _git(["diff", "--no-index", "pricer", "pricer_rev_b"],
                     work / "eval" / "fixtures", check=False)
     finally:
