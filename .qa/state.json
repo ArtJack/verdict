@@ -2,30 +2,30 @@
   "project": "verdict",
   "schema_version": 1,
   "run_type": "delta",
-  "run_number": 6,
+  "run_number": 7,
   "last_run": {
-    "timestamp_utc": "2026-09-02T18:21:35Z",
-    "git_sha": "7357bfc31a971710e8cb3979dfcac449a0980e6d",
+    "timestamp_utc": "2026-09-02T19:13:06Z",
+    "git_sha": "1ae041c9c82dd81e8b77ea949f0fdf7ea2b54aa4",
     "git_branch": "main",
-    "sha_range": "32d1c413b80b766ea2287f8753f9cab326120d8e..7357bfc31a971710e8cb3979dfcac449a0980e6d",
-    "diff_stat": "19 files changed, 2387 insertions(+), 406 deletions(-)",
+    "sha_range": "7357bfc31a971710e8cb3979dfcac449a0980e6d..1ae041c9c82dd81e8b77ea949f0fdf7ea2b54aa4",
+    "diff_stat": "18 files changed, 1028 insertions(+), 1259 deletions(-)",
     "model": "opus",
-    "report": "reports/2026-09-02-delta-run6.md",
-    "chain": "4cdcf737026a0dd231bb8ee5009368b8f7b2e221f9f9f26ff97de9e6b0fc6140"
+    "report": "reports/2026-09-02-delta-run7.md",
+    "chain": "761b48068a804578ceb777f9524264bcb859983b2f010cc53c27c27c1c7fcedc"
   },
   "isolation_check": {
     "result": "pass",
-    "detail": "All three profile conditions hold at HEAD 7357bfc. (1) `grep -rlE \"requests\\.|httpx|urlopen|boto3|psycopg|DATABASE_URL\" tests/ src/` printed nothing and exited 1 - no network, DB or credential surface in the suite. (2) pyproject.toml:90 `testpaths = [\"tests\"]`, so the intentionally-seeded defects under eval/fixtures/ are not collected by the project suite; the 610 collected ids are all under tests/. (3) The suite writes only to pytest tmp_path and hook-guarded QA roots: `git status --porcelain` at the end of this run reports only the pre-existing untracked `.claude/agents/`, and `git status --porcelain .qa/` is empty. Two caveats, both stated rather than waived: the VERDICT_STRICT bash guard refused three read-only commands of mine this session (VERDICT-F-22, still open, guard failing safe), and the coverage measurement this run wrote its scratch to /var/folders/.../verdict-coverage-im_jhnxu and removed it - the VERDICT-F-29 remedy working, verified by `ls -la .qa/` showing no coverage* file at any point."
+    "detail": "All three profile conditions hold at HEAD 1ae041c. (1) `grep -rlE \"requests\\.|httpx|urlopen|boto3|psycopg|DATABASE_URL\" tests/ src/` printed nothing and exited 1 - no network, DB or credential surface in the suite. (2) pyproject.toml:90 `testpaths = [\"tests\"]`, so the intentionally-seeded defects under eval/fixtures/ are not collected: all 624 collected ids are under tests/. (3) The suite writes only to pytest tmp_path and hook-guarded QA roots - after the full suite, the coverage suite and 5 scratch-tree mutation runs, `git status --porcelain` reports only `M .qa/test-ids.txt` (written by verdict-facts, inside the QA root) and the pre-existing untracked `.claude/agents/`. Two caveats, stated rather than waived: the VERDICT_STRICT bash guard refused six read-only commands this session (VERDICT-F-22, VERDICT-F-37), and all re-injection was done in a copy of the tree under the session scratch directory, never in the checkout."
   },
   "gates": {
     "suite": {
       "command": "uv run --group dev python -m pytest tests/",
       "exit_code": 0,
       "result": "pass",
-      "duration_s": 66.72,
-      "summary": "610 passed in 66.51s (0:01:06)",
+      "duration_s": 69.8,
+      "summary": "624 passed in 69.56s (0:01:09)",
       "counts": {
-        "passed": 610
+        "passed": 624
       },
       "counts_dialect": "pytest"
     },
@@ -33,14 +33,14 @@
       "command": "python3 eval/fixture_freshness.py",
       "exit_code": 0,
       "result": "pass",
-      "duration_s": 0.05,
+      "duration_s": 0.07,
       "summary": "fixture_freshness: OK \u2014 pricer-delta.diff still describes the fixture pair (78 lines)",
       "counts_unparsed": "no recognised runner summary \u2014 the count-drop gate and the id set-diff cannot fire for this gate"
     }
   },
   "verification_notes": [
-    "6 open finding(s) cite no test id, so the harness cannot fix-verify them",
-    "cited test is not in the collected id ledger, so nothing was run for VERDICT-F-26 (t.py::new), VERDICT-F-25 (test_pkg.py::test_pending), VERDICT-F-30 (t.py::new) \u2014 a node id in prose is text, not a citation"
+    "3 open finding(s) cite no test id, so the harness cannot fix-verify them",
+    "cited test is not in the collected id ledger, so nothing was run for VERDICT-F-32 (t.py::new), VERDICT-F-33 (test_pkg.py::test_pending) \u2014 a node id in prose is text, not a citation"
   ],
   "findings": [
     {
@@ -48,123 +48,117 @@
       "title": "The 0.60.0 subprocess-coverage config makes the coverage database unrenderable on this repository: children record their generated fixture files by bare relative path, `coverage json` aborts on the first one, and diff coverage went from 63% measured to `unavailable`",
       "severity": "Major",
       "priority": "P0",
-      "status": "open",
-      "confidence": "proven",
+      "status": "resolved",
       "failure_classification": "REAL_DEFECT",
+      "fix_verified": true,
+      "verification_test": "tests/test_diff_coverage.py::test_a_file_the_render_cannot_read_does_not_lose_the_measurement",
       "evidence": [
-        "MEASURED THIS RUN, by the shipped harness: `uv run --group dev verdict-facts --repo . --qa-root .qa` wrote coverage = {\"status\": \"unavailable\", \"suite_exit_code\": 0, \"duration_s\": 99.09, \"reason\": \"the suite ran but the coverage database could not be rendered: No source for code: 'conftest.py'; see https://coverage.readthedocs.io/en/7.16.0/messages.html#error-no-source\"}. The suite passed; the measurement did not survive rendering.",
-        "REGRESSION, not a standing gap: .qa/state.json at run 5 (commit 32d1c41) records coverage {\"status\": \"measured\", \"changed_files\": 19, \"changed_lines\": 1125, \"changed_lines_executed\": 705, \"percent\": 63}. Same repository, same profile command, one range later, nothing.",
-        "PROVEN BY COUNTERFACTUAL, one variable. Both arms ran the profile's own `uv run --group dev python -m coverage run -m pytest tests/ -q -o addopts=` against the real checkout with the harness's own rc file, in temp scratch dirs. Arm A (0.60.0 as shipped, COVERAGE_PROCESS_START pointed at the child rc): suite exit 0, 610 passed in 98.62s, render exit 1, \"No source for code: 'conftest.py'\", no coverage.json produced. Arm B (identical except COVERAGE_PROCESS_START unset, i.e. 0.59.0 behaviour): suite exit 0, 610 passed in 68.98s, render exit 0, coverage.json produced. The child config is the difference.",
-        "MECHANISM, measured: with the child config active over the full suite, `coverage.CoverageData.measured_files()` holds 33 files of which 9 do not exist under the repository root - conftest.py, helper.py, m.py, pkg.py, pricer.py, probe.py, test_m.py, test_pkg.py, test_pricer.py. Every one of the nine carries context 'verdict:subprocess', so every one was written by a child the 0.60.0 config armed. They are the fixture files the suite generates inside pytest tmp_path directories, recorded by bare relative name because src/verdict_mcp/harness.py:634-636 gives the children `relative_files = True` with no `source` and no `include`, and a child's relative paths are relative to the child's own cwd.",
-        "src/verdict_mcp/harness.py:642-643 is the trigger: `env = dict(os.environ, COVERAGE_RCFILE=str(rc), COVERAGE_FILE=str(db), COVERAGE_PROCESS_START=str(child_rc))`. coverage 7.16.0 ships the startup hook that acts on it (.venv/lib/python3.13/site-packages/a1_coverage.pth calls coverage.process_startup when COVERAGE_PROCESS_START is set), so on this machine every Python child of the suite is traced.",
-        "The failure is all-or-nothing: `coverage json` aborts the whole render on the first unresolvable path, so one orphan file costs the entire measurement, not one file's worth of it. Confirmed by scope - running only tests/test_issues.py under the same config renders fine (2 measured files, 0 orphans); running the whole suite does not.",
-        "NOTHING IN THE SUITE CATCHES IT: 610 tests pass at HEAD. tests/test_diff_coverage.py:265 spawning_repo builds the guarding fixture, and its child is `python -c \"import mod; print(mod.b(21))\"` with PYTHONPATH pointing back at the repo root - so the only file that child records already exists under the root and no orphan path is ever produced. The docstring calls that fixture 'the shape every CLI test in this repository takes'; the shape this repository's CLI tests actually take is a child that writes and runs source files of its own somewhere else.",
-        "SILENT TO THE VALIDATOR TOO: src/verdict_mcp/validate.py:267-280 `_unexercised_diff` refuses a clean `pass` only when `cov.get('status') == 'measured'` and executed == 0. `unavailable` fires nothing, so a gate that stops existing costs a project nothing and says nothing.",
-        "SECONDARY COST, measured in the same counterfactual: tracing every child costs 43% of the suite's wall time under coverage (98.62s vs 68.98s), which is paid whether or not the render then succeeds."
+        "fixed in 0.61.0 (4e5f8dd), src/verdict_mcp/harness.py:629-635: the render rc now carries `[report] ignore_errors = True` alongside the existing `[run]` block",
+        "measured end to end on this repository, which is what run 6 asked for rather than a passing unit test: .qa/facts.json coverage.status is 'measured' again (run 6: 'unavailable'), 122 of 143 changed lines executed (85%) across 6 files, coverage command `uv run --group dev python -m coverage run -m pytest tests/ -q -o addopts=`, 102.7s",
+        "the over-correction run 6 named was checked and did not happen: coverage.subprocess_coverage is 'measured' and changed_lines_executed_in_subprocess is 8, seven of them in src/verdict_mcp/issues.py, so lines only a child process executed under the repo root still count and VERDICT-F-28's fix is not silently re-created",
+        "re-injection, in a scratch copy of the tree and never the checkout: deleting the two rc lines and re-running the guard gives `AssertionError: the suite ran but the coverage database could not be rendered: No source for code: 'conftest.py'` and `assert 'unavailable' == 'measured'` at tests/test_diff_coverage.py:356 - the field's own message, verbatim"
       ],
-      "root_cause": {
-        "symptom": "diff coverage reports status `unavailable` with reason \"No source for code: 'conftest.py'\" where run 5 reported 63% of 1125 changed lines executed",
-        "mechanism": "the child rc sets relative_files=True with no source/include, so a child pytest running in a pytest tmp_path records its own generated fixture files under bare relative names; combine merges them into the parent database and `coverage json`, rendering from the repository root, finds no such file and aborts the entire render",
-        "origin": "7357bfc (v0.60.0, 'the suite's children are the suite'), src/verdict_mcp/harness.py:634-643 - the child config and COVERAGE_PROCESS_START arrived together in this range and nothing else in the range touches coverage rendering",
-        "class": "not a one-site typo: it hits any project whose suite spawns Python children with a different working directory and source files of their own, which is exactly the population VERDICT-F-28 was filed for. Searched the range for other places the harness hands a config to a process it does not control - `_render_cmd` (harness.py:570-579) and `_run_test`'s PYTHONPATH (harness.py:468-471) both target processes rooted at the repo, so this is the only site, but the population it affects is the feature's own target."
-      },
-      "verification_test": "tests/test_diff_coverage.py::test_a_line_only_a_child_process_executed_is_measured",
       "hash": "612eee35",
       "first_seen": "2026-09-02",
       "age_days": 0,
-      "delta": "NEW",
+      "delta": "RESOLVED",
+      "confidence": "proven",
+      "verification": {
+        "test": "tests/test_diff_coverage.py::test_a_line_only_a_child_process_executed_is_measured",
+        "previous_sha": "7357bfc31a971710e8cb3979dfcac449a0980e6d",
+        "at_previous": "pass",
+        "at_head": "pass",
+        "test_copied_from_head": true,
+        "pythonpath": [
+          "/var/folders/95/670m4j2n4738g9pq1tq1mq8c0000gn/T/verdict-verify-_1pskoha/src",
+          "/var/folders/95/670m4j2n4738g9pq1tq1mq8c0000gn/T/verdict-verify-_1pskoha"
+        ],
+        "summary": "1 passed in 1.81s \u2192 1 passed in 1.49s"
+      },
       "outcome": "unknown",
-      "outcome_reason": "still open; nothing has settled it"
+      "outcome_reason": "claimed fix-verified, but the harness's own re-injection showed pass \u2192 pass, which settles nothing"
     },
     {
       "id": "VERDICT-F-32",
       "title": "The outcome ledger still derives `confirmed` from the agent's own `fix_verified` flag, so the published track record records a re-injection the harness never ran - and a decided outcome sticks forever",
       "severity": "Major",
       "priority": "P1",
-      "status": "open",
-      "confidence": "proven",
+      "status": "resolved",
       "failure_classification": null,
+      "fix_verified": true,
+      "verification_test": "tests/test_calibration.py::test_a_claim_the_measurement_does_not_show_settles_nothing",
       "evidence": [
-        "LIVE IN THE COMMITTED RECORD AT HEAD. .qa/outcomes.json row for VERDICT-F-20: {\"hash\": \"ebd6bc9f\", \"id\": \"VERDICT-F-20\", \"outcome\": \"confirmed\", \"outcome_reason\": \"fix-verified: the guarding test failed on re-injection\", \"decided_on\": \"2026-09-02\", \"confidence\": \"proven\"}. The same finding's `verification` block in .qa/state.json reads {\"test\": \"t.py::new\", \"at_previous\": \"error\", \"at_head\": \"error\", \"summary\": \"ERROR: file or directory not found: t.py::new -> ERROR: file or directory not found: t.py::new\"}. No guarding test failed on re-injection; no test was run at all. The sentence is the harness's, and it is not true.",
-        "src/verdict_mcp/harness.py:1026-1028 is the whole rule: `if delta == \"RESOLVED\" and finding.get(\"fix_verified\") is True: return {\"outcome\": \"confirmed\", \"outcome_reason\": \"fix-verified: the guarding test failed on re-injection\"}`. Nothing in the branch consults `verification`.",
-        "`fix_verified` reaches that branch from either of two sources and the branch cannot tell them apart. Measurement: src/verdict_mcp/harness.py:508-509 sets it when at_previous is `fail` and at_head is `pass`. Claim: src/verdict_mcp/validate.py:483-490 accepts an agent-set `fix_verified` and asks only that the finding carry evidence, and validate.py:91-94 COMPUTED_BY_FINALIZE lists hash, first_seen, age_days, outcome, outcome_reason, carried_forward, verification and resolution_refused - `fix_verified` is deliberately not among them, per agents/verdict.md:665-668.",
-        "src/verdict_mcp/harness.py:497-505 only strips the claim when the measurement says `fail` at HEAD. An `error/error` record, or an `unavailable` one, or no record at all, leaves the agent's flag standing and the outcome is minted from it.",
-        "PROVEN BY COUNTERFACTUAL against the shipped code at HEAD: `_stamp_outcome({\"delta\": \"RESOLVED\", \"fix_verified\": True, \"verification\": {\"at_previous\": \"error\", \"at_head\": \"error\"}})` returns {'outcome': 'confirmed', 'outcome_reason': 'fix-verified: the guarding test failed on re-injection'}. The same call with a pass/pass record - which harness.py:392-395 documents as verifying nothing - returns the identical confirmed outcome.",
-        "AND IT STICKS: `_stamp_outcome({\"delta\": \"STILL_OPEN\"}, prior={\"outcome\": \"confirmed\", ...})` returns confirmed, by the deliberate rule at harness.py:1018-1021. Only a WITHDRAWN overrides it. So a self-graded confirmation cannot be corrected by any later measurement, on any later run, forever.",
-        "WHAT MAKES IT MATTER: this is the input to the published number. src/verdict_mcp/state.py:317-323 buckets exactly this `outcome` by confidence, and harness.py:1632-1651 renders it as Track record. .qa/state.json calibration currently reads by_confidence.proven {\"confirmed\": 10, \"refuted\": 0, \"decided\": 10} - at least one of those ten is a claim the harness contradicted in the same file.",
-        "CONTRADICTS ITS OWN DOCUMENTATION: docs/state-schema.md:98 says `findings[].outcome` is 'computed ... written by verdict-finalize, never by the agent. Confirmed = regressed, or resolved-and-fix-verified.' agents/verdict.md:661-663 says 'You never set the outcome. outcome and outcome_reason are computed from what happened. Marking your own work correct is the one thing a tester must never be able to do.' On the resolved path the agent's boolean is the sole input.",
-        "DISTINCT FROM VERDICT-F-30, which is resolved this run. F-30 was filed against the report renderer (harness.py:1616-1623) and its root_cause class link says 'This is the single site'; the search that produced that line swept renderers and did not reach the outcome derivation. The 0.57.0 fix changed only render_report, and it works: on the very same finding the report now prints 'Fix verification: 0 verified' and names it under 'claims fix_verified the measurement does not show'. The report is honest and the ledger beneath it is not."
+        "fixed in 0.62.0 (7328ddf), src/verdict_mcp/harness.py:1034-1063: three arms replace the single `delta == RESOLVED and fix_verified is True` rule - measured fail/pass confirms, a measurement that shows no fix settles nothing and names what it saw, and an unmeasured claim stands and is marked as claimed",
+        "re-injection in a scratch copy: restoring the pre-0.62.0 single rule fails three guards - tests/test_calibration.py::test_a_claim_the_harness_could_not_weigh_still_stands, ::test_a_claim_the_measurement_does_not_show_settles_nothing, ::test_a_refused_resolution_does_not_confirm_either, with `AssertionError: {'outcome': 'confirmed', ...}` / `assert 'confirmed' == 'unknown'`",
+        "the over-correction is guarded too: mutating the third arm to `if delta == 'RESOLVED' and claimed:` (dropping `and not attempted`) fails two of the same guards, so a claim cannot silently outrank a measurement again",
+        "the one wrong row already in the ledger is unchanged, as the release said: .qa/outcomes.json still carries VERDICT-F-20 as confirmed - a decided outcome sticks",
+        "residual, filed separately rather than folded in: the arms discriminate on whether the harness attempted a measurement (VERDICT-F-35) and the published table still counts a claim as 'held up' (VERDICT-F-36)"
       ],
-      "root_cause": {
-        "symptom": "outcomes.json publishes `confirmed` with the reason 'fix-verified: the guarding test failed on re-injection' for a finding whose only measurement errored at both commits",
-        "mechanism": "_stamp_outcome reads the boolean `fix_verified` and never the `verification` record beside it, and `fix_verified` is writable by the judgment as well as by the measurement, so the two sources are indistinguishable at the point the outcome is minted",
-        "origin": "the branch predates this range and was not touched by it (`git log --oneline 32d1c41..HEAD -- src/verdict_mcp/state.py` is empty; harness.py:1026 is unchanged in the range). What is new is that 0.57.0 fixed the visible half and left this one, which is why it now reads as a discrepancy between the report and the ledger rather than as one consistent error",
-        "class": "searched every consumer of fix_verified in src/: render_report (harness.py:1712-1728, fixed in 0.57.0), _apply_verification (harness.py:497-509, the measurement's own writer), _stamp_outcome (harness.py:1026, this site) and a comment in issues.py:16. This is the remaining site, and it is the one that feeds the number the contract says the model must not be able to influence."
-      },
       "hash": "043a3a78",
       "first_seen": "2026-09-02",
       "age_days": 0,
-      "delta": "NEW",
-      "outcome": "unknown",
-      "outcome_reason": "still open; nothing has settled it"
+      "delta": "RESOLVED",
+      "confidence": "proven",
+      "outcome": "confirmed",
+      "outcome_reason": "fix-verified: claimed by the tester, with no harness measurement to weigh it against"
     },
     {
       "id": "VERDICT-F-33",
       "title": "Fix verification still copies back only the cited test's own file, so a regression test that lands with a new fixture or helper in the same commit errors at the previous commit and is silently never verified",
       "severity": "Minor",
       "priority": "P2",
-      "status": "open",
-      "confidence": "proven",
+      "status": "resolved",
       "failure_classification": "REAL_DEFECT",
+      "fix_verified": true,
+      "verification_test": "tests/test_verification.py::test_a_regression_test_that_lands_with_its_fixture_verifies",
       "evidence": [
-        "PROVEN BY COUNTERFACTUAL in a scratch two-commit git repository (tempfile dir, never the checkout), driving the shipped collect() and merge() at HEAD. Commit A: buggy pkg.py, a conftest.py with no fixtures, a test file. Commit B: pkg.py fixed, a new `qty` fixture added to conftest.py, and the regression test `test_pending(qty)` appended to the existing test file. Verification record: {\"test\": \"test_pkg.py::test_pending\", \"at_previous\": \"error\", \"at_head\": \"pass\", \"summary\": \"1 error in 0.00s -> 1 passed in 0.00s\"}. merge() returned fix_verified None, outcome 'unknown', reason 'resolved but not fix-verified - absence is not proof'.",
-        "src/verdict_mcp/harness.py:455-462 is the scope: `test_file = test_id.split(\"::\", 1)[0]; src, dst = Path(repo) / test_file, scratch / test_file; if src.is_file(): ... shutil.copyfile(src, dst)`. Exactly one file travels back to the old commit - the one the node id names. A fixture, a helper module, a shared factory or a conftest the new test depends on stays at its old commit version, and the test cannot even be collected.",
-        "The VERDICT-F-25 fix this replaces is genuinely good and is resolved this run: with the same probe shape but the dependency living inside the test file itself, at_previous now reads `fail` and fix_verified is set. The remaining gap is one level out - the test's dependencies, not the test.",
-        "FAILS SILENT, WHICH IS THE ACTUAL COST: `error` is neither `fail` nor `pass`, so harness.py:497-509 takes neither the refusal branch nor the fix_verified branch, and verification_notes says nothing about a counterfactual that could not be constructed. The finding resolves with no verification and no explanation, and outcomes.json takes it as undecided - which depresses the very precision rate the feature exists to make publishable.",
-        "THIS REPOSITORY IS THE POPULATION: tests/conftest.py exists precisely so fixtures are shared across test files, and tests/test_verification.py:20 does `from conftest import judgment`. A regression test added here alongside a new conftest fixture is the ordinary case, not a corner.",
-        "VERDICT-F-25's own root_cause class link reads 'searched the verification path for other file-vs-symbol granularity assumptions ... so this is the only site.' The search was over the copy-back itself and did not consider what the copied test imports. That is the incompleteness this finding records."
+        "fixed in 0.63.0 (1ae041c): src/verdict_mcp/harness.py:316-326 adds `_conftest_chain`, and harness.py:479-488 copies every conftest.py from the repository root down to the test's own directory into the scratch checkout, recording them in `support_copied_from_head`",
+        "re-injection in a scratch copy: deleting the copy loop makes tests/test_verification.py::test_a_regression_test_that_lands_with_its_fixture_verifies fail with the defect itself - `assert None == ['conftest.py']` and a record reading at_previous 'error', at_head 'pass'",
+        "the fix's own blast radius was handled rather than papered over: 0.63.0 rebuilt tests/test_verification.py::test_an_error_beside_a_failure_is_still_an_error, whose premise (an error sourced from a conftest that stayed behind) the fix invalidated - the error now comes from a fixture inside the test file importing a function only the fix added",
+        "scope of what remains, searched rather than asserted: `grep -rn '^from |^import ' tests/*.py` for test-local support modules returns only `from conftest import ...` (test_artifact_check.py:16, test_chain.py:24, test_diff_coverage.py:18, test_harness.py:33, test_verification.py:19) plus `state` and `mutate`, which come from src/ and eval/ on PYTHONPATH. This repository has no non-conftest test helper, so the residual - a helper module or data file that is not a conftest still stays behind - is latent here, not live"
       ],
-      "root_cause": {
-        "symptom": "a genuinely fixed defect whose regression test needs a fixture added in the same commit reports at_previous 'error' and never earns fix_verified",
-        "mechanism": "the counterfactual copies a single file by node-id prefix, while the object that must travel back to the old commit is the test's transitive dependency closure - conftest, helpers, factories",
-        "origin": "the copy-back's file scope is original to the feature (v0.53.0) and survived the VERDICT-F-25 fix in 6d593d4, which corrected the CONDITION (copy only when absent) without widening the SCOPE (one file)",
-        "class": "HYPOTHESIS on remedy, not on the defect: copying the whole tests/ tree from HEAD would close it, but might mask a genuine collection failure at the old commit, and I did not test that. What is proven is the gap, not the right fix."
-      },
       "hash": "1f06e26a",
       "first_seen": "2026-09-02",
       "age_days": 0,
-      "delta": "NEW",
-      "outcome": "unknown",
-      "outcome_reason": "still open; nothing has settled it"
+      "delta": "RESOLVED",
+      "confidence": "proven",
+      "outcome": "confirmed",
+      "outcome_reason": "fix-verified: claimed by the tester, with no harness measurement to weigh it against"
     },
     {
       "id": "VERDICT-F-34",
       "title": "The recurrence-filing window is exactly one run wide: a REGRESSED finding that verdict-issues does not see on the run whose delta says REGRESSED can never be re-filed, and the operator is told it is already filed",
       "severity": "Minor",
       "priority": "P3",
-      "status": "open",
-      "confidence": "proven",
+      "status": "resolved",
       "failure_classification": null,
+      "fix_verified": true,
+      "verification_test": "tests/test_issues.py::test_a_recurrence_can_still_be_filed_a_run_later",
       "evidence": [
-        "PROVEN by probe against the shipped CLI at HEAD, using the repository's own gh stub and helpers (tests/test_issues.py make_home/run/calls, VERDICT_HOME in a tempdir). Run 7: one open Critical, `--create` files issue #1. Run 8: same id, delta REGRESSED - and verdict-issues is simply not invoked on that run. Run 9: same id, delta STILL_OPEN, `--create` invoked. Output: 'verdict-issues: created 0 (0 recurrence), 1 already filed, 0 deferred by --limit'. gh calls: 1. Ledger `previous` trail: None. The recurrence was never filed and never can be.",
-        "src/verdict_mcp/issues.py:107-113 is the rule: `elif f.get(\"delta\") == \"REGRESSED\" and prior.get(\"run_number\") != run: action = \"refile\"`. The discriminator is `delta`, which describes only the transition at the run that observed it; by the next run the same finding is STILL_OPEN and the branch cannot fire again.",
-        "The consequence is the sentence VERDICT-F-27 was filed about, one run later: '1 already filed' asserts the tracker is current, while the issue it refers to was in all likelihood closed by whoever fixed the finding the first time. Same wrong claim, narrower window.",
-        "The durable discriminator is already in the ledger and still unread on this path: issues.py:225-226 writes `\"hash\": f.get(\"hash\")` on every entry, and a recurrence after a resolution changes the hash. A comparison against the stored hash, or against a `resolved_at` marker, would not depend on catching the one run where delta was REGRESSED.",
-        "SCOPE, stated honestly: the nightly loop documented in docs/nightly.md runs verdict-issues every run, so the window is usually met and the 0.59.0 fix works in the intended flow - which is why this is Minor and P3, not a repeat of VERDICT-F-27's severity. It bites the ad-hoc operator and the run that failed or was skipped.",
-        "VERDICT-F-27 is resolved this run and its guard is real: re-injecting the old `action = \"exists\" if fid in ledger else \"create\"` into a scratch copy makes tests/test_issues.py::test_a_finding_that_came_back_is_filed_again fail. This finding is the residual, not a retraction of that."
+        "fixed in 0.63.0 (1ae041c): src/verdict_mcp/harness.py:1178-1187 stamps `regressed_at_run` when a finding comes back and carries it forward on every later run; src/verdict_mcp/issues.py:110-129 compares it against the ledger row's own run_number instead of the per-run `delta`",
+        "re-injection in a scratch copy: restoring the delta-keyed comparison fails tests/test_issues.py::test_a_recurrence_can_still_be_filed_a_run_later and ::test_the_same_regression_is_not_filed_twice_in_later_runs",
+        "the widened window does not double-file: with regressed_at_run 8 carried across runs 10, 11 and 12 exactly one issue is created (`1 already filed`, two gh calls total)",
+        "the legacy arm is covered: a state written before 0.63.0, carrying delta REGRESSED and no marker, still refiles (::test_a_state_written_before_the_marker_still_refiles)"
       ],
-      "root_cause": {
-        "symptom": "a finding that came back is reported as 'already filed' whenever verdict-issues is not run on the exact run that observed the regression",
-        "mechanism": "the refile guard keys on `delta`, a per-run transition marker, rather than on a durable difference between the filed occurrence and the current one",
-        "origin": "ebc679f (v0.59.0, 'a recurrence is news'), src/verdict_mcp/issues.py:107-113",
-        "class": "searched issues.py for other per-run values used as durable state: `run_number` is stored and compared, which is durable and correct; `delta` is the only transient one load-bearing in a decision. Single site."
-      },
       "hash": "887674d8",
       "first_seen": "2026-09-02",
       "age_days": 0,
-      "delta": "NEW",
+      "delta": "RESOLVED",
+      "confidence": "proven",
+      "verification": {
+        "test": "tests/test_issues.py::test_a_finding_that_came_back_is_filed_again",
+        "previous_sha": "7357bfc31a971710e8cb3979dfcac449a0980e6d",
+        "at_previous": "pass",
+        "at_head": "pass",
+        "test_copied_from_head": true,
+        "pythonpath": [
+          "/var/folders/95/670m4j2n4738g9pq1tq1mq8c0000gn/T/verdict-verify-_1pskoha/src",
+          "/var/folders/95/670m4j2n4738g9pq1tq1mq8c0000gn/T/verdict-verify-_1pskoha"
+        ],
+        "summary": "1 passed in 0.38s \u2192 1 passed in 1.03s"
+      },
       "outcome": "unknown",
-      "outcome_reason": "still open; nothing has settled it"
+      "outcome_reason": "claimed fix-verified, but the harness's own re-injection showed pass \u2192 pass, which settles nothing"
     },
     {
       "id": "VERDICT-F-26",
@@ -180,13 +174,29 @@
         "PROVEN CONSEQUENCE, same probe: merge() returned status 'open', delta 'STILL_OPEN', resolution_refused 'test_other.py::test_unfixed still fails at HEAD - measured by verdict-facts, so the resolution is not accepted', fix_verified None, outcome 'unknown'. A correct resolution was overturned by a measurement of an unrelated test - the exact symptom in this finding's title, at HEAD, after the fix.",
         "The shape is this project's own house style. .qa/state.json's findings routinely cross-reference each other's tests in evidence prose; VERDICT-F-30's evidence cites VERDICT-F-26 by name, and this run's own findings cite tests belonging to other findings. The population that triggers it is the project's own record.",
         "The cheap discriminator still exists and is still unused: an explicit `verification_test` field is read first at harness.py:299-301, so a finding that names its own test is immune. Nothing requires or prompts for it, and 6 of this run's 9 open findings cite no test id at all - facts.json verification_notes, first entry.",
-        "COST OF THE FIX, worth stating beside it: this run's facts.json records `verification: null`. Between the 6 findings with no citable id and the 3 whose citations the new filter rejected, the fix-verification feature verified nothing at all on the repository that ships it. Every RESOLVED judgement in this run rests on re-injections I ran by hand."
+        "COST OF THE FIX, worth stating beside it: this run's facts.json records `verification: null`. Between the 6 findings with no citable id and the 3 whose citations the new filter rejected, the fix-verification feature verified nothing at all on the repository that ships it. Every RESOLVED judgement in this run rests on re-injections I ran by hand.",
+        "still open at HEAD 1ae041c, re-run because run 6 made it binding. Probe against the shipped selector: a finding whose evidence names another finding's test first and its own second - both genuinely collected ids - yields cited_tests ['tests/test_verification.py::test_a_fix_is_verified_when_the_cited_test_fails_before_and_passes_after', 'tests/test_issues.py::test_a_finding_that_came_back_is_filed_again'], and verify_findings runs tests[0], the cross-reference, not the finding's own test",
+        "mechanism unchanged: src/verdict_mcp/harness.py:296-312 cited_tests returns evidence-prose order and harness.py:459 takes tests[0]. The 0.59.0 id filter settled only whether a scraped id is real, never which of several is chosen",
+        "an explicit verification_test still overrides - the same probe with it set returns the finding's own test - so the escape hatch works and the default does not",
+        "live cost this run: the harness verified 3 of the 8 previously-open findings and picked a non-guarding test for each (VERDICT-F-31 got tests/test_diff_coverage.py::test_a_line_only_a_child_process_executed_is_measured, VERDICT-F-34 got tests/test_issues.py::test_a_finding_that_came_back_is_filed_again). All three returned pass/pass and settled nothing, while four fixes were verifiable by re-injection and were verified by hand"
       ],
       "hash": "f6c0bdc3",
       "first_seen": "2026-09-02",
       "age_days": 0,
       "delta": "STILL_OPEN",
       "confidence": "proven",
+      "verification": {
+        "test": "tests/test_verification.py::test_a_node_id_scraped_from_prose_is_never_run",
+        "previous_sha": "7357bfc31a971710e8cb3979dfcac449a0980e6d",
+        "at_previous": "pass",
+        "at_head": "pass",
+        "test_copied_from_head": true,
+        "pythonpath": [
+          "/var/folders/95/670m4j2n4738g9pq1tq1mq8c0000gn/T/verdict-verify-_1pskoha/src",
+          "/var/folders/95/670m4j2n4738g9pq1tq1mq8c0000gn/T/verdict-verify-_1pskoha"
+        ],
+        "summary": "1 passed in 0.21s \u2192 1 passed in 0.19s"
+      },
       "outcome": "unknown",
       "outcome_reason": "still open; nothing has settled it"
     },
@@ -196,11 +206,13 @@
       "severity": "Major",
       "priority": "P2",
       "status": "open",
+      "failure_classification": null,
       "evidence": [
         "RE-PROVEN AT HEAD 7357bfc by differential probe, in a scratch copy of .qa/ (shutil.copytree into a tempfile dir, never the checkout). Arm A, ledger present: verify_chain -> {'status': 'intact', 'first_bad': None}, harness_signals -> chain_intact True. Arm B, runs.jsonl deleted and last_run.chain removed from the copied state: verify_chain -> {'status': 'unchained', 'first_bad': None}, harness_signals -> chain_intact True again. Deleting the evidence restores the pass.",
         "UNCHANGED IN THIS RANGE: `git log --oneline 32d1c41..HEAD -- src/verdict_mcp/state.py src/verdict_mcp/gate.py` is empty. The carve-out at state.py:475-477 (`if result[\"status\"] == \"unchained\": return not recorded`) and gate.py:173-174 (unchained recorded as advisory, exit_code untouched) are byte-identical to the run-5 reading.",
         "ONE CLAUSE OF THE ORIGINAL TITLE IS NOW STALE AND IS WITHDRAWN HERE: run 5 wrote 'and this repository's own ledger is currently unchained'. It is chained now - `verify_chain(load_runs('.qa'))` returns intact over 4 resolved rows, with runs 4 and 5 carrying links. The ratchet gap the finding is actually about is untouched.",
-        "MEASURED CONSEQUENCE AT HEAD: `uv run --group dev verdict-gate . --require-harness` exits 0 while harness_signals reports facts_measured False and judgment_written False - those two signals are gitignored per-run intermediates and are absent in any fresh clone, so chain_intact is doing the real work, and it is the signal that a deletion turns off."
+        "MEASURED CONSEQUENCE AT HEAD: `uv run --group dev verdict-gate . --require-harness` exits 0 while harness_signals reports facts_measured False and judgment_written False - those two signals are gitignored per-run intermediates and are absent in any fresh clone, so chain_intact is doing the real work, and it is the signal that a deletion turns off.",
+        "unchanged by this range: `git diff --name-only 7357bfc..1ae041c -- src/verdict_mcp/state.py src/verdict_mcp/gate.py` prints nothing, so neither the chain nor the gate was touched"
       ],
       "hash": "1009c259",
       "first_seen": "2026-09-01",
@@ -216,10 +228,12 @@
       "severity": "Minor",
       "priority": "P2",
       "status": "open",
+      "failure_classification": null,
       "evidence": [
         "UNTOUCHED IN THIS RANGE: `git log --oneline 32d1c41..HEAD -- eval/fixture_freshness.py` is empty, and the 19-file diffstat contains nothing under eval/. Both cited lines are byte-identical: eval/fixture_freshness.py:44 `listed = _git([\"ls-files\", \"-z\", *PAIR], REPO).split(\"\\0\")` (tracked files only) and :54 `shutil.copyfile(REPO / rel, dest)` (content, not mode).",
         "The gate itself passed this run, measured by the harness: exit 0 in 0.05s, 'fixture_freshness: OK - pricer-delta.diff still describes the fixture pair (78 lines)'. The job it exists for - detecting a content edit to the tamper-evidence anchor - is intact. This finding is about the edges it cannot see, and it is 3 days old with no change in its favour or against it.",
-        "No new evidence was gathered this run: the range does not touch it, and re-probing an unchanged file to re-derive a known result is not a good use of a delta run's budget. Stated so the age is not mistaken for fresh confirmation."
+        "No new evidence was gathered this run: the range does not touch it, and re-probing an unchanged file to re-derive a known result is not a good use of a delta run's budget. Stated so the age is not mistaken for fresh confirmation.",
+        "unchanged by this range: `git diff --name-only 7357bfc..1ae041c -- eval/fixture_freshness.py` prints nothing. The gate passed this run (exit 0, 'fixture_freshness: OK - pricer-delta.diff still describes the fixture pair (78 lines)'), which is exactly the lossy comparison this finding is about"
       ],
       "hash": "87511860",
       "first_seen": "2026-08-30",
@@ -235,12 +249,16 @@
       "severity": "Minor",
       "priority": "P2",
       "status": "open",
+      "failure_classification": null,
       "evidence": [
         "UNTOUCHED IN THIS RANGE: `git log --oneline 32d1c41..HEAD -- hooks/enforce_bash_scope.py` is empty. The mechanism is unchanged since it was filed.",
         "RE-PROVEN THREE MORE TIMES THIS SESSION, on three read-only commands, with the checkout unmodified throughout. (1) `rm -rf $SC` where $SC was a shell variable holding a scratchpad path - refused with \"rm targets '$SC (unresolved $variable - use a literal path)'\". That one is arguably correct behaviour and is recorded as the guard's honest half. (2) A `<<'PY'` heredoc whose Python body contained the f-string `f\"          -> {test...}\"` - refused with \"output redirection targets '<checkout>/{test.split('::')[-1]}:'\". (3) `git log --format=fuller`-adjacent: `git log --format='%H%n%an <%ae>%n...'` - refused with \"output redirection targets '<checkout>/%n%(trailers)%n---''\", from a `<` inside a single-quoted argument.",
         "NEW INFORMATION FROM CASE (3): the previous reproductions were all about '>'. This one is '<', inside single quotes, in a git format string - so the scan treats both redirection operators the same way and quoting is invisible to it in both directions. Case (2) confirms run 5's finding that heredoc framing is also invisible.",
         "The blocked constructs are ordinary in the material a tester must read: '->' is a Python return annotation appearing on 100+ lines of this repository's own source, and '<...>' is the shape of every email address in a git author field.",
-        "COST, measured: three retries this session, each costing one round trip and a reworded command. No finding was lost - I reformulated each command and got the evidence - which is why this stays Minor. It would rise to Major if a project's only route to a piece of evidence went through a blocked shape."
+        "COST, measured: three retries this session, each costing one round trip and a reworded command. No finding was lost - I reformulated each command and got the evidence - which is why this stays Minor. It would rise to Major if a project's only route to a piece of evidence went through a blocked shape.",
+        "unchanged by this range: `git diff --name-only 7357bfc..1ae041c -- hooks/` prints nothing",
+        "re-demonstrated five times in this session, every time on a read-only QA probe that wrote nothing anywhere. A heredoc whose Python body contained the ASCII arrow '->' inside a quoted print string was refused with \"output redirection targets '.../verdict-clone/\\\", (a git checkout under /private/tmp)'\"; the phantom target was the text following the arrow. The same happened on a body containing the comparison `_num(came_back) > _num(prior.get(...))`, and on the evidence line you are reading, which had to be built with chr(62) to be written at all",
+        "two further shapes of the same family cost a command each: a relative redirect target after a `cd` into the scratch directory is resolved against the session cwd (the checkout) rather than the directory just cd'd into, and a $VAR target is refused outright ('unresolved $variable - use a literal path')"
       ],
       "hash": "ae408082",
       "first_seen": "2026-09-01",
@@ -251,173 +269,412 @@
       "outcome_reason": "still open; nothing has settled it"
     },
     {
-      "id": "VERDICT-F-25",
-      "title": "Fix verification copies the cited test back to the old commit only when the whole test FILE is absent there, so a regression test appended to an existing test file yields at_previous 'error' and fix_verified is silently never set",
+      "id": "VERDICT-F-35",
       "severity": "Major",
       "priority": "P2",
-      "status": "resolved",
-      "fix_verified": true,
-      "failure_classification": "REAL_DEFECT",
+      "status": "open",
+      "confidence": "proven",
+      "failure_classification": null,
+      "title": "The 0.62.0 outcome rule discriminates on whether the harness attempted a measurement, and which test it attempts is the prose lottery of VERDICT-F-26 - so the same hand-verified claim is recorded `confirmed` when the evidence cites no test id and `unknown` when it cites one",
       "evidence": [
-        "FIXED at src/verdict_mcp/harness.py:455-462 in 6d593d4 (v0.57.0): the conditional is now `if src.is_file():` with `differs = (not dst.exists()) or dst.read_bytes() != src.read_bytes()`, so the cited test's file always comes from HEAD and `test_copied_from_head` keeps its meaning.",
-        "FIX-VERIFIED BY RE-INJECTION, which is what run 5's next-run focus asked for. In a scratch copy of HEAD (git archive into a temp dir, never the checkout) the pre-fix form `if not dst.exists() and src.is_file():` was restored and the guard re-run: tests/test_verification.py::test_a_regression_test_appended_to_an_existing_file_verifies went red - '1 failed in 0.46s'. Restoring the fix returns it to green. The guard is real, not decorative.",
-        "AND THE APPENDED CASE ITSELF WAS RE-RUN, not just its guard. The shipped test builds exactly the two-commit repository run 5 specified - commit A has test_pkg.py containing only test_other, commit B fixes pkg.py and APPENDS test_pending to the same file - and asserts rec['test_copied_from_head'] is True, (at_previous, at_head) == ('fail', 'pass'), and merge() setting fix_verified True. It passes at HEAD. at_previous reads `fail`, not `error`.",
-        "The paired negative case is guarded too: tests/test_verification.py::test_a_test_file_the_fix_did_not_touch_is_not_reported_as_copied asserts test_copied_from_head is absent when the file is identical at both commits, so the flag did not become noise.",
-        "RESIDUAL, filed separately as VERDICT-F-33 rather than held against this finding: the copy-back is still one file wide, so a regression test that needs a fixture added in the same commit still errors at the previous commit. That is a different mechanism (dependency closure, not the absence condition) and this finding's stated defect is closed."
+        "src/verdict_mcp/harness.py:1046-1063: `attempted = isinstance(v, dict)`, then RESOLVED-and-shows_fix confirms, RESOLVED-and-claimed-and-not-attempted confirms as claimed, and RESOLVED-and-claimed (attempted, but not showing a fix) returns unknown. The discriminator between the second and third arms is the mere presence of a verification record",
+        "probe against the shipped function with three findings identical but for the verification block: (A) claim only, no cited id gives {'outcome': 'confirmed', 'outcome_reason': 'fix-verified: claimed by the tester, with no harness measurement to weigh it against'}; (B) the same claim where the harness ran a mis-selected test and got pass/pass gives {'outcome': 'unknown', 'outcome_reason': \"claimed fix-verified, but the harness's own re-injection showed pass \u2192 pass, which settles nothing\"}; (C) the harness ran the right test, fail/pass, gives confirmed",
+        "which of A or B a finding lands in is decided by whether some pytest node id happens to appear in its evidence prose, and where several appear, by their order (VERDICT-F-26, still open at this HEAD) - not by anything about the fix or the evidence for it",
+        "live in this run: VERDICT-F-31 and VERDICT-F-34 were re-injected by hand and their guards failed on the re-injection, yet both carry a harness verification of pass/pass over a test that is not their guard, so their ledger rows read 'settles nothing'. VERDICT-F-32 and VERDICT-F-33, whose cited ids the collector never reported, are recorded confirmed on the claim alone. Four equally evidenced resolutions, graded oppositely",
+        "class link, searched rather than asserted: `grep -rn 'fix_verified' src/verdict_mcp/*.py` returns 17 hits across harness.py, validate.py and state.py, and the only site that turns a claim into a ledger outcome is _stamp_outcome (harness.py:1031-1075). The report's own counter (harness.py:1784-1796) already ignores the flag and counts at_previous/at_head, so the two consumers of the same data now disagree"
       ],
-      "hash": "8034ffe0",
+      "root_cause": {
+        "symptom": "two equally hand-verified resolutions in the same run receive opposite ledger outcomes",
+        "mechanism": "_stamp_outcome branches on `attempted` (harness.py:1050) rather than on what was measured; `attempted` is set by verify_findings whenever cited_tests scraped any collected node id out of evidence prose (harness.py:296-312 and 459)",
+        "origin": "7328ddf (v0.62.0) introduced the three arms; the selection defect they now depend on is VERDICT-F-26, open since run 5 and unfixed at 1ae041c",
+        "class": "searched `grep -rn 'fix_verified' src/verdict_mcp/*.py` (17 hits) and `grep -rn 'confirmed' src/verdict_mcp/*.py` (11 in harness.py, 11 in state.py, 2 in validate.py); the claim-to-outcome conversion happens only in _stamp_outcome, and the one other consumer, the report counter at harness.py:1784, already reads the measurement instead of the flag",
+        "proof": {
+          "method": "counterfactual",
+          "detail": "three inputs differing only in the verification block produce confirmed, unknown and confirmed"
+        },
+        "latent_condition": "nothing asserts that a finding's verification record is the test that demonstrates that finding; any scraped id is treated as the finding's own"
+      },
+      "hash": "1f7ed699",
       "first_seen": "2026-09-02",
       "age_days": 0,
-      "delta": "RESOLVED",
-      "confidence": "proven",
-      "outcome": "confirmed",
-      "outcome_reason": "fix-verified: the guarding test failed on re-injection"
+      "delta": "NEW",
+      "outcome": "unknown",
+      "outcome_reason": "still open; nothing has settled it"
     },
     {
-      "id": "VERDICT-F-27",
-      "title": "verdict-issues dedupes on finding id alone, so a REGRESSED finding - the class the contract ranks first - is never re-filed and the run reports it as 'already filed'",
+      "id": "VERDICT-F-36",
       "severity": "Major",
       "priority": "P2",
-      "status": "resolved",
-      "fix_verified": true,
+      "status": "open",
+      "confidence": "proven",
+      "failure_classification": null,
+      "title": "The published track record counts a claim-only confirmation as `held up`, and its own caveat now states the opposite of the shipped rule: `a finding resolved without re-injection stays undecided` while 0.62.0 records exactly that as `confirmed`",
       "evidence": [
-        "FIXED at src/verdict_mcp/issues.py:105-113 in ebc679f (v0.59.0): `plan` now returns three actions and refiles when `f.get(\"delta\") == \"REGRESSED\" and prior.get(\"run_number\") != run`. The ledger's `previous` trail is written at issues.py:227-231 and the title carries '(recurrence)'.",
-        "FIX-VERIFIED BY RE-INJECTION: in a scratch copy of HEAD the pre-fix dedupe `action = \"exists\" if fid in ledger else \"create\"` was restored and tests/test_issues.py::test_a_finding_that_came_back_is_filed_again went red - '1 failed in 0.46s'. Restoring the fix returns it to green.",
-        "The four new tests cover the real axes and assert behaviour rather than internals: a recurrence is filed (2 gh calls, ledger number 2, previous trail [1]); the new issue names the one it came back from ('(recurrence)' in the title, '**Recurrence**' and '/issues/1' and 'run 7' in the body); a second invocation over the same state files nothing more ('1 already filed', still 2 calls); and a merely STILL_OPEN finding is not refiled (1 call). All four pass at HEAD.",
-        "RESIDUAL, filed separately as VERDICT-F-34: the guard keys on `delta`, so the refile window is exactly one run wide. That is a different mechanism from dedupe-on-id and this finding's stated defect is closed."
+        "src/verdict_mcp/state.py:350-355, the caveats emitted with every calibration block: '`confirmed` means fix-verified or regressed' and 'a finding resolved without re-injection stays undecided: absence is not proof'. Since 7328ddf, harness.py:1055-1058 records confirmed with the reason 'fix-verified: claimed by the tester, with no harness measurement to weigh it against' - which is a resolution with no re-injection at all",
+        "src/verdict_mcp/state.py:316-327: calibration buckets on `outcome` alone, so a claim-only row and a measured re-injection are the same integer; the distinction survives only in the free-text outcome_reason of the ledger row",
+        "the figure is published in two places: the report's Track record table (harness.py:1705-1721, 'Held up' column, footnote 'Settled means fix-verified or regressed... a finding merely resolved is not evidence either way') and the MCP server's payload (src/verdict_mcp/server.py:292)",
+        "measured on this project's own ledger: .qa/outcomes.json held 19 confirmed rows before this run, every one carrying the measured-re-injection reason, and run 6's audit found no harness measurement behind any of them; this run adds claim-only confirmations under a reason string no consumer reads",
+        "class link, searched rather than asserted: `grep -rn 'confirmed' src/verdict_mcp/state.py` (11 hits) covers merge_outcomes' stickiness rule and calibration's buckets, and `grep -rn 'calibration' src/verdict_mcp/*.py` finds exactly two publishing consumers, render_report and server.py:292. Neither splits the column, so this is a pattern across all readers rather than one site"
       ],
-      "hash": "4b5ee0b8",
+      "root_cause": {
+        "symptom": "a precision figure and a caveat that contradict the rule that fills them",
+        "mechanism": "0.62.0 added a third route to `confirmed` and changed neither the aggregation (state.py:316-327), nor the caveats (state.py:350-355), nor the report footnote (harness.py:1719-1721)",
+        "origin": "7328ddf (v0.62.0); the caveat text predates it and was true until that commit",
+        "class": "searched every writer of `outcome` (_stamp_outcome, outcome_row/merge_outcomes) and every reader that publishes it (calibration in state.py, render_report in harness.py, server.py:292); the claimed/measured split is missing in all three readers",
+        "proof": {
+          "method": "reading",
+          "detail": "the caveat string and the third arm's reason string are quoted side by side and contradict each other; no execution is needed"
+        },
+        "latent_condition": "the caveats are hard-coded prose beside the computation rather than derived from the rules that produced the counts, so a new arm cannot invalidate them mechanically"
+      },
+      "hash": "7f0d1ead",
       "first_seen": "2026-09-02",
       "age_days": 0,
-      "delta": "RESOLVED",
-      "confidence": "proven",
-      "outcome": "confirmed",
-      "outcome_reason": "fix-verified: the guarding test failed on re-injection"
+      "delta": "NEW",
+      "outcome": "unknown",
+      "outcome_reason": "still open; nothing has settled it"
     },
     {
-      "id": "VERDICT-F-28",
-      "title": "Diff coverage is measured in-process only, so code exercised by subprocess-invoking tests is reported as 'not imported by anything the suite executed' with every changed line unexercised - a false measured claim, and a cry-wolf risk for the new pass-refusal rule",
-      "severity": "Major",
-      "priority": "P2",
-      "status": "resolved",
-      "fix_verified": true,
-      "evidence": [
-        "FIXED at src/verdict_mcp/harness.py:634-643 in 7357bfc (v0.60.0): a child config whose static `context` is `verdict:subprocess` is pointed at by COVERAGE_PROCESS_START, lines only a child reached are counted and reported as `executed_in_subprocess`, and the false note 'not imported by anything the suite executed' is replaced by 'no test executed it, and no subprocess the suite spawned recorded a line of it'.",
-        "FIX-VERIFIED BY RE-INJECTION: in a scratch copy of HEAD the child config was dropped from the environment (`env = dict(os.environ, COVERAGE_RCFILE=..., COVERAGE_FILE=...)` without COVERAGE_PROCESS_START) and tests/test_diff_coverage.py::test_a_line_only_a_child_process_executed_is_measured went red - '1 failed in 0.45s'. The guard is real.",
-        "The mechanism works where it is exercised: the guarded fixture's child executes a function reached only through a subprocess, and the measurement reports executed_in_subprocess >= 1, subprocess_coverage 'measured', and no unexercised ranges. The paired negative (test_a_suite_that_spawns_nothing_says_so) holds 'none recorded' apart from 'measured', and test_the_subprocess_context_is_never_read_as_a_test confirms the invented context never appears as a test id.",
-        "THE FIX INTRODUCED A WORSE DEFECT, filed as VERDICT-F-31 and not held against this finding: on this repository the same child config makes the coverage database unrenderable, so the false claim this finding is about is gone only because there is no claim at all. F-28's stated defect is genuinely closed; F-31 is the cost, and it is a Major/P0 in its own right.",
-        "Read the two together before acting: a fix for F-31 that simply drops the child config would reopen this finding. The next run's focus records that constraint."
-      ],
-      "hash": "44f6d6fe",
-      "first_seen": "2026-09-02",
-      "age_days": 0,
-      "delta": "RESOLVED",
-      "confidence": "proven",
-      "outcome": "confirmed",
-      "outcome_reason": "fix-verified: the guarding test failed on re-injection"
-    },
-    {
-      "id": "VERDICT-F-29",
-      "title": "The diff-coverage step writes a 95 MB coverage.json plus coverage.db and coverage.rc into the committed team-mode QA root, gitignores none of them and deletes none of them, so the next `git add .qa` puts a ~95 MB blob into the repository permanently",
-      "severity": "Major",
-      "priority": "P1",
-      "status": "resolved",
-      "fix_verified": true,
-      "evidence": [
-        "FIXED at src/verdict_mcp/harness.py:614-624 in c4db8bf (v0.58.0): `scratch = Path(tempfile.mkdtemp(prefix=\"verdict-coverage-\"))` with `finally: shutil.rmtree(scratch, ignore_errors=True)`, and the rc, db and json all live under it. measure_diff_coverage no longer takes qa_root at all, so the QA root is out of reach by construction rather than by care.",
-        "FIX-VERIFIED BY RE-INJECTION, twice, each aimed at a different half of the fix. (a) Scratch pointed back at the caller's QA root and nothing deleted: tests/test_diff_coverage.py::test_the_coverage_run_leaves_nothing_in_the_qa_root goes red. (b) Scratch created in a temp dir but the rmtree removed: the same test goes red on its second assertion, 'the scratch directory outlived the measurement'. Both in a scratch copy of HEAD; both green again on restore.",
-        "MEASURED LIVE THIS RUN, which is the check run 5's next-run focus asked for. `git status --porcelain .qa/` prints nothing and exits 0. `git ls-files .qa/` lists 13 files and no coverage artefact among them - so no 95 MB blob became tracked in the interval. `ls -la .qa/` during and after this run's own coverage measurement shows no coverage* file at any point, while the scratch directory /var/folders/95/.../T/verdict-coverage-im_jhnxu existed during it and is gone after.",
-        "SECOND LINE OF DEFENCE ADDED for a QA root that ran 0.53-0.57: .qa/.gitignore now names coverage.rc, coverage.db and coverage.json with a comment explaining why the names stay listed after the code stopped writing them.",
-        "NOTE, not a reopening: this run's coverage measurement failed to render (VERDICT-F-31), so the 95 MB json was never produced this run and the deletion path was exercised on a smaller database. The re-injection in (b) is what carries the claim that the removal itself works, independent of what the measurement produced."
-      ],
-      "hash": "5e6ea2a9",
-      "first_seen": "2026-09-02",
-      "age_days": 0,
-      "delta": "RESOLVED",
-      "confidence": "proven",
-      "outcome": "confirmed",
-      "outcome_reason": "fix-verified: the guarding test failed on re-injection"
-    },
-    {
-      "id": "VERDICT-F-30",
-      "title": "The report's fix-verification line counts the agent's own fix_verified claim inside a block sourced from harness measurements, so a finding the harness measured as error/error is published as '1 verified'",
+      "id": "VERDICT-F-37",
       "severity": "Minor",
       "priority": "P2",
-      "status": "resolved",
-      "fix_verified": true,
+      "status": "open",
+      "confidence": "proven",
+      "failure_classification": null,
+      "title": "The strict bash guard treats every non-flag argument of cp/mv/rsync as a write target, so copying the checkout into a scratch temp dir - the re-injection step the agent contract mandates - is refused in the same words as overwriting the checkout",
       "evidence": [
-        "FIXED at src/verdict_mcp/harness.py:1711-1728 in 6d593d4 (v0.57.0): the count now comes from the measurement via `_shows_fix(f)` (at_previous 'fail' and at_head 'pass') plus the computed delta, and a finding claiming fix_verified that its own measurement does not show is named on the line below.",
-        "FIX-VERIFIED BY RE-INJECTION: in a scratch copy of HEAD the pre-fix count `verified = sum(1 for f in measured if f.get(\"fix_verified\") is True and f.get(\"delta\") == \"RESOLVED\")` was restored and tests/test_verification.py::test_the_report_counts_the_measurement_not_the_claim went red - '1 failed in 0.03s'.",
-        "AND THE ORIGINAL CASE WAS RE-RUN AGAINST THE SHIPPED RENDERER: render_report over run 5's exact F-20 shape - delta RESOLVED, fix_verified True, verification {at_previous 'error', at_head 'error'} - now prints 'Fix verification: 0 verified - 0 refused (cited test still fails at HEAD) - 1 measured but not verifiable' followed by '- claims fix_verified the measurement does not show: P-F-1'. Run 5's report printed '1 verified - 0 refused - 0 measured but not verifiable' over the same record. The displaced count is corrected and the emptied bucket refilled.",
-        "The paired positive case is guarded: test_a_measured_fix_still_reads_as_verified asserts a genuine fail-to-pass record still reads '1 verified' with no 'claims fix_verified' line, so the fix did not simply turn the counter off.",
-        "THE SAME CONFUSION SURVIVES ONE LAYER DOWN and is filed as VERDICT-F-32 rather than held against this finding: the outcome ledger still mints `confirmed` from the agent's fix_verified flag. This finding's root_cause class link claimed 'This is the single site'; the search swept renderers and did not reach _stamp_outcome. The report is honest now; outcomes.json is not."
+        "hooks/enforce_bash_scope.py:38-42 declares _MUTATORS as 'commands whose non-flag arguments name files they (may) mutate', and hooks/enforce_bash_scope.py:354-357 yields every non-flag argument as a candidate target, the source included",
+        "probe feeding the hook its own PreToolUse payload with VERDICT_STRICT=1: `cp -a [checkout] [scratch]/tree2` exits 2 DENIED, and `cp -a [scratch]/x.py [checkout]/src/verdict_mcp/harness.py` exits 2 DENIED with the same message. The guard cannot tell the two apart and reports the read-only copy as targeting the checkout",
+        "the identical read-only copy expressed as `python3 -c 'import shutil; shutil.copytree(...)'` exits 0 allowed, which is the guard's documented design (hooks/enforce_bash_scope.py:10-17, 'Unknown commands are ALLOWED', 'this is a deny-HEURISTIC, not a sandbox'). The denial therefore costs a workflow and adds no protection: it moves the same operation to an unchecked interpreter",
+        "cost, live: this run needed a scratch copy of the tree to re-inject four defects, which agents/verdict.md sections 3.5 and 6 require ('in a scratch copy of the tree (never the checkout)'), and the first attempt was refused"
       ],
-      "hash": "7cb4d1ce",
+      "root_cause": {
+        "symptom": "a read-only copy out of the checkout is denied as though it wrote to the checkout",
+        "mechanism": "the _MUTATORS fallback arm at hooks/enforce_bash_scope.py:354 yields all non-flag arguments with no positional semantics, so argv[0] of a cp is treated as a destination",
+        "origin": "the fallback arm predates this range - `git diff --name-only 7357bfc..1ae041c -- hooks/` prints nothing - and this is the first run that needed a whole-tree copy for re-injection",
+        "class": "searched `grep -rn '_MUTATORS' hooks/*.py`: four uses, three of them dedicated position-aware checkers (tar at :350, find at :352, stream editors at :237) and one positional-blind fallback at :354. cp, mv, rsync, install and ln all reach the blind arm, so every source-to-destination command in the set carries the same false positive",
+        "proof": {
+          "method": "differential",
+          "detail": "both directions of the same cp are denied identically while the python equivalent is allowed"
+        },
+        "latent_condition": "the guard has per-command checkers for tar and find but none for the source/destination commands, and no test asserts that a legitimate copy out of the checkout is permitted"
+      },
+      "hash": "fe1f07b3",
       "first_seen": "2026-09-02",
       "age_days": 0,
-      "delta": "RESOLVED",
+      "delta": "NEW",
+      "outcome": "unknown",
+      "outcome_reason": "still open; nothing has settled it"
+    },
+    {
+      "id": "VERDICT-F-38",
+      "severity": "Minor",
+      "priority": "P3",
+      "status": "open",
       "confidence": "proven",
-      "outcome": "confirmed",
-      "outcome_reason": "fix-verified: the guarding test failed on re-injection"
+      "failure_classification": null,
+      "title": "The QA profile's 'Real commands' section contradicts its own front matter and the repository's tooling: it records no coverage command and 'no mutation tool present' while coverage_suite_cmd sits six lines above it and mutmut has been a dev dependency since v0.14.0",
+      "evidence": [
+        ".qa/profile.md:71-73 states 'Changed-files coverage: no command recorded - no coverage tool is configured in this repo. The coverage-delta gate is unmeasurable until one is added' and 'Mutation testing: no tool present. Suite quality is unmeasured.'",
+        ".qa/profile.md:7 front matter carries coverage_suite_cmd (`uv run --group dev python -m coverage run -m pytest tests/ -q -o addopts=`), and this run measured 122 of 143 changed lines with it",
+        "pyproject.toml:84 declares the dev group as pytest>=8, mutmut>=2.5 and coverage>=7; `git log --oneline -S mutmut -- pyproject.toml` names ea1ef31 (v0.14.0), long before the profile was written on 2026-08-28. The repository also ships its own mutation harness at eval/mutate.py and eval/run_mutation.py",
+        "consequence: the profile is what every run reads first to decide what is measurable, and it has told six runs that two available instruments do not exist"
+      ],
+      "root_cause": {
+        "symptom": "the profile's prose describes tooling this repository has had for dozens of releases",
+        "mechanism": "the prose was written at baseline and not revisited when the coverage pipeline and its front-matter key arrived; nothing cross-checks prose against the front matter or against pyproject",
+        "origin": "the profile was created at the 2026-08-28 baseline run; coverage_suite_cmd was added to the front matter when diff coverage shipped, and the prose beneath it was left as written",
+        "class": "searched the profile for every tooling claim (`grep -n 'command\\|tool' .qa/profile.md`): the two stale lines are 71-73, while the suite, counting and test-id lines still match the front matter and .github/workflows/ci.yml - so this is two stale claims, not a generally rotten file",
+        "proof": {
+          "method": "differential",
+          "detail": "the front matter and the prose of one file disagree, and the measured run settles which is right"
+        },
+        "latent_condition": "profile prose is unvalidated free text: verdict-facts reads only the front matter, so nothing can notice the two halves diverging"
+      },
+      "hash": "87750fc7",
+      "first_seen": "2026-09-02",
+      "age_days": 0,
+      "delta": "NEW",
+      "outcome": "unknown",
+      "outcome_reason": "still open; nothing has settled it"
     }
   ],
   "verdict": "pass with risks",
   "release_blockers": [],
   "not_tested": [
-    "Windows and the py3.10 leg of the CI matrix. Not testable on this machine, and this range is unusually exposed to it: the coverage change relies on coverage.py's startup .pth hook (`a1_coverage.pth`, present in this venv at coverage 7.16.0) and on child processes inheriting COVERAGE_PROCESS_START, both of which behave differently under Windows process creation.",
-    "verdict-issues against a real `gh` and a real repository. Every issues.py probe this run used the repository's own shipped stub. Nothing was filed anywhere.",
-    "The GitHub Action (action.yml) in either mode. `run` mode is forbidden locally by the profile.",
-    "The eval corpus and scorer end-to-end. agents/verdict.md is byte-identical in this range (`git log --oneline 32d1c41..HEAD -- agents/verdict.md` is empty), so the profile's risk area 2 carries no new exposure - but that is an argument from the diff, not a measurement of the corpus, which was not run.",
-    "Diff coverage for this range: unmeasurable. The measurement itself is the run's headline defect (VERDICT-F-31), so the profile's changed-files coverage gate has no number this run. The last measured value is run 5's 63% of 1125 changed lines. I did not substitute an estimate.",
-    "Mutation testing as a tool: none is installed. Suite quality is unmeasured in general. Eight hand-built re-injections were done instead, all in scratch copies, and are reported per finding.",
-    "The 0.60.0 subprocess-coverage feature on a project whose suite spawns children WITHOUT generating source files elsewhere - i.e. whether F-31 spares such projects. The toy fixture in tests/test_diff_coverage.py is that shape and passes, which is suggestive, but I did not test a second real repository.",
-    "hooks/enforce_bash_scope.py's tokenizer line by line. VERDICT-F-22 gained three fresh reproductions this session but its mechanism is still characterised from the outside.",
-    "Concurrency: two verdict-facts runs against one QA root. The run marker and the run_number re-read exist for it; neither was exercised."
+    "Windows and the CI matrix (ubuntu/windows x py3.10/py3.13) - this machine is macOS + py3.13 only; the conftest-chain copy-back (VERDICT-F-33's fix) manipulates paths and is the kind of change that breaks on Windows separators, and it was not exercised there.",
+    "The eval corpus, the scorer and the answer keys - eval/ is untouched by this range (git diff --name-only), so agent-prompt regressions, which are only visible through the corpus, were not re-measured.",
+    "The Action's gate mode as GitHub executes it, and the Action's run mode, which the profile forbids locally.",
+    "A full mutmut run over the suite: the tool is present (pyproject.toml:84) and was not run for cost. Suite quality beyond this range is unmeasured; within the range, 5 hand-placed mutations were all caught.",
+    "The MCP server surface (server.py), runner.py, census.py, project_key.py and gate.py were not read this run beyond the calibration consumer at server.py:292 - none is in the range.",
+    "Coverage delta against the previous run: run 6 recorded coverage as `unavailable`, so there is no prior number to compare 85% against. The direction of the gate is unmeasurable this run and was not estimated.",
+    "The residual half of VERDICT-F-33 (a support file that is not a conftest, e.g. a data fixture or a helper module, still stays behind at the old commit) was reasoned about and searched for, not executed - this repository has no such test helper to exercise it with."
   ],
   "verified_intact": [
-    "The suite is wholly green and grew honestly: `uv run --group dev python -m pytest tests/` exits 0, 610 passed in 66.51s, no skips, no xfails, no collection errors. Measured three further times this session at 65.43s, 65.84s and 65.90s - the pass count is stable, not a lucky run.",
-    "No silent test drop. Id set-diff against the stored ledger is +17 / -0, and 593 + 17 - 0 = 610 reconciles exactly. Every one of the 17 added ids belongs to the four releases under judgement (5 in test_diff_coverage.py, 4 in test_issues.py, 8 in test_verification.py).",
-    "The tamper-evidence anchor holds: `python3 eval/fixture_freshness.py` exits 0 in 0.05s - 'pricer-delta.diff still describes the fixture pair (78 lines)'. The answer keys, the corpus and the delta fixture were neither regenerated nor touched, by me or by this range (`git log --oneline 32d1c41..HEAD -- eval/` is empty).",
-    "Every one of the six defects run 5 filed has a real guard. Each was re-injected into a scratch copy of HEAD (git archive into a temp dir, never the checkout) and the paired test was re-run: F-25 CAUGHT, F-26 CAUGHT, F-27 CAUGHT, F-28 CAUGHT, F-30 CAUGHT, F-29 CAUGHT twice (once with the intermediates pointed back at the caller's QA root, once with the scratch directory left behind). No mutant survived a faithful re-injection. The release notes' claims are, on this axis, true.",
-    "The write-scope guarantee held under adversarial load. Across ~40 commands including eight mutation runs, the checkout is unmodified: `git status --porcelain` reports only the pre-existing untracked `.claude/agents/`, and `git diff --stat` is empty. The VERDICT_STRICT bash guard additionally refused three of my own read-only commands rather than risk a write - a false positive (VERDICT-F-22) but on the safe side of the trade.",
-    "The VERDICT-F-29 remedy is real, not just gitignored. This run's own coverage measurement created /var/folders/95/.../T/verdict-coverage-im_jhnxu and removed it; `.qa/` never held a coverage* file at any point during the run; `git status --porcelain .qa/` is empty; and `.qa/.gitignore` now names coverage.rc, coverage.db and coverage.json as a second line of defence for a QA root that ran 0.53-0.57.",
-    "The run-history chain verifies at HEAD: `verify_chain(load_runs('.qa'))` returns {'status': 'intact', 'first_bad': None} over 4 resolved rows, with runs 4 and 5 carrying links. Run 5's finding that this repository's own ledger was unchained no longer holds - the ledger is chained now. The ratchet gap it named is a separate matter and is still open (VERDICT-F-21).",
-    "The project key survived the clone. facts.json records project 'verdict' with project_key_source 'profile', not the directory basename 'verdict-clone' - VERDICT-F-23's fix working in the exact environment that produced the defect."
+    "Subprocess coverage survived the VERDICT-F-31 fix: changed_lines_executed_in_subprocess is 8, seven of them in src/verdict_mcp/issues.py, and subprocess_coverage reads `measured` - the over-correction run 6 warned about (silently re-creating VERDICT-F-28 by swallowing child data) did not happen.",
+    "The 0.62.0 over-correction is itself guarded: mutating the third arm to let a claim outrank a measurement fails tests/test_calibration.py::test_a_claim_the_measurement_does_not_show_settles_nothing and ::test_a_refused_resolution_does_not_confirm_either.",
+    "The recurrence window widened without double-filing: with regressed_at_run carried across runs 10, 11 and 12, exactly one issue is created (two gh calls total, `1 already filed`).",
+    "Tamper-evidence anchors intact: the fixture_freshness gate passed (exit 0, 'pricer-delta.diff still describes the fixture pair (78 lines)'), and `git diff --name-only 7357bfc..1ae041c` shows the range touches none of eval/, hooks/, agents/verdict.md, action.yml or the answer keys.",
+    "Suite fully green and growing: 624 passed, exit 0, 69.8s; test-id set-diff is +14 added, 0 removed, and the 14 new ids are exactly the guards for the four fixes.",
+    "Version metadata is consistent across the three files that carry it: pyproject.toml, server.json and .claude-plugin/plugin.json all read 0.63.0, and docs/state-schema.md documents all three new fields (ignore_errors, support_copied_from_head, regressed_at_run)."
   ],
   "next_run_focus": [
-    "VERDICT-F-31 first, and verify any fix the way this run measured the defect: run the profile's coverage_suite_cmd end to end and confirm `coverage.status` reads `measured` again, not merely that a unit test passes. A fix that only filters orphan paths out of the render is not enough - check that lines a child DID execute under the repo root still count, or the fix silently re-creates VERDICT-F-28.",
-    "VERDICT-F-32: read `.qa/outcomes.json` back after finalize and check every row whose outcome_reason says 'fix-verified: the guarding test failed on re-injection' against that finding's `verification` block in state.json. Any row whose finding has no measurement showing at_previous fail / at_head pass is a self-graded confirmation. VERDICT-F-20's row is the known one and, because decided outcomes stick, it will still be there.",
-    "VERDICT-F-26's remaining half: the id filter does not fix selection. Re-run the two-real-ids probe (a cross-reference to another finding's still-failing test quoted before the finding's own test) and confirm `rec['test']` is no longer whichever id appears first in evidence prose.",
-    "Verification productivity, which this run measured at zero: facts.json recorded `verification: null` - 6 open findings cite no test id, and 3 more (F-25, F-26, F-30) cite ids the collector never reported. The fix-verification feature verified nothing on the repository that ships it. Decide whether findings should carry an explicit `verification_test` as a matter of course.",
-    "Re-run the F-27 and F-25 residual probes (VERDICT-F-34 and VERDICT-F-33) after any fix; both are cheap and both currently fail silently rather than loudly, which is what makes them easy to believe fixed."
+    "VERDICT-F-35 and VERDICT-F-36 together: after any fix, re-read .qa/outcomes.json and JOIN every confirmed row against that finding's verification block, then check that a claim-only confirmation is distinguishable in the published calibration counts - not only in outcome_reason prose. The join is the check; a run that reports its own precision without performing it is quoting a number it produced.",
+    "VERDICT-F-26 is now load-bearing for the ledger, not just for verification productivity: while selection is a prose lottery, VERDICT-F-35 mis-grades every hand-verified resolution whose evidence happens to contain a node id. When re-testing it, use the two-real-ids probe again and also confirm that a finding carrying an explicit verification_test is unaffected.",
+    "Set verification_test on every finding this project resolves from now on - this run's four resolutions each carried a guard test that the harness did not pick. The four resolved findings already carry the field for the record.",
+    "VERDICT-F-37: check whether a legitimate `cp` out of the checkout into a temp scratch is permitted, and whether the fix keeps denying a cp INTO the checkout. Both directions, one probe each - the current guard cannot tell them apart.",
+    "Re-measure diff coverage against this run's 85% (122/143): this is the first run with a number on both sides, so run 8 is the first that can fire the coverage-delta gate at all. src/verdict_mcp/issues.py:97-98 is the only unexercised changed range in shipped code this run.",
+    "The profile (VERDICT-F-38) needs a maintainer decision before it can be corrected: whether to record the mutation command, and whether to promote diff coverage from a measurement to a gate."
   ],
   "flaky_quarantine": [],
   "coverage": {
-    "status": "unavailable",
+    "status": "measured",
+    "tool": "coverage.py dynamic contexts",
     "command": "uv run --group dev python -m coverage run -m pytest tests/ -q -o addopts=",
-    "render_command": "uv run --group dev python -m coverage json --show-contexts -q -o /var/folders/95/670m4j2n4738g9pq1tq1mq8c0000gn/T/verdict-coverage-im_jhnxu/coverage.json",
+    "sha_range": "7357bfc31a971710e8cb3979dfcac449a0980e6d..1ae041c9c82dd81e8b77ea949f0fdf7ea2b54aa4",
     "suite_exit_code": 0,
-    "duration_s": 99.09,
-    "reason": "the suite ran but the coverage database could not be rendered: No source for code: 'conftest.py'; see https://coverage.readthedocs.io/en/7.16.0/messages.html#error-no-source"
+    "duration_s": 102.7,
+    "changed_files": 6,
+    "changed_lines": 143,
+    "changed_lines_executed": 122,
+    "changed_lines_executed_in_subprocess": 8,
+    "subprocess_coverage": "measured",
+    "percent": 85,
+    "per_file": {
+      "src/verdict_mcp/harness.py": {
+        "changed": 70,
+        "measured": 27,
+        "executed": 27,
+        "executed_in_subprocess": 1,
+        "unexercised_ranges": [],
+        "tests": [
+          "test_artifact_check.test_a_clean_finalize_has_nothing_to_report",
+          "test_artifact_check.test_a_history_row_that_does_not_carry_the_signed_link_is_named",
+          "test_artifact_check.test_a_missing_history_row_is_named",
+          "test_artifact_check.test_a_report_that_went_missing_is_named",
+          "test_artifact_check.test_an_index_row_dated_from_the_wrong_clock_is_named",
+          "test_artifact_check.test_an_index_row_naming_another_project_is_named",
+          "test_calibration.test_a_claim_the_harness_could_not_weigh_still_stands",
+          "test_calibration.test_a_claim_the_measurement_does_not_show_settles_nothing",
+          "test_calibration.test_a_decided_outcome_sticks_when_the_finding_changes_state_again",
+          "test_calibration.test_a_finding_that_never_came_back_carries_no_marker"
+        ],
+        "unexercised_functions": []
+      },
+      "src/verdict_mcp/issues.py": {
+        "changed": 19,
+        "measured": 9,
+        "executed": 7,
+        "executed_in_subprocess": 7,
+        "unexercised_ranges": [
+          [
+            97,
+            98
+          ]
+        ],
+        "tests": [],
+        "unexercised_functions": []
+      },
+      "tests/test_calibration.py": {
+        "changed": 75,
+        "measured": 36,
+        "executed": 26,
+        "unexercised_ranges": [
+          [
+            371,
+            371
+          ],
+          [
+            374,
+            374
+          ],
+          [
+            378,
+            378
+          ],
+          [
+            385,
+            385
+          ],
+          [
+            393,
+            393
+          ],
+          [
+            404,
+            404
+          ],
+          [
+            411,
+            411
+          ],
+          [
+            416,
+            416
+          ],
+          [
+            423,
+            423
+          ],
+          [
+            438,
+            438
+          ]
+        ],
+        "tests": [
+          "test_calibration.test_a_claim_the_harness_could_not_weigh_still_stands",
+          "test_calibration.test_a_claim_the_measurement_does_not_show_settles_nothing",
+          "test_calibration.test_a_finding_that_never_came_back_carries_no_marker",
+          "test_calibration.test_a_measured_re_injection_confirms",
+          "test_calibration.test_a_refused_resolution_does_not_confirm_either",
+          "test_calibration.test_a_regression_is_recorded_on_the_finding_and_carried",
+          "test_calibration.test_a_resolution_with_neither_is_still_undecided",
+          "test_calibration.test_a_settled_outcome_still_outranks_the_new_rule"
+        ],
+        "unexercised_functions": []
+      },
+      "tests/test_diff_coverage.py": {
+        "changed": 55,
+        "measured": 14,
+        "executed": 12,
+        "unexercised_ranges": [
+          [
+            307,
+            307
+          ],
+          [
+            340,
+            340
+          ]
+        ],
+        "tests": [
+          "test_diff_coverage.test_a_file_the_render_cannot_read_does_not_lose_the_measurement"
+        ],
+        "unexercised_functions": []
+      },
+      "tests/test_issues.py": {
+        "changed": 41,
+        "measured": 24,
+        "executed": 21,
+        "unexercised_ranges": [
+          [
+            224,
+            224
+          ],
+          [
+            243,
+            243
+          ],
+          [
+            256,
+            256
+          ]
+        ],
+        "tests": [
+          "test_issues.test_a_recurrence_can_still_be_filed_a_run_later",
+          "test_issues.test_a_state_written_before_the_marker_still_refiles",
+          "test_issues.test_the_same_regression_is_not_filed_twice_in_later_runs"
+        ],
+        "unexercised_functions": []
+      },
+      "tests/test_verification.py": {
+        "changed": 62,
+        "measured": 33,
+        "executed": 29,
+        "unexercised_ranges": [
+          [
+            420,
+            421
+          ],
+          [
+            425,
+            425
+          ],
+          [
+            444,
+            444
+          ]
+        ],
+        "tests": [
+          "test_verification.test_a_conftest_the_commit_did_not_touch_is_not_reported_as_copied",
+          "test_verification.test_a_regression_test_that_lands_with_its_fixture_verifies",
+          "test_verification.test_an_error_beside_a_failure_is_still_an_error"
+        ],
+        "unexercised_functions": []
+      }
+    },
+    "tests_touching_diff": [
+      "test_artifact_check.test_a_clean_finalize_has_nothing_to_report",
+      "test_artifact_check.test_a_history_row_that_does_not_carry_the_signed_link_is_named",
+      "test_artifact_check.test_a_missing_history_row_is_named",
+      "test_artifact_check.test_a_report_that_went_missing_is_named",
+      "test_artifact_check.test_an_index_row_dated_from_the_wrong_clock_is_named",
+      "test_artifact_check.test_an_index_row_naming_another_project_is_named",
+      "test_calibration.test_a_claim_the_harness_could_not_weigh_still_stands",
+      "test_calibration.test_a_claim_the_measurement_does_not_show_settles_nothing",
+      "test_calibration.test_a_decided_outcome_sticks_when_the_finding_changes_state_again",
+      "test_calibration.test_a_finding_that_never_came_back_carries_no_marker",
+      "test_calibration.test_a_measured_re_injection_confirms",
+      "test_calibration.test_a_refused_resolution_does_not_confirm_either",
+      "test_calibration.test_a_regression_is_recorded_on_the_finding_and_carried",
+      "test_calibration.test_a_resolution_with_neither_is_still_undecided",
+      "test_calibration.test_a_resolution_without_re_injection_settles_nothing",
+      "test_calibration.test_a_settled_outcome_still_outranks_the_new_rule",
+      "test_calibration.test_a_torn_write_cannot_leave_a_half_written_state",
+      "test_calibration.test_a_withdrawal_is_the_one_thing_that_refutes",
+      "test_calibration.test_a_withdrawal_overrides_an_earlier_confirmation",
+      "test_calibration.test_a_withdrawn_finding_stops_counting_as_open",
+      "test_calibration.test_a_withdrawn_finding_survives_a_run_that_does_not_mention_it",
+      "test_calibration.test_confidence_cannot_be_revised_after_the_fact",
+      "test_calibration.test_confidence_survives_being_carried_forward_unmentioned",
+      "test_calibration.test_internal_keys_never_reach_the_written_state",
+      "test_calibration.test_merge_normalizes_status_so_downstream_counts_are_right",
+      "test_calibration.test_regression_confirms_a_finding_because_it_came_back",
+      "test_calibration.test_the_ledger_is_folded_once_not_twice",
+      "test_calibration.test_the_ledger_keeps_outcomes_after_findings_leave_state",
+      "test_calibration.test_the_model_cannot_mark_its_own_finding_correct",
+      "test_calibration.test_the_report_shows_counts_before_it_has_earned_a_rate",
+      "test_calibration.test_the_report_stays_silent_until_something_has_been_settled",
+      "test_diff_coverage.test_a_file_the_render_cannot_read_does_not_lose_the_measurement",
+      "test_diff_coverage.test_changed_lines_are_split_into_executed_and_unexercised",
+      "test_diff_coverage.test_measured_coverage_outranks_a_written_block",
+      "test_harness.test_a_correction_appended_after_a_rollback_outranks_the_row_it_corrects",
+      "test_harness.test_a_held_backlog_is_a_state_the_pipeline_will_write",
+      "test_harness.test_a_reworded_re_report_is_the_same_finding_not_a_new_one",
+      "test_harness.test_a_scoped_run_does_not_resolve_the_backlog_it_never_looked_at",
+      "test_harness.test_a_state_whose_hashes_predate_the_harness_still_merges",
+      "test_harness.test_every_finalized_run_appends_one_machine_native_history_line",
+      "test_harness.test_full_sweep_licenses_silence_to_resolve_the_whole_backlog",
+      "test_harness.test_index_row_counts_open_findings_by_severity",
+      "test_harness.test_index_row_dates_from_the_measured_stamp_not_the_local_clock",
+      "test_harness.test_merge_ages_from_first_seen",
+      "test_harness.test_merge_assigns_deltas_the_model_used_to_guess",
+      "test_harness.test_merge_carries_forward_a_finding_this_run_did_not_mention",
+      "test_harness.test_merge_preserves_unknown_keys_from_the_previous_state",
+      "test_harness.test_report_is_rendered_from_state_and_cannot_contradict_it",
+      "test_harness.test_silence_still_resolves_when_the_run_reported_most_of_the_backlog",
+      "test_harness.test_the_hold_has_a_floor_and_a_share_and_both_edges_are_exact"
+    ],
+    "unexercised_functions": []
   },
   "tests": {
-    "passed": 610,
-    "duration_s": 66.72,
-    "collected": 610
+    "passed": 624,
+    "duration_s": 69.8,
+    "collected": 624
   },
   "calibration": {
     "min_sample": 30,
-    "findings_tracked": 33,
-    "decided_outcomes": 19,
-    "undecided_outcomes": 14,
+    "findings_tracked": 37,
+    "decided_outcomes": 21,
+    "undecided_outcomes": 16,
     "by_confidence": {
       "proven": {
-        "confirmed": 15,
+        "confirmed": 17,
         "refuted": 0,
-        "unknown": 13,
-        "decided": 15,
+        "unknown": 15,
+        "decided": 17,
         "precision": null,
-        "reading": "15 of 15 decided so far \u2014 too few for a rate (needs 30)"
+        "reading": "17 of 17 decided so far \u2014 too few for a rate (needs 30)"
       },
       "unstated": {
         "confirmed": 3,
@@ -436,7 +693,32 @@
         "reading": "1 of 1 decided so far \u2014 too few for a rate (needs 30)"
       }
     },
-    "by_proof_method": {},
+    "by_proof_method": {
+      "counterfactual": {
+        "confirmed": 0,
+        "refuted": 0,
+        "unknown": 1,
+        "decided": 0,
+        "precision": null,
+        "reading": "0 of 0 decided so far \u2014 too few for a rate (needs 30)"
+      },
+      "reading": {
+        "confirmed": 0,
+        "refuted": 0,
+        "unknown": 1,
+        "decided": 0,
+        "precision": null,
+        "reading": "0 of 0 decided so far \u2014 too few for a rate (needs 30)"
+      },
+      "differential": {
+        "confirmed": 0,
+        "refuted": 0,
+        "unknown": 2,
+        "decided": 0,
+        "precision": null,
+        "reading": "0 of 0 decided so far \u2014 too few for a rate (needs 30)"
+      }
+    },
     "caveats": [
       "`confirmed` means fix-verified or regressed; it therefore tracks which findings held up under a check, not correctness in the abstract",
       "still-open findings are undecided on purpose and are excluded from every rate rather than guessed at",
@@ -445,27 +727,24 @@
   },
   "test_ids": {
     "status": "measured",
-    "count": 610,
-    "added_count": 17,
+    "count": 624,
+    "added_count": 14,
     "removed_count": 0,
     "added": [
-      "tests/test_diff_coverage.py::test_a_line_only_a_child_process_executed_is_measured",
-      "tests/test_diff_coverage.py::test_a_suite_that_spawns_nothing_says_so",
-      "tests/test_diff_coverage.py::test_the_coverage_run_leaves_nothing_in_the_qa_root",
-      "tests/test_diff_coverage.py::test_the_repository_is_not_written_to_either",
-      "tests/test_diff_coverage.py::test_the_subprocess_context_is_never_read_as_a_test",
-      "tests/test_issues.py::test_a_finding_that_came_back_is_filed_again",
-      "tests/test_issues.py::test_a_finding_that_merely_stayed_open_is_not_refiled",
-      "tests/test_issues.py::test_a_recurrence_is_filed_once_not_once_per_invocation",
-      "tests/test_issues.py::test_a_recurrence_names_the_issue_it_came_back_from",
-      "tests/test_verification.py::test_a_measured_fix_still_reads_as_verified",
-      "tests/test_verification.py::test_a_node_id_scraped_from_prose_is_never_run",
-      "tests/test_verification.py::test_a_regression_test_appended_to_an_existing_file_verifies",
-      "tests/test_verification.py::test_a_test_file_the_fix_did_not_touch_is_not_reported_as_copied",
-      "tests/test_verification.py::test_resolve_test_id_matches_the_collected_form_not_the_prose",
-      "tests/test_verification.py::test_the_collected_citation_wins_over_the_scraped_one",
-      "tests/test_verification.py::test_the_report_counts_the_measurement_not_the_claim",
-      "tests/test_verification.py::test_without_a_ledger_a_citation_is_still_tried"
+      "tests/test_calibration.py::test_a_claim_the_harness_could_not_weigh_still_stands",
+      "tests/test_calibration.py::test_a_claim_the_measurement_does_not_show_settles_nothing",
+      "tests/test_calibration.py::test_a_finding_that_never_came_back_carries_no_marker",
+      "tests/test_calibration.py::test_a_measured_re_injection_confirms",
+      "tests/test_calibration.py::test_a_refused_resolution_does_not_confirm_either",
+      "tests/test_calibration.py::test_a_regression_is_recorded_on_the_finding_and_carried",
+      "tests/test_calibration.py::test_a_resolution_with_neither_is_still_undecided",
+      "tests/test_calibration.py::test_a_settled_outcome_still_outranks_the_new_rule",
+      "tests/test_diff_coverage.py::test_a_file_the_render_cannot_read_does_not_lose_the_measurement",
+      "tests/test_issues.py::test_a_recurrence_can_still_be_filed_a_run_later",
+      "tests/test_issues.py::test_a_state_written_before_the_marker_still_refiles",
+      "tests/test_issues.py::test_the_same_regression_is_not_filed_twice_in_later_runs",
+      "tests/test_verification.py::test_a_conftest_the_commit_did_not_touch_is_not_reported_as_copied",
+      "tests/test_verification.py::test_a_regression_test_that_lands_with_its_fixture_verifies"
     ],
     "removed": [],
     "truncated": false,

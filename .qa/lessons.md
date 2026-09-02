@@ -85,3 +85,20 @@ and at_head `pass`. A run that reports its own precision without performing
 that join is quoting a number it produced. Filed as VERDICT-F-32; until it is
 fixed, treat every published `proven` precision figure for this project as the
 agent's self-assessment.
+
+## 2026-09-02 (run 7) - a harness measurement that contradicts a hand re-injection may be measuring a different test
+
+This run re-injected all four of run 6's findings and watched each guard fail.
+The ledger recorded two of them (VERDICT-F-31, VERDICT-F-34) as "claimed
+fix-verified, but the harness's own re-injection showed pass / pass, which
+settles nothing", and the report's Fix-verification line reads "0 verified".
+Both statements are about tests that are not those findings' guards: the
+selector took the first node id in the evidence prose (VERDICT-F-26), which for
+F-31 was ::test_a_line_only_a_child_process_executed_is_measured and for F-34
+was another finding's ::test_a_finding_that_came_back_is_filed_again. A run that
+reads "the measurement contradicts you" and downgrades its own verified fix
+would be deferring to a measurement of something else.
+Discriminator: before believing a verification record in either direction, read
+`verification.test` and check it against the test named in the finding's own
+evidence as its guard. If they differ, the record is evidence about a third
+party, not about this finding. Filing the difference: VERDICT-F-35.
