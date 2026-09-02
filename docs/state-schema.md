@@ -313,6 +313,17 @@ compute. None of this makes fabrication impossible — a model that reimplements
 chain correctly can still hand-write a state, at which point it has done most of the
 work the harness would have done. What changes is that the cheap version fails loudly.
 
+## The issue ledger — `<qa-root>/issues.json`
+
+Written by `verdict-issues`, never by the agent or by `finalize`. One entry per finding
+that has been filed as a GitHub issue — `{number, url, created_at, run_number, hash}` keyed
+by finding id — so a re-run files nothing twice, and the state itself is never touched: it
+is finalize's and it is chain-signed. `verdict-issues` is a dry run unless `--create`; what
+would leave the machine is printed first, title by title, and creation goes through the
+operator's own `gh` login. It does not close or comment on issues when findings resolve —
+a closed issue is a human's claim, `fix_verified` is the harness's measurement, and the
+tracker must not be able to overrule the ledger.
+
 ## The outcome ledger — `<qa-root>/outcomes.json`
 
 `state.json` holds open findings and the current run's resolutions; a finding resolved two

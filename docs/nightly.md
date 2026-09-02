@@ -133,6 +133,12 @@ verdict-gate myrepo --max-age-hours 24 --require-harness || notify "QA gate: $?"
 # worktree, so a run inside a linked worktree legitimately reports a distance.
 ```
 
+**Get the findings in front of whoever fixes things.** `verdict-issues myrepo` prints
+what it would file — one issue per open finding, worst first — and `verdict-issues myrepo
+--create` files them through your own `gh` login, once each, recorded in `issues.json`
+beside the state so tomorrow's run adds only what is new. It never closes an issue: a
+closed issue is a person's claim, and `fix_verified` is the harness's.
+
 Exit codes: `0` pass · `1` fail · `3` blocked · `4` never ran · `5` stale ·
 `6` hand-written. `4`, `5` and `6` are the interesting ones for a scheduler —
 they mean the *run* broke, not the code.
