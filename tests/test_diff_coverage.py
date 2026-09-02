@@ -115,7 +115,11 @@ def test_a_new_file_the_suite_never_imported_is_wholly_unexercised(tmp_path):
     commit(r, "new module, untested")
     qa = qa_with_previous(tmp_path, sha_a)
     pf = collect(r, qa, [], coverage_suite_cmd=CMD)["coverage"]["per_file"]["extra.py"]
-    assert pf["executed"] == 0 and pf["measured"] == pf["changed"] and "not imported" in pf["note"]
+    # The note says what was actually checked: no test, and no subprocess
+    # either. "not imported by anything the suite executed" was the claim that
+    # made VERDICT-F-28 a false statement rather than a gap.
+    assert pf["executed"] == 0 and pf["measured"] == pf["changed"]
+    assert "no test executed it" in pf["note"] and "no subprocess" in pf["note"]
 
 
 def test_without_a_command_it_is_unmeasurable_and_says_how(tmp_path):
@@ -218,3 +222,81 @@ def test_the_repository_is_not_written_to_either(tmp_path):
     # left for a `git add` to pick up.
     untracked = git(repo, "status", "--porcelain").splitlines()
     assert not [ln for ln in untracked if "coverage" in ln], untracked
+
+
+# ── the suite's child processes are measured too (F-28) ─────────────────────
+
+SPAWNING_TEST = """import os
+import subprocess
+import sys
+import tempfile
+from pathlib import Path
+
+from mod import a
+
+HERE = str(Path(__file__).parent)
+
+
+def test_a():
+    assert a(1) == 2
+
+
+def test_b_runs_in_a_child_process():
+    with tempfile.TemporaryDirectory() as d:
+        env = {**os.environ, "PYTHONPATH": os.pathsep.join([HERE, os.environ.get("PYTHONPATH", "")])}
+        out = subprocess.run([sys.executable, "-c", "import mod; print(mod.b(21))"],
+                             cwd=d, capture_output=True, text=True, env=env)
+    assert out.stdout.strip() == "42", out
+"""
+
+
+def spawning_repo(tmp_path):
+    """A suite that drives its code through a child process, run from another
+    working directory — the shape every CLI test in this repository takes."""
+    r = tmp_path / "proj"
+    r.mkdir()
+    git(r, "init", "-qb", "main")
+    (r / "mod.py").write_text(MOD_A, encoding="utf-8")
+    (r / "test_mod.py").write_text(SPAWNING_TEST, encoding="utf-8")
+    sha = commit(r, "base")
+    (r / "mod.py").write_text(MOD_A + "\n\ndef b(x):\n    return x * 2\n", encoding="utf-8")
+    commit(r, "add b, exercised only through a subprocess")
+    return r, sha
+
+
+def test_a_line_only_a_child_process_executed_is_measured(tmp_path):
+    """VERDICT-F-28, live on run 5: coverage traces the process it starts, so
+    217 changed lines of issues.py read as "0 executed, not imported by
+    anything the suite executed" while eight tests exercised every one of them
+    through a CLI subprocess. A false measured claim, and one that can refuse a
+    clean pass through the zero-coverage rule."""
+    repo, sha_a = spawning_repo(tmp_path)
+    qa = qa_with_previous(tmp_path, sha_a)
+    cov = collect(repo, qa, [], coverage_suite_cmd=CMD)["coverage"]
+    assert cov["status"] == "measured"
+    pf = cov["per_file"]["mod.py"]
+    assert pf["executed"] >= 1, pf
+    assert pf.get("executed_in_subprocess", 0) >= 1, pf
+    assert cov["subprocess_coverage"] == "measured"
+    assert cov["changed_lines_executed_in_subprocess"] >= 1
+    assert pf["unexercised_ranges"] == [], pf
+
+
+def test_the_subprocess_context_is_never_read_as_a_test(tmp_path):
+    """It is a context the harness invented; a node id it is not."""
+    repo, sha_a = spawning_repo(tmp_path)
+    qa = qa_with_previous(tmp_path, sha_a)
+    pf = collect(repo, qa, [], coverage_suite_cmd=CMD)["coverage"]["per_file"]["mod.py"]
+    assert not [t for t in pf["tests"] if "subprocess" in t], pf["tests"]
+
+
+def test_a_suite_that_spawns_nothing_says_so(tmp_path):
+    """The flag must distinguish "children measured" from "no children" —
+    a suite with none must not read as though its subprocesses were covered."""
+    repo, sha_a = base_repo(tmp_path)
+    (repo / "mod.py").write_text(MOD_A + "\n\ndef b(x):\n    return x * 2\n", encoding="utf-8")
+    commit(repo, "add b")
+    qa = qa_with_previous(tmp_path, sha_a)
+    cov = collect(repo, qa, [], coverage_suite_cmd=CMD)["coverage"]
+    assert cov["subprocess_coverage"] == "none recorded"
+    assert cov["changed_lines_executed_in_subprocess"] == 0

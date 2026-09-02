@@ -3,6 +3,33 @@
 Plugin and `verdict-mcp` share one version line; `.claude-plugin/plugin.json` and
 `pyproject.toml` are bumped together.
 
+## 0.60.0 — 2026-09-02 · "the suite's children are the suite"
+
+**Diff coverage measures the subprocesses a suite spawns** (VERDICT-F-28, the last of run
+5's six). Coverage traces the process it starts and nothing else, so a suite that drives
+its code through child processes measured none of it. Run 5 of this repository reported
+217 changed lines of `issues.py` as "0 executed — not imported by anything the suite
+executed" while eight tests exercised every one of those lines through a CLI subprocess.
+The same for both hook files. That is a false statement rather than a gap, and it is one
+the zero-coverage rule can turn into a refused pass on honest work.
+
+The harness now points `COVERAGE_PROCESS_START` at a config of its own, whose static
+`context` is `verdict:subprocess`; coverage's startup hook arms each Python child from
+there. **Nothing is injected into the environment** — no `PYTHONPATH`, no
+`sitecustomize`, no marker variable — and the parent process is measured exactly as
+before: its import-time lines keep the empty context that keeps them from counting as
+exercised, which is the 0.54.0 rule this could easily have broken.
+
+A line only a child process reached counts as executed, is reported per file as
+`executed_in_subprocess` and in total as `changed_lines_executed_in_subprocess`, and is
+attributed to no test — there is no test context to attribute it to, and inventing one
+would make the context string look like a node id. Where the installed coverage ships no
+startup hook the children go unmeasured and `subprocess_coverage` reads `none recorded`:
+a gap, stated as one.
+
+Four mutations, four caught — including the one that matters most, that dropping the
+child config leaves the false "0 executed" in place.
+
 ## 0.59.0 — 2026-09-02 · "a recurrence is news"
 
 **`verdict-issues` files a finding that came back** (VERDICT-F-27, the last of run 5's six).

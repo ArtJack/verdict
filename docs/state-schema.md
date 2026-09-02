@@ -202,6 +202,21 @@ permanent blob in the repository (VERDICT-F-29). A QA root that ran 0.53–0.57 
 hold one; the names are listed in `.qa/.gitignore` so it cannot be committed. A changed file coverage never saw was imported by nothing the suite ran, and every
 changed line in it counts as unexercised — the honest reading.
 
+**Child processes are measured too.** Coverage traces the process it starts, so a suite
+that drives its code through subprocesses measured none of it: run 5 of this repository
+read 217 changed lines of `issues.py` as "0 executed, not imported by anything the suite
+executed" while eight tests exercised every one of them through a CLI subprocess
+(VERDICT-F-28) — a false claim, and one the zero-coverage rule can turn into a refused
+pass. The harness points `COVERAGE_PROCESS_START` at a config of its own whose static
+`context` is `verdict:subprocess`, and coverage's startup hook arms every Python child
+from there. Nothing is injected into the environment — no `PYTHONPATH`, no
+`sitecustomize` — and the parent's own data is unchanged: its import-time lines keep the
+empty context that keeps them from counting. A line only a child reached is counted as
+executed, reported per file as `executed_in_subprocess`, and attributed to no test,
+because there is no test context to attribute it to. Where the installed coverage ships no
+startup hook, children go unmeasured and `subprocess_coverage` reads `none recorded` —
+a gap, stated, not a claim.
+
 ```json
 "coverage": {
   "status": "measured", "sha_range": "a1b2c3..d4e5f6",
