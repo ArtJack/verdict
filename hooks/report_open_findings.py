@@ -102,6 +102,11 @@ def main() -> int:
         elif drift["status"] == "diverged":
             lines.append("Measured on a commit that is not in this branch's history — "
                          "this verdict describes different code.")
+        elif drift["status"] == "absent":
+            # A complete clone that lacks the commit is an observation, not a
+            # blind spot — and it stayed silent under `unknown` (VERDICT-F-18).
+            lines.append("Measured on a commit this repository does not contain — "
+                         "this verdict describes code this checkout never had.")
         # Ids already named as blockers are not repeated below: a session opener
         # that says the same thing twice is one nobody finishes reading.
         named = set()

@@ -127,10 +127,14 @@ def test_diverged_branch_is_not_reported_as_behind(repo):
 def test_unknown_never_raises_and_never_cries_wolf(repo, tmp_path):
     """A false 'you are behind' trains people to ignore the line."""
     r, _ = repo
-    for bad in (None, "", "deadbeef" * 5, 12345, "not-a-sha"):
-        assert code_drift(r, bad)["status"] == "unknown"
+    for bad in (None, "", 12345, "not-a-sha"):
+        assert code_drift(r, bad)["status"] == "unknown", bad
     assert code_drift(tmp_path / "no-such-dir", "HEAD")["status"] == "unknown"
     assert code_drift(tmp_path, "HEAD")["status"] == "unknown"   # exists, not a repo
+    # A well-formed id this complete clone lacks is the one case that is *not*
+    # a limit of observation — it is reported as `absent` (VERDICT-F-18). It
+    # still never raises, and garbage above still never alarms.
+    assert code_drift(r, "deadbeef" * 5)["status"] == "absent"
 
 
 def run_banner(cwd, qa_home):
@@ -214,3 +218,34 @@ def test_intermediate_commit_of_a_squashed_branch_is_diverged(repo):
     squash_merge(r, "feat")
 
     assert code_drift(r, measured)["status"] == "diverged"
+
+
+# --- absent is an observation; unknown is a limit of observation ------------
+#
+# VERDICT-F-18, filed by Verdict on itself from a fresh clone: the run-3 base
+# commit was a squash-merged branch head that no longer existed anywhere, the
+# clone was complete, and `unknown` swallowed it — so a 2-day-old verdict was
+# shown with no hint its base commit was unlocatable. A shallow clone that
+# cannot see far enough is a different fact and stays `unknown`.
+
+def test_a_complete_clone_missing_the_commit_is_absent_not_unknown(repo):
+    r, _ = repo
+    d = code_drift(r, "0" * 40)
+    assert d["status"] == "absent", d
+    assert d["head"], "HEAD was resolvable; only the recorded commit was not"
+
+
+def test_a_shallow_clone_that_cannot_see_the_commit_stays_unknown(repo, tmp_path):
+    r, shas = repo
+    shallow = tmp_path / "shallow"
+    subprocess.run(["git", "clone", "-q", "--depth", "1", r.as_uri(), str(shallow)],
+                   check=True, capture_output=True)
+    assert git(shallow, "rev-parse", "--is-shallow-repository") == "true"
+    assert code_drift(shallow, shas[0])["status"] == "unknown"
+
+
+def test_banner_names_a_commit_the_repository_does_not_contain(repo, tmp_path):
+    r, _ = repo
+    seed_state(tmp_path / "qa", r.name, "0" * 40)
+    out = run_banner(r, tmp_path / "qa")
+    assert "does not contain" in out and "never had" in out, out

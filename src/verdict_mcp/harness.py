@@ -653,6 +653,12 @@ def merge(facts: dict, judgment: dict, previous: dict | None, today: date | None
         "last_run": {**facts["last_run"], "report": judgment.get("report", "")},
         "isolation_check": judgment.get("isolation_check", {}),
         "gates": facts.get("gates", {}),
+        # `gates: {}` alone is overloaded: a design review that ran no suite and
+        # a profile missing its gates block look identical downstream. facts
+        # says which one happened (`no_gates`); it used to be dropped right
+        # here, so the validator could only see the ambiguous shape and chose
+        # leniency — an unqualified `pass` over zero measurement (VERDICT-F-17).
+        **({"no_gates": facts["no_gates"]} if facts.get("no_gates") else {}),
         "findings": findings,
         "verdict": judgment.get("verdict"),
         "release_blockers": judgment.get("release_blockers", []),

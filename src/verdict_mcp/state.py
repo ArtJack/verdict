@@ -645,6 +645,9 @@ def order_findings(findings: list[dict]) -> list[dict]:
     )
 
 
+_SHA_SHAPE = re.compile(r"^[0-9a-fA-F]{7,40}$")
+
+
 def code_drift(repo, sha, timeout: float = 3.0) -> dict:
     """How far the code has moved since this state was written.
 
@@ -661,7 +664,10 @@ def code_drift(repo, sha, timeout: float = 3.0) -> dict:
       current  — HEAD is the commit that was tested
       behind   — HEAD is `commits` commits ahead of the tested commit
       diverged — the tested commit is not in HEAD's history
-      unknown  — no git, no recorded sha, or the commit is not in this repo
+      absent   — this is a complete clone and the tested commit is not in it at
+                 all: the state was measured somewhere this repo cannot account for
+      unknown  — no git, no recorded sha, or a shallow clone that cannot see far
+                 enough to say
 
     Never raises and never blocks: an unreadable repository is `unknown`, not
     an alarm. A false "you are behind" would train people to ignore the line.
@@ -687,6 +693,21 @@ def code_drift(repo, sha, timeout: float = 3.0) -> dict:
     # diverged: we cannot see far enough to make either claim.
     rec = git("rev-parse", "--verify", f"{sha.strip()}^{{commit}}")
     if rec is None or rec.returncode != 0:
+        # `unknown` used to cover this whole branch, and it conflated a *limit of
+        # observation* (a shallow clone cannot see far enough) with an
+        # *observation*: a complete clone that does not contain the recorded
+        # commit. The second is not "we could not tell" — it is "this verdict was
+        # measured somewhere this repository cannot account for", and it went
+        # unreported because every renderer is silent on `unknown` (VERDICT-F-18,
+        # filed by Verdict on itself from a fresh clone whose run-3 base commit
+        # was a squash-merged branch head that no longer existed anywhere).
+        # Only for something shaped like a commit id. A garbled recorded sha is
+        # corrupt input, not an observation about the repository, and an alarm
+        # over garbage is the false "you are behind" that gets the line ignored.
+        shallow = git("rev-parse", "--is-shallow-repository")
+        if _SHA_SHAPE.match(sha.strip()) and shallow is not None \
+                and shallow.returncode == 0 and shallow.stdout.strip() == "false":
+            out["status"] = "absent"
         return out
     recorded = rec.stdout.strip()
 

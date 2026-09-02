@@ -172,8 +172,13 @@ So `validate` refuses the unqualified `pass` when **no gate in the run produced 
 counts**. The rule is run-level rather than per-gate, and that is what keeps it quiet: a
 lint or freshness gate legitimately parses to no counts, and naming the test gate would
 need semantics the harness does not have. One readable gate anywhere in the run satisfies
-it. A run with no gates configured claimed no suite and is left alone, and
-`pass with risks` stays available — the rule refuses the unqualified verdict, not the run.
+it. A run that ran **no gates at all** is refused the same way: `verdict-facts` records
+`no_gates` when neither `--gate` nor a profile front-matter block supplied one, the state
+carries it, and an unqualified `pass` over zero measurement is exactly the weakest run
+earning the strongest verdict (VERDICT-F-17 — the first version of this rule left it
+alone). `pass with risks` stays available — the rule refuses the unqualified verdict, not
+the run. A state with `gates: {}` and no `no_gates` predates the fact travelling and is
+left alone.
 
 ## Silence, resolution, and `full_sweep`
 
