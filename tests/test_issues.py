@@ -159,3 +159,63 @@ def test_json_format(tmp_path):
 def test_no_state_is_exit_4(tmp_path):
     proc = run(tmp_path, tmp_path / "empty-home")
     assert proc.returncode == 4
+
+
+# ── a recurrence is a new occurrence, not an old id (F-27) ───────────────────
+
+def restate(home, findings, run_number):
+    """The next run's state over the same QA root."""
+    path = home / "widget" / "state.json"
+    s = json.loads(path.read_text(encoding="utf-8"))
+    s["findings"], s["run_number"] = findings, run_number
+    path.write_text(json.dumps(s), encoding="utf-8")
+
+
+def test_a_finding_that_came_back_is_filed_again(tmp_path):
+    """VERDICT-F-27: the ledger key is the finding id, which by contract is
+    minted once and never reused, so membership answered "has this finding
+    ever been filed" — while the tracker needs "has this occurrence been
+    filed". A REGRESSED finding, the class the contract ranks first, was
+    reported as already filed while its issue sat closed."""
+    home = make_home(tmp_path, [finding("W-F-1", "Critical")])
+    assert run(tmp_path, home, "--create").returncode == 0
+    restate(home, [dict(finding("W-F-1", "Critical"), delta="REGRESSED")], 8)
+    proc = run(tmp_path, home, "--create")
+    assert proc.returncode == 0, proc.stderr
+    assert "created 1 (1 recurrence)" in proc.stdout
+    assert len(calls(tmp_path)) == 2
+    ledger = json.loads((home / "widget" / "issues.json").read_text())
+    assert ledger["W-F-1"]["number"] == 2
+    assert [p["number"] for p in ledger["W-F-1"]["previous"]] == [1]
+
+
+def test_a_recurrence_names_the_issue_it_came_back_from(tmp_path):
+    home = make_home(tmp_path, [finding("W-F-1", "Critical")])
+    run(tmp_path, home, "--create")
+    restate(home, [dict(finding("W-F-1", "Critical"), delta="REGRESSED")], 8)
+    run(tmp_path, home, "--create")
+    title = calls(tmp_path)[1][calls(tmp_path)[1].index("--title") + 1]
+    assert "(recurrence)" in title
+    body = bodies(tmp_path)[1]
+    assert "**Recurrence**" in body and "/issues/1" in body and "run 7" in body
+
+
+def test_a_recurrence_is_filed_once_not_once_per_invocation(tmp_path):
+    """The guard that keeps re-filing from becoming a spam loop: the ledger
+    records the run that filed, and the same state twice is the same run."""
+    home = make_home(tmp_path, [finding("W-F-1", "Critical")])
+    run(tmp_path, home, "--create")
+    restate(home, [dict(finding("W-F-1", "Critical"), delta="REGRESSED")], 8)
+    run(tmp_path, home, "--create")
+    proc = run(tmp_path, home, "--create")
+    assert "1 already filed" in proc.stdout
+    assert len(calls(tmp_path)) == 2
+
+
+def test_a_finding_that_merely_stayed_open_is_not_refiled(tmp_path):
+    home = make_home(tmp_path, [finding("W-F-1", "Critical")])
+    run(tmp_path, home, "--create")
+    restate(home, [dict(finding("W-F-1", "Critical"), delta="STILL_OPEN")], 8)
+    proc = run(tmp_path, home, "--create")
+    assert "1 already filed" in proc.stdout
+    assert len(calls(tmp_path)) == 1

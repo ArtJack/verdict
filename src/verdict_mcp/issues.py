@@ -59,12 +59,14 @@ def save_ledger(root: Path, ledger: dict) -> None:
     os.replace(tmp, path)
 
 
-def render_issue(finding: dict, state: dict) -> tuple[str, str]:
+def render_issue(finding: dict, state: dict, prior: dict | None = None) -> tuple[str, str]:
     """(title, body). The body is the finding as the report would show it —
-    evidence and all — plus a marker so the issue can be found again."""
+    evidence and all — plus a marker so the issue can be found again. `prior`
+    is the ledger entry this finding was filed under before it came back."""
     fid = str(finding.get("id") or "?")
     sev = finding.get("severity") or "?"
-    title = f"[Verdict] {fid} · {sev}: {finding.get('title') or '(untitled)'}"[:250]
+    again = " (recurrence)" if prior else ""
+    title = f"[Verdict] {fid} · {sev}{again}: {finding.get('title') or '(untitled)'}"[:250]
     last = state.get("last_run") or {}
     lines = [
         f"**{sev} / {finding.get('priority') or '?'}** · "
@@ -78,6 +80,10 @@ def render_issue(finding: dict, state: dict) -> tuple[str, str]:
     if finding.get("root_cause"):
         rc = finding["root_cause"]
         lines += ["", f"**Root cause** — {rc.get('mechanism') or ''}".rstrip()]
+    if prior:
+        was = prior.get("url") or (f"#{prior['number']}" if prior.get("number") else "an earlier run")
+        lines += ["", f"**Recurrence** — this finding was resolved and has come back. "
+                      f"Previously filed as {was} (run {prior.get('run_number')})."]
     lines += ["", f"Filed by Verdict run {state.get('run_number')} "
                   f"(verdict `{state.get('verdict')}`, {last.get('timestamp_utc')}) · "
                   f"report `{last.get('report')}`",
@@ -86,17 +92,34 @@ def render_issue(finding: dict, state: dict) -> tuple[str, str]:
 
 
 def plan(state: dict, ledger: dict, limit: int | None = None) -> list[tuple[dict, str]]:
-    """Open findings paired with the action they need: `create` or `exists`.
-    Severity order, so a cap files the worst first."""
+    """Open findings paired with the action they need: `create`, `refile` or
+    `exists`. Severity order, so a cap files the worst first.
+
+    The ledger key is the finding id, which by contract is minted once and
+    never reused — so membership answers "has this finding ever been filed",
+    while the question a tracker needs answered is "has this *occurrence* been
+    filed". A REGRESSED finding — the class the contract ranks first — was
+    therefore never re-filed, and the run reported it as already filed while
+    its issue sat closed (VERDICT-F-27). A recurrence is filed again, once per
+    regression: the guard is the run number, so running this twice over the
+    same state still files nothing twice.
+    """
+    run = state.get("run_number")
     out = []
     for f in order_findings([f for f in state.get("findings", []) if is_open(f)]):
-        fid = str(f.get("id") or "")
-        out.append((f, "exists" if fid in ledger else "create"))
+        prior = ledger.get(str(f.get("id") or ""))
+        if not prior:
+            action = "create"
+        elif f.get("delta") == "REGRESSED" and prior.get("run_number") != run:
+            action = "refile"
+        else:
+            action = "exists"
+        out.append((f, action))
     if limit is not None:
         creates = 0
         kept = []
         for f, action in out:
-            if action == "create":
+            if action in ("create", "refile"):
                 if creates >= limit:
                     kept.append((f, "deferred"))
                     continue
@@ -163,30 +186,36 @@ def main(argv=None) -> int:
     root = Path(state.get("_qa_root") or ".")
     ledger = load_ledger(root)
     todo = plan(state, ledger, args.limit)
-    creates = [(f, a) for f, a in todo if a == "create"]
+    creates = [(f, a) for f, a in todo if a in ("create", "refile")]
+    refiles = sum(1 for _, a in creates if a == "refile")
     exists = sum(1 for _, a in todo if a == "exists")
     deferred = sum(1 for _, a in todo if a == "deferred")
 
     if not args.create:
         if args.format == "json":
-            print(json.dumps({"would_create": [{"id": f.get("id"), "severity": f.get("severity"),
-                                                "title": render_issue(f, state)[0]}
-                                               for f, _ in creates],
-                              "already_filed": exists, "deferred": deferred}, indent=2))
+            print(json.dumps({"would_create": [
+                {"id": f.get("id"), "severity": f.get("severity"), "recurrence": a == "refile",
+                 "title": render_issue(f, state, ledger.get(str(f.get("id"))) if a == "refile"
+                                       else None)[0]}
+                for f, a in creates],
+                "already_filed": exists, "deferred": deferred, "recurrences": refiles}, indent=2))
         else:
-            print(f"verdict-issues: dry run — {len(creates)} would be created, "
-                  f"{exists} already filed, {deferred} deferred by --limit")
-            for f, _ in creates:
-                print("  " + render_issue(f, state)[0])
+            print(f"verdict-issues: dry run — {len(creates)} would be created "
+                  f"({refiles} of them recurrences), {exists} already filed, "
+                  f"{deferred} deferred by --limit")
+            for f, a in creates:
+                prior = ledger.get(str(f.get("id"))) if a == "refile" else None
+                print("  " + render_issue(f, state, prior)[0])
             if creates:
                 print("re-run with --create to file them")
         return 0
 
     cwd = repo_for_root(root)
     filed, failed = [], None
-    for f, _ in creates:
+    for f, action in creates:
         fid = str(f.get("id"))
-        title, body = render_issue(f, state)
+        prior = ledger.get(fid) if action == "refile" else None
+        title, body = render_issue(f, state, prior)
         try:
             made = create_issue(args.gh_cmd, cwd, title, body, args.label, args.repo)
         except (RuntimeError, OSError) as exc:
@@ -195,18 +224,24 @@ def main(argv=None) -> int:
         ledger[fid] = {**made, "hash": f.get("hash"),
                        "created_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
                        "run_number": state.get("run_number")}
+        if prior:
+            # The issue this recurrence replaces is not lost: someone closed it,
+            # and the trail from the new one back to it is the whole story.
+            ledger[fid]["previous"] = [*(prior.get("previous") or []),
+                                       {k: prior.get(k) for k in
+                                        ("number", "url", "created_at", "run_number")}]
         save_ledger(root, ledger)  # after every success: a crash mid-run files nothing twice
         filed.append((fid, made))
     if args.format == "json":
         print(json.dumps({"created": [{"id": i, **m} for i, m in filed],
-                          "already_filed": exists, "deferred": deferred,
+                          "already_filed": exists, "deferred": deferred, "recurrences": refiles,
                           "failed": ({"id": failed[0], "error": failed[1]} if failed else None)},
                          indent=2))
     else:
         for fid, made in filed:
             print(f"verdict-issues: {fid} → {made.get('url') or made.get('number')}")
-        print(f"verdict-issues: created {len(filed)}, {exists} already filed, "
-              f"{deferred} deferred by --limit")
+        print(f"verdict-issues: created {len(filed)} ({refiles} recurrence), "
+              f"{exists} already filed, {deferred} deferred by --limit")
         if failed:
             print(f"verdict-issues: stopped at {failed[0]}: {failed[1]} — the ledger records "
                   "what was filed before it; re-run to continue", file=sys.stderr)

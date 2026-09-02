@@ -3,6 +3,23 @@
 Plugin and `verdict-mcp` share one version line; `.claude-plugin/plugin.json` and
 `pyproject.toml` are bumped together.
 
+## 0.59.0 — 2026-09-02 · "a recurrence is news"
+
+**`verdict-issues` files a finding that came back** (VERDICT-F-27, the last of run 5's six).
+Dedupe was `fid in ledger` and nothing else. The finding id is minted once and never reused
+by contract, so membership answers "has this finding ever been filed" — while the question
+a tracker needs answered is "has this *occurrence* been filed". A REGRESSED finding, the
+class the contract ranks first and the one most worth a human's attention, was therefore
+never re-filed: the run printed it as "already filed" while its issue sat closed by
+whoever fixed it the first time. The ledger even stored the discriminator, and nothing
+ever read it back.
+
+A recurrence is now filed again, once per regression. The guard is the run number the
+ledger records, so running the tool twice over one state still files nothing twice. The
+new issue's title says `(recurrence)`, its body links the issue it came back from, and the
+ledger entry keeps a `previous` trail rather than overwriting it. Nothing closes or
+comments on the old issue: that is a person's, and this tool still only ever creates.
+
 ## 0.58.0 — 2026-09-02 · "scratch is not record"
 
 **The coverage run no longer writes into the QA root** (VERDICT-F-29). The rc file, the
