@@ -587,8 +587,7 @@ def _ranges(lines: list) -> list:
     return out
 
 
-def measure_diff_coverage(repo: Path, qa_root: Path, sha_range: str | None,
-                          cmd: str | None) -> dict:
+def measure_diff_coverage(repo: Path, sha_range: str | None, cmd: str | None) -> dict:
     """Run the suite under coverage.py and intersect the result with the diff.
 
     → {"status": "measured", ...} with changed/executed line counts, per-file
@@ -610,13 +609,24 @@ def measure_diff_coverage(repo: Path, qa_root: Path, sha_range: str | None,
                 "changed_lines": 0, "changed_lines_executed": 0,
                 "note": "no .py lines added or modified in the range"}
 
-    qa_root = Path(qa_root)
-    rc, db, out = qa_root / "coverage.rc", qa_root / "coverage.db", qa_root / "coverage.json"
+    # Scratch, not record. These three used to be written into the QA root,
+    # which in team mode IS the committed directory: run 5 of this repository
+    # left a 94,987,311-byte coverage.json there, ignored by nothing, one
+    # `git add .qa` away from a permanent 95 MB blob in the repository
+    # (VERDICT-F-29). Nothing here survives the measurement it feeds.
+    scratch = Path(tempfile.mkdtemp(prefix="verdict-coverage-"))
+    try:
+        return _measure_diff_coverage(repo, scratch, sha_range, cmd, changed)
+    finally:
+        shutil.rmtree(scratch, ignore_errors=True)
+
+
+def _measure_diff_coverage(repo: Path, scratch: Path, sha_range: str, cmd: str,
+                           changed: dict) -> dict:
+    rc, db, out = scratch / "coverage.rc", scratch / "coverage.db", scratch / "coverage.json"
     rc.write_text("[run]\ndynamic_context = test_function\nrelative_files = True\n"
                   f"data_file = {db}\n[json]\nshow_contexts = True\n", encoding="utf-8")
     env = dict(os.environ, COVERAGE_RCFILE=str(rc), COVERAGE_FILE=str(db))
-    db.unlink(missing_ok=True)
-    out.unlink(missing_ok=True)
     started = time.monotonic()
     try:
         proc = subprocess.run(cmd, cwd=str(repo), shell=True, capture_output=True, text=True,
@@ -928,7 +938,7 @@ def collect(repo: Path, qa_root: Path, gates: list[tuple[str, str]],
         facts["verification"] = verification
     if vnotes:
         facts["verification_notes"] = vnotes
-    facts["coverage"] = measure_diff_coverage(repo, qa_root, sha_range, coverage_suite_cmd)
+    facts["coverage"] = measure_diff_coverage(repo, sha_range, coverage_suite_cmd)
     return facts
 
 

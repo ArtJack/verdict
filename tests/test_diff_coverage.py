@@ -7,6 +7,7 @@ coverage.py, because the claim being made is about what the tracer saw.
 import json
 import subprocess
 import sys
+import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -181,3 +182,39 @@ def test_the_render_command_keeps_the_suite_interpreter():
     assert _render_cmd("uv run python -m pytest --cov --cov-context=test", out).startswith(
         "uv run python -m coverage json --show-contexts")
     assert _render_cmd("./run_cov.sh", out).startswith("coverage json --show-contexts")
+
+
+def test_the_coverage_run_leaves_nothing_in_the_qa_root(tmp_path):
+    """VERDICT-F-29: the rc file, the database and a 95 MB rendered JSON were
+    written into the QA root — which in team mode is the committed directory,
+    ignored by nothing. Run 5 of this repository left 94,987,311 bytes there,
+    one `git add .qa` from a permanent blob in the repository."""
+    repo, sha_a = base_repo(tmp_path)
+    (repo / "mod.py").write_text(MOD_A + "\n\ndef b(x):\n    return x * 2\n", encoding="utf-8")
+    commit(repo, "add b")
+    qa = qa_with_previous(tmp_path, sha_a)
+    # Scoped to what THIS measurement creates: a stale directory from someone
+    # else's crashed run must not fail this test, or the check becomes noise.
+    tmpdir = Path(tempfile.gettempdir())
+    before = set(tmpdir.glob("verdict-coverage-*"))
+    facts = collect(repo, qa, [], coverage_suite_cmd=CMD)
+    assert facts["coverage"]["status"] == "measured"
+    left = sorted(p.name for p in qa.iterdir() if p.name.startswith("coverage"))
+    assert left == [], left
+    assert set(tmpdir.glob("verdict-coverage-*")) - before == set(), \
+        "the scratch directory outlived the measurement"
+
+
+def test_the_repository_is_not_written_to_either(tmp_path):
+    """The other place scratch must not land. `coverage run` writes its data
+    file where the rc says, and the rc is the harness's."""
+    repo, sha_a = base_repo(tmp_path)
+    (repo / "mod.py").write_text(MOD_A + "\n\ndef b(x):\n    return x * 2\n", encoding="utf-8")
+    commit(repo, "add b")
+    qa = qa_with_previous(tmp_path, sha_a)
+    collect(repo, qa, [], coverage_suite_cmd=CMD)
+    assert not [p.name for p in repo.iterdir() if p.name.startswith("coverage")]
+    # `__pycache__` is pytest's, not the harness's; nothing coverage-shaped is
+    # left for a `git add` to pick up.
+    untracked = git(repo, "status", "--porcelain").splitlines()
+    assert not [ln for ln in untracked if "coverage" in ln], untracked
