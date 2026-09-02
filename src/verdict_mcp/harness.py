@@ -626,8 +626,16 @@ def measure_diff_coverage(repo: Path, sha_range: str | None, cmd: str | None) ->
 def _measure_diff_coverage(repo: Path, scratch: Path, sha_range: str, cmd: str,
                            changed: dict) -> dict:
     rc, db, out = scratch / "coverage.rc", scratch / "coverage.db", scratch / "coverage.json"
+    # `ignore_errors` is not indulgence, it is proportion: measuring the suite's
+    # children means the children record whatever they run, including files a
+    # test generated in a temp directory that is gone before anything renders.
+    # `coverage json` aborts on the first source it cannot read, so one such
+    # file cost this repository its entire diff-coverage measurement — 63%
+    # measured at run 5, `unavailable` at run 6 (VERDICT-F-31). A file whose
+    # source cannot be read is a file no line can be attributed to anyway.
     rc.write_text("[run]\ndynamic_context = test_function\nrelative_files = True\n"
-                  f"data_file = {db}\n[json]\nshow_contexts = True\n", encoding="utf-8")
+                  f"data_file = {db}\n[report]\nignore_errors = True\n"
+                  "[json]\nshow_contexts = True\n", encoding="utf-8")
     # A suite that drives its code through child processes measures none of it:
     # coverage traces the process it starts. Run 5 of this repository read 217
     # changed lines of issues.py as "0 executed, not imported by anything the

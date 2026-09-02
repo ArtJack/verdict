@@ -217,6 +217,14 @@ because there is no test context to attribute it to. Where the installed coverag
 startup hook, children go unmeasured and `subprocess_coverage` reads `none recorded` —
 a gap, stated, not a claim.
 
+Measuring children means the children record whatever they run, including files a test
+generated in a temp directory that is gone before anything renders. `coverage json` aborts
+on the first source it cannot read, so one such file cost this repository its entire
+measurement — 63% at run 5, `unavailable` at run 6 (VERDICT-F-31). The render sets
+`ignore_errors`, which is proportion rather than indulgence: a file whose source cannot be
+read is a file no line can be attributed to anyway, and a changed file missing from the
+render still counts as wholly unexercised.
+
 ```json
 "coverage": {
   "status": "measured", "sha_range": "a1b2c3..d4e5f6",

@@ -300,3 +300,58 @@ def test_a_suite_that_spawns_nothing_says_so(tmp_path):
     cov = collect(repo, qa, [], coverage_suite_cmd=CMD)["coverage"]
     assert cov["subprocess_coverage"] == "none recorded"
     assert cov["changed_lines_executed_in_subprocess"] == 0
+
+
+# ── one unreadable file must not cost the whole measurement (F-31) ──────────
+
+VANISHING_TEST = """import os
+import subprocess
+import sys
+import tempfile
+from pathlib import Path
+
+from mod import a
+
+HERE = str(Path(__file__).parent)
+
+
+def test_a():
+    assert a(1) == 2
+
+
+def test_a_child_runs_a_file_that_will_not_exist_at_render_time():
+    \"\"\"The shape every fixture-building test in this repository has: the child
+    executes a file the test generated in a temp directory, and the directory
+    is gone before anything renders the database.\"\"\"
+    with tempfile.TemporaryDirectory() as d:
+        (Path(d) / "conftest.py").write_text("VALUE = 42\\n", encoding="utf-8")
+        env = {**os.environ, "PYTHONPATH": os.pathsep.join([HERE, d, os.environ.get("PYTHONPATH", "")])}
+        out = subprocess.run([sys.executable, "-c", "import conftest, mod; print(mod.b(conftest.VALUE))"],
+                             cwd=d, capture_output=True, text=True, env=env)
+    assert out.stdout.strip() == "84", out
+
+
+def test_b_is_reached_in_process_too():
+    from mod import b
+    assert b(2) == 4
+"""
+
+
+def test_a_file_the_render_cannot_read_does_not_lose_the_measurement(tmp_path):
+    """VERDICT-F-31, a regression this repository shipped in 0.60.0: measuring
+    the suite's children means the children record whatever they run, including
+    files generated in temp directories. `coverage json` aborts on the first
+    one it cannot find source for — "No source for code: 'conftest.py'" — and
+    diff coverage went from 63% measured to unavailable on the whole run."""
+    r = tmp_path / "proj"
+    r.mkdir()
+    git(r, "init", "-qb", "main")
+    (r / "mod.py").write_text(MOD_A, encoding="utf-8")
+    (r / "test_mod.py").write_text(VANISHING_TEST, encoding="utf-8")
+    sha = commit(r, "base")
+    (r / "mod.py").write_text(MOD_A + "\n\ndef b(x):\n    return x * 2\n", encoding="utf-8")
+    commit(r, "add b")
+    qa = qa_with_previous(tmp_path, sha)
+    cov = collect(r, qa, [], coverage_suite_cmd=CMD)["coverage"]
+    assert cov["status"] == "measured", cov.get("reason")
+    assert cov["per_file"]["mod.py"]["executed"] >= 1, cov["per_file"]["mod.py"]
