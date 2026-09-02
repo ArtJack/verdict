@@ -12,7 +12,8 @@ import sys
 from datetime import date, datetime, timezone
 
 import verdict_mcp.harness as h
-from verdict_mcp.harness import cited_tests, collect, merge, render_report
+from verdict_mcp.harness import (cited_tests, collect, merge, render_report,
+                                 resolve_test_id)
 from verdict_mcp.validate import validate_judgment
 
 from conftest import judgment
@@ -266,3 +267,143 @@ def test_cited_tests_reads_ids_not_line_references():
     assert cited_tests(f) == ["tests/test_a.py::test_explicit",
                               "tests/test_b.py::test_rate[west 7kg]",
                               "tests/test_c.py::TestK::test_m"]
+
+
+# ── a citation is only a citation if the collector reported it (F-26) ────────
+
+OTHER = "def test_other():\n    assert True\n"
+
+
+def _emit(lines):
+    """A shell command printing these lines, on any platform — no backslash
+    escapes, which a POSIX shell would eat before Python saw them."""
+    body = "; ".join(f"print({line!r})" for line in lines)
+    return f'"{sys.executable}" -c "{body}"'
+
+
+def fixed_repo(tmp_path, **kw):
+    repo, sha_a = bugged_repo(tmp_path, **kw)
+    (repo / "pkg.py").write_text(FIXED, encoding="utf-8")
+    commit(repo, "fix")
+    return repo, sha_a
+
+
+def test_a_node_id_scraped_from_prose_is_never_run(tmp_path):
+    """VERDICT-F-26, live on run 5 of this repository: the regex matches a node
+    id anywhere in evidence, including inside a quoted snippet, and the record
+    for F-20 read `t.py::new` — a test that exists in no file here. It errored
+    at both commits, and an error is not a measurement."""
+    repo, sha_a = fixed_repo(tmp_path)
+    qa = tmp_path / "qa"
+    previous_state(qa, sha_a, evidence=("the old code called t.py::new",))
+    facts = collect(repo, qa, [], test_ids_cmd=_emit(["test_pkg.py::test_pending"]),
+                    test_one_cmd=CMD)
+    assert "P-F-1" not in (facts.get("verification") or {})
+    assert any("not in the collected id ledger" in n and "t.py::new" in n
+               for n in facts["verification_notes"]), facts["verification_notes"]
+
+
+def test_the_collected_citation_wins_over_the_scraped_one(tmp_path):
+    """Selection was evidence ORDER — `tests[0]`, whatever it happened to be."""
+    repo, sha_a = fixed_repo(tmp_path)
+    qa = tmp_path / "qa"
+    prev = previous_state(qa, sha_a, evidence=("prose naming t.py::new first",
+                                               "test_pkg.py::test_pending fails: assert 1 == 5"))
+    facts = collect(repo, qa, [], test_ids_cmd=_emit(["test_pkg.py::test_pending"]),
+                    test_one_cmd=CMD)
+    rec = facts["verification"]["P-F-1"]
+    assert rec["test"] == "test_pkg.py::test_pending"
+    assert (rec["at_previous"], rec["at_head"]) == ("fail", "pass"), rec
+    assert merge(facts, resolved(), prev)["findings"][0]["fix_verified"] is True
+
+
+def test_without_a_ledger_a_citation_is_still_tried(tmp_path):
+    """The filter is only as good as the ledger. A project with no
+    `test_ids_cmd` has nothing to check against, and refusing to run there
+    would turn a working verification off to fix a scraping bug."""
+    repo, sha_a = fixed_repo(tmp_path)
+    qa = tmp_path / "qa"
+    previous_state(qa, sha_a, evidence=("the old code called t.py::new",))
+    facts = collect(repo, qa, [], test_one_cmd=CMD)
+    assert facts["verification"]["P-F-1"]["test"] == "t.py::new"
+
+
+def test_resolve_test_id_matches_the_collected_form_not_the_prose():
+    known = {"tests/test_x.py::test_y", "tests/test_x.py::test_p[a]",
+             "tests/test_x.py::test_p[b]", "tests/sub/test_z.py::test_q"}
+    assert resolve_test_id("tests/test_x.py::test_y", known) == "tests/test_x.py::test_y"
+    assert resolve_test_id("test_x.py::test_y", known) == "tests/test_x.py::test_y"
+    assert resolve_test_id("tests\\test_x.py::test_y", known) == "tests/test_x.py::test_y"
+    assert resolve_test_id("test_z.py::test_q", known) == "tests/sub/test_z.py::test_q"
+    # a base id is what pytest expands over the parametrizations
+    assert resolve_test_id("tests/test_x.py::test_p", known) == "tests/test_x.py::test_p"
+    assert resolve_test_id("t.py::new", known) is None
+    assert resolve_test_id("t.py::new", None) == "t.py::new"
+
+
+# ── the new test meets the old source, appended or not (F-25) ────────────────
+
+def test_a_regression_test_appended_to_an_existing_file_verifies(tmp_path):
+    """VERDICT-F-25: the copy-back was file-level, so the commonest real shape
+    — a regression test appended to a test file that already existed — left the
+    old file in place. It does not contain the test, so at_previous read
+    `error` and no fix could ever verify."""
+    r = tmp_path / "proj"
+    r.mkdir()
+    git(r, "init", "-qb", "main")
+    (r / "pkg.py").write_text(BUGGY, encoding="utf-8")
+    (r / "test_pkg.py").write_text(OTHER, encoding="utf-8")
+    sha_a = commit(r, "bug, and a test file that already exists")
+    (r / "pkg.py").write_text(FIXED, encoding="utf-8")
+    (r / "test_pkg.py").write_text(OTHER + "\n" + TEST, encoding="utf-8")
+    commit(r, "fix + appended regression test")
+    qa = tmp_path / "qa"
+    prev = previous_state(qa, sha_a)
+    facts = collect(r, qa, [], test_ids_cmd=_emit(["test_pkg.py::test_pending"]),
+                    test_one_cmd=CMD)
+    rec = facts["verification"]["P-F-1"]
+    assert rec["test_copied_from_head"] is True
+    assert (rec["at_previous"], rec["at_head"]) == ("fail", "pass"), rec
+    assert merge(facts, resolved(), prev)["findings"][0]["fix_verified"] is True
+
+
+def test_a_test_file_the_fix_did_not_touch_is_not_reported_as_copied(tmp_path):
+    """`test_copied_from_head` must keep meaning "the old commit did not have
+    this test as written". Setting it unconditionally would make it noise."""
+    repo, sha_a = fixed_repo(tmp_path)  # test_pkg.py is identical at both commits
+    qa = tmp_path / "qa"
+    previous_state(qa, sha_a)
+    facts = collect(repo, qa, [], test_one_cmd=CMD)
+    assert "test_copied_from_head" not in facts["verification"]["P-F-1"]
+
+
+# ── the report counts the measurement, not the claim (F-30) ──────────────────
+
+def _resolved_state(verification, **extra):
+    return {"project": "p", "run_number": 2, "run_type": "delta", "verdict": "pass",
+            "last_run": {"timestamp_utc": "2026-09-02T00:00:00Z"},
+            "findings": [{"id": "P-F-1", "title": "t", "severity": "Major", "priority": "P1",
+                          "status": "resolved", "delta": "RESOLVED",
+                          "verification": verification, **extra}]}
+
+
+def test_the_report_counts_the_measurement_not_the_claim():
+    """VERDICT-F-30, live in run 5's own report: the block is selected by
+    measurement and was counted by `fix_verified`, the one judgment field in
+    it. A record measured error/error published as "1 verified", and the
+    arithmetic then emptied the bucket that would have shown it."""
+    claimed = _resolved_state({"test": "t.py::new", "at_previous": "error", "at_head": "error"},
+                              fix_verified=True)
+    text = render_report(claimed)
+    assert "Fix verification: 0 verified" in text
+    assert "1 measured but not verifiable" in text
+    assert "claims fix_verified the measurement does not show: P-F-1" in text
+
+
+def test_a_measured_fix_still_reads_as_verified():
+    measured = _resolved_state({"test": "t.py::a", "at_previous": "fail", "at_head": "pass"},
+                               fix_verified=True)
+    text = render_report(measured)
+    assert "Fix verification: 1 verified" in text
+    assert "0 measured but not verifiable" in text
+    assert "claims fix_verified" not in text

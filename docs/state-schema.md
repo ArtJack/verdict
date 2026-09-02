@@ -234,7 +234,14 @@ test that demonstrates the defect against the code before the fix and the code a
 
 **What it measures.** For every finding open in the previous state, `verdict-facts` looks
 for a cited test — an explicit `verification_test` on the finding, or a pytest node id
-(`path/test_x.py::test_y[...]`) in its evidence. It runs that test at HEAD, and again in a
+(`path/test_x.py::test_y[...]`) in its evidence. **A citation is checked against the
+collected test-id ledger before anything runs**: evidence is prose, and the node-id regex
+matches one anywhere in it, including inside a quoted source snippet. Run 5 of this
+repository ran `t.py::new`, a test that exists in no file here, and published the
+resulting error as a verification (VERDICT-F-26). An id the collector never reported is
+not run at all, and `verification_notes` names the finding and the id. Where no ledger
+exists — `test_ids_cmd` unset, or collection failed — there is nothing to check against
+and every citation is tried, as before. It runs that test at HEAD, and again in a
 scratch worktree of the previous run's commit, with the previous commit's source on
 `PYTHONPATH` ahead of any installed copy. The result is classified from the runner's
 parsed summary, never from the exit code alone: a setup *error* at the old commit exits 1
@@ -265,15 +272,23 @@ just like a failure would, and reading it as "fail" would mint a false verificat
   harness cannot tell which, and does not pretend to.
 
 **What it needs.** The profile names how to run one test: `test_one_cmd`, with `{id}`
-where the node id goes. Without it nothing runs and `verification_notes` says so. A test
-the fix itself added is copied from HEAD into the scratch checkout and marked
-`test_copied_from_head`. The previous commit missing from this clone (a squash-merged
+where the node id goes. Without it nothing runs and `verification_notes` says so. **The
+cited test's file always comes from HEAD** — the counterfactual is the new test against
+the old source — and is marked `test_copied_from_head` when the old commit's copy differed
+or was absent. Copying only when the file was *absent* read presence of the file as
+presence of the test, so the commonest real shape, a regression test appended to a test
+file that already existed, could never verify (VERDICT-F-25). The previous commit missing from this clone (a squash-merged
 branch head) leaves `at_previous: unavailable`; the HEAD half still runs, so a still-
 failing test still refuses resolution. Bounded: at most 25 findings per run, 120 s per
 test run, so verification cannot become the suite.
 
 `findings[].verification` is written by `verdict-finalize` only. A judgment carrying it is
-rejected — the field is a measurement, and measurements are not claimed.
+rejected — the field is a measurement, and measurements are not claimed. The report's
+`Fix verification:` line counts the measurements themselves (`at_previous`/`at_head` plus
+the computed `delta`), never `fix_verified` — that is the one judgment field in the block,
+and counting it there published run 5's error/error record as "1 verified" (VERDICT-F-30).
+A finding claiming `fix_verified` that its own measurement does not show is named on the
+line below it.
 
 ## Silence, resolution, and `full_sweep`
 
