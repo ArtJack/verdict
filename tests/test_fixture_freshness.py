@@ -19,7 +19,8 @@ GATE = Path(__file__).resolve().parent.parent / "eval" / "fixture_freshness.py"
 
 def git(repo, *args):
     return subprocess.run(["git", "-c", "user.email=t@t", "-c", "user.name=t",
-                           "-C", str(repo), *args], capture_output=True, text=True)
+                           "-C", str(repo), *args], capture_output=True, text=True,
+                          encoding="utf-8")
 
 
 @pytest.fixture()
@@ -38,14 +39,15 @@ def fixture_repo(tmp_path):
     git(repo, "add", "-A")
     git(repo, "commit", "-qm", "fixture")
     # The anchor is whatever the gate itself regenerates right now.
-    out = subprocess.run([sys.executable, str(gate)], cwd=repo, capture_output=True, text=True)
+    out = subprocess.run([sys.executable, str(gate)], cwd=repo, capture_output=True,
+                         text=True, encoding="utf-8")
     assert "no longer describes" in out.stdout or out.returncode != 0, out.stdout
     return repo, fixtures
 
 
 def run_gate(repo):
     return subprocess.run([sys.executable, str(repo / "eval" / "fixture_freshness.py")],
-                          cwd=repo, capture_output=True, text=True)
+                          cwd=repo, capture_output=True, text=True, encoding="utf-8")
 
 
 def anchor(repo, fixtures):
@@ -55,7 +57,7 @@ def anchor(repo, fixtures):
         [sys.executable, "-c",
          "import sys; sys.path.insert(0, 'eval'); import fixture_freshness as f;"
          " open('eval/fixtures/pricer-delta.diff','w').write(f.regenerate())"],
-        cwd=repo, capture_output=True, text=True)
+        cwd=repo, capture_output=True, text=True, encoding="utf-8")
     assert proc.returncode == 0, proc.stderr
     git(repo, "add", "-A")
     git(repo, "commit", "-qm", "anchor")
@@ -68,6 +70,10 @@ def test_a_green_pair_stays_green(fixture_repo):
     assert run_gate(repo).returncode == 0
 
 
+@pytest.mark.skipif(os.name == "nt",
+                    reason="the executable bit is a POSIX concept; NTFS has none to flip, "
+                           "so this scenario cannot arise on Windows and a test written to "
+                           "pass there would be testing nothing")
 def test_a_mode_change_is_no_longer_invisible(fixture_repo):
     """`copyfile` drops the mode, so an executable bit flipped reproduced
     identically and the gate reported OK over a changed fixture."""
