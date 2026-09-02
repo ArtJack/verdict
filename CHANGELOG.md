@@ -3,6 +3,39 @@
 Plugin and `verdict-mcp` share one version line; `.claude-plugin/plugin.json` and
 `pyproject.toml` are bumped together.
 
+## 0.50.1 — 2026-09-01 · "a bare checkout could not run the agent"
+
+**`verdict-run` now provisions what its own isolation hides.** It launches the session
+with `--setting-sources project` — deliberate, so a run is reproducible and the
+operator's user-scope plugins stay out — and that is exactly why a bare checkout could not
+run the agent: the user-scope *Verdict* plugin stays out too. The first self-run from a
+fresh clone came back `blocked` with "Agent type 'verdict' not found", no hooks
+enforcing, and every tool call denied; the model ran the contract inline from
+`agents/verdict.md`, self-imposed the guards, left the checkout clean, and reported its
+own §13 self-check as failed rather than write state by hand. The right behaviour, in an
+environment the runner had built wrong. The nightly script and `run_eval.py` each
+hand-roll the same three missing steps; `docs/nightly.md` told everyone else to run
+`verdict-run` bare.
+
+The runner owns the steps now. Before launching it writes `.claude/agents/verdict.md` and
+the hook set into `.claude/settings.local.json` — the file a project's `.gitignore`
+conventionally excludes, so a tracked `settings.json` (this repository ships one) is never
+dirtied — from the plugin root: `CLAUDE_PLUGIN_ROOT`, the checkout the runner lives in, or
+the newest version in `~/.claude/plugins/cache`, for the common pairing of plugin-for-the-
+editor plus `verdict-qa-mcp`-from-PyPI, whose wheel ships neither directory. Existing files
+are the operator's: kept and named on stderr, never replaced. An explicit `--plugin-root`
+is authoritative — a wrong path is exit 2, not a silent fallback to whatever checkout is
+nearby. With no agent and no root it refuses **before** the model run, because that run
+can only ever come back `blocked`. The session is launched with `project,local` so the
+provisioned hooks come in, and with `--dangerously-skip-permissions` unless the operator
+passes their own permission flag after `--`: headless means nobody can approve a tool
+call, and the provisioned scope guards are the control that makes skipping the prompt
+safe. `--no-provision` opts out.
+
+Six tests — one of them rewritten after it turned out to be unfalsifiable: the checkout
+fallback made the refusal unreachable from inside the checkout, which is what made an
+explicit root authoritative in the first place.
+
 ## 0.50.0 — 2026-09-01 · "the paragraph, measured — and the instrument, fixed"
 
 **The `full_sweep` prompt paragraph ships, eval-paid.** Held out of v0.48.0 because a prompt
