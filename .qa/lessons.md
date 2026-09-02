@@ -102,3 +102,34 @@ Discriminator: before believing a verification record in either direction, read
 `verification.test` and check it against the test named in the finding's own
 evidence as its guard. If they differ, the record is evidence about a third
 party, not about this finding. Filing the difference: VERDICT-F-35.
+
+
+## 2026-09-02 (run 9) — a re-injection in a scratch copy measured the original checkout
+
+Four defects were injected into a scratch copy's `src/verdict_mcp/` and all four
+guard tests stayed green, which reads as four verified fixes. They were not
+measurements at all: `cp -a` carries `.venv`, whose editable-install
+`_editable_impl_*.pth` names the ORIGINAL checkout's `src` by absolute path, so
+`import verdict_mcp` resolved to the unmodified original every time. Re-run with
+PYTHONPATH pinned to the scratch tree's own `src`, all four bit. The tell was the
+pattern, not any single result: four out of four passing is not four fixes, it is
+an instrument reading zero. Hooks and `eval/*.py` are invoked by path and are
+unaffected, which is why VERDICT-F-39 and VERDICT-F-13 verified on the first try.
+Discriminator: before believing any re-injection, print the module's `__file__`
+from inside the tree you think you are testing and check it is that tree. The
+harness's own verifier already sets PYTHONPATH; the agent-facing contract never
+says to. Filed as VERDICT-F-43.
+
+## 2026-09-02 (run 9) — "the coverage gate is live in both directions" was premature
+
+Run 8 declared the changed-files coverage gate live on the strength of two
+consecutive measured numbers. Its first firing, this run, was a false alarm:
+91% to 78% blended, while production changed-line coverage went 97% to 100%. The
+percent includes test files, and test files pay a structural unexercised tax —
+imports, `def test_*` lines, decorators and every fixture body execute outside
+any `test_function` dynamic context, so the metric counts them unexercised
+forever. The number therefore moves with how much of a diff is test code, which
+for this project's mutation-campaign releases is most of it.
+Discriminator: before reading a blended ratio as a trend, split it by the thing
+that changed and check the parts move together. Two runs agreeing on a number is
+not evidence that the number measures what its name says. Filed as VERDICT-F-44.
