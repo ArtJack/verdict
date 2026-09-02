@@ -3,6 +3,45 @@
 Plugin and `verdict-mcp` share one version line; `.claude-plugin/plugin.json` and
 `pyproject.toml` are bumped together.
 
+## 0.52.0 — 2026-09-02 · "the instrument, measured by its own run"
+
+Run 4 — the first signed run on this repository — filed three findings against the
+harness that measured it, and its own artifacts were the evidence. All three fixed here,
+plus a drift between the Stop hook and the gate that the same run exposed. Prompt untouched.
+
+**VERDICT-F-20 (Major) — the set-diff count was capped by the display list.** The
+test-id ledger caps `added`/`removed` at 50 for display, and the renderer took `len()` of
+the capped list — so a mass deletion read as "−50" under a line claiming "set-diff, not
+summary arithmetic". Live on run 4: **"+50" where the truth was +166**, and 377 + 50 does
+not reconcile to 543. `added_count`/`removed_count` now come from the untruncated sets;
+the lists stay capped, say so when they are, and a state from before the counts travelled
+falls back to the old reading rather than crashing.
+
+**VERDICT-F-23 (Major) — project identity ignored the profile.** The harness derived the
+project key from the directory basename and never read the profile's `Project-Key:`. Run
+4, executed from a clone named `verdict-clone`, **re-keyed this repository's committed
+state and its INDEX to a second project name.** Team mode is exactly where this bites —
+`.qa/` travels with the repo, so any clone, CI checkout or agent worktree with a different
+directory name would do the same. §0's "the recorded key is authoritative" is mechanical
+now: a profile `Project-Key:` (bold or bare, like `Repo-Path`) wins, then a previous
+state's `project`, then the directory. `project_key_source` says which. Run 5 re-keys the
+committed state back to `verdict` by itself.
+
+**VERDICT-F-24 (Minor) — the INDEX row was composed, not measured.** Its date came from
+`date.today()` on the local clock while every other stamp is UTC — on a UTC-7 host after
+17:00 the row carried yesterday, permanently; run 4's says 09-01 against a state stamped
+09-02T04:44Z. And the Δ-tests cell was the literal `n/a` whatever the set-diff measured.
+Both now come from the state: the measured stamp, and the measured counts.
+
+**The Stop hook and the gate disagreed on "went through the harness".** The hook required
+all five `harness_signals` and promised `verdict-gate --require-harness` would exit 6 on
+any gap; the gate decides on the three durable ones. A harness-produced state copied
+between checkouts — its `facts.json`/`judgment.json` are per-run scratch git never carries
+— tripped the hook, which then predicted a gate failure that did not happen. Seen on run
+4's own state, copied from the clone that ran it. The hook now decides on `missing_durable`
+like the gate, names the durable gap when it blocks, and stays out of the way when only a
+session's scratch is elsewhere.
+
 ## 0.51.0 — 2026-09-01 · "three findings Verdict filed against itself"
 
 The first self-run from a fresh clone came back `blocked` (see 0.50.1) — and in a

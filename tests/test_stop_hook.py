@@ -165,3 +165,32 @@ def test_a_team_mode_qa_root_inside_the_repo_is_found(tmp_path, repo):
         "release_blockers": [], "not_tested": ["x"]}), encoding="utf-8")
     proc = fire({"cwd": str(repo)}, home=tmp_path / "empty")
     assert proc.returncode == 2 and "without going through the harness" in proc.stderr
+
+
+# ── one definition of "went through the harness", shared with the gate ──────
+#
+# This hook used to require all five signals and promise `verdict-gate
+# --require-harness` would exit 6 on any gap. The gate decides on the three
+# durable ones. A harness-produced state copied between checkouts — its
+# facts.json and judgment.json are per-run scratch git never carries — tripped
+# the hook, which then predicted a gate failure that did not happen. Seen on
+# this repository's own run-4 state, copied from the clone that ran it.
+
+def test_a_harness_state_whose_scratch_is_elsewhere_does_not_block(tmp_path, repo):
+    root = qa_root(tmp_path, harnessed=True)
+    (root / "facts.json").unlink()
+    (root / "judgment.json").unlink()
+    proc = fire({"cwd": str(repo)}, home=root.parent)
+    assert proc.returncode == 0, proc.stderr
+    assert "expected after a checkout or copy" in proc.stderr
+    assert "exit 6" not in proc.stderr, "the gate will pass this state; do not say otherwise"
+
+
+def test_the_block_names_a_durable_signal_before_promising_exit_6(tmp_path, repo):
+    """When it does block, the gap it names is one the gate will refuse over."""
+    proc = fire({"cwd": str(repo)}, home=qa_root(tmp_path, harnessed=False).parent)
+    assert proc.returncode == 2
+    assert "state_computed" in proc.stderr or "report_rendered" in proc.stderr
+    assert "facts_measured" not in proc.stderr.split("harness (")[1].split(")")[0], \
+        "per-run scratch is not what the block is about"
+    assert "exit 6" in proc.stderr

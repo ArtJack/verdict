@@ -816,3 +816,55 @@ def test_verified_intact_is_optional_and_absent_means_no_section(repo, qa_root, 
     report = (qa_root / state["last_run"]["report"]).read_text(encoding="utf-8")
     assert "## Verified intact" not in report, \
         "an empty forced section would push models to pad it"
+
+
+# ── three findings run 4 filed against the harness that measured it ────────
+
+def test_the_set_diff_count_is_not_capped_by_the_display_list(repo, qa_root):
+    """VERDICT-F-20: the lists are capped at 50 for display, and the count used
+    to be len() of the capped list — so a mass deletion read as −50 under a
+    line claiming set-diff accounting. Live on run 4: +50 where the truth was
+    +166. The counts now come from the untruncated sets."""
+    ledger = [f"t.py::test_{i:03d}" for i in range(200)]
+    (qa_root / "test-ids.txt").write_text("\n".join(ledger) + "\n", encoding="utf-8")
+    facts = collect(repo, qa_root, [], test_ids_cmd=_emit(ledger[:20]))
+    ids = facts["test_ids"]
+    assert ids["removed_count"] == 180 and ids["added_count"] == 0
+    assert len(ids["removed"]) == 50 and ids["truncated"] is True
+    state = merge(facts, judgment(), None)
+    assert "| +0/−180 |" in index_row(state), index_row(state)
+    from verdict_mcp.harness import render_report
+    line = [ln for ln in render_report(state).splitlines() if ln.startswith("Test-id ledger")][0]
+    assert "+0 / −180" in line and "truncated to 50" in line, line
+
+
+def test_index_row_dates_from_the_measured_stamp_not_the_local_clock(repo, qa_root):
+    """VERDICT-F-24: `date.today()` on a UTC-7 host after 17:00 stamped the INDEX
+    with yesterday, permanently, against a state stamped tomorrow in UTC."""
+    state = merge(collect(repo, qa_root, []), judgment(), None)
+    state["last_run"]["timestamp_utc"] = "2026-09-02T04:44:40Z"
+    assert index_row(state).startswith("| 2026-09-02 |")
+    state["last_run"]["timestamp_utc"] = ""
+    assert index_row(state).startswith("| n/a |"), "measured or nothing — never composed"
+
+
+def test_a_profiles_project_key_beats_the_directory_name(repo, qa_root):
+    """VERDICT-F-23: run 4 executed from a clone named `verdict-clone` re-keyed
+    the committed state and its INDEX to a second project name, because the
+    harness derived identity from the directory and never read the profile."""
+    for spelling in ("Project-Key: sales\n", "**Project-Key:** `sales`\n"):
+        (qa_root / "profile.md").write_text(f"---\ngates: {{}}\n---\n{spelling}", encoding="utf-8")
+        facts = collect(repo, qa_root, [])
+        assert (facts["project"], facts["project_key_source"]) == ("sales", "profile"), spelling
+
+
+def test_a_previous_states_key_beats_the_directory_name(repo, qa_root):
+    (qa_root / "state.json").write_text(json.dumps({"project": "sales", "run_number": 3}),
+                                        encoding="utf-8")
+    facts = collect(repo, qa_root, [])
+    assert (facts["project"], facts["project_key_source"]) == ("sales", "state")
+
+
+def test_without_a_recorded_key_the_directory_name_stands(repo, qa_root):
+    facts = collect(repo, qa_root, [])
+    assert facts["project_key_source"] == "git" and facts["project"] == repo.name.lower()

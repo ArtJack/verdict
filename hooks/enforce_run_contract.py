@@ -63,7 +63,7 @@ def main() -> int:
 
     try:
         sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src" / "verdict_mcp"))
-        from state import harness_signals, resolve_root
+        from state import harness_signals, missing_durable, resolve_root
     except Exception:
         return _silent()  # not installed the way we expect; say nothing
 
@@ -102,12 +102,32 @@ def main() -> int:
         missing = [name for name, ok in signals.items() if not ok]
         if not missing:
             return _silent()
+        # One definition of "went through the harness", shared with the gate.
+        # This hook used to require all five signals and promise exit 6 on any
+        # gap, while the gate decides on the three durable ones — so a
+        # harness-produced state copied between checkouts (its facts.json and
+        # judgment.json are per-run scratch that git never carries) tripped the
+        # hook, which then predicted a gate failure that did not happen. Seen on
+        # this repository's own run-4 state, copied from the clone that ran it.
+        durable = missing_durable(signals)
     except Exception:
         return _silent()
 
+    if not durable:
+        # finalize computed this state, rendered its report and signed its row,
+        # and the state re-derives to that row. What is absent is a session's
+        # scratch — a checkout or a copy, not a hand-written state. The gate
+        # will pass it; saying otherwise here trains people to ignore the hook.
+        sys.stderr.write(
+            "verdict: the QA state written this turn was produced by the harness; "
+            f"{', '.join(missing)} not from this session, which is expected after a "
+            "checkout or copy. If this session ran Verdict itself, it skipped "
+            "verdict-facts — re-run through the harness.\n")
+        return 0
+
     sys.stderr.write(
         "verdict: a QA state was written this turn without going through the harness "
-        f"({', '.join(missing)}).\n"
+        f"({', '.join(durable)}).\n"
         f"  state: {state_path}\n"
         "Everything the harness measures — timestamps, SHAs, gate exit codes, test "
         "counts, finding hashes, ages, deltas — was composed rather than measured, and "
