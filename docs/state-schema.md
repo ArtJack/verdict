@@ -316,6 +316,14 @@ just like a failure would, and reading it as "fail" would mint a false verificat
   commits did not demonstrate the defect, or the old source was not what ran — the
   harness cannot tell which, and does not pretend to.
 
+**Isolation is not optional, and it is the harness's job here.** `verification.pythonpath`
+records the scratch source the re-run actually imported. A copied tree carries the project's
+virtualenv, and an editable install's `.pth` names the *original* checkout absolutely, so a
+counterfactual run without that isolation imports the unmodified source and every injection
+reads as a no-op — measured at 0 of 4 defects caught without it, 4 of 4 with it
+(VERDICT-F-43). The machine-side verifier has always set it; the agent-facing contract now
+says so too, with the check to run before trusting a green counterfactual.
+
 **What it needs.** The profile names how to run one test: `test_one_cmd`, with `{id}`
 where the node id goes. Without it nothing runs and `verification_notes` says so. **The
 cited test's file always comes from HEAD** — the counterfactual is the new test against
