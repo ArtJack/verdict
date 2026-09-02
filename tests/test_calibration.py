@@ -390,22 +390,37 @@ def test_a_claim_the_harness_could_not_weigh_still_stands():
     assert out["outcome"] == "confirmed" and "claimed by the tester" in out["outcome_reason"]
 
 
-def test_a_claim_the_measurement_does_not_show_settles_nothing():
-    """VERDICT-F-32, live in this repository's committed ledger: the cited test
-    exists in no file, the harness measured error at both commits, and the row
-    published as `confirmed` on the strength of the flag alone."""
-    out = _stamp_outcome(_resolved(fix_verified=True,
-                                   verification={"test": "t.py::new", "at_previous": "error",
-                                                 "at_head": "error"}))
-    assert out["outcome"] == "unknown", out
-    assert "error → error" in out["outcome_reason"]
+def test_an_inconclusive_measurement_is_silence_not_evidence():
+    """VERDICT-F-35: 0.62.0 demoted a claim whenever a measurement had been
+    *attempted*, and which test gets attempted is a prose lottery — so the same
+    hand-verified claim landed `confirmed` when the write-up quoted no node id
+    and `unknown` when it did. Two of these ran against a test that says
+    nothing; neither may change the outcome."""
+    for verification in ({"test": "t.py::new", "at_previous": "error", "at_head": "error"},
+                         {"test": "t.py::a", "at_previous": "pass", "at_head": "pass"}):
+        out = _stamp_outcome(_resolved(fix_verified=True, verification=verification))
+        assert out["outcome"] == "confirmed", (verification, out)
+        assert out["outcome_basis"] == "claimed", out
+    bare = _stamp_outcome(_resolved(fix_verified=True))
+    assert (bare["outcome"], bare["outcome_basis"]) == ("confirmed", "claimed")
 
 
-def test_a_refused_resolution_does_not_confirm_either():
+def test_a_measurement_that_contradicts_the_claim_still_settles_nothing():
+    """The one measurement that outranks the claim: the guarding test still
+    fails on the code being judged."""
     out = _stamp_outcome(_resolved(fix_verified=True,
                                    verification={"test": "t.py::a", "at_previous": "fail",
                                                  "at_head": "fail"}))
     assert out["outcome"] == "unknown", out
+    assert "still fails at HEAD" in out["outcome_reason"]
+
+
+def test_the_basis_says_which_of_the_two_it_was():
+    measured = _stamp_outcome(_resolved(fix_verified=True,
+                                        verification={"test": "t.py::a", "at_previous": "fail",
+                                                      "at_head": "pass"}))
+    assert measured["outcome_basis"] == "measured"
+    assert _stamp_outcome(_resolved(fix_verified=True))["outcome_basis"] == "claimed"
 
 
 def test_a_resolution_with_neither_is_still_undecided():
@@ -439,3 +454,38 @@ def test_a_finding_that_never_came_back_carries_no_marker():
     s1 = merge(facts(1), judgment([finding(1)]), None)
     s2 = merge(facts(2), judgment([finding(1)]), s1)
     assert "regressed_at_run" not in s2["findings"][0]
+
+
+def test_the_tally_separates_what_was_measured_from_what_was_asserted():
+    """VERDICT-F-36: the block counted both as one integer, so a rate built
+    mostly on the tester's own word read exactly like a measured one."""
+    from verdict_mcp.state import calibration
+    rows = [{"hash": "m1", "outcome": "confirmed", "outcome_basis": "measured",
+             "confidence": "proven"},
+            {"hash": "c1", "outcome": "confirmed", "outcome_basis": "claimed",
+             "confidence": "proven"},
+            {"hash": "r1", "outcome": "refuted", "confidence": "proven"}]
+    c = calibration({"findings": rows}, min_sample=3)["by_confidence"]["proven"]
+    assert (c["confirmed"], c["confirmed_measured"], c["confirmed_claimed"]) == (2, 1, 1)
+    assert "1 measured, 1 on the tester's word" in c["reading"]
+    assert any("outcome_basis" in x
+               for x in calibration({"findings": rows}, min_sample=3)["caveats"])
+
+
+def test_rows_from_before_the_field_are_not_relabelled():
+    """A row with no basis recorded predates the field; calling it the tester's
+    word would be a claim of its own."""
+    from verdict_mcp.state import calibration
+    rows = [{"hash": f"o{i}", "outcome": "confirmed", "confidence": "proven"}
+            for i in range(3)]
+    c = calibration({"findings": rows}, min_sample=3)["by_confidence"]["proven"]
+    assert c["reading"] == "3 of 3 held up", c["reading"]
+
+
+def test_the_caveat_no_longer_contradicts_the_rule():
+    """It read "a finding resolved without re-injection stays undecided" over
+    rows that were confirmed on exactly that basis."""
+    from verdict_mcp.state import calibration
+    caveats = " ".join(calibration({"findings": []}, min_sample=3)["caveats"])
+    assert "resolved without re-injection stays undecided" not in caveats
+    assert "nobody checked at all stays undecided" in caveats

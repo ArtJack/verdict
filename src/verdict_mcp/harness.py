@@ -1055,35 +1055,41 @@ def _stamp_outcome(finding: dict, prior: dict | None = None) -> dict:
     if delta == "REGRESSED":
         return {"outcome": "confirmed",
                 "outcome_reason": "regressed: it was fixed and came back, so it was real"}
-    # Measurement outranks the claim. `fix_verified` reaches a finding from two
-    # places — the harness sets it when it measured fail→pass, and a judgment
-    # may claim it for a re-injection done by hand — and this branch could not
-    # tell them apart, so the ledger recorded `confirmed` over a measurement
-    # that never happened: live in this repository's own outcomes.json for
-    # VERDICT-F-20, whose cited test exists in no file and was measured
-    # error/error (VERDICT-F-32). The report was corrected in 0.57.0 and
-    # stopped one line short of the ledger it describes.
+    # Measurement outranks the claim; silence does not. `fix_verified` reaches a
+    # finding from two places — the harness sets it when its own re-injection
+    # measured fail→pass, and a judgment may claim it for a re-injection done by
+    # hand — and the branch that turns a resolution into a ledger row could not
+    # tell them apart, so it recorded `confirmed` over a measurement that never
+    # happened (VERDICT-F-32).
     #
-    # The claim is not thrown away — on a project the harness cannot measure it
-    # is the only evidence there is, and starving the ledger is how the track
-    # record died in the first place. It simply stops outranking a measurement
-    # that was actually taken.
+    # 0.62.0 fixed that by demoting a claim whenever a measurement had been
+    # *attempted*, and which test gets attempted is the prose lottery of
+    # VERDICT-F-26: the same hand-verified claim landed `confirmed` when the
+    # write-up quoted no node id and `unknown` when it did. Four findings
+    # verified identically, two outcomes, decided by prose (VERDICT-F-35). So an
+    # inconclusive measurement — pass at both commits, an error, nothing
+    # runnable — is silence, and silence changes nothing. Only a measurement
+    # that *contradicts* the claim does, and `_apply_verification` has already
+    # reopened the finding by the time one does.
+    #
+    # What the ledger keeps is which of the two it was: `outcome_basis`, so a
+    # tally can separate what the harness proved from what the tester asserted
+    # rather than adding them up as one integer (VERDICT-F-36).
     v = finding.get("verification")
     attempted = isinstance(v, dict)
     shows_fix = attempted and v.get("at_previous") == "fail" and v.get("at_head") == "pass"
+    contradicts = attempted and v.get("at_head") == "fail"
     claimed = finding.get("fix_verified") is True
     if delta == "RESOLVED" and shows_fix:
-        return {"outcome": "confirmed",
+        return {"outcome": "confirmed", "outcome_basis": "measured",
                 "outcome_reason": "fix-verified: the guarding test failed on re-injection"}
-    if delta == "RESOLVED" and claimed and not attempted:
-        return {"outcome": "confirmed",
-                "outcome_reason": "fix-verified: claimed by the tester, with no harness "
-                                  "measurement to weigh it against"}
-    if delta == "RESOLVED" and claimed:
+    if delta == "RESOLVED" and claimed and contradicts:
         return {"outcome": "unknown",
-                "outcome_reason": "claimed fix-verified, but the harness's own re-injection "
-                                  f"showed {v.get('at_previous')} → {v.get('at_head')}, "
-                                  "which settles nothing"}
+                "outcome_reason": "claimed fix-verified, but the cited test still fails at HEAD"}
+    if delta == "RESOLVED" and claimed:
+        return {"outcome": "confirmed", "outcome_basis": "claimed",
+                "outcome_reason": "fix-verified: claimed by the tester, and no harness "
+                                  "measurement contradicts it"}
     if delta == "RESOLVED" and finding.get("carried_forward"):
         # Weaker still than an unverified resolution: nobody claimed anything.
         return {"outcome": "unknown",
