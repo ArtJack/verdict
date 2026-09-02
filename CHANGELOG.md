@@ -3,6 +3,40 @@
 Plugin and `verdict-mcp` share one version line; `.claude-plugin/plugin.json` and
 `pyproject.toml` are bumped together.
 
+## 0.53.0 — 2026-09-02 · "the loop closes"
+
+**The harness verifies fixes now.** `fix_verified` is the one judgment field that feeds the
+track record, and it was almost never set — re-injecting a defect by hand is the step
+every run skipped, so resolutions stayed `unknown` and the calibration ledger starved: 95
+of 110 Sales findings undecided, no precision rate publishable. `verdict-facts` does the
+re-injection the contract asks the tester to do: for every open finding with a cited test
+(an explicit `verification_test`, or a pytest node id in its evidence) it runs that test at
+HEAD and again in a scratch worktree of the previous run's commit, with the old source on
+`PYTHONPATH` ahead of any installed copy. `merge` then does three mechanical things:
+
+- **fail before, pass after, on a finding that resolves** — explicitly or by silence —
+  stamps `fix_verified: true`, appends the measurement to the evidence, and the outcome is
+  `confirmed`. A decided outcome the tester never had to assert.
+- **still failing at HEAD refuses the resolution.** The finding stays open with
+  `resolution_refused` naming the test. Neither a claim nor an absence can close a finding
+  whose demonstrating test fails on the code being judged — measurement outranks both.
+- everything else — `error`, `unavailable`, pass at both commits, no cited test, no
+  `test_one_cmd` — is *not verifiable*, said so in the record, and changes nothing.
+
+The classification reads the runner's parsed summary, never the exit code: a setup error
+exits 1 exactly like a failing assertion, and read as `fail` at the old commit it would mint
+a verification the code never earned. `error` outranks `failed` when both appear — pinned
+by a test after a mutation showed the pure-collection-error case could not pin it. A test
+the fix itself added is copied back to the old commit and marked `test_copied_from_head`;
+a previous commit missing from the clone leaves `at_previous: unavailable` while the HEAD
+half still runs. Bounded: 25 findings, 120 s per test run. The profile names how to run
+one test (`test_one_cmd`, `{id}` for the node id); this repository's own profile now does.
+`findings[].verification` and `resolution_refused` are written by `verdict-finalize` only —
+a judgment carrying either is rejected. The prompt is untouched: the agent sees the
+measurement in `facts.json` like every other number.
+
+Thirteen tests on real two-commit repositories; five mutations caught.
+
 ## 0.52.0 — 2026-09-02 · "the instrument, measured by its own run"
 
 Run 4 — the first signed run on this repository — filed three findings against the

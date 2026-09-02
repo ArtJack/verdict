@@ -118,6 +118,7 @@ gates:
   suite: .venv/bin/python -m pytest -q
   lint: ruff check .
 test_ids_cmd: .venv/bin/python -m pytest --collect-only -q
+test_one_cmd: .venv/bin/python -m pytest {id} -q
 coverage_cmd: diff-cover coverage.xml
 ---
 
@@ -179,6 +180,57 @@ earning the strongest verdict (VERDICT-F-17 — the first version of this rule l
 alone). `pass with risks` stays available — the rule refuses the unqualified verdict, not
 the run. A state with `gates: {}` and no `no_gates` predates the fact travelling and is
 left alone.
+
+## Fix verification — measured, not claimed
+
+`fix_verified` is the one judgment field that feeds the track record, and it was almost
+never set: re-injecting a defect by hand is the step every run skipped, so resolutions
+stayed `unknown` and the calibration ledger starved — 95 of 110 Sales findings undecided.
+The harness verifies now, the same way the contract asks the tester to: by running the
+test that demonstrates the defect against the code before the fix and the code after it.
+
+**What it measures.** For every finding open in the previous state, `verdict-facts` looks
+for a cited test — an explicit `verification_test` on the finding, or a pytest node id
+(`path/test_x.py::test_y[...]`) in its evidence. It runs that test at HEAD, and again in a
+scratch worktree of the previous run's commit, with the previous commit's source on
+`PYTHONPATH` ahead of any installed copy. The result is classified from the runner's
+parsed summary, never from the exit code alone: a setup *error* at the old commit exits 1
+just like a failure would, and reading it as "fail" would mint a false verification.
+
+```json
+"verification": {
+  "VERDICT-F-20": {
+    "test": "tests/test_harness.py::test_the_set_diff_count_is_not_capped_by_the_display_list",
+    "previous_sha": "01d797cf…", "at_previous": "fail", "at_head": "pass",
+    "test_copied_from_head": true, "summary": "1 failed in 0.4s → 1 passed in 0.3s"
+  }
+}
+```
+
+**What `merge` does with it.** Three outcomes, all mechanical:
+
+- `at_previous: fail` and `at_head: pass` on a finding that resolves this run — explicitly
+  or by silence — stamps `fix_verified: true`, appends the measurement to the finding's
+  evidence, and the outcome is `confirmed`. That is the loop closing: a decided outcome
+  the tester never had to assert.
+- `at_head: fail` — the cited test **still fails** — refuses the resolution. The finding
+  stays `open`, `STILL_OPEN`, with `resolution_refused` naming the test. Neither a claim
+  nor silence can close a finding whose demonstrating test fails on the code being judged.
+- Anything else (`error`, `unavailable`, pass/pass, no cited test, no `test_one_cmd`) is
+  *not verifiable*, said so in the record, and changes nothing. A test that passes at both
+  commits did not demonstrate the defect, or the old source was not what ran — the
+  harness cannot tell which, and does not pretend to.
+
+**What it needs.** The profile names how to run one test: `test_one_cmd`, with `{id}`
+where the node id goes. Without it nothing runs and `verification_notes` says so. A test
+the fix itself added is copied from HEAD into the scratch checkout and marked
+`test_copied_from_head`. The previous commit missing from this clone (a squash-merged
+branch head) leaves `at_previous: unavailable`; the HEAD half still runs, so a still-
+failing test still refuses resolution. Bounded: at most 25 findings per run, 120 s per
+test run, so verification cannot become the suite.
+
+`findings[].verification` is written by `verdict-finalize` only. A judgment carrying it is
+rejected — the field is a measurement, and measurements are not claimed.
 
 ## Silence, resolution, and `full_sweep`
 
