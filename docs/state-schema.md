@@ -217,6 +217,15 @@ because there is no test context to attribute it to. Where the installed coverag
 startup hook, children go unmeasured and `subprocess_coverage` reads `none recorded` —
 a gap, stated, not a claim.
 
+`coverage.by_kind` splits the changed lines into `production` and `tests`, **and production
+is the number to read**. The executed-under-a-test-context rule is right for production code
+and structurally wrong for test code: a fixture body and a `def test_*` line never carry a
+context, so every test file pays a permanent unexercised tax. Blended, the percent then moves
+with the test/production composition of the diff rather than with coverage — across two runs
+of this repository it fell 91% → 78% while production coverage *rose* 97% → 100%
+(VERDICT-F-44). The blended figure is still reported, because it is what the schema has
+always carried; it is not the one a gate should read.
+
 Measuring children means the children record whatever they run, including files a test
 generated in a temp directory that is gone before anything renders. `coverage json` aborts
 on the first source it cannot read, so one such file cost this repository its entire
