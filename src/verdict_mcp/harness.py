@@ -1825,10 +1825,18 @@ def _render_calibration(cal: dict) -> list[str]:
             measured = f" {v.get('confirmed_measured', 0)} |" if split else ""
             lines.append(f"| {key} | {v['confirmed']} |{measured} {v['refuted']} | {rate} |")
         lines.append("")
-    any_claimed = any(v.get("confirmed_claimed")
-                      for store in (cal.get("by_confidence") or {},
-                                    cal.get("by_proof_method") or {})
-                      for v in store.values())
+    buckets = [v for store in (cal.get("by_confidence") or {},
+                               cal.get("by_proof_method") or {})
+               for v in store.values()]
+    any_claimed = any(v.get("confirmed_claimed") for v in buckets)
+    # Rows written before `outcome_basis` existed carry neither, and the state
+    # deliberately refuses to relabel them. The table showed `19 | 0` under a
+    # caveat calling the two kinds exhaustive, so a reader subtracted and read
+    # 19 as the tester's word — the state careful, the renderer not, which is
+    # the split-brain shape VERDICT-F-36 was about, one release later
+    # (VERDICT-F-45).
+    unrecorded = max((v.get("confirmed", 0) - v.get("confirmed_measured", 0)
+                      - v.get("confirmed_claimed", 0) for v in buckets), default=0)
     lines += [f"*A rate appears once a row has {cal.get('min_sample')} settled outcomes. "
               "Settled means fix-verified or regressed (it held up) against withdrawn "
               "(it did not); a resolution nobody checked at all settles nothing.*"]
@@ -1837,6 +1845,11 @@ def _render_calibration(cal: dict) -> list[str]:
                   "the harness measured, and one the tester asserted where no measurement "
                   "contradicts it. The `measured` column is the first kind. Read them "
                   "apart.*"]
+    if unrecorded:
+        lines += ["", f"*Up to {unrecorded} of those confirmations were settled before "
+                  "`outcome_basis` was recorded and are neither kind. They are counted in "
+                  "`held up` and in no other column, because calling them the tester's word "
+                  "would be a claim of its own.*"]
     lines.append("")
     return lines
 

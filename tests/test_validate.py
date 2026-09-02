@@ -759,3 +759,69 @@ def test_the_same_refusal_says_so_when_no_gate_reported_anything(root):
     s = good_state(verdict="pass", tests={}, gates={"lint": {"exit_code": 0}})
     bad = " ".join(b for b in validate(s, root) if "no gate in this run produced" in b)
     assert "no gate reported a runner summary" in bad, bad
+
+
+# ── the five guards a mutation campaign found unwatched (F-48) ──────────────
+#
+# Run 9 ran the campaign method this repository documents, controlled the
+# instrument first as the profile requires, and found five non-equivalent
+# mutants still alive after 0.67.0 and 0.69.0. Nothing shipped was wrong; five
+# guards could have been broken without a test noticing, in the one module
+# written to refuse what the model writes. It proposed these checks.
+
+def test_judgment_status_must_be_one_the_contract_knows():
+    """Severity, priority, classification, fix_verified, duplicate ids, the
+    index label, every-finding and the pass-cap were all covered. `status`,
+    which decides whether a finding is even open, was not."""
+    f = judgment()["findings"][0]
+    for value in ("fixed", "OPEN-ISH", "done", 1):
+        bad = validate_judgment(judgment(findings=[dict(f, status=value)]))
+        assert any("status" in b for b in bad), (value, bad)
+    for value in ("open", "resolved", "withdrawn"):
+        assert not [b for b in validate_judgment(judgment(findings=[dict(f, status=value)]))
+                    if "status" in b], value
+
+
+def test_judgment_keeps_checking_after_a_malformed_entry():
+    """The loop `continue`s past a non-dict. Read as `break`, everything after
+    the first bad entry goes unchecked — and the every-finding test cannot
+    reach it, because well-formed dicts never take that branch."""
+    f = judgment()["findings"][0]
+    bad = validate_judgment(judgment(findings=["not a finding at all",
+                                               dict(f, id="P-F-2", severity="Huge")]))
+    assert any("P-F-2" in b or "findings[1]" in b for b in bad), bad
+
+
+def test_the_state_validator_keeps_checking_after_a_malformed_entry(root):
+    f = good_state()["findings"][0]
+    bad = validate(good_state(findings=[42, dict(f, id="PRC-F-2", hash="b2",
+                                                 severity="Huge")]), root)
+    assert any("PRC-F-2" in b or "findings[1]" in b for b in bad), bad
+
+
+def _hook_event(path):
+    return json.dumps({"tool_name": "Write", "tool_input": {"file_path": str(path)}})
+
+
+def test_hook_mode_refuses_a_state_it_cannot_read(root):
+    """PostToolUse, the surface that catches a bad state while the run is still
+    going. Exit 2 is what makes the agent fix it now."""
+    (root / "state.json").write_text("{ not json", encoding="utf-8")
+    proc = run_cli(stdin=_hook_event(root / "state.json"))
+    assert proc.returncode == 2, proc.stderr
+    assert "state.json" in proc.stderr
+
+
+def test_hook_mode_is_silent_over_a_clean_state(root):
+    """And the other half: a hook that complains about good work is one the
+    agent learns to ignore."""
+    (root / "state.json").write_text(json.dumps(good_state()), encoding="utf-8")
+    proc = run_cli(stdin=_hook_event(root / "state.json"))
+    assert proc.returncode == 0, proc.stderr
+    assert proc.stderr.strip() == "", proc.stderr
+
+
+def test_hook_mode_ignores_writes_to_anything_else(root):
+    (root / "notes.md").write_text("# notes", encoding="utf-8")
+    proc = run_cli(stdin=_hook_event(root / "notes.md"))
+    assert proc.returncode == 0 and proc.stderr.strip() == ""

@@ -3,6 +3,43 @@
 Plugin and `verdict-mcp` share one version line; `.claude-plugin/plugin.json` and
 `pyproject.toml` are bumped together.
 
+## 0.72.0 — 2026-09-02 · "five guards nobody was watching"
+
+Run 9's four Minor findings. Three are against work from the previous two days, and one is
+against a sentence I wrote.
+
+**Five guards could have been broken without a test noticing** (VERDICT-F-48). Run 9 ran
+the mutation-campaign method this repository documents, controlled the instrument first as
+the profile requires, and re-measured: 391 killed against the original 335, +56 from the
+0.67.0 and 0.69.0 work. Of its nine non-string survivors, two died against the whole suite
+and two are the clock tolerances already accepted as equivalent. **Five were real**: the
+judgment validator's `status` enum — the field that decides whether a finding is even open,
+and the only one of its neighbours without a test — two loop `continue`s whose mutation to
+`break` stops checking after the first malformed entry, and both exit codes of the
+PostToolUse hook, the surface that catches a bad state while the run is still going. It
+proposed the checks; they are written, and each fails when its mutant is applied.
+
+The profile's own summary said the residual was "mostly message text". That understated it
+in the direction that flatters, and now says what was measured.
+
+**A reader could subtract their way to a wrong conclusion** (VERDICT-F-45). The Track record
+table added yesterday showed `19 | 0` under a caveat calling measured and claimed
+exhaustive, so nineteen confirmations settled before `outcome_basis` existed read as
+nineteen resting on the tester's word. The state is careful here and deliberately refuses to
+relabel them; the renderer was not — the same split-brain shape as the finding it came from,
+one release later. The table now says how many predate the field and that they are neither
+kind.
+
+**The ledger digest keeps what makes it readable** (VERDICT-F-46). It dropped `candidates`,
+without which `selected_by: first_cited` says nothing, and `not_weighed`, without which a
+confirmation standing beside a test that failed at HEAD has no explanation at all.
+
+**The symlink case is tested** (VERDICT-F-47). The 0.70.0 changelog claimed four tests, one
+per blind spot. Three covered blind spots and the fourth was a green-path control; the
+symlink swap was fixed and unverified. That claim has been corrected in place rather than
+quietly left, because a changelog that overstates its own coverage is the same defect as a
+check that cannot fire.
+
 ## 0.71.0 — 2026-09-02 · "production is the number to read"
 
 Run 9's two Majors that are code. It also resolved every fix from the previous range —
@@ -56,8 +93,10 @@ changes as what they are. A tracked file missing from the working tree is report
 tracebacking, and an untracked file planted under the fixture — which no committed diff can
 describe — is named and refused.
 
-That gate had no tests. It has four now, one per blind spot, each failing when its fix is
-reverted.
+That gate had no tests. It has four now — a green-path control plus one each for the mode
+change, the planted untracked file and the missing tracked file — each failing when its fix
+is reverted. (The symlink case named above was fixed here and left untested; run 9 said so,
+and 0.72.0 covers it.)
 
 ## 0.69.0 — 2026-09-02 · "the CLI nobody had tested, and a test its own crash fooled"
 

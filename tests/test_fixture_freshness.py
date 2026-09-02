@@ -86,6 +86,28 @@ def test_a_mode_change_is_no_longer_invisible(fixture_repo):
     assert proc.returncode != 0, proc.stdout
 
 
+@pytest.mark.skipif(os.name == "nt",
+                    reason="creating a symlink on Windows needs a privilege CI does not "
+                           "grant; the behaviour is POSIX-only in practice")
+def test_a_symlink_swapped_for_a_regular_file_is_no_longer_invisible(fixture_repo):
+    """VERDICT-F-47: this is the blind spot the 0.70.0 changelog claimed a test
+    covered. Three of the four tests covered blind spots and the fourth was a
+    green-path control — the fix was real and unverified, which is the same
+    shape as claiming a check that cannot fire."""
+    repo, fixtures = fixture_repo
+    anchor(repo, fixtures)
+    target = fixtures / "pricer" / "app.py"
+    content = target.read_text(encoding="utf-8")
+    outside = repo.parent / "elsewhere.py"
+    outside.write_text(content, encoding="utf-8")
+    target.unlink()
+    target.symlink_to(outside)
+    assert target.read_text(encoding="utf-8") == content, "identical content, different type"
+    git(repo, "add", "-A")
+    proc = run_gate(repo)
+    assert proc.returncode != 0, proc.stdout
+
+
 def test_an_untracked_file_planted_in_the_fixture_is_reported(fixture_repo):
     """A diff built from `ls-files` cannot describe it, so an eval run would
     read a fixture the anchor never covered."""
