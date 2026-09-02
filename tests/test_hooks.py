@@ -507,3 +507,44 @@ def test_nested_shell_parses_a_quote_wrapped_command():
         found = list(ebs._check_shell(["-c", quoted], "/repo", 0))
         assert found, f"quote-wrapped nested command not parsed: {quoted}"
         assert found[0][0] == "rm"
+
+
+# --- a copy has a source and a destination (F-37) ---------------------------
+
+def test_bash_allows_copying_the_checkout_out_to_scratch(repo, tmp_path):
+    """VERDICT-F-37: every non-flag argument of cp/mv/rsync counted as a write
+    target, so copying the checkout into a scratch directory — the re-injection
+    the agent contract asks for — was refused in the same words as overwriting
+    source. A copy reads all but its last operand."""
+    scratch = tmp_path / "scratch"
+    scratch.mkdir()
+    rc, err = run_hook("enforce_bash_scope.py",
+                       bash_event(f"cp -a {repo} {scratch}/tree2", repo), strict="1")
+    assert rc == 0, err
+
+
+def test_bash_still_blocks_copying_into_the_checkout(repo, tmp_path):
+    """The guard's whole job, and the direction that must stay refused."""
+    scratch = tmp_path / "scratch"
+    scratch.mkdir()
+    rc, err = run_hook("enforce_bash_scope.py",
+                       bash_event(f"cp -a {scratch}/x.py {repo}/src/app.py", repo), strict="1")
+    assert rc == 2 and "QA root" in err
+
+
+def test_bash_reads_an_explicit_target_directory(repo, tmp_path):
+    """With `-t DIR` the destination is the flag's argument and every operand
+    is a source — the one shape where "the last one" is wrong."""
+    scratch = tmp_path / "scratch"
+    scratch.mkdir()
+    ok, _ = run_hook("enforce_bash_scope.py",
+                     bash_event(f"cp -t {scratch} {repo}/src/a.py {repo}/src/b.py", repo),
+                     strict="1")
+    assert ok == 0
+    bad, err = run_hook("enforce_bash_scope.py",
+                        bash_event(f"cp -t {repo}/src {scratch}/a.py", repo), strict="1")
+    assert bad == 2 and "QA root" in err
+    eq, err2 = run_hook("enforce_bash_scope.py",
+                        bash_event(f"cp --target-directory={repo}/src {scratch}/a.py", repo),
+                        strict="1")
+    assert eq == 2, err2

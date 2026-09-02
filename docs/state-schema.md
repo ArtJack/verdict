@@ -262,7 +262,15 @@ test that demonstrates the defect against the code before the fix and the code a
 
 **What it measures.** For every finding open in the previous state, `verdict-facts` looks
 for a cited test — an explicit `verification_test` on the finding, or a pytest node id
-(`path/test_x.py::test_y[...]`) in its evidence. **A citation is checked against the
+(`path/test_x.py::test_y[...]`) in its evidence. **Order is the choice**: the explicit
+citation leads, then any id the collector saw for the first time this run — what a fix's
+own regression test looks like — and prose order last. The record says which, in
+`selected_by` (`explicit`, `added_this_run`, `first_cited`) and `candidates`. Taking
+whichever match came first meant the harness ran a non-guarding test for every finding it
+verified on run 7 (VERDICT-F-26), and a `first_cited` pick among several may not refuse a
+resolution: the measurement is recorded with a `not_weighed` note instead, because
+overruling the tester is the strongest thing a measurement does here and it may only rest
+on a test somebody chose. **A citation is checked against the
 collected test-id ledger before anything runs**: evidence is prose, and the node-id regex
 matches one anywhere in it, including inside a quoted source snippet. Run 5 of this
 repository ran `t.py::new`, a test that exists in no file here, and published the

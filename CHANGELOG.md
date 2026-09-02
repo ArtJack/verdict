@@ -3,6 +3,39 @@
 Plugin and `verdict-mcp` share one version line; `.claude-plugin/plugin.json` and
 `pyproject.toml` are bumped together.
 
+## 0.65.0 — 2026-09-02 · "which test, and who chose it"
+
+**Fix verification ranks its candidates** (VERDICT-F-26, open since run 5 and the root of
+run 7's F-35). The citation filter shipped in 0.57.0 stopped *invalid* ids; selection among
+valid ones was still evidence order, so on run 7 the harness ran a non-guarding test for
+every finding it verified — `F-31`'s re-injection ran the subprocess-coverage test from the
+release before it, and reported `pass → pass`.
+
+Order is now the choice. An explicit `verification_test` leads. Then any id the collector
+saw for the first time this run, which is what a fix's own regression test looks like.
+Prose order comes last and is labelled as such: every record carries `selected_by`
+(`explicit`, `added_this_run`, `first_cited`) and `candidates`.
+
+**And a test nobody chose may not overrule the tester.** Refusing a resolution is the
+strongest thing a measurement does, and a `first_cited` pick among several candidates is
+prose order, not a citation. The measurement is still recorded, with a `not_weighed` note
+naming how to make it count. A single cited test that still fails at HEAD refuses exactly
+as before — there is a test that fails if that weakens.
+
+**A copy has a source and a destination** (VERDICT-F-37). The strict bash guard counted
+every non-flag argument of `cp`/`mv`/`rsync`/`install`/`ln` as a write target, so copying
+the checkout into a scratch directory — the re-injection step the agent contract asks for
+— was refused in the same words as overwriting source. Only the destination is a target
+now, and `-t DIR` / `--target-directory=DIR` name it instead when present. Copying *into*
+the checkout is refused exactly as before.
+
+**The profile stopped contradicting itself** (VERDICT-F-38). Its "Real commands" section
+said "no coverage tool is configured in this repo" six lines below the
+`coverage_suite_cmd` that measured 85% of the diff on the run that filed the finding, and
+"no tool present" for mutation testing while `mutmut` sits in the dev group. Both now say
+what is true: the coverage command is named and run by the harness, and mutation testing
+is a gap in coverage rather than an absent tool.
+
 ## 0.64.0 — 2026-09-02 · "silence is not evidence"
 
 Both of run 7's Major findings are against the 0.62.0 ledger rule, three hours old.

@@ -40,6 +40,14 @@ _MUTATORS = {
     "rm", "rmdir", "unlink", "mv", "cp", "install", "touch", "mkdir", "ln",
     "chmod", "chown", "truncate", "shred", "rsync", "tee", "patch",
 }
+# Of those, the ones that COPY: everything but the last operand is a source it
+# only reads. Treating them all as targets refused `cp -a <checkout> <scratch>`
+# — the re-injection step the agent contract asks for — in the same words as
+# overwriting source, and the guard exists to tell those two apart
+# (VERDICT-F-37). `-t/--target-directory` names the destination instead, and
+# then every operand really is a source.
+_COPIERS = {"cp", "mv", "install", "rsync", "ln"}
+_TARGET_FLAGS = ("-t", "--target-directory")
 # git verbs that mutate the working tree, index, refs, or config.
 _GIT_MUTATORS = {
     "commit", "push", "checkout", "switch", "restore", "reset", "clean",
@@ -351,10 +359,40 @@ def _check_segment(toks, cwd, depth=0):
         yield from _check_tar(args, cwd)
     elif head == "find":
         yield from _check_find(args, cwd)
+    elif head in _COPIERS:
+        yield from _check_copier(head, args)
     elif head in _MUTATORS:
         for t in args:
             if not t.startswith("-"):
                 yield head, t
+
+
+def _check_copier(head: str, args: list):
+    """`cp SRC... DST` writes DST and reads the rest. With an explicit
+    `-t DIR`, DIR is the destination and every operand is a source."""
+    operands, target, expect_dir = [], None, False
+    for a in args:
+        if expect_dir:
+            target, expect_dir = a, False
+            continue
+        if a in _TARGET_FLAGS:
+            expect_dir = True
+            continue
+        for flag in _TARGET_FLAGS:
+            if a.startswith(flag + "="):
+                target = a[len(flag) + 1:]
+                break
+        else:
+            if not a.startswith("-"):
+                operands.append(a)
+            continue
+    if target is None:
+        # Nothing to write without a destination; a lone operand is the target
+        # (`ln -s x` and friends land beside the cwd).
+        if not operands:
+            return
+        target = operands[-1]
+    yield head, target
 
 
 def main() -> int:

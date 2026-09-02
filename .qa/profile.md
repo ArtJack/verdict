@@ -68,9 +68,12 @@ Pass when all three hold:
   `git diff --no-index pricer pricer_rev_b > /tmp/fresh.diff || true; cmp pricer-delta.diff /tmp/fresh.diff`
 - Self-gate: `verdict-gate .` (the repo gates itself via `.github/workflows/qa-gate.yml`,
   `max-age-hours: 240`).
-- Changed-files coverage: **no command recorded** — no coverage tool is configured in this
-  repo. The coverage-delta gate is unmeasurable until one is added. Do not install one.
-- Mutation testing: no tool present. Suite quality is unmeasured.
+- Changed-files coverage: `uv run --group dev python -m coverage run -m pytest tests/ -q -o addopts=`,
+  named as `coverage_suite_cmd` in the front matter above and run by `verdict-facts` itself
+  — the diff-coverage block in `state.json` is its output, not a declaration. Run 7 measured
+  122 of 143 changed lines with it.
+- Mutation testing: `mutmut` is in the dev group (`pyproject.toml`). No campaign has been
+  run, so suite quality is unmeasured — which is a gap, not an absent tool.
 
 ## Known risk areas (weight effort here)
 

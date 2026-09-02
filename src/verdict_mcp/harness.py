@@ -293,24 +293,57 @@ def resolve_test_id(candidate: str, known) -> str | None:
     return fam.pop() if len(fam) == 1 else None
 
 
-def cited_tests(finding: dict, known=None) -> list[str]:
+def cited_tests(finding: dict, known=None, preferred=None) -> list[str]:
     """The tests a finding names — an explicit `verification_test`, or pytest
     node ids inside its evidence. `test_x.py:12` is a line reference, not a
     test, and does not count. With `known`, only ids the collector reported
-    survive, resolved to their collected form."""
+    survive, resolved to their collected form.
+
+    Order is the choice. Evidence order is not relevance, and taking the first
+    match meant the harness ran a non-guarding test for every finding it
+    verified on run 7 (VERDICT-F-26). An explicit `verification_test` is the
+    tester's own citation and leads. Then anything in `preferred` — the ids the
+    collector saw for the first time this run, which is what a fix's own
+    regression test looks like. Whatever is left is prose, kept last and
+    labelled as such by `select_test`.
+    """
     explicit = finding.get("verification_test")
-    ids = [explicit] if isinstance(explicit, str) else [str(x) for x in (explicit or []) if x]
+    named = [explicit] if isinstance(explicit, str) else [str(x) for x in (explicit or []) if x]
+    scraped = []
     for line in finding.get("evidence") or []:
-        ids += _TEST_ID.findall(str(line))
-    out = []
-    for i in ids:
-        i = i.strip().rstrip(".,;:")
-        if not i:
+        scraped += _TEST_ID.findall(str(line))
+    seen, first, rest = set(), [], []
+    for i, raw in [("explicit", x) for x in named] + [("prose", x) for x in scraped]:
+        candidate = str(raw).strip().rstrip(".,;:")
+        if not candidate:
             continue
-        resolved = resolve_test_id(i, known)
-        if resolved and resolved not in out:
-            out.append(resolved)
-    return out
+        resolved = resolve_test_id(candidate, known)
+        if not resolved or resolved in seen:
+            continue
+        seen.add(resolved)
+        (first if i == "explicit" else rest).append(resolved)
+    if preferred:
+        pref = {str(x).replace("\\", "/") for x in preferred}
+        rest = [x for x in rest if x in pref] + [x for x in rest if x not in pref]
+    return first + rest
+
+
+def select_test(finding: dict, tests: list, preferred=None) -> tuple:
+    """(test id, how it was chosen). `explicit` and `added_this_run` are
+    reasons to believe this test guards this finding; `first_cited` is only a
+    reason to believe the tester mentioned it, and the caller weighs it as
+    such."""
+    if not tests:
+        return None, None
+    explicit = finding.get("verification_test")
+    named = {explicit} if isinstance(explicit, str) else {str(x) for x in (explicit or []) if x}
+    pref = {str(x).replace("\\", "/") for x in (preferred or ())}
+    chosen = tests[0]
+    if any(resolve_test_id(str(n), {chosen}) == chosen for n in named) or chosen in named:
+        return chosen, "explicit"
+    if chosen in pref:
+        return chosen, "added_this_run"
+    return chosen, "first_cited"
 
 
 def _conftest_chain(repo: Path, test_file: str) -> list[str]:
@@ -397,7 +430,8 @@ def _remove_scratch(repo: Path, tmp: Path) -> None:
 
 
 def verify_findings(repo: Path, previous: dict | None, test_one_cmd: str | None,
-                    previous_sha: str | None, known_ids=None) -> tuple[dict, list[str]]:
+                    previous_sha: str | None, known_ids=None,
+                    added_ids=None) -> tuple[dict, list[str]]:
     """Re-run each open finding's cited test at HEAD and at the previous
     commit → ({finding id: record}, notes).
 
@@ -418,9 +452,10 @@ def verify_findings(repo: Path, previous: dict | None, test_one_cmd: str | None,
                      "at the previous commit and at HEAD")
         return {}, notes
     known = {str(k).replace("\\", "/") for k in known_ids} if known_ids else None
+    preferred = {str(k).replace("\\", "/") for k in (added_ids or ())}
     cited, unresolved, uncited = [], [], 0
     for f in open_prior:
-        resolved = cited_tests(f, known)
+        resolved = cited_tests(f, known, preferred)
         if resolved:
             cited.append((f, resolved))
         elif cited_tests(f):
@@ -454,8 +489,9 @@ def verify_findings(repo: Path, previous: dict | None, test_one_cmd: str | None,
     results: dict = {}
     try:
         for finding, tests in cited:
-            test_id = tests[0]
-            rec = {"test": test_id, "previous_sha": previous_sha,
+            test_id, how = select_test(finding, tests, preferred)
+            rec = {"test": test_id, "selected_by": how, "candidates": len(tests),
+                   "previous_sha": previous_sha,
                    "at_previous": "unavailable", "at_head": None}
             head = _run_test(test_one_cmd, test_id, repo, repo, VERIFY_TIMEOUT_S)
             rec["at_head"] = head["result"]
@@ -517,6 +553,17 @@ def _apply_verification(entry: dict, prior: dict | None, verification: dict) -> 
         return
     entry["verification"] = rec
     resolving = entry.get("delta") == "RESOLVED"
+    # Refusing a resolution is the strongest thing a measurement does here, and
+    # it may only rest on a test somebody chose. `first_cited` among several
+    # candidates is prose order, not a citation: on run 7 the harness picked a
+    # non-guarding test for every finding it verified (VERDICT-F-26). The
+    # measurement is still recorded; it just does not overrule the tester.
+    arbitrary = rec.get("selected_by") == "first_cited" and (rec.get("candidates") or 1) > 1
+    if rec.get("at_head") == "fail" and arbitrary:
+        rec["not_weighed"] = ("chosen by prose order from "
+                              f"{rec['candidates']} cited tests — too weak to refuse a "
+                              "resolution; cite `verification_test` to make it count")
+        return
     if rec.get("at_head") == "fail":
         if resolving:
             entry["status"] = "open"
@@ -994,9 +1041,14 @@ def collect(repo: Path, qa_root: Path, gates: list[tuple[str, str]],
                 "source": "id set-diff, not summary arithmetic",
             }
             facts["_test_ids"] = ids
+            # The ids the collector saw for the first time this run: what a
+            # fix's own regression test looks like, and the one signal that
+            # tells a guarding test from a mentioned one.
+            facts["_added_test_ids"] = added
 
     verification, vnotes = verify_findings(repo, previous, test_one_cmd, prev_sha,
-                                          known_ids=facts.get("_test_ids"))
+                                          known_ids=facts.get("_test_ids"),
+                                          added_ids=facts.get("_added_test_ids"))
     if verification:
         facts["verification"] = verification
     if vnotes:
@@ -1601,6 +1653,7 @@ def facts_main(argv=None) -> int:
         facts["no_gates"] = ("no gates ran — neither --gate nor a profile front-matter "
                              "block supplied one, so every count and duration gate is "
                              "unmeasurable this run")
+    facts.pop("_added_test_ids", None)  # internal, like _test_ids: never written
     ids = facts.pop("_test_ids", None)
     if ids is not None:
         (qa_root / "test-ids.txt").write_text("\n".join(ids) + "\n", encoding="utf-8")
