@@ -214,6 +214,102 @@ def _qa_root_for(project, repo) -> Path:
     return state_home() / project       # first run: the agent will create it
 
 
+_PERMISSION_FLAGS = ("--dangerously-skip-permissions", "--permission-mode", "--allowedTools",
+                     "--allowed-tools")
+
+
+def plugin_root(explicit=None):
+    """Where `agents/verdict.md` and `hooks/hooks.json` live, or None.
+
+    Three places, in order: an explicit path, `CLAUDE_PLUGIN_ROOT` (set when a
+    plugin command invokes this), the checkout this file sits in (the plugin
+    cache and a source clone both have that shape), and finally the newest
+    version in the plugin cache — for the common pairing of the plugin
+    installed for the editor and `verdict-qa-mcp` from PyPI for the CLI, whose
+    wheel ships neither directory.
+    """
+    def _has(root):
+        return (root / "agents" / "verdict.md").is_file() and \
+               (root / "hooks" / "hooks.json").is_file()
+
+    # An explicit root is authoritative. Falling through from a wrong path to
+    # "whatever else is lying around" would run the agent from a checkout the
+    # operator did not name — and make a wrong path impossible to notice.
+    if explicit:
+        return Path(explicit) if _has(Path(explicit)) else None
+
+    candidates = [os.environ.get("CLAUDE_PLUGIN_ROOT"), Path(__file__).resolve().parents[2]]
+    cache = Path.home() / ".claude" / "plugins" / "cache" / "verdict" / "verdict"
+    if cache.is_dir():
+        def _ver(p):
+            return tuple(int(x) if x.isdigit() else -1 for x in p.name.split("."))
+        candidates += sorted((p for p in cache.iterdir() if p.is_dir()), key=_ver, reverse=True)
+    for cand in candidates:
+        if cand and _has(Path(cand)):
+            return Path(cand)
+    return None
+
+
+def provision(repo: Path, root) -> tuple[str | None, list[str]]:
+    """Make the agent and its guards visible to an isolated headless session.
+
+    The run is launched with `--setting-sources project,local`, so the
+    user-scope plugin is never loaded — that isolation is deliberate, and it is
+    also why a bare checkout cannot run the agent: the first self-run from a
+    fresh clone came back `blocked`, with "Agent type 'verdict' not found",
+    no hooks enforcing, and every tool denied. The model ran the contract
+    inline from `agents/verdict.md`, self-imposed the guards, and reported its
+    own self-check as failed rather than write state by hand — the right
+    behaviour, in an environment the runner had built wrong. The nightly and
+    the eval each hand-roll these same steps; the runner owns them now.
+
+    Writes only what is absent: an existing `.claude/agents/verdict.md` is the
+    operator's (the nightly provisions its own from a pinned checkout), and
+    existing `hooks` are theirs too and are named rather than replaced. Hooks
+    go in `settings.local.json`, the file a project's `.gitignore`
+    conventionally excludes, so provisioning does not dirty a tracked
+    `settings.json`. Returns (fatal problem or None, notes for stderr).
+    """
+    notes = []
+    agent = repo / ".claude" / "agents" / "verdict.md"
+    if agent.is_file():
+        notes.append("provision: kept existing .claude/agents/verdict.md")
+    elif root is None:
+        return ("the `verdict` agent is not available to an isolated session and no "
+                "plugin root was found — install the plugin (agents/ and hooks/ are not "
+                "in the PyPI wheel), pass --plugin-root, or provision "
+                ".claude/agents/verdict.md yourself", notes)
+    else:
+        agent.parent.mkdir(parents=True, exist_ok=True)
+        text = (root / "agents" / "verdict.md").read_text(encoding="utf-8")
+        agent.write_text(text.replace("${CLAUDE_PLUGIN_ROOT}", str(root)), encoding="utf-8")
+        notes.append(f"provision: wrote .claude/agents/verdict.md from {root}")
+
+    local = repo / ".claude" / "settings.local.json"
+    current = {}
+    if local.is_file():
+        try:
+            current = json.loads(local.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            notes.append("provision: .claude/settings.local.json is unreadable — left "
+                         "alone; the write/bash guards may not be enforcing")
+            return None, notes
+    if isinstance(current, dict) and "hooks" in current:
+        notes.append("provision: kept existing hooks in .claude/settings.local.json")
+    elif root is None:
+        notes.append("provision: no plugin root, hooks NOT installed — the write/bash "
+                     "guards are not enforcing this run")
+    else:
+        hooks = json.loads((root / "hooks" / "hooks.json").read_text(encoding="utf-8")
+                           .replace("${CLAUDE_PLUGIN_ROOT}", str(root).replace("\\", "\\\\")))
+        current = current if isinstance(current, dict) else {}
+        current["hooks"] = hooks["hooks"]
+        local.parent.mkdir(parents=True, exist_ok=True)
+        local.write_text(json.dumps(current, indent=2) + "\n", encoding="utf-8")
+        notes.append("provision: installed hooks into .claude/settings.local.json")
+    return None, notes
+
+
 def main(argv=None) -> int:
     # The recorded Windows trap, hit for the second time in this repo: cp1252
     # consoles cannot encode `→`, and a crashed print turns exit codes into
@@ -251,6 +347,12 @@ def main(argv=None) -> int:
                     help=argparse.SUPPRESS)  # test seam: a stub stands in for the CLI
     ap.add_argument("--reset-ceiling-s", type=int, default=10800,
                     help=argparse.SUPPRESS)  # test seam: cap the session-limit wait
+    ap.add_argument("--no-provision", dest="provision", action="store_false",
+                    help="do not write .claude/agents/verdict.md or the hook set into "
+                         ".claude/settings.local.json before launching")
+    ap.add_argument("--plugin-root", default=None,
+                    help="where agents/ and hooks/ live (default: CLAUDE_PLUGIN_ROOT, "
+                         "this checkout, then the newest plugin-cache version)")
     argv = list(sys.argv[1:] if argv is None else argv)
     passthrough = []
     if "--" in argv:
@@ -285,9 +387,29 @@ def main(argv=None) -> int:
                   f"{result['exit_code']} ({result['reason']})", file=sys.stderr)
             return result["exit_code"]
 
+    if args.provision:
+        problem, notes = provision(repo, plugin_root(args.plugin_root))
+        for note in notes:
+            print(f"verdict-run: {note}", file=sys.stderr)
+        if problem:
+            # Refused up front rather than spent: a session without the agent
+            # can only ever come back `blocked`, after a full model run.
+            print(f"verdict-run: {problem}", file=sys.stderr)
+            return 2
+
+    # Headless means nobody is there to approve a tool call, and a denied call
+    # is how the first self-run turned into a read-only review. The scope
+    # guards provisioned above are the control that makes skipping the prompt
+    # safe — that is what they exist for. An operator who passes their own
+    # permission flag after `--` keeps it.
+    if not any(p.startswith(_PERMISSION_FLAGS) for p in passthrough):
+        passthrough = [*passthrough, "--dangerously-skip-permissions"]
+
     env = dict(os.environ, VERDICT_STRICT="1", VERDICT_MODEL=args.model)
+    # `project,local`: the user-scope plugin stays out (isolation), and the
+    # hooks provisioned into settings.local.json come in.
     cmd = [args.claude_cmd, "-p", prompt, "--model", args.model,
-           "--setting-sources", "project", *passthrough]
+           "--setting-sources", "project,local", *passthrough]
 
     for attempt in (1, 2):
         rc, output = _run_streaming(cmd, repo, env, args.timeout_s)

@@ -262,3 +262,107 @@ def test_without_the_flag_unchanged_head_still_runs(tmp_path, repo):
     assert run_runner(repo, home, good).returncode == 0
     _, marker = _run_with_marker(tmp_path, repo, home, "noflag")
     assert marker.exists()
+
+
+# --- the runner provisions what an isolated session cannot see ---------------
+#
+# The first self-run from a fresh clone came back `blocked`: "Agent type
+# 'verdict' not found", no hooks enforcing, every tool denied. The runner
+# launches with `--setting-sources project`, which is deliberate isolation and
+# also exactly why a bare checkout cannot run the agent. The nightly and the
+# eval each hand-rolled the missing steps; docs/nightly.md told everyone else
+# to run `verdict-run` bare.
+
+ARGV_DUMP = '''
+import json, os, sys
+from pathlib import Path
+Path(os.environ["ARGV_OUT"]).write_text(json.dumps({"argv": sys.argv[1:], "cwd": os.getcwd()}))
+print("looked around, wrote nothing")
+'''
+
+
+def _argv_of(tmp_path, repo, *extra, name="dump"):
+    stub = write_stub(tmp_path, ARGV_DUMP, name=name)
+    out = tmp_path / f"{name}-argv.json"
+    env = {k: v for k, v in os.environ.items() if not k.startswith("VERDICT_")}
+    env.update(VERDICT_HOME=str(tmp_path / "home"), ARGV_OUT=str(out))
+    proc = subprocess.run(
+        [sys.executable, str(RUNNER), "--repo", str(repo),
+         "--claude-cmd", str(stub), "--model", "opus", *extra],
+        capture_output=True, text=True, env=env)
+    argv = json.loads(out.read_text(encoding="utf-8"))["argv"] if out.is_file() else None
+    return proc, argv
+
+
+def test_a_bare_checkout_is_provisioned_and_launched_headless(tmp_path, repo):
+    proc, argv = _argv_of(tmp_path, repo)
+    assert argv is not None, proc.stderr
+    agent = repo / ".claude" / "agents" / "verdict.md"
+    assert agent.is_file() and "${CLAUDE_PLUGIN_ROOT}" not in agent.read_text(encoding="utf-8")
+    local = json.loads((repo / ".claude" / "settings.local.json").read_text(encoding="utf-8"))
+    assert set(local["hooks"]) >= {"PreToolUse", "PostToolUse", "Stop", "SessionStart"}
+    assert "${CLAUDE_PLUGIN_ROOT}" not in json.dumps(local)
+    assert "--dangerously-skip-permissions" in argv
+    i = argv.index("--setting-sources")
+    assert argv[i + 1] == "project,local", "hooks live in settings.local.json"
+    assert "provision: wrote" in proc.stderr and "installed hooks" in proc.stderr
+
+
+def test_an_operators_agent_file_and_hooks_are_kept_not_replaced(tmp_path, repo):
+    """The nightly provisions its own agent from a pinned checkout; a project
+    may carry its own hooks. Both are theirs, named on stderr, never clobbered."""
+    agent = repo / ".claude" / "agents" / "verdict.md"
+    agent.parent.mkdir(parents=True)
+    agent.write_text("# the operator's pinned copy\n", encoding="utf-8")
+    local = repo / ".claude" / "settings.local.json"
+    local.write_text(json.dumps({"hooks": {"Stop": []}, "theirs": True}), encoding="utf-8")
+    proc, argv = _argv_of(tmp_path, repo)
+    assert argv is not None, proc.stderr
+    assert agent.read_text(encoding="utf-8") == "# the operator's pinned copy\n"
+    assert json.loads(local.read_text(encoding="utf-8")) == {"hooks": {"Stop": []}, "theirs": True}
+    assert "kept existing .claude/agents/verdict.md" in proc.stderr
+    assert "kept existing hooks" in proc.stderr
+
+
+def test_a_tracked_settings_json_is_not_touched(tmp_path, repo):
+    """This repository ships `.claude/settings.json`; provisioning into it would
+    dirty a tracked file in the code under test. Hooks go to the local file."""
+    tracked = repo / ".claude" / "settings.json"
+    tracked.parent.mkdir(parents=True)
+    tracked.write_text('{"includeCoAuthoredBy": false}\n', encoding="utf-8")
+    git(["add", "-A"], repo)
+    git(["commit", "-qm", "ship settings"], repo)
+    proc, argv = _argv_of(tmp_path, repo)
+    assert argv is not None, proc.stderr
+    assert tracked.read_text(encoding="utf-8") == '{"includeCoAuthoredBy": false}\n'
+    assert "hooks" in json.loads((repo / ".claude" / "settings.local.json").read_text(encoding="utf-8"))
+
+
+def test_an_operators_permission_flag_is_not_doubled(tmp_path, repo):
+    proc, argv = _argv_of(tmp_path, repo, "--", "--permission-mode", "plan")
+    assert argv is not None, proc.stderr
+    assert "--dangerously-skip-permissions" not in argv
+    assert argv[argv.index("--permission-mode") + 1] == "plan"
+
+
+def test_no_agent_and_no_plugin_root_refuses_before_spending_a_run(tmp_path, repo):
+    """A session without the agent can only come back `blocked` — after a full
+    model run. Refuse up front instead, and say what to do."""
+    empty = tmp_path / "not-a-plugin"
+    empty.mkdir()
+    # An explicit --plugin-root is authoritative: a wrong path is an error, not
+    # a fallback to whatever checkout happens to be nearby — which is also what
+    # makes this refusal reachable from a test that runs inside the real one.
+    proc, argv = _argv_of(tmp_path, repo, "--plugin-root", str(empty), name="refused")
+    assert proc.returncode == 2, proc.stderr
+    assert argv is None, "the claude stub must never have been launched"
+    assert "not available to an isolated session" in proc.stderr
+    assert "--plugin-root" in proc.stderr and "PyPI" in proc.stderr
+    assert not (repo / ".claude" / "agents").exists()
+
+
+def test_no_provision_writes_nothing(tmp_path, repo):
+    proc, argv = _argv_of(tmp_path, repo, "--no-provision")
+    assert argv is not None, proc.stderr
+    assert not (repo / ".claude").exists()
+    assert "--dangerously-skip-permissions" in argv, "permissions are separate from provisioning"

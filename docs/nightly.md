@@ -88,6 +88,27 @@ ends its turn without writing state, and exits with the gate's code —
 a bare `--` goes to the `claude` CLI verbatim (MCP configs, permission flags).
 The sections below describe what it does, for runners you build yourself.
 
+Two things it does that the hand-rolled loop above gets for free from the
+installed plugin, because `verdict-run` launches the session **isolated**
+(`--setting-sources project,local` — your user-scope plugins and settings stay
+out, for a reproducible run):
+
+- **It provisions the agent and its guards** into the repository before
+  launching: `.claude/agents/verdict.md` and the hook set in
+  `.claude/settings.local.json`, copied from the plugin root
+  (`CLAUDE_PLUGIN_ROOT`, the checkout `verdict-run` lives in, or the newest
+  version in `~/.claude/plugins/cache`). Files you already have are kept and
+  named on stderr, never replaced. The PyPI wheel ships neither `agents/` nor
+  `hooks/`, so a PyPI-only install with no plugin refuses up front — exit 2
+  and a message — rather than spending a model run that can only come back
+  `blocked`. Pass `--plugin-root` to point it somewhere, or `--no-provision`
+  if you manage those files yourself.
+- **It passes `--dangerously-skip-permissions`** unless you supply your own
+  permission flag after `--`. Nobody is there to approve a tool call in a
+  headless run, and a denied call turns the pass into a read-only review; the
+  provisioned write-scope and Bash-scope hooks are the control that makes
+  skipping the prompt safe — that is what they exist for.
+
 Then gate and notify however you like:
 
 ```bash
