@@ -3,6 +3,39 @@
 Plugin and `verdict-mcp` share one version line; `.claude-plugin/plugin.json` and
 `pyproject.toml` are bumped together.
 
+## 0.62.0 — 2026-09-02 · "measurement outranks the claim"
+
+**The outcome ledger reads the measurement, not the flag** (VERDICT-F-32, filed by run 6).
+`fix_verified` reaches a finding from two places — the harness sets it when its own
+re-injection measured fail→pass, and a judgment may claim it for a re-injection done by
+hand — and the rule that turns a resolution into a `confirmed` row could not tell them
+apart. So the published track record, whose entire value is that the agent cannot
+influence it, recorded a re-injection nobody ran. It is live in this repository's own
+`outcomes.json`: `VERDICT-F-20` is `confirmed` with the reason "the guarding test failed
+on re-injection", over a cited test that exists in no file here and was measured
+error/error.
+
+The 0.57.0 fix corrected the report and stopped one line short of the ledger the report
+describes. Run 6 said so plainly: the report is honest now, and the ledger beneath it is
+not.
+
+Three arms, all mechanical:
+
+- the harness measured fail→pass → `confirmed`, as before
+- the harness measured and it did *not* show a fix → `unknown`, naming what it saw
+  (`error → error`), whatever the flag says
+- the harness measured nothing at all → the tester's claim stands and confirms, with a
+  reason that says it was claimed
+
+The third arm is deliberate. On a project the harness cannot measure, an evidenced claim
+is the only evidence there is, and starving the ledger is how the track record died in the
+first place — 95 of 110 Sales findings undecided. The over-correction is mutation-tested
+alongside the defect.
+
+The one wrong row already in this repository's ledger is left standing: a decided outcome
+sticks, and rewriting a settled ledger by hand is a data decision for its owner, not a
+side effect of a release.
+
 ## 0.61.0 — 2026-09-02 · "one unreadable file is not the whole measurement"
 
 **Fixes a regression 0.60.0 shipped** (VERDICT-F-31, filed by run 6 against run 5's fix).
