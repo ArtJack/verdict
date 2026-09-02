@@ -338,7 +338,13 @@ work the harness would have done. What changes is that the cheap version fails l
 Written by `verdict-issues`, never by the agent or by `finalize`. One entry per finding
 that has been filed as a GitHub issue — `{number, url, created_at, run_number, hash}` keyed
 by finding id — so a re-run files nothing twice, and the state itself is never touched: it
-is finalize's and it is chain-signed. `verdict-issues` is a dry run unless `--create`; what
+is finalize's and it is chain-signed. **A finding that comes back is filed again.** The id
+is minted once and never reused, so its presence in the ledger answers "has this finding
+ever been filed" while a tracker needs "has this *occurrence* been filed": a REGRESSED
+finding, the class the contract ranks first, was reported as already filed while its issue
+sat closed (VERDICT-F-27). A recurrence is filed once per regression — the guard is the
+run number, so running the tool twice over one state still files nothing twice — and the
+new entry carries `previous`, the trail back to the issue it replaces. `verdict-issues` is a dry run unless `--create`; what
 would leave the machine is printed first, title by title, and creation goes through the
 operator's own `gh` login. It does not close or comment on issues when findings resolve —
 a closed issue is a human's claim, `fix_verified` is the harness's measurement, and the

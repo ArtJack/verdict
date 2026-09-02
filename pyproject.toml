@@ -5,7 +5,7 @@
 # package (`verdict_mcp`), every console script, and the plugin are unchanged,
 # so nothing a user types or imports is affected.
 name = "verdict-qa-mcp"
-version = "0.58.0"
+version = "0.59.0"
 description = "Read-only MCP server and release gate over Verdict QA state: verdicts, findings, flaky quarantine, run history."
 # Not README.md: that one sells the Claude Code plugin and is full of links
 # relative to the repo, which resolve to nothing on PyPI. README-pypi.md
