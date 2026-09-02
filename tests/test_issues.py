@@ -40,9 +40,11 @@ def finding(fid, sev, status="open", title=None):
 STUB_GH = '''
 import json, os, sys
 from pathlib import Path
-log = Path(os.environ["GH_LOG"]); n = len(log.read_text().splitlines()) + 1 if log.exists() else 1
-with log.open("a") as fh: fh.write(json.dumps(sys.argv[1:]) + "\\n")
-if os.environ.get("GH_FAIL_ON") and os.environ["GH_FAIL_ON"] in " ".join(sys.argv):
+argv = sys.argv[1:]
+body = Path(argv[argv.index("--body-file") + 1]).read_text(encoding="utf-8") if "--body-file" in argv else ""
+log = Path(os.environ["GH_LOG"]); n = len(log.read_text(encoding="utf-8").splitlines()) + 1 if log.exists() else 1
+with log.open("a", encoding="utf-8") as fh: fh.write(json.dumps({"argv": argv, "body": body}) + "\\n")
+if os.environ.get("GH_FAIL_ON") and os.environ["GH_FAIL_ON"] in " ".join(argv):
     print("GraphQL: label not found", file=sys.stderr); sys.exit(1)
 print(f"https://github.com/o/r/issues/{n}")
 '''
@@ -66,13 +68,24 @@ def run(tmp_path, home, *extra, env_extra=None):
     env["VERDICT_HOME"] = str(home)
     env["GH_LOG"] = str(tmp_path / "gh.log")
     env.update(env_extra or {})
+    # Decode as UTF-8 explicitly: the CLI reconfigures its stdout to UTF-8 and
+    # the titles carry `·`; `text=True` alone would read it with the Windows
+    # locale and the assertions would see U+FFFD — the test_gate.py lesson.
     return subprocess.run([sys.executable, str(ISSUES), "widget", "--gh-cmd", str(stub(tmp_path)),
-                           *extra], capture_output=True, text=True, env=env)
+                           *extra], capture_output=True, text=True, encoding="utf-8", env=env)
+
+
+def _records(tmp_path):
+    log = tmp_path / "gh.log"
+    return [json.loads(line) for line in log.read_text(encoding="utf-8").splitlines()] if log.exists() else []
 
 
 def calls(tmp_path):
-    log = tmp_path / "gh.log"
-    return [json.loads(line) for line in log.read_text().splitlines()] if log.exists() else []
+    return [r["argv"] for r in _records(tmp_path)]
+
+
+def bodies(tmp_path):
+    return [r["body"] for r in _records(tmp_path)]
 
 
 def test_dry_run_names_what_it_would_file_and_files_nothing(tmp_path):
@@ -92,8 +105,9 @@ def test_create_files_open_findings_worst_first_and_records_the_ledger(tmp_path)
     assert proc.returncode == 0, proc.stderr
     made = calls(tmp_path)
     assert [c[c.index("--title") + 1] for c in made][0].startswith("[Verdict] W-F-1 · Critical")
-    body = made[0][made[0].index("--body") + 1]
+    body = bodies(tmp_path)[0]
     assert "w-f-1.py:1 the defect" in body and "<!-- verdict-finding:W-F-1 -->" in body
+    assert "--body-file" in made[0] and "--body" not in made[0], "the body travels as a file"
     ledger = json.loads((home / "widget" / "issues.json").read_text())
     assert ledger["W-F-1"]["number"] == 1 and ledger["W-F-2"]["number"] == 2
     assert ledger["W-F-1"]["url"].endswith("/issues/1")

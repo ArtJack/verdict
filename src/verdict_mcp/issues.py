@@ -27,6 +27,7 @@ import json
 import os
 import subprocess
 import sys
+import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -106,13 +107,27 @@ def plan(state: dict, ledger: dict, limit: int | None = None) -> list[tuple[dict
 
 
 def create_issue(gh_cmd: str, cwd, title: str, body: str, labels: list, repo: str | None):
-    """→ {"number", "url"} or raises RuntimeError with gh's own words."""
-    cmd = [gh_cmd, "issue", "create", "--title", title, "--body", body]
+    """→ {"number", "url"} or raises RuntimeError with gh's own words.
+
+    The body travels as a file, not an argument: it is multi-line, and a
+    multi-line argument survives neither cmd.exe nor a long evidence list.
+    """
+    with tempfile.NamedTemporaryFile("w", suffix=".md", delete=False, encoding="utf-8") as fh:
+        fh.write(body)
+        body_path = fh.name
+    cmd = [gh_cmd, "issue", "create", "--title", title, "--body-file", body_path]
     for label in labels:
         cmd += ["--label", label]
     if repo:
         cmd += ["--repo", repo]
-    proc = subprocess.run(cmd, cwd=str(cwd) if cwd else None, capture_output=True, text=True)
+    try:
+        proc = subprocess.run(cmd, cwd=str(cwd) if cwd else None, capture_output=True,
+                              text=True, encoding="utf-8", errors="replace")
+    finally:
+        try:
+            os.unlink(body_path)
+        except OSError:
+            pass
     if proc.returncode != 0:
         raise RuntimeError((proc.stderr or proc.stdout).strip() or f"gh exited {proc.returncode}")
     url = proc.stdout.strip().splitlines()[-1] if proc.stdout.strip() else ""
