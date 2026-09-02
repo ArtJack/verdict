@@ -1,4 +1,8 @@
 {
+  "chain": {
+    "last_link": "a490c54831a737056d9069af1b6332464a9f3968a4193044270373bba51d5b7d",
+    "since_run": 8
+  },
   "findings": {
     "043a3a78": {
       "confidence": "proven",
@@ -50,11 +54,13 @@
     },
     "1f7ed699": {
       "confidence": "proven",
+      "decided_on": "2026-09-02",
       "first_seen": "2026-09-02",
       "hash": "1f7ed699",
       "id": "VERDICT-F-35",
-      "outcome": "unknown",
-      "outcome_reason": "still open; nothing has settled it",
+      "outcome": "confirmed",
+      "outcome_basis": "claimed",
+      "outcome_reason": "fix-verified: claimed by the tester, and no harness measurement contradicts it",
       "proof_method": "counterfactual",
       "severity": "Major"
     },
@@ -107,6 +113,16 @@
       "outcome_reason": "fix-verified: the guarding test failed on re-injection",
       "severity": "Major"
     },
+    "50474551": {
+      "confidence": "proven",
+      "first_seen": "2026-09-02",
+      "hash": "50474551",
+      "id": "VERDICT-F-40",
+      "outcome": "unknown",
+      "outcome_reason": "still open; nothing has settled it",
+      "proof_method": "counterfactual",
+      "severity": "Minor"
+    },
     "5e6ea2a9": {
       "confidence": "proven",
       "decided_on": "2026-09-02",
@@ -117,6 +133,16 @@
       "outcome_reason": "fix-verified: the guarding test failed on re-injection",
       "severity": "Major"
     },
+    "611103c0": {
+      "confidence": "proven",
+      "first_seen": "2026-09-02",
+      "hash": "611103c0",
+      "id": "VERDICT-F-39",
+      "outcome": "unknown",
+      "outcome_reason": "still open; nothing has settled it",
+      "proof_method": "differential",
+      "severity": "Major"
+    },
     "612eee35": {
       "confidence": "proven",
       "first_seen": "2026-09-02",
@@ -125,6 +151,15 @@
       "outcome": "unknown",
       "outcome_reason": "claimed fix-verified, but the harness's own re-injection showed pass \u2192 pass, which settles nothing",
       "severity": "Major"
+    },
+    "6c241826": {
+      "confidence": "proven",
+      "first_seen": "2026-09-02",
+      "hash": "6c241826",
+      "id": "VERDICT-F-41",
+      "outcome": "unknown",
+      "outcome_reason": "still open; nothing has settled it",
+      "severity": "Minor"
     },
     "7cb4d1ce": {
       "confidence": "proven",
@@ -180,7 +215,7 @@
       "hash": "87750fc7",
       "id": "VERDICT-F-38",
       "outcome": "unknown",
-      "outcome_reason": "still open; nothing has settled it",
+      "outcome_reason": "resolved but not fix-verified \u2014 absence is not proof",
       "proof_method": "differential",
       "severity": "Minor"
     },
@@ -346,11 +381,13 @@
     },
     "fe1f07b3": {
       "confidence": "proven",
+      "decided_on": "2026-09-02",
       "first_seen": "2026-09-02",
       "hash": "fe1f07b3",
       "id": "VERDICT-F-37",
-      "outcome": "unknown",
-      "outcome_reason": "still open; nothing has settled it",
+      "outcome": "confirmed",
+      "outcome_basis": "claimed",
+      "outcome_reason": "fix-verified: claimed by the tester, and no harness measurement contradicts it",
       "proof_method": "differential",
       "severity": "Minor"
     }
