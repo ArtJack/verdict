@@ -55,6 +55,7 @@ tests/test_calibration.py::test_findings_with_no_stated_confidence_land_in_their
 tests/test_calibration.py::test_internal_keys_never_reach_the_written_state
 tests/test_calibration.py::test_merge_normalizes_status_so_downstream_counts_are_right
 tests/test_calibration.py::test_no_rate_is_published_below_the_minimum_sample
+tests/test_calibration.py::test_no_such_line_when_every_confirmation_carries_a_basis
 tests/test_calibration.py::test_proof_method_is_tallied_separately_from_confidence
 tests/test_calibration.py::test_regression_confirms_a_finding_because_it_came_back
 tests/test_calibration.py::test_rows_from_before_the_field_are_not_relabelled
@@ -62,6 +63,7 @@ tests/test_calibration.py::test_status_comparison_is_case_insensitive
 tests/test_calibration.py::test_the_basis_says_which_of_the_two_it_was
 tests/test_calibration.py::test_the_caveat_no_longer_contradicts_the_rule
 tests/test_calibration.py::test_the_current_run_outranks_its_own_ledger_row
+tests/test_calibration.py::test_the_digest_keeps_what_makes_the_selection_readable
 tests/test_calibration.py::test_the_footnote_no_longer_says_the_opposite_of_the_rule
 tests/test_calibration.py::test_the_ledger_is_folded_once_not_twice
 tests/test_calibration.py::test_the_ledger_keeps_outcomes_after_findings_leave_state
@@ -72,6 +74,7 @@ tests/test_calibration.py::test_the_model_cannot_mark_its_own_finding_correct
 tests/test_calibration.py::test_the_renderer_never_crashes_on_unexpected_prose
 tests/test_calibration.py::test_the_report_and_the_gate_order_findings_identically
 tests/test_calibration.py::test_the_report_prints_how_many_of_the_confirmations_were_measured
+tests/test_calibration.py::test_the_report_says_how_many_confirmations_predate_the_basis
 tests/test_calibration.py::test_the_report_shows_counts_before_it_has_earned_a_rate
 tests/test_calibration.py::test_the_report_stays_silent_until_something_has_been_settled
 tests/test_calibration.py::test_the_tally_separates_what_was_measured_from_what_was_asserted
@@ -164,12 +167,16 @@ tests/test_diff_coverage.py::test_both_context_forms_become_node_ids
 tests/test_diff_coverage.py::test_changed_lines_are_split_into_executed_and_unexercised
 tests/test_diff_coverage.py::test_measured_coverage_outranks_a_written_block
 tests/test_diff_coverage.py::test_the_coverage_run_leaves_nothing_in_the_qa_root
+tests/test_diff_coverage.py::test_the_production_percent_falls_when_production_coverage_falls
 tests/test_diff_coverage.py::test_the_render_command_keeps_the_suite_interpreter
+tests/test_diff_coverage.py::test_the_report_reads_production_first
 tests/test_diff_coverage.py::test_the_repository_is_not_written_to_either
 tests/test_diff_coverage.py::test_the_subprocess_context_is_never_read_as_a_test
+tests/test_diff_coverage.py::test_what_counts_as_a_test_file
 tests/test_diff_coverage.py::test_without_a_command_it_is_unmeasurable_and_says_how
 tests/test_fixture_freshness.py::test_a_green_pair_stays_green
 tests/test_fixture_freshness.py::test_a_mode_change_is_no_longer_invisible
+tests/test_fixture_freshness.py::test_a_symlink_swapped_for_a_regular_file_is_no_longer_invisible
 tests/test_fixture_freshness.py::test_a_tracked_file_missing_from_the_tree_reports_rather_than_crashes
 tests/test_fixture_freshness.py::test_an_untracked_file_planted_in_the_fixture_is_reported
 tests/test_gate.py::test_a_current_verdict_carries_no_stale_note
@@ -310,6 +317,7 @@ tests/test_hooks.py::test_bash_allows_the_platform_temp_root[tee {}/notes.txt]
 tests/test_hooks.py::test_bash_allows_tmpdir_redirect
 tests/test_hooks.py::test_bash_allows_when_unparseable_and_no_pattern
 tests/test_hooks.py::test_bash_allows_writes_into_verdict_home
+tests/test_hooks.py::test_bash_blocks_archiving_the_checkout_away
 tests/test_hooks.py::test_bash_blocks_audited_bypasses[find . -name "*.py" -delete]
 tests/test_hooks.py::test_bash_blocks_audited_bypasses[find . -name "*.py" -exec rm {} ;]
 tests/test_hooks.py::test_bash_blocks_audited_bypasses[git --git-dir .git commit -am x]
@@ -413,6 +421,7 @@ tests/test_hooks.py::test_bash_second_sweep_has_no_false_positives[sh -c "git di
 tests/test_hooks.py::test_bash_second_sweep_has_no_false_positives[tar -cf archive.tar src]
 tests/test_hooks.py::test_bash_second_sweep_has_no_false_positives[timeout 300 pytest -q]
 tests/test_hooks.py::test_bash_still_allows_a_move_that_touches_neither_end_of_the_checkout
+tests/test_hooks.py::test_bash_still_allows_archiving_the_checkout_without_deleting_it
 tests/test_hooks.py::test_bash_still_allows_copying_out_which_is_the_whole_point_of_the_last_fix
 tests/test_hooks.py::test_bash_still_allows_genuine_scratch_in_a_temp_dir
 tests/test_hooks.py::test_bash_still_allows_read_only_work[find . -name "*.py" -exec grep -l x {} ;]
@@ -425,6 +434,7 @@ tests/test_hooks.py::test_bash_still_allows_read_only_work[perl -e 'print 1']
 tests/test_hooks.py::test_bash_still_allows_read_only_work[pytest -q]
 tests/test_hooks.py::test_bash_still_allows_read_only_work[sed -n 1p f.txt]
 tests/test_hooks.py::test_bash_still_blocks_copying_into_the_checkout
+tests/test_hooks.py::test_bash_still_blocks_extracting_into_the_checkout
 tests/test_hooks.py::test_nested_shell_parses_a_quote_wrapped_command
 tests/test_hooks.py::test_nested_shell_recursion_is_bounded
 tests/test_hooks.py::test_write_allows_default_solo_root_in_strict
@@ -607,6 +617,9 @@ tests/test_validate.py::test_fix_verified_must_be_a_boolean_and_must_cite_the_gu
 tests/test_validate.py::test_full_sweep_must_be_a_real_boolean
 tests/test_validate.py::test_good_state_passes
 tests/test_validate.py::test_hook_blocks_a_bad_write_and_ignores_other_files
+tests/test_validate.py::test_hook_mode_ignores_writes_to_anything_else
+tests/test_validate.py::test_hook_mode_is_silent_over_a_clean_state
+tests/test_validate.py::test_hook_mode_refuses_a_state_it_cannot_read
 tests/test_validate.py::test_hook_uses_previous_state_when_present
 tests/test_validate.py::test_invented_confidence_and_outcome_values_are_rejected
 tests/test_validate.py::test_judgment_allows_a_pass_with_nothing_open
@@ -616,8 +629,10 @@ tests/test_validate.py::test_judgment_checks_every_finding_not_just_the_first
 tests/test_validate.py::test_judgment_failure_classification_is_checked_but_optional
 tests/test_validate.py::test_judgment_fix_verified_must_be_a_boolean
 tests/test_validate.py::test_judgment_fix_verified_must_cite_the_test_that_failed
+tests/test_validate.py::test_judgment_keeps_checking_after_a_malformed_entry
 tests/test_validate.py::test_judgment_names_the_finding_that_broke_a_rule
 tests/test_validate.py::test_judgment_refuses_two_findings_with_one_id
+tests/test_validate.py::test_judgment_status_must_be_one_the_contract_knows
 tests/test_validate.py::test_judgment_verified_intact_must_be_a_list_when_present
 tests/test_validate.py::test_missing_required_fields_and_bad_enums
 tests/test_validate.py::test_not_tested_must_still_be_a_list
@@ -636,6 +651,7 @@ tests/test_validate.py::test_the_clock_tolerances_are_where_they_say_they_are
 tests/test_validate.py::test_the_judgment_check_holds_the_same_lines_as_the_state_check
 tests/test_validate.py::test_the_report_field_must_be_a_non_empty_string
 tests/test_validate.py::test_the_same_refusal_says_so_when_no_gate_reported_anything
+tests/test_validate.py::test_the_state_validator_keeps_checking_after_a_malformed_entry
 tests/test_validate.py::test_the_state_validator_names_and_checks_every_finding_too
 tests/test_validate.py::test_the_unmeasured_suite_refusal_names_which_gate_was_unreadable
 tests/test_validate.py::test_the_zero_coverage_refusal_fires_only_on_a_clean_pass

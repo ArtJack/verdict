@@ -2,24 +2,27 @@
   "project": "verdict",
   "schema_version": 1,
   "run_type": "delta",
-  "run_number": 9,
+  "run_number": 10,
   "last_run": {
-    "timestamp_utc": "2026-09-02T21:58:16Z",
-    "git_sha": "a6011ec465aaf1fe793c2e7f4f002fcb999770e9",
+    "timestamp_utc": "2026-09-03T01:44:59Z",
+    "git_sha": "d21d4f93c5868fea479e903710ada4d1ccf3df40",
     "git_branch": "main",
-    "sha_range": "5dc59fb3071a76068e3ec5d7237cfad46bf46637..a6011ec465aaf1fe793c2e7f4f002fcb999770e9",
-    "diff_stat": "21 files changed, 1492 insertions(+), 447 deletions(-)",
+    "sha_range": "a6011ec465aaf1fe793c2e7f4f002fcb999770e9..d21d4f93c5868fea479e903710ada4d1ccf3df40",
+    "diff_stat": "22 files changed, 1523 insertions(+), 460 deletions(-)",
     "model": "opus",
-    "report": "reports/2026-09-02-delta-run9.md",
-    "chain": "60a6773f68e9169f65d451332e919e0917f4615621cefa8afb47def1a383c8d9"
+    "report": "reports/2026-09-03-delta-run10.md",
+    "chain": "b30c5aab68e9a51e132ad41820fdb78fedb185009aa1caa7787ce83c48cd7721"
   },
   "isolation_check": {
     "result": "pass",
     "checks": [
       "1. no network/DB/credential usage: `grep -rlE \"requests\\.|httpx|urlopen|boto3|psycopg|DATABASE_URL\" tests/ src/` printed nothing (exit 1, no matches).",
       "2. pyproject.toml:90 `testpaths = [\"tests\"]` \u2014 the seeded-defect fixtures under eval/fixtures/ are not collected by the project suite.",
-      "3. the checkout was not mutated: `git -C <checkout> status --porcelain` at the end of the run shows only ` M .qa/test-ids.txt` (written by verdict-facts inside the QA root) and the pre-existing untracked `.claude/agents/`. Every mutation this run \u2014 five re-injections, nine mutmut applications, one over-correction probe \u2014 was made in a scratch copy under the session scratchpad.",
-      "4. NEW THIS RUN: the scratch copies were verified to be the code actually executed. `cp -a <checkout> <scratch>` carries `.venv`, whose editable-install `.pth` names the ORIGINAL checkout's `src` absolutely, so the first four re-injections imported the unmodified original and reported four false FIX-VERIFIED-by-absence results. Re-run with PYTHONPATH pinned to the scratch `src` (control printed the imported module path) all four bit. Filed as VERDICT-F-43."
+      "3. the checkout was not mutated: no file outside `.qa/` was touched at any point. `git status --porcelain` immediately before the final finalize showed only ` M .qa/test-ids.txt` (written by verdict-facts inside the QA root) plus the pre-existing untracked `.claude/agents/`. Every mutation this run \u2014 five mutant applications and four re-injections \u2014 was made in a scratch copy under the session scratchpad and restored byte-identically (each script asserts `restored: True`).",
+      "4. the scratch copy was verified to be the code that actually ran, per the contract clause 0.73.0 added: `PYTHONPATH=<scratch>/src` and a printed `verdict_mcp.__file__` inside the scratch. Without it the copy imported the ORIGINAL checkout \u2014 reproduced directly this run, which independently confirms VERDICT-F-43's mechanism.",
+      "5. NEW THIS RUN: the scratch's `__pycache__` was swept between injections and PYTHONDONTWRITEBYTECODE was set. Without that control one mutant (M3) read as SURVIVED while running an earlier mutant's cached bytecode \u2014 see VERDICT-F-50. The contract's prescribed check (`print(pkg.__file__)`) printed the correct path in both cases and could not tell them apart.",
+      "6. no forbidden command was run: no `git commit`/`push`/`checkout`/`stash`, no fixture or answer-key regeneration, no test edited/skipped/xfailed, no `npm install -g`, no Action `run` mode.",
+      "7. routing: only the in-repo `.qa/` was read or written. No user-level QA root, no $VERDICT_HOME, no network share was consulted."
     ]
   },
   "gates": {
@@ -27,10 +30,10 @@
       "command": "uv run --group dev python -m pytest tests/",
       "exit_code": 0,
       "result": "pass",
-      "duration_s": 72.17,
-      "summary": "674 passed in 71.94s (0:01:11)",
+      "duration_s": 74.82,
+      "summary": "690 passed in 74.55s (0:01:14)",
       "counts": {
-        "passed": 674
+        "passed": 690
       },
       "counts_dialect": "pytest"
     },
@@ -44,144 +47,135 @@
     }
   },
   "verification_notes": [
-    "5 open finding(s) cite no test id, so the harness cannot fix-verify them"
+    "9 open finding(s) cite no test id, so the harness cannot fix-verify them"
   ],
   "findings": [
     {
-      "id": "VERDICT-F-39",
-      "status": "resolved",
-      "title": "The 0.65.0 copier fix reads `mv` as a copy, so the strict bash guard now permits moving any file OUT of the checkout \u2014 including hooks/ itself \u2014 a shape it explicitly denied one commit earlier",
+      "id": "VERDICT-F-50",
+      "status": "open",
+      "title": "The isolation step 0.73.0 just added to the contract is defeated by a stale __pycache__, and the check it prescribes cannot see that: two same-size mutations of one file inside one second, and the second runs the first's bytecode",
       "severity": "Major",
       "priority": "P1",
       "failure_classification": "REAL_DEFECT",
       "confidence": "proven",
-      "fix_verified": true,
-      "verification_test": "tests/test_hooks.py::test_bash_blocks_moving_anything_out_of_the_checkout",
       "evidence": [
-        "RE-INJECTION, and the guard test failed: tests/test_hooks.py::test_bash_blocks_moving_anything_out_of_the_checkout. In a scratch copy of the tree (never the checkout) I restored the v0.66.0 shape \u2014 `_COPIERS = {\"cp\", \"mv\", \"install\", \"rsync\", \"ln\"}` with `_MOVERS = set()` \u2014 and tests/test_hooks.py went from `148 passed in 5.44s` to `1 failed, 147 passed in 5.39s`, with `AssertionError: expected deny for: mv .../repo/src/app.py .../scratch/app.py, assert 0 == 2`. Restoring the file returned it to 148 passed. Hooks are invoked by absolute path, so this re-injection is unaffected by VERDICT-F-43.",
-        "FIXED in d86ab07 (v0.68.0), hooks/enforce_bash_scope.py:47-53 and :367-412. `mv` left `_COPIERS` for a new `_MOVERS`; `_check_copier(head, args, moves=...)` now strips the destination out of `operands` and yields every remaining source as a target as well, and `rsync --remove-source-files` is treated as a move.",
-        "MEASURED IN BOTH DIRECTIONS, as the previous run's focus item asked, feeding the hook its own PreToolUse payload with VERDICT_STRICT=1 and cwd=<checkout>. 13 of 13 must-deny probes DENY(2): `mv <checkout>/src/verdict_mcp/state.py <scratch>/stolen.py`, `mv -t <scratch> <checkout>/src/verdict_mcp/state.py`, `mv <checkout>/hooks <scratch>/hooks_gone`, `mv --target-directory=<scratch> <checkout>/hooks/qa_paths.py`, `mv -- <checkout>/... <scratch>/x.py`, `mv <checkout>/a.py <checkout>/b.py <scratch>/`, `rsync -a --remove-source-files <checkout>/src/ <scratch>/m/`, plus the eight into-the-checkout writes that must stay refused.",
-        "AND THE OTHER DIRECTION IS INTACT \u2014 the fix did not restore the refusal by breaking the copier (VERDICT-F-37). 8 of 8 must-allow probes ALLOW(0): `cp -a <checkout> <scratch>/tree2`, single- and multi-source `cp` out, `cp -t <scratch> <checkout>/...`, `rsync -a <checkout>/src/ <scratch>/mirror/`, `ln -s <checkout>/... <scratch>/link.py`, `install -m 644 <checkout>/... <scratch>/a.py`, and `mv <scratch>/a.py <scratch>/b.py`.",
-        "THE OVER-CORRECTION IS GUARDED TOO, which is the claim CHANGELOG.md:0.68.0 makes. Setting `_MOVERS = {\"mv\", \"cp\", \"rsync\", \"ln\", \"install\"}` in a second scratch tree fails exactly three tests (`3 failed, 145 passed`) \u2014 the two copy-out tests and the explicit-target-directory test \u2014 so both halves of the mv/copy distinction are pinned.",
-        "THE SUITE COVERAGE GAP THE PREVIOUS RUN NAMED IS ONLY HALF CLOSED. tests/test_hooks.py:262-311, the parametrised denial table, still has an in-checkout destination on every entry (`mv a.py b.py`, `cp fix.py src/app.py`, `install -m 755 tool.sh bin/tool`, `ln -s a b`, `rsync a/ b/`), so the table alone would still not have seen this regression. The coverage arrived as three dedicated tests beside it instead, which is adequate for mv and rsync; `ln` and `install` are copiers and are correctly permitted outward, so they need no such row."
+        "Measured this run, same procedure twice, one variable changed. With `__pycache__` left in place: mutant M3 (validate.py:429 `continue` becomes `break`) reported `1 passed in 0.01s` for tests/test_validate.py::test_the_state_validator_keeps_checking_after_a_malformed_entry, i.e. SURVIVED. With `__pycache__` swept and PYTHONDONTWRITEBYTECODE=1: `1 failed in 0.05s`, i.e. KILLED. Killed 4 of 5 in the first pass, 5 of 5 in the second.",
+        "Mechanism, printed: after applying M2 (validate.py:198 `continue` becomes `break`) the source is 31075 bytes at mtime second 1788400567 and a .pyc is written; applying M3 gives an identical 31075 bytes at the identical mtime second 1788400567. CPython validates a cached .pyc on (source mtime seconds, source size), so M3's source loads M2's bytecode.",
+        "The prescribed check does not discriminate: in both runs `verdict_mcp.validate.__file__` printed the scratch path `.../scratchpad/tree/src/verdict_mcp/validate.py`. The path is right and the bytecode is wrong. `__cached__` was `.../tree/src/verdict_mcp/__pycache__/validate.cpython-313.pyc` in both.",
+        "Behavioural read-out, same probe: with the stale cache `validate()` returned ['findings[0] is not an object', \"findings[1] (PRC-F-2) severity 'Huge' not in [...]\"] and the guard test PASSES (mutant reported SURVIVED); after deleting `__pycache__` it returned only ['findings[0] is not an object'] and the guard test FAILS (mutant KILLED).",
+        "agents/verdict.md:221-227 (the paragraph 0.73.0 added) names PYTHONPATH and `print(<pkg>.__file__)` and says nothing about bytecode; docs/state-schema.md:319-326 repeats the same recipe for `verification.pythonpath`.",
+        "`cp -a <checkout> <scratch>` \u2014 the copy form the bash guard was widened in 0.65.0 to permit \u2014 carries every `__pycache__` in the tree, so the trap is armed by the contract's own recommended procedure."
       ],
-      "hash": "611103c0",
+      "root_cause": {
+        "mechanism": "CPython's cached-bytecode validation compares the source's mtime (truncated to whole seconds) and its size against the header of the .pyc. Successive injections into one file during a fast re-injection loop routinely land in the same second, and two mutations of the same kind \u2014 here `continue` to `break` at two different lines \u2014 produce files of identical size. When both hold, the interpreter reuses the previous injection's bytecode and the new injection is never executed.",
+        "origin": "Introduced as a contract gap by d21d4f9 (v0.73.0), which added the isolation paragraph and specified the import-path check as sufficient. The underlying interpreter behaviour is not a defect in this repository; the defect is that the procedure this repository mandates does not control for it and its stated verification cannot detect it.",
+        "class": {
+          "pattern": "searched for the same shape in the machine-side verifier: `_verify_findings`/`_run_test` in src/verdict_mcp/harness.py:399-534 sets PYTHONPATH but never sets PYTHONDONTWRITEBYTECODE and never sweeps `__pycache__`. It creates one scratch checkout per run and then overwrites HEAD's test files into it once per finding (harness.py:508-517), so two findings whose cited test files differ but happen to have the same byte size, copied inside one second, would hit the same trap.",
+          "sites": [
+            "agents/verdict.md:221-227",
+            "docs/state-schema.md:319-326",
+            "src/verdict_mcp/harness.py:399-410 and 508-534 (exposure, not demonstrated)"
+          ]
+        },
+        "trigger": "A re-injection loop fast enough to write two mutations of one file inside the same clock second \u2014 which is every loop this contract asks for, since the whole point is that re-injection is cheap.",
+        "latent_condition": "The contract states one check (`__file__`) and treats it as sufficient for the whole claim \"the copy runs its own code\". A check that cannot fail for a whole class of the thing it certifies reads identically to one that can.",
+        "fix_location": "spec \u2014 agents/verdict.md \u00a73 and the docs/state-schema.md twin. A machine-side belt-and-braces (PYTHONDONTWRITEBYTECODE in the verifier's env) is a code change worth taking at the same time.",
+        "proof": {
+          "method": "counterfactual",
+          "evidence": "Two runs of an identical re-injection over an identical scratch tree, differing only in whether `__pycache__` was swept: 4 of 5 mutants killed uncontrolled, 5 of 5 controlled. The one that flipped is M3, and the flip was reproduced a second time in isolation with the module's `__file__` and `__cached__` printed on both sides."
+        },
+        "confidence": "proven"
+      },
+      "hash": "3d940871",
       "first_seen": "2026-09-02",
       "age_days": 0,
-      "delta": "RESOLVED",
-      "outcome": "confirmed",
-      "outcome_basis": "claimed",
-      "outcome_reason": "fix-verified: claimed by the tester, and no harness measurement contradicts it"
+      "delta": "NEW",
+      "outcome": "unknown",
+      "outcome_reason": "still open; nothing has settled it"
     },
     {
-      "id": "VERDICT-F-36",
-      "status": "resolved",
-      "title": "The published track record still counts a claim-only confirmation as `held up` under a footnote that says the opposite: 0.64.0 split the counts in the state and in `reading`, but the report renderer prints neither",
+      "id": "VERDICT-F-42",
+      "status": "open",
+      "title": "The strict bash guard still permits archiving the checkout away \u2014 0.71.0 closed the exact command the finding quoted, but `tar -cf <scratch>/loot.tar --remove-files <checkout>/hooks` is allowed, because every option token containing the letter `f` is treated as taking an argument and `--remove-files` swallows the operand",
+      "severity": "Major",
+      "priority": "P1",
+      "failure_classification": "REAL_DEFECT",
+      "confidence": "proven",
+      "evidence": [
+        "Seven-case probe against hooks/enforce_bash_scope.py at HEAD, VERDICT_STRICT=1, real git checkout as cwd: case B `tar -cf <scratch>/loot.tar --remove-files <repo>/hooks` returns rc=0 (ALLOW) where DENY is required; case C `tar -c -f <scratch>/loot.tar --remove-files <repo>/hooks` also rc=0.",
+        "The reported shape is closed: case A `tar --remove-files -cf <scratch>/loot.tar <repo>/src` returns rc=2 (DENY) at HEAD and rc=0 (ALLOW) at a6011ec \u2014 the same probe run against `git show a6011ec:hooks/enforce_bash_scope.py`, where all four deletion cases were allowed (4 mismatches) against 2 at HEAD.",
+        "Mechanism traced directly: `_check_tar([\"-cf\", \"/s/loot.tar\", \"--remove-files\", \"/repo/hooks\"], \"/cwd\")` yields `[]`; `_check_tar([\"-c\", \"-f\", \"/s/loot.tar\", \"--remove-files\", \"/repo/hooks\"], \"/cwd\")` yields `[]`.",
+        "hooks/enforce_bash_scope.py:332-336 \u2014 `if t.startswith(\"-\"): if \"f\" in t.lstrip(\"-\"): next(it, None)`. `\"--remove-files\".lstrip(\"-\")` is `\"remove-files\"`, which contains `f`, so the token after it is consumed as if it were an archive name.",
+        "The same bug misreads the tested order too: `_check_tar([\"--remove-files\", \"-cf\", \"/s/x.tar\", \"/repo/src\"], \"/cwd\")` yields the archive `/s/x.tar` as a removal target as well as `/repo/src`. The passing test is right for half the wrong reason \u2014 `--remove-files` swallowed `-cf`, not the archive name.",
+        "The gap is visible in this run's own coverage: facts.json per_file marks hooks/enforce_bash_scope.py lines 330-331 unexercised \u2014 the `if t in skip: next(it, None); continue` branch, which is exactly the split `-c -f` path case C walks. Production changed-line coverage fell 100% (run 9) to 94% (this run) on those two lines alone."
+      ],
+      "root_cause": {
+        "mechanism": "The new `--remove-files` operand loop parses tar options by substring rather than by an option table: any token starting with `-` whose remainder contains `f` is assumed to take a separate argument. `--remove-files` satisfies that test, so whatever follows it \u2014 including the checkout path it is about to delete \u2014 is skipped without being yielded as a candidate target.",
+        "origin": "ad05c6f (v0.71.0), the F-42 fix itself. The loop is new in that commit; `git diff a6011ec..HEAD -- hooks/enforce_bash_scope.py` shows it added whole.",
+        "class": {
+          "pattern": "searched `hooks/enforce_bash_scope.py` for the same substring-option shape: two sites, both in `_check_tar`. Line 334 is this finding. Line 310-311 uses the identical idiom for `x` and produces the mirror-image error (a false DENY on `--exclude`), filed separately as VERDICT-F-49. `grep -n 'lstrip(\"-\")' hooks/enforce_bash_scope.py` returns exactly those two lines; the other handlers (`_check_find`, `_check_awk`, the rsync/cp arms) test whole tokens against sets and are not affected.",
+          "sites": [
+            "hooks/enforce_bash_scope.py:334",
+            "hooks/enforce_bash_scope.py:310-311 (mirror image, VERDICT-F-49)"
+          ]
+        },
+        "trigger": "None needed \u2014 the hole never closed. What changed is that the fix made the quoted command deny, which reads as the finding being closed.",
+        "latent_condition": "The three tests added with the fix use only the token order the finding's title quoted (`--remove-files` first, `-cf` combined). No test varies the argument order, so the fix was verified against the sentence rather than against the behaviour. This is the same shape as the 0.70.0 fixture-freshness claim that VERDICT-F-47 corrected, one release later.",
+        "fix_location": "code \u2014 hooks/enforce_bash_scope.py `_check_tar`, which needs a real option table (`-f/--file` and `-C/--directory` take arguments; nothing else in tar's create path does) rather than a substring test.",
+        "proof": {
+          "method": "counterfactual",
+          "evidence": "The same seven-case probe run against the previous commit's guard and against HEAD's: 4 deletion cases allowed at a6011ec, 2 still allowed at HEAD, controls (plain create allowed, extract-into-checkout denied, scratch-only deletion allowed) identical on both."
+        },
+        "confidence": "proven"
+      },
+      "hash": "8a7dbdaa",
+      "first_seen": "2026-09-02",
+      "age_days": 0,
+      "delta": "STILL_OPEN",
+      "outcome": "unknown",
+      "outcome_reason": "still open; nothing has settled it"
+    },
+    {
+      "id": "VERDICT-F-52",
+      "status": "open",
+      "title": "The 0.73.0 prompt release says it was eval-paid, but no eval row was published for it, and the fixture it names cannot distinguish the new contract from the old \u2014 the seeded pricer key has no row that touches re-injection isolation and the fixture has no importable package to isolate",
       "severity": "Major",
       "priority": "P2",
       "failure_classification": null,
       "confidence": "proven",
-      "fix_verified": true,
-      "verification_test": "tests/test_calibration.py::test_the_report_prints_how_many_of_the_confirmations_were_measured",
       "evidence": [
-        "RE-INJECTION, and the guard tests failed: tests/test_calibration.py::test_the_report_prints_how_many_of_the_confirmations_were_measured. In a scratch copy with PYTHONPATH pinned to the scratch `src` (see VERDICT-F-43), forcing `split = False` at harness.py:1793 took the pair of renderer tests from `2 passed` to `1 failed, 1 passed`; restoring returned `2 passed`. Restoring the old footnote wording independently took its own guard from `1 passed` to `1 failed` and back.",
-        "FIXED in a6011ec (v0.70.0), src/verdict_mcp/harness.py:1786-1815 \u2014 the defect was in `_render_calibration`, not in the state block that 0.64.0 already fixed, which is what the previous run's focus item said to judge.",
-        "JUDGED ON THE RENDERED OUTPUT, not the state. Calling `_render_calibration` on this project's own stored calibration prints `| Confidence claimed | Held up | of those, measured | Withdrawn | Rate |` with the row `| proven | 19 | 0 | 0 | _not yet_ |`, and the footnote now reads \"a resolution nobody checked at all settles nothing\" instead of \"a finding merely resolved is not evidence either way\". Both halves the finding named are in the artifact a human reads.",
-        "A RESIDUAL IS FILED SEPARATELY rather than held under this id: the new column conflates a row written before `outcome_basis` existed with a row that was measured and found wanting. See VERDICT-F-45."
+        "CHANGELOG.md:37-40 \u2014 \"**Prompt edits are eval-paid here, so this one was paid.** The seeded pricer eval scores **6/6 with no hard failures** against the edited prompt, matching the published baseline.\"",
+        "eval/README.md's \"Published results\" table has no row for the 0.73.0 prompt. Its most recent row is dated 2026-09-01 for the v0.50.0 prompt; `grep -n \"0\\.7[0-3]\" eval/README.md` returns no table row at all.",
+        "`git diff a6011ec..HEAD --stat` shows d21d4f9 touching six files \u2014 .claude-plugin/plugin.json, CHANGELOG.md, agents/verdict.md, docs/state-schema.md, pyproject.toml, server.json. eval/README.md and eval/corpus/ are not among them, so neither a row nor an archived run was added.",
+        "This project's own convention for the other two prompt releases was to publish: `git log --follow agents/verdict.md` shows exactly three touches in this era \u2014 672dc98 (v0.47.0), 22c0e90 (v0.50.0), d21d4f9 (v0.73.0) \u2014 and both earlier ones carry dated eval/README rows, at n=3 with a byte-identical control prompt for v0.50.0.",
+        "CHANGELOG.md:888-890 states the standard the 0.73.0 evidence falls short of: \"a prompt edit is a behaviour change, so this release is gated on measurement, and the order was strict \u2014 measure the standing behaviour first, then edit, then measure again.\" No before-measurement is recorded for 0.73.0.",
+        "The instrument cannot discriminate even in principle. eval/expected-delta.json's six rows are regressed-rounding, new-bulk-threshold, still-open-floor, resolved-env-fixture, quarantine-released-on-expiry and verdict \u2014 none scores whether a re-injection was isolated. `grep -il \"pythonpath|isolat|re-inject\" eval/expected*.json eval/score.py` returns nothing.",
+        "And the failure mode cannot arise on that fixture: `ls eval/fixtures/pricer_rev_b` is CHANGELOG.md, README.md, pricer.py, test_pricer.py \u2014 no package, no virtualenv, no editable install, so there is no `.pth` for the new paragraph to protect against. A 6/6 there is a non-regression control, which is worth having and is not payment."
       ],
-      "hash": "7f0d1ead",
-      "first_seen": "2026-09-02",
-      "age_days": 0,
-      "delta": "RESOLVED",
-      "verification": {
-        "test": "tests/test_calibration.py::test_the_tally_separates_what_was_measured_from_what_was_asserted",
-        "selected_by": "first_cited",
-        "candidates": 1,
-        "previous_sha": "5dc59fb3071a76068e3ec5d7237cfad46bf46637",
-        "at_previous": "pass",
-        "at_head": "pass",
-        "test_copied_from_head": true,
-        "pythonpath": [
-          "/var/folders/95/670m4j2n4738g9pq1tq1mq8c0000gn/T/verdict-verify-0dfwbll9/src",
-          "/var/folders/95/670m4j2n4738g9pq1tq1mq8c0000gn/T/verdict-verify-0dfwbll9"
-        ],
-        "summary": "1 passed in 0.03s \u2192 1 passed in 0.01s"
+      "root_cause": {
+        "mechanism": "The release's central change is behavioural (a contract clause) and the only instrument that can see behaviour is a model run. One was reported in prose and not recorded anywhere a later reader can join it to a fixture, a model, a prompt version or an n; and the fixture named scores six rows, none of which can be affected by the clause under test.",
+        "origin": "d21d4f9 (v0.73.0). The claim and the omission arrive together.",
+        "class": {
+          "pattern": "searched the changelog for the same claim shape: `grep -n \"eval-paid\" CHANGELOG.md` returns three sites \u2014 0.47.0 (line 886), the full_sweep paragraph (line 736) and this one (line 37). The first two have published rows; this is the only unpublished instance. So it is an instance, not yet a pattern.",
+          "sites": [
+            "CHANGELOG.md:37-40"
+          ]
+        },
+        "trigger": "The change is documentation-shaped, which makes the publication step feel optional in a way a code change would not.",
+        "latent_condition": "Nothing checks that a changelog eval claim has a matching eval/README row. tests/test_commands.py:65 already treats {CHANGELOG.md, eval/README.md} as one 'history' pair for a different sweep, so the join is cheap to add and does not exist.",
+        "fix_location": "process and docs \u2014 publish the row (model, fixture, mode, prompt version, n, score) or soften the claim; separately, a fixture that can exercise an isolated re-injection is new work and should be named as such rather than implied.",
+        "proof": {
+          "method": "reading",
+          "evidence": "The absence of the row is directly observable in eval/README.md and in the commit's file list; the non-discrimination follows from the answer key's six rows and the fixture's four files, both read in full."
+        },
+        "confidence": "proven"
       },
-      "outcome": "confirmed",
-      "outcome_basis": "claimed",
-      "outcome_reason": "fix-verified: claimed by the tester, and no harness measurement contradicts it"
-    },
-    {
-      "id": "VERDICT-F-13",
-      "status": "resolved",
-      "title": "fixture_freshness reproduces the fixture lossily: content of tracked files only, so mode changes, symlink swaps and planted untracked files are invisible, and a missing tracked file tracebacks",
-      "severity": "Minor",
-      "priority": "P2",
-      "failure_classification": null,
-      "confidence": "proven",
-      "fix_verified": true,
-      "verification_test": "tests/test_fixture_freshness.py::test_a_mode_change_is_no_longer_invisible",
-      "evidence": [
-        "RE-INJECTION, and three guard tests failed: tests/test_fixture_freshness.py::test_a_mode_change_is_no_longer_invisible. Reverting eval/fixture_freshness.py to its v0.66.0 content in a scratch tree took the new module from `4 passed in 2.13s` to `3 failed, 1 passed in 1.26s`; restoring returned `4 passed`. This file is a standalone script invoked by path, so the re-injection is unaffected by VERDICT-F-43.",
-        "FIXED in a6011ec (v0.70.0), eval/fixture_freshness.py:56-70 and :76. `copy2(follow_symlinks=False)` replaces `copyfile`, a tracked file missing from the working tree now raises a named SystemExit instead of reaching `copyfile`, and `git ls-files --others --exclude-standard` refuses an untracked file planted under the fixture pair.",
-        "THE FOURTH BLIND SPOT \u2014 a symlink swapped for a regular file \u2014 WAS PROBED BY HAND, because the suite does not cover it. Built a miniature fixture repo, anchored it green (`rc=0, OK, 8 lines`), replaced a tracked regular file with a symlink to identical content outside the tree: the gate now fails, `rc=1, regenerated: 16 lines`. The fix genuinely covers it; only the test is missing (VERDICT-F-47).",
-        "THE GATE ITSELF PASSED THIS RUN, measured by the harness: exit 0 in 0.07s, \"fixture_freshness: OK \u2014 pricer-delta.diff still describes the fixture pair (78 lines)\".",
-        "ONE EDGE REMAINS AND IS DELIBERATE, not filed as a defect: `--exclude-standard` means a planted file matching a .gitignore rule is still invisible. Probed and reproduced (`rc=0, OK` with `scratch_evil.py` planted under an ignore rule). The code comment states the trade-off and the alternative would re-open the `__pycache__` false alarm the whole design exists to avoid."
-      ],
-      "hash": "87511860",
-      "first_seen": "2026-08-30",
-      "age_days": 3,
-      "delta": "RESOLVED",
-      "outcome": "confirmed",
-      "outcome_basis": "claimed",
-      "outcome_reason": "fix-verified: claimed by the tester, and no harness measurement contradicts it"
-    },
-    {
-      "id": "VERDICT-F-40",
-      "status": "resolved",
-      "title": "A measurement the harness itself records as \"too weak to refuse a resolution\" is still strong enough to deny that resolution its ledger row, and the ledger publishes a reason contradicting the harness's own note",
-      "severity": "Minor",
-      "priority": "P2",
-      "failure_classification": "REAL_DEFECT",
-      "confidence": "proven",
-      "fix_verified": true,
-      "verification_test": "tests/test_calibration.py::test_a_measurement_the_harness_declined_to_weigh_does_not_deny_the_row",
-      "evidence": [
-        "RE-INJECTION, and the guard test failed: tests/test_calibration.py::test_a_measurement_the_harness_declined_to_weigh_does_not_deny_the_row. In a scratch copy with PYTHONPATH pinned to the scratch `src`, rewriting the new clause at harness.py:1140-1141 back to an unconditional `and True` took the pair from `2 passed` to `1 failed, 1 passed`; restoring returned `2 passed`.",
-        "FIXED in d86ab07 (v0.68.0), src/verdict_mcp/harness.py:1135-1141: `contradicts = attempted and v.get(\"at_head\") == \"fail\" and not v.get(\"not_weighed\")`. The two layers now read one record the same way.",
-        "THE FALSE-POSITIVE HALF IS PINNED TOO: a deliberately chosen test that still fails at HEAD is a contradiction and still denies the row, guarded by its own test in the same module."
-      ],
-      "hash": "50474551",
+      "hash": "927656c7",
       "first_seen": "2026-09-02",
       "age_days": 0,
-      "delta": "RESOLVED",
-      "outcome": "confirmed",
-      "outcome_basis": "claimed",
-      "outcome_reason": "fix-verified: claimed by the tester, and no harness measurement contradicts it"
-    },
-    {
-      "id": "VERDICT-F-41",
-      "status": "resolved",
-      "title": "The permanent ledger records an outcome and a prose reason but not the measurement behind it, so a `confirmed` row cannot be audited once its finding leaves state.json \u2014 19 of this project's 21 confirmed rows are already unjoinable",
-      "severity": "Minor",
-      "priority": "P3",
-      "failure_classification": null,
-      "confidence": "proven",
-      "fix_verified": true,
-      "verification_test": "tests/test_calibration.py::test_the_ledger_row_keeps_the_measurement_not_only_the_sentence",
-      "evidence": [
-        "RE-INJECTION, and the guard test failed: tests/test_calibration.py::test_the_ledger_row_keeps_the_measurement_not_only_the_sentence. Deleting the new `\"verification\": _verification_digest(finding),` line from state.py's `outcome_row` in a scratch copy with PYTHONPATH pinned took the pair from `2 passed` to `1 failed, 1 passed`; restoring returned `2 passed`.",
-        "FIXED in d86ab07 (v0.68.0), src/verdict_mcp/state.py:222-231 and :249, and documented at docs/state-schema.md:325-329.",
-        "THE FIX IS FORWARD-LOOKING ONLY, and this is worth stating so nobody reads the finding as retroactively repaired. Re-running the run-7 join over .qa/outcomes.json this run: 40 rows, 23 `confirmed`, 17 `unknown`; **0 of 40 carry a `verification` digest** (the field lands for the first time on rows written by this run), and only 2 of the 23 confirmed rows still have a finding in state.json to join to. The 21 historical unjoinable confirmations stay unjoinable.",
-        "A RESIDUAL IS FILED SEPARATELY: the digest keeps four fields and drops the two that explain why a failing measurement did not count. See VERDICT-F-46."
-      ],
-      "hash": "6c241826",
-      "first_seen": "2026-09-02",
-      "age_days": 0,
-      "delta": "RESOLVED",
-      "outcome": "confirmed",
-      "outcome_basis": "claimed",
-      "outcome_reason": "fix-verified: claimed by the tester, and no harness measurement contradicts it"
+      "delta": "NEW",
+      "outcome": "unknown",
+      "outcome_reason": "still open; nothing has settled it"
     },
     {
       "id": "VERDICT-F-26",
@@ -192,28 +186,27 @@
       "failure_classification": "REAL_DEFECT",
       "confidence": "proven",
       "evidence": [
-        "UNTOUCHED IN THIS RANGE for the mechanism that is still open: `git diff 5dc59fb..a6011ec -- src/verdict_mcp/harness.py` changes only `_stamp_outcome` (VERDICT-F-40) and `_render_calibration` (VERDICT-F-36). `cited_tests` (harness.py:298-330), `select_test` (:333-348) and the `not_weighed` guard in `_apply_verification` (:558-566) are byte-identical to the versions the previous run cited.",
-        "RE-PROVEN AT HEAD BY DIFFERENTIAL, exactly the two-real-ids probe the previous run's focus item specified. A resolved finding whose prose evidence names another finding's guard first and its own guard second, where BOTH ids landed this run so both are in `preferred`. Arm 1, both in `preferred`: harness.py:329 reorders `rest` stably, so prose order survives, the pick is the WRONG test, and `select_test` labels it `added_this_run`. `_apply_verification` then reads `arbitrary = selected_by == \"first_cited\" and candidates > 1` as False, so the `not_weighed` shield does not fire \u2014 and with `at_head == \"fail\"` the finding is force-reopened: status `open`, delta `STILL_OPEN`, `fix_verified` stripped, `resolution_refused` set naming a test that does not guard it.",
-        "ARM 2, THE CONTROL, same finding and same pick with `preferred` empty: the label is `first_cited`, `not_weighed` fires, and the resolution stands. So the 0.65.0 shield is switched OFF by precisely the condition it exists for \u2014 a fix that ships with its own regression test, where every candidate is new.",
-        "ARM 3: an explicit `verification_test` still wins. With it set, the candidate list is reordered, the pick is the finding's own guard and the label is `explicit`. That half of 0.65.0's fix holds, and it is the workaround this run used on every finding it resolved.",
-        "THE HARNESS DID IT AGAIN THIS RUN, unprompted, on this project's own data: facts.json's `verification` block chose tests/test_calibration.py::test_the_tally_separates_what_was_measured_from_what_was_asserted for VERDICT-F-36 \u2014 the state-side guard from 0.64.0, not the renderer guard the finding was about. The measurement was pass/pass and settled nothing either way, so no harm landed; the selection was still of a third party."
+        "Untouched by this range: `git diff a6011ec..HEAD -- src/verdict_mcp/harness.py` changes only `is_test_file`/`by_kind` (the F-44 split) and `_render_calibration` (the F-45 footnote). The selector at harness.py:329 and the `first_cited` path are byte-identical.",
+        "It acted on live data again this run: facts.json `verification` contains one entry, for VERDICT-F-26 itself, selecting tests/test_calibration.py::test_the_tally_separates_what_was_measured_from_what_was_asserted with `selected_by: first_cited`, `candidates: 1`, at_previous `pass`, at_head `pass` \u2014 a measurement of a third party that settles nothing about F-26.",
+        "facts.json verification_notes: \"9 open finding(s) cite no test id, so the harness cannot fix-verify them\" \u2014 the selector is all-or-nothing, so the same scraping is the only route to a machine verification."
       ],
       "hash": "f6c0bdc3",
       "first_seen": "2026-09-02",
       "age_days": 0,
       "delta": "STILL_OPEN",
       "verification": {
-        "test": "tests/test_verification.py::test_a_node_id_scraped_from_prose_is_never_run",
+        "test": "tests/test_calibration.py::test_the_tally_separates_what_was_measured_from_what_was_asserted",
         "selected_by": "first_cited",
         "candidates": 1,
-        "previous_sha": "5dc59fb3071a76068e3ec5d7237cfad46bf46637",
+        "previous_sha": "a6011ec465aaf1fe793c2e7f4f002fcb999770e9",
         "at_previous": "pass",
         "at_head": "pass",
+        "test_copied_from_head": true,
         "pythonpath": [
-          "/var/folders/95/670m4j2n4738g9pq1tq1mq8c0000gn/T/verdict-verify-0dfwbll9/src",
-          "/var/folders/95/670m4j2n4738g9pq1tq1mq8c0000gn/T/verdict-verify-0dfwbll9"
+          "/var/folders/95/670m4j2n4738g9pq1tq1mq8c0000gn/T/verdict-verify-h6kzs9fs/src",
+          "/var/folders/95/670m4j2n4738g9pq1tq1mq8c0000gn/T/verdict-verify-h6kzs9fs"
         ],
-        "summary": "1 passed in 0.21s \u2192 1 passed in 0.89s"
+        "summary": "1 passed in 0.05s \u2192 1 passed in 0.01s"
       },
       "outcome": "unknown",
       "outcome_reason": "still open; nothing has settled it"
@@ -227,28 +220,14 @@
       "failure_classification": null,
       "confidence": "proven",
       "evidence": [
-        "UNTOUCHED IN THIS RANGE: `git diff --name-only 5dc59fb..a6011ec` lists neither src/verdict_mcp/gate.py nor tests/test_chain.py, and the only state.py change is the ledger digest (VERDICT-F-41). The mechanism the previous run measured across five gate arms stands unchanged.",
-        "NO NEW EVIDENCE WAS GATHERED AND NONE WAS SOUGHT, stated so the age is not read as fresh confirmation. This finding is blocked on a maintainer decision, not on testing: is deleting `outcomes.json`'s `chain` key an accepted residual risk? Testing around a policy question would produce more measurement and no progress.",
-        "THE SPECIFICATION TODAY IS THE TEST SUITE, which is what makes this a decision and not a bug report. tests/test_chain.py:162-179 asserts the arm-D shape is acceptable \u2014 `unchain(qa_root)` deletes the anchor by default \u2014 so changing the behaviour means changing those tests first. If the answer is \"accepted\", CHANGELOG.md:32-34 still states a price the deletion does not pay and should be corrected; if it is \"not accepted\", the ratchet has to leave the QA root, because no in-root anchor can distinguish a stripped project from a pre-upgrade one.",
-        "The harness re-ran a chain test for this finding this run (`1 passed` at both 5dc59fb and HEAD). That is an inconclusive measurement about the delivered half of the fix and says nothing about the open half."
+        "Untouched by this range: `git diff a6011ec..HEAD -- src/verdict_mcp/state.py` changes only `_verification_digest`'s key tuple (the F-46 fix); tests/test_chain.py is not in the range at all.",
+        "CHANGELOG.md:32-34 still states a price the deletion does not pay \u2014 unchanged this run.",
+        "Awaiting a maintainer decision rather than a measurement: either the residual is accepted and the changelog corrected, or the ratchet moves out of the QA root. tests/test_chain.py:162-179 is the specification either way."
       ],
       "hash": "1009c259",
       "first_seen": "2026-09-01",
       "age_days": 1,
       "delta": "STILL_OPEN",
-      "verification": {
-        "test": "tests/test_chain.py::test_deleting_the_history_of_a_chained_project_is_a_break",
-        "selected_by": "first_cited",
-        "candidates": 1,
-        "previous_sha": "5dc59fb3071a76068e3ec5d7237cfad46bf46637",
-        "at_previous": "pass",
-        "at_head": "pass",
-        "pythonpath": [
-          "/var/folders/95/670m4j2n4738g9pq1tq1mq8c0000gn/T/verdict-verify-0dfwbll9/src",
-          "/var/folders/95/670m4j2n4738g9pq1tq1mq8c0000gn/T/verdict-verify-0dfwbll9"
-        ],
-        "summary": "1 passed in 1.17s \u2192 1 passed in 0.15s"
-      },
       "outcome": "unknown",
       "outcome_reason": "still open; nothing has settled it"
     },
@@ -261,13 +240,11 @@
       "failure_classification": null,
       "confidence": "proven",
       "evidence": [
-        "UNTOUCHED IN THIS RANGE for this mechanism: the only change to hooks/enforce_bash_scope.py in 5dc59fb..a6011ec is the `_MOVERS` split and `_check_copier(moves=...)` (lines 43-53, 364-412). The redirection scan `_REDIRECT` and the segment splitter are byte-identical to the versions the previous run cited.",
-        "RE-PROVEN FIVE TIMES THIS RUN, each on a read-only command, each costing a round trip, and every one of them inside a single-quoted heredoc where no redirection existed. (1) A probe script containing `len(sys.argv)` compared against 1 with a greater-than sign: the comparison inside the quoted Python body was read as an output redirection and refused with \"output redirection targets '.../verdict-clone/1'\". That was the first probe of the run.",
-        "(2) A results-printing line containing the literal arrow written as a hyphen followed by a greater-than sign, refused with a target of the next token. (3) A survivor-classifying helper comparing a count against 2, refused with a target of `=`. (4) A JSON-patching script whose *string data* quoted one of this run's own findings, whose text in turn quoted a source line containing a comparison \u2014 refused with a target of `` 0` ``. The guard read a quotation of a quotation of source as live syntax.",
-        "(5) THE SHARPEST ONE, and the reason this stays open rather than being written off as cosmetic: the follow-up script that tried to record reproductions 1 to 4 was itself refused, because the evidence text it carried contained the placeholder `[checkout]` written with angle brackets \u2014 the guard's own error-message format. Reporting the defect in the guard's own words is a command the guard refuses.",
-        "THE COST IS REAL AND MEASURABLE: five of this run's Bash calls were refused and had to be rewritten to avoid greater-than and less-than characters anywhere inside quoted Python source. That meant writing comparisons as `not in (0, 1)`, spelling operators out in prose, and staging two finding texts through separate JSON files written with the Write tool rather than inline. Every one of the five was a read-only measurement.",
-        "NOT EVERY REFUSAL THIS RUN WAS THIS DEFECT, and the distinction matters. A `mkdir` refused for an unresolved `$variable`, and an `rm .mutmut-cache` resolved against the hook's cwd rather than a preceding `cd`, are both the guard behaving exactly as designed and documented at hooks/enforce_bash_scope.py:22-26. Only the five above are the quoted-body misread.",
-        "THE ASYMMETRY WORTH NOTING FOR THE FIX: the Write tool's guard (enforce_write_scope.py) permits only a .qa/ directory or the solo root, while the Bash guard additionally permits scratch under a temp dir. So the natural workaround for this defect \u2014 write the probe script with the Write tool instead of a heredoc \u2014 is itself refused, and the only remaining path is a heredoc that avoids the characters. Both guards are behaving as specified; the combination leaves no clean route."
+        "Four blocked read-only commands this run, each costing a round trip. (1) A Python format spec `{rc:>3}` inside a single-quoted heredoc body: \"output redirection targets '<checkout>/3} (a git checkout under /private/tmp)'\".",
+        "(2) A string literal `\"<tmp>\"` inside the same kind of heredoc: \"output redirection targets '<checkout>/\\\"))'\".",
+        "(3) A `->` inside a module docstring: \"output redirection targets '<checkout>/the'\".",
+        "(4) NEW SHAPE, same family: `cd <scratchpad> && cat > trace2.py <<'EOF'` \u2014 a genuine redirect whose relative target was resolved against the tool's cwd rather than the `cd` in the same command, so a write to a temp scratch dir was refused as a write to the checkout: \"output redirection targets '<checkout>/trace2.py'\". Folded in here rather than given a new id because the harm and the file are the same; noted as a distinct mechanism.",
+        "Workaround used all four times: literal absolute paths and no `<`, `>` or `->` anywhere in a heredoc body. The guard's refusal of an unexpanded `$S/...` variable is by contrast a deliberate, well-messaged fail-closed and is not part of this finding."
       ],
       "hash": "ae408082",
       "first_seen": "2026-09-01",
@@ -277,21 +254,159 @@
       "outcome_reason": "still open; nothing has settled it"
     },
     {
-      "id": "VERDICT-F-42",
+      "id": "VERDICT-F-49",
       "status": "open",
-      "title": "The strict bash guard's `tar` handler only inspects extraction, so `tar --remove-files -cf <scratch>/loot.tar <checkout>/hooks` is permitted \u2014 archive-then-delete is the same remove-what-you-read shape as the `mv` regression 0.68.0 just fixed",
-      "severity": "Major",
+      "title": "The same substring option parsing in the other direction: any tar flag containing the letter `x` reads as an extraction, so `tar --exclude=.venv -cf <scratch>/x.tar <checkout>/src` is denied as an overwrite of the current directory",
+      "severity": "Minor",
       "priority": "P2",
-      "failure_classification": "REAL_DEFECT",
+      "failure_classification": null,
       "confidence": "proven",
       "evidence": [
-        "hooks/enforce_bash_scope.py:309-318 `_check_tar` computes `extracting` from an `x` in the mode operand and returns immediately when it is False. Creating an archive is therefore never examined, and GNU tar's `--remove-files` deletes each source after adding it \u2014 the same class as `mv` and `rsync --remove-source-files`, both of which d86ab07 (v0.68.0) added to `_MOVERS` while leaving this one alone.",
-        "PROVEN AT HEAD by feeding the hook its own PreToolUse payload with VERDICT_STRICT=1 and cwd=<checkout>: `tar --remove-files -cf <scratch>/loot.tar <checkout>/hooks` ALLOW(0), `tar --remove-files -cf <scratch>/loot.tar <checkout>/src/verdict_mcp/state.py` ALLOW(0), `tar -czf <scratch>/loot.tgz --remove-files <checkout>/hooks/enforce_bash_scope.py` ALLOW(0), and `gtar --remove-files -cf <scratch>/loot.tar <checkout>/hooks` ALLOW(0). The control in the same batch, `tar -xf <scratch>/evil.tar -C <checkout>`, is correctly DENY(2), so the handler runs and simply does not look at this half.",
-        "THE IMPACT HALF IS DOCUMENTED, NOT EXECUTED, and I am not going to overstate it: this machine's bsdtar has no `--remove-files` (`tar --help` does not mention it), so the deletion could not be demonstrated here. GNU tar documents `--remove-files` as \"remove files after adding them to the archive\", and the project's CI matrix includes ubuntu, where tar is GNU tar. What is measured is the guard decision; what is inherited is the consequence.",
-        "THIS IS THE CLASS LINK THE 0.68.0 FIX DID NOT COMPLETE. Searching the dispatcher at hooks/enforce_bash_scope.py:340-374 for every handler over a command that can remove what it read: `_MUTATORS` (rm/rmdir/unlink/shred/truncate) treat all operands as targets and are safe; `_check_find` covers `-delete` and `-exec <mutator>`; `_check_copier` now covers `mv` and `rsync --remove-source-files`; `_check_tar` covers extraction only. `tar` create-with-removal is the one remaining site, and it is the only one.",
-        "SCOPE, stated because the hook's own docstring pre-empts part of it: hooks/enforce_bash_scope.py:10-17 says unknown commands are allowed and \"a determined command can evade string analysis\". `tar` is not an unknown command \u2014 it has a dedicated handler the project chose to write \u2014 so this is a gap inside declared scope, not the documented heuristic boundary."
+        "`_check_tar([\"--exclude=.venv\", \"-cf\", \"/s/x.tar\", \"/repo/src\"], \"/cwd\")` yields `[('tar extract (overwrites in place)', '/cwd')]` \u2014 a create is reported as an extraction, and the flagged target is the cwd, which for a QA session is the checkout.",
+        "`_check_tar([\"-cf\", \"/s/x.tar\", \"--exclude\", \"junk\", \"/repo/src\"], \"/cwd\")` yields the same.",
+        "hooks/enforce_bash_scope.py:310-311 \u2014 `extracting = (any(t.startswith(\"-\") and \"x\" in t.lstrip(\"-\") for t in args) ...)`. `\"--exclude=.venv\".lstrip(\"-\")` contains `x`.",
+        "Archaeology: `git log -L 310,311:hooks/enforce_bash_scope.py` names 27eabd5 (v0.45.0) as the commit that introduced this line. It predates the 0.71.0 tar work and was not touched by it.",
+        "Practical cost: `tar --exclude=.venv -cf <scratch>/backup.tar <checkout>` is the natural way to snapshot a checkout for a re-injection without dragging 49 MB of virtualenv along \u2014 the exact operation the contract's scratch-copy step asks for, refused."
       ],
-      "hash": "8a7dbdaa",
+      "root_cause": {
+        "mechanism": "Extraction is detected by testing whether the letter `x` appears anywhere in an option token's body, which is sound for bundled short flags (`-xzf`) and wrong for every long option containing an x. `--exclude`, `--xattrs` and `--extract`-adjacent spellings all match; the handler then reports an extract whose target defaults to the cwd.",
+        "origin": "27eabd5 (v0.45.0), per `git log -L 310,311:hooks/enforce_bash_scope.py`.",
+        "class": {
+          "pattern": "the mirror of VERDICT-F-42's line 334. `grep -n 'lstrip(\"-\")' hooks/enforce_bash_scope.py` returns exactly these two sites, and both should be replaced by the same option table.",
+          "sites": [
+            "hooks/enforce_bash_scope.py:310-311"
+          ]
+        },
+        "trigger": "None; latent since v0.45.0 and only reachable by a `tar` invocation with a long option containing an x, which nothing in this repository's own tests uses.",
+        "latent_condition": "The tar handler has no test for a create with long options at all \u2014 the three tests added in 0.71.0 use short bundled flags exclusively.",
+        "fix_location": "code \u2014 hooks/enforce_bash_scope.py:310-311, together with the F-42 fix at line 334.",
+        "proof": {
+          "method": "counterfactual",
+          "evidence": "Direct invocation of the handler with and without the `--exclude` token: with it, an extract is reported against the cwd; without it, nothing is yielded and the identical create is allowed."
+        },
+        "confidence": "proven"
+      },
+      "hash": "2d99a695",
+      "first_seen": "2026-09-02",
+      "age_days": 0,
+      "delta": "NEW",
+      "outcome": "unknown",
+      "outcome_reason": "still open; nothing has settled it"
+    },
+    {
+      "id": "VERDICT-F-51",
+      "status": "open",
+      "title": "The footnote 0.72.0 added to close VERDICT-F-45 reports the largest per-bucket count where its sentence scopes over every confirmation, so the published table says `Up to 17` of 28 confirmations are unrecorded when 21 of them are",
+      "severity": "Minor",
+      "priority": "P2",
+      "failure_classification": null,
+      "confidence": "proven",
+      "evidence": [
+        "Rendered from the committed .qa/state.json through `verdict_mcp.harness._render_calibration`, the published line reads: \"*Up to 17 of those confirmations were settled before `outcome_basis` was recorded and are neither kind. They are counted in `held up` and in no other column\u2026*\"",
+        "The same state's per-bucket arithmetic: proven 24 confirmed \u2212 0 measured \u2212 7 claimed = 17; unstated 3 \u2212 0 \u2212 0 = 3; probable 1 \u2212 0 \u2212 0 = 1. Sum 21, maximum 17, total confirmed 28.",
+        "src/verdict_mcp/harness.py:1838-1839 \u2014 `unrecorded = max((v.get(\"confirmed\", 0) - v.get(\"confirmed_measured\", 0) - v.get(\"confirmed_claimed\", 0) for v in buckets), default=0)`. The generator is per bucket; the sentence it feeds says \"those confirmations\", which is the whole `held up` column.",
+        "Reader consequence, which is precisely what VERDICT-F-45 was filed about: the table shows 28 held up and 0 measured, so subtracting the stated 17 leaves 11 that appear to be measured or the tester's word, when the true attributable count is 7 \u2014 all `claimed`, all in the proven row.",
+        "The fix is otherwise sound and fix-verified this run: re-injecting `if unrecorded:` as `if False:` fails tests/test_calibration.py::test_the_report_says_how_many_confirmations_predate_the_basis while the negative control test_no_such_line_when_every_confirmation_carries_a_basis still passes."
+      ],
+      "root_cause": {
+        "mechanism": "`max` over the buckets answers \"what is the largest number of unrecorded confirmations in any one row\"; the sentence asks \"how many of the confirmations in this table are unrecorded\". Those coincide only when a single bucket carries them all, which is true for by_proof_method (empty) and false for by_confidence here.",
+        "origin": "b814a24 (v0.72.0), the VERDICT-F-45 fix.",
+        "class": {
+          "pattern": "searched `src/verdict_mcp/harness.py` for other cross-bucket aggregates in the renderer: `grep -n 'max(\\|sum(' src/verdict_mcp/harness.py` in `_render_calibration` returns only this one; the table rows themselves are rendered per bucket and are correct.",
+          "sites": [
+            "src/verdict_mcp/harness.py:1838-1839"
+          ]
+        },
+        "trigger": "Any project whose unrecorded confirmations span more than one confidence bucket \u2014 which this one's do, and have since the `outcome_basis` field was introduced.",
+        "latent_condition": "The test written with the fix asserts the line appears and does not assert its number against an independently computed total, so any aggregation function that returns a positive integer passes it.",
+        "fix_location": "code \u2014 sum the per-bucket differences, or print the count per row instead of one footnote for the table.",
+        "proof": {
+          "method": "differential",
+          "evidence": "The renderer's own output (`Up to 17`) against the same state's arithmetic (17 + 3 + 1 = 21 unrecorded of 28 confirmed), both computed in one pass over the committed state.json."
+        },
+        "confidence": "proven"
+      },
+      "hash": "e5b552f9",
+      "first_seen": "2026-09-02",
+      "age_days": 0,
+      "delta": "NEW",
+      "outcome": "unknown",
+      "outcome_reason": "still open; nothing has settled it"
+    },
+    {
+      "id": "VERDICT-F-54",
+      "status": "open",
+      "title": "Every finding's `first_seen` and `age_days` are stamped from the machine's local calendar while the run that stamps them is timestamped in UTC, so this run filed five findings dated 2026-09-02 inside a state whose own timestamp, report filename and INDEX row all read 2026-09-03",
+      "severity": "Minor",
+      "priority": "P2",
+      "failure_classification": null,
+      "confidence": "proven",
+      "evidence": [
+        "Found by the mandated pre-handoff self-check (contract \u00a713) reading back the state this run had just written, and reproduced before filing.",
+        "src/verdict_mcp/harness.py:1214 `today = today or date.today()`. `date.today()` is the local calendar; every other clock in this module is UTC \u2014 harness.py:845 `datetime.now(timezone.utc)`, harness.py:1657 and 1676 likewise, and `last_run.timestamp_utc` by name.",
+        "Measured on this machine at the moment of the run: `date.today()` returns 2026-09-02 while `datetime.now(timezone.utc).date()` returns 2026-09-03.",
+        "The artifacts disagree with each other as a result. In the first run-10 state written this session, `last_run.timestamp_utc` was 2026-09-03T01:44:59Z, the report was reports/2026-09-03-delta-run10.md and the INDEX row read 2026-09-03, while VERDICT-F-50 \u2014 filed for the first time by that same run \u2014 carried `first_seen: 2026-09-02`.",
+        "Ages inherit the error: VERDICT-F-21 has `first_seen: 2026-09-01` and was stamped `age_days: 1` when its true age at the run's own UTC timestamp is 2 days. \u00a76 of the contract calls age the pressure and requires it to be shown, and the report prints this number.",
+        "harness.py:1246 makes the stamp permanent: `first_seen = (prior or {}).get(\"first_seen\") or today.isoformat()`, and the value is copied into the permanent ledger, so a wrong date is carried for the life of the finding rather than recomputed."
+      ],
+      "root_cause": {
+        "mechanism": "`merge()` defaults its `today` argument to `date.today()`, which resolves against the host's timezone. For any run executed between 00:00 and 07:00 UTC on a US Pacific machine \u2014 that is, any evening run \u2014 the local calendar is one day behind the UTC calendar the rest of the run is measured in, so newly filed findings are dated to the previous day and every age is computed one day short.",
+        "origin": "Predates this range: `git diff a6011ec..HEAD -- src/verdict_mcp/harness.py` does not touch line 1214. It has been latent because every prior run of this project was made in local daytime, where the two calendars agree; run 10 at 01:44Z is the first to cross UTC midnight.",
+        "class": {
+          "pattern": "searched the module for other local-clock reads: `grep -n 'date.today()\\|datetime.now(' src/verdict_mcp/harness.py` returns four sites \u2014 845, 1657 and 1676 all pass `timezone.utc`, and 1214 is the only naive one. The INDEX row's own date was fixed to the state's UTC timestamp once already (VERDICT-F-24, and tests/test_artifact_check.py::test_an_index_row_dated_from_the_wrong_clock_is_named still guards it), which is why the INDEX and the findings now disagree: one half of the pair was corrected and the other was not.",
+          "sites": [
+            "src/verdict_mcp/harness.py:1214"
+          ]
+        },
+        "trigger": "A run executed after UTC midnight but before local midnight. This is the first such run in the project's history, which is why nine previous runs did not surface it.",
+        "latent_condition": "The contract's own rule \u2014 \u00a76, timestamps are measured, never remembered, via `date -u` \u2014 is enforced for the run timestamp and not for the derived dates the harness computes from it. Nothing checks that `first_seen` for a NEW finding equals the UTC date of the run that filed it.",
+        "fix_location": "code \u2014 pass the run's own UTC date into `merge()` (facts.json already carries `measured_at`), rather than letting it default to the host calendar. The check worth adding beside it is that a NEW finding's `first_seen` matches `last_run.timestamp_utc`'s date.",
+        "proof": {
+          "method": "differential",
+          "evidence": "The same instant read two ways on this host: `date.today()` gives 2026-09-02, `datetime.now(timezone.utc).date()` gives 2026-09-03, and the state written from it carries both values in different fields."
+        },
+        "confidence": "proven"
+      },
+      "hash": "66c92f37",
+      "first_seen": "2026-09-02",
+      "age_days": 0,
+      "delta": "NEW",
+      "outcome": "unknown",
+      "outcome_reason": "still open; nothing has settled it"
+    },
+    {
+      "id": "VERDICT-F-53",
+      "status": "open",
+      "title": "The abandoned-run marker narrates any marker up to six hours old as \"minutes ago\", contradicting the age it records in the same object \u2014 this run's facts read `age_hours: 2.01` beside \"minutes ago \u2026 Nothing is missing\"",
+      "severity": "Minor",
+      "priority": "P3",
+      "failure_classification": null,
+      "confidence": "proven",
+      "evidence": [
+        "This run's .qa/facts.json: `\"previous_attempt_this_run\": {\"started_utc\": \"2026-09-02T23:44:23Z\", \u2026, \"age_hours\": 2.01, \"meaning\": \"an earlier attempt at this same commit, minutes ago \u2014 this run's own retry, not a lost run. Nothing is missing\"}`.",
+        "src/verdict_mcp/harness.py:81 `RETRY_WINDOW_HOURS = 6` and harness.py:994 `age_h is not None and age_h <= RETRY_WINDOW_HOURS`, with the fixed string \"minutes ago\" at harness.py:999. Any marker from 0 to 6 hours old is described as minutes old.",
+        "The marker this run met was in fact two hours old and from a different session (the file is gitignored per-run scratch, `.qa/.gitignore:5`), so it was a crashed or superseded attempt rather than a retry of the run that read it. The chain conclusion happens to hold \u2014 nothing was finalized, so nothing is missing from runs.jsonl \u2014 but the harness reaches it from a description that is false.",
+        "Same shape as the footnote defects this project has already fixed twice (VERDICT-F-36, VERDICT-F-45): a rendered sentence asserting something the measured value beside it contradicts."
+      ],
+      "root_cause": {
+        "mechanism": "The narration string is written for the middle of the retry window rather than derived from the measured age, and the window is six hours wide.",
+        "origin": "The retry-window branch in `facts()`; unchanged by this range, so it predates a6011ec.",
+        "class": {
+          "pattern": "searched the harness for other hardcoded time words beside computed ages: `grep -n 'minutes ago\\|hours ago\\|just now' src/verdict_mcp/harness.py` returns only harness.py:999. The sibling `previous_run_incomplete` message states no age at all and is not affected.",
+          "sites": [
+            "src/verdict_mcp/harness.py:999"
+          ]
+        },
+        "trigger": "A marker older than a few minutes and younger than six hours \u2014 which is what a crashed overnight-adjacent run leaves.",
+        "latent_condition": "The retry branch collapses two different situations, 'my own retry' and 'someone else's crashed run at the same commit', into one sentence; the data cannot distinguish them, and the sentence claims the first.",
+        "fix_location": "code \u2014 derive the phrase from `age_h`, or drop the time word and let the recorded `age_hours` speak.",
+        "proof": {
+          "method": "reading",
+          "evidence": "The measured field and the narration are in the same JSON object in this run's facts.json, and the constant that governs the branch is 6 hours."
+        },
+        "confidence": "proven"
+      },
+      "hash": "d3dc108b",
       "first_seen": "2026-09-02",
       "age_days": 0,
       "delta": "NEW",
@@ -300,600 +415,468 @@
     },
     {
       "id": "VERDICT-F-43",
-      "status": "open",
+      "status": "resolved",
       "title": "The re-injection procedure the agent contract mandates silently measures the unmodified original: a scratch copy made the way the guard was widened to allow carries `.venv`, whose editable-install `.pth` names the original checkout's `src` absolutely",
       "severity": "Major",
       "priority": "P2",
       "failure_classification": "REAL_DEFECT",
-      "confidence": "proven",
+      "fix_verified": false,
       "evidence": [
-        "MEASURED DIFFERENTIAL, four re-injections run twice, identical in every respect but one environment variable. Copied the checkout to scratch with `cp -a`, injected four defects into the scratch `src/verdict_mcp/{harness,state}.py` (the renderer split, the renderer footnote, the `not_weighed` clause, the ledger digest), and ran each defect's guard tests. WITHOUT PYTHONPATH: 0 of 4 caught \u2014 every trial printed `intact 2 passed / injected 2 passed / restored 2 passed`. WITH `PYTHONPATH=<scratch>/src`: 4 of 4 caught, each `intact 2 passed / injected 1 failed, 1 passed / restored 2 passed`.",
-        "THE MECHANISM, read and then confirmed by execution: `<scratch>/.venv/lib/python3.13/site-packages/_editable_impl_verdict_qa_mcp.pth` contains the ORIGINAL checkout's absolute `src` path. `python -c \"import verdict_mcp.harness as h; print(h.__file__)\"` run from the scratch tree with the scratch venv prints the original checkout's harness.py. With PYTHONPATH set, the same command prints the scratch tree's. sys.path order is what decides it: PYTHONPATH precedes the site-packages `.pth` additions.",
-        "THE PRODUCT ENDORSES THE PROCEDURE THAT FAILS. hooks/enforce_bash_scope.py:40-46 records that `_COPIERS` exists precisely so `cp -a <checkout> <scratch>` is permitted \u2014 \"the re-injection step the agent contract asks for\" (VERDICT-F-37, fixed in 0.65.0). The agent contract's \u00a73/\u00a73.5/\u00a76 mandate re-injection in a scratch copy and never name the isolation step. The harness's own verifier already solves it: facts.json's verification records `pythonpath: [<tmp>/verdict-verify-*/src, <tmp>/verdict-verify-*]`, so the machine-side implementation knows what the agent-facing prose does not.",
-        "BLAST RADIUS: a false negative here reads as a green re-injection, which the contract converts into `fix_verified: true`, which `_stamp_outcome` converts into a `confirmed` ledger row with basis `claimed`, which the published Track record counts as `held up`. The failure mode is silent and self-flattering in exactly the direction \u00a79 exists to prevent.",
-        "WHAT I CANNOT ESTABLISH, said plainly: whether earlier runs of this project fell into the same trap. The state's evidence strings record the result of a re-injection and never the command, so runs 5-8's `fix_verified` claims cannot be re-derived from the record. Several of them quote specific non-trivial failure counts (`rc=1 | 2 failed, 2 passed`), which a no-op injection cannot produce, so at least those bit. The rest are unverifiable, and that unverifiability is itself the shape VERDICT-F-41 was about.",
-        "SCOPE: only imports of the installed package are affected. `hooks/*.py` and `eval/fixture_freshness.py` are invoked by absolute path and were re-injected correctly without PYTHONPATH this run, which is why VERDICT-F-39's and VERDICT-F-13's verifications stand on the first attempt."
+        "agents/verdict.md:221-227 now carries the step, the measurement (0 of 4 without, 4 of 4 with) and the check to run; docs/state-schema.md:319-326 carries the machine-side twin. Confirmed by `git diff a6011ec..HEAD -- agents/verdict.md docs/state-schema.md`.",
+        "The mechanism it describes was reproduced independently this run rather than taken on the record's word: in a `cp -a` copy of this checkout, `<scratch>/.venv/bin/python -c \"import verdict_mcp; print(verdict_mcp.__file__)\"` printed `<ORIGINAL checkout>/src/verdict_mcp/__init__.py`; the same command with `PYTHONPATH=<scratch>/src` printed the scratch path. The advice is correct for this repository.",
+        "fix_verified is false, deliberately: the fix is prose in a prompt, there is no guard test to re-inject against, and tests/test_agent_contract.py does not pin this paragraph \u2014 deleting it would break nothing. That is a known and previously reported condition of this file (its own docstring says so), not a new finding.",
+        "The remedy is incomplete in a way its own check cannot detect \u2014 filed as VERDICT-F-50, which is a second, independent way the same procedure lies rather than a re-report of this one."
       ],
       "hash": "f0776466",
       "first_seen": "2026-09-02",
       "age_days": 0,
-      "delta": "NEW",
+      "delta": "RESOLVED",
+      "confidence": "proven",
       "outcome": "unknown",
-      "outcome_reason": "still open; nothing has settled it"
+      "outcome_reason": "resolved but not fix-verified \u2014 absence is not proof"
     },
     {
       "id": "VERDICT-F-44",
-      "status": "open",
-      "title": "The diff-coverage percent blends test-file lines with production lines, and test-file lines carry a structural unexercised tax, so the run-over-run gate moves with the test/production composition of the diff rather than with coverage: 91% to 78% this run while production changed-line coverage rose from 97% to 100%",
+      "status": "resolved",
+      "title": "The diff-coverage percent blends test-file lines with production lines, and test-file lines carry a structural unexercised tax, so the run-over-run gate moves with the test/production composition of the diff rather than with coverage",
       "severity": "Major",
       "priority": "P2",
       "failure_classification": null,
-      "confidence": "proven",
+      "fix_verified": true,
       "evidence": [
-        "MEASURED, same command as the previous run (`coverage_suite_cmd` from the profile front matter), harness-run: this run 223 of 285 changed measurable lines = 78%, against the previous run's 220 of 242 = 91%. Under \u00a76 (\"coverage on changed files must not decrease\") that is a 13-point drop and a gate failure.",
-        "SPLIT BY FILE KIND FROM THE HARNESS'S OWN `per_file` BLOCK, and the direction reverses. Production files this run \u2014 eval/fixture_freshness.py 7/7, hooks/enforce_bash_scope.py 10/10, src/verdict_mcp/harness.py 10/10, src/verdict_mcp/state.py 6/6, src/verdict_mcp/validate.py 1/1 \u2014 total 34 of 34 = 100%, against the previous run's 99 of 102 = 97%. Test files this run: 189 of 251 = 75%, against 121 of 140 = 86%. The blended number fell because this range is 477 changed lines of test code against 93 of production; the previous range was 140 against 102.",
-        "THE MECHANISM IS DELIBERATE FOR PRODUCTION CODE AND WRONG FOR TEST CODE. src/verdict_mcp/harness.py:775-779: `executed = {ln for ln in ran if any(c for c in ctx.get(str(ln), []))}` \u2014 a line only counts if some dynamic context claims it, because \"a `def` line runs at import under the empty context and proves nothing about the function it defines\". `_changed_lines` (harness.py:610) applies no file filter, so test files go through the same rule: their imports, their `def test_*` lines, their decorators and \u2014 because coverage.py's `test_function` context only switches inside a function named `test_*` \u2014 every pytest fixture body are all counted unexercised, permanently and by construction.",
-        "READ OFF THE DATA: tests/test_fixture_freshness.py is a brand-new file whose four tests all pass, and its unexercised ranges are 10-13, 15, 17, 20, 26-27, 29-34, 36-40, 42, 44-45, 48, 53 plus the four `def test_*` lines \u2014 i.e. the imports, the two module-level helper `def`s, and the whole body of the `fixture_repo` fixture, which runs on every one of the four tests. tests/test_validate.py contributes 21 such ranges, tests/test_calibration.py 8.",
-        "CONSEQUENCE, which is why this is Major and not a curiosity: the previous run's focus item declared this gate \"live in both directions\" on the strength of two consecutive measured numbers. Its first live firing is a false alarm, and the shape recurs on every release whose diff is mostly tests \u2014 which, for a project whose releases are mutation-campaign test additions, is most of them. A gate that fires on composition trains its reader to wave it through, and the converse case is worse: a real production coverage drop can be masked by a large green test diff.",
-        "PROPOSED VERIFICATION, since none exists: a test over `measure_diff_coverage` on a two-commit fixture repo whose diff adds one uncovered production line and forty lines of passing test code, asserting the reported production percent falls. Reporting production and test coverage as two numbers (or excluding `testpaths` from the denominator) is the design question behind it and is the maintainer's call."
+        "Re-injected in an isolated scratch copy: replacing `is_test_file`'s body with `return False` (src/verdict_mcp/harness.py:607-617) turns tests/test_diff_coverage.py::test_what_counts_as_a_test_file, ::test_the_production_percent_falls_when_production_coverage_falls and ::test_the_report_reads_production_first from `3 passed in 1.82s` into `2 failed, 1 passed in 1.40s`.",
+        "The split is honest, checked rather than trusted: recomputing by_kind from facts.json per_file gives production 32/34 (94%) and tests 101/119 (85%), matching the reported numbers, and 34 + 119 = 153 = the blended denominator with no double counting.",
+        "The classifier was audited over the whole repository, not the diff: of 74 tracked .py/.ts files exactly 35 classify as test (the 25 project tests, tests/conftest.py, 9 eval fixture test files and one .ts fixture test) and no production file is misclassified in either direction.",
+        "It earned its keep on its first live run: production changed-line coverage reads 94% against run 9's 100%, and the two unexercised lines it names (hooks/enforce_bash_scope.py:330-331) are exactly the branch carrying the live guard bypass reported as VERDICT-F-42. The blended figure moved 78% to 87% over the same range and would have said the opposite."
       ],
       "hash": "f15c2239",
       "first_seen": "2026-09-02",
       "age_days": 0,
-      "delta": "NEW",
-      "outcome": "unknown",
-      "outcome_reason": "still open; nothing has settled it"
+      "delta": "RESOLVED",
+      "confidence": "proven",
+      "outcome": "confirmed",
+      "outcome_basis": "claimed",
+      "outcome_reason": "fix-verified: claimed by the tester, and no harness measurement contradicts it"
     },
     {
       "id": "VERDICT-F-45",
-      "status": "open",
-      "title": "The Track record's new `of those, measured` column counts a row written before `outcome_basis` existed as not-measured, under a footnote asserting the two kinds are exhaustive \u2014 the state refuses that relabelling and the renderer performs it",
+      "status": "resolved",
+      "title": "The Track record's new `of those, measured` column counts a row written before `outcome_basis` existed as not-measured, under a footnote asserting the two kinds are exhaustive",
       "severity": "Minor",
       "priority": "P2",
       "failure_classification": null,
-      "confidence": "proven",
+      "fix_verified": true,
       "evidence": [
-        "RENDERED AT HEAD from this project's own stored calibration, by calling `_render_calibration` directly: `| proven | 19 | 0 | 0 | _not yet_ |` under `| Held up | of those, measured | Withdrawn | Rate |`, followed by \"`held up` covers two things and they are not equal: a re-injection the harness measured, and one the tester asserted where no measurement contradicts it. The `measured` column is the first kind. Read them apart.\" A reader subtracts 19 minus 0 and concludes 19 were the tester's word. The stored bucket is `confirmed 19, confirmed_measured 0, confirmed_claimed 2` \u2014 17 rows carry no basis at all.",
-        "THE STATE IS CAREFUL WHERE THE RENDERER IS NOT, which is the same split-brain shape as VERDICT-F-36 itself. src/verdict_mcp/state.py:350-356 comments \"Rows written before `outcome_basis` existed have neither, and calling them the tester's word would be a claim of its own. The split is stated only for what carries one\" \u2014 and that careful `reading` string is built only in the `decided >= min_sample` branch. Below the sample threshold, which is where this project sits (19 of the needed 30), `reading` carries no split at all and the rendered table is the only thing anyone sees.",
-        "THE GUARD TEST CANNOT SEE IT. tests/test_calibration.py's `_rows_for_report(measured, claimed, refuted)` helper builds every confirmed row with an explicit `outcome_basis`, so `confirmed == measured + claimed` holds in all three new renderer tests by construction (2+5=7, 1+1=2, 3+0=3). The one shape the project's own data has \u2014 `confirmed > measured + claimed` \u2014 is unrepresentable in the fixture.",
-        "A SECOND, SMALLER READING ERROR IN THE SAME TABLE: `split` is decided globally (harness.py:1793, `any(v.get(\"confirmed_claimed\") for _, v in rows)`), so the `unstated` and `probable` rows print `0` in the measured column although neither has a single basis-carrying row. `0` there means \"no data\", not \"none measured\".",
-        "DIRECTION OF THE ERROR, stated because it changes the priority: this under-claims rather than over-claims \u2014 it makes the tester look less measured than the record supports. That is the safe direction, which is why it is Minor and not Major. It is still a number that cannot be added up."
+        "Re-injected in an isolated scratch copy: `if unrecorded:` at src/verdict_mcp/harness.py:1848 replaced by `if False:` turns tests/test_calibration.py::test_the_report_says_how_many_confirmations_predate_the_basis and ::test_no_such_line_when_every_confirmation_carries_a_basis from `2 passed in 0.04s` into `1 failed, 1 passed in 0.05s` \u2014 the negative control still passing, so the pair is not asserting vacuously.",
+        "The rendered footnote is present in the current state's Track record output and says what the finding asked for: that the rows predating `outcome_basis` are counted in `held up` and in no other column.",
+        "The number it prints is wrong for a reason the fix's test cannot see, filed as VERDICT-F-51."
       ],
       "hash": "1052aefa",
       "first_seen": "2026-09-02",
       "age_days": 0,
-      "delta": "NEW",
-      "outcome": "unknown",
-      "outcome_reason": "still open; nothing has settled it"
+      "delta": "RESOLVED",
+      "confidence": "proven",
+      "outcome": "confirmed",
+      "outcome_basis": "claimed",
+      "outcome_reason": "fix-verified: claimed by the tester, and no harness measurement contradicts it"
     },
     {
       "id": "VERDICT-F-46",
-      "status": "open",
-      "title": "The new permanent-ledger verification digest drops `not_weighed` and `candidates`, so a confirmed row that stands over a measurement the harness declined to weigh is recorded forever as a confirmation beside a test that failed at HEAD, with nothing saying why it did not count",
+      "status": "resolved",
+      "title": "The permanent-ledger verification digest drops `not_weighed` and `candidates`, so a confirmed row that stands over a measurement the harness declined to weigh is recorded forever as a confirmation beside a test that failed at HEAD with nothing saying why it did not count",
       "severity": "Minor",
       "priority": "P3",
       "failure_classification": null,
-      "confidence": "proven",
+      "fix_verified": true,
       "evidence": [
-        "src/verdict_mcp/state.py:222-229 `_verification_digest` keeps exactly `(\"test\", \"at_previous\", \"at_head\", \"selected_by\")`. `not_weighed` \u2014 the note `_apply_verification` writes at harness.py:559-563 when it declines to let a prose-order pick refuse a resolution \u2014 and `candidates`, without which `selected_by: first_cited` cannot be interpreted, are both dropped.",
-        "PROVEN BY EXECUTION against the shipped `outcome_row`: given a finding with `outcome: confirmed`, `outcome_basis: claimed` and a verification record carrying `selected_by: first_cited`, `candidates: 4`, `at_head: fail` and a `not_weighed` note, the row written is `{'test': ..., 'at_previous': 'pass', 'at_head': 'fail', 'selected_by': 'first_cited'}`. A future auditor joining that row sees a confirmation standing beside a test that failed at HEAD and no explanation \u2014 which is precisely the reading VERDICT-F-40 was filed to stop, preserved permanently by the fix for VERDICT-F-41.",
-        "SCOPE AND COST: two more keys on a hundred-byte row, and only on rows that carry a declined measurement. The proposed verification is an assertion in the existing ledger-digest test that a `not_weighed` record survives the round trip.",
-        "CONFIDENCE NOTE: this is a real but narrow record-fidelity defect, and it can only bite a reader who joins the ledger long after the fact. Filed Minor/P3 deliberately rather than attached to VERDICT-F-41, because that finding is genuinely fixed and this is a distinct claim."
+        "Re-injected in an isolated scratch copy: restoring the old four-key tuple in `_verification_digest` (src/verdict_mcp/state.py:231-232) turns tests/test_calibration.py::test_the_digest_keeps_what_makes_the_selection_readable from `1 passed in 0.04s` into `1 failed in 0.05s`.",
+        "`git diff a6011ec..HEAD -- src/verdict_mcp/state.py` shows `candidates` and `not_weighed` added to the retained keys, with the reason recorded in the comment above them."
       ],
       "hash": "d0f59be9",
       "first_seen": "2026-09-02",
       "age_days": 0,
-      "delta": "NEW",
-      "outcome": "unknown",
-      "outcome_reason": "still open; nothing has settled it"
+      "delta": "RESOLVED",
+      "confidence": "proven",
+      "outcome": "confirmed",
+      "outcome_basis": "claimed",
+      "outcome_reason": "fix-verified: claimed by the tester, and no harness measurement contradicts it"
     },
     {
       "id": "VERDICT-F-47",
-      "status": "open",
-      "title": "The fixture-freshness gate's symlink blind spot is fixed but untested, while CHANGELOG.md claims \"four now, one per blind spot\" \u2014 three of the four new tests cover blind spots and the fourth is a green-path control",
+      "status": "resolved",
+      "title": "The fixture-freshness gate's symlink blind spot is fixed but untested, while CHANGELOG.md claims \"four now, one per blind spot\"",
       "severity": "Minor",
       "priority": "P3",
       "failure_classification": null,
-      "confidence": "proven",
+      "fix_verified": true,
       "evidence": [
-        "The four tests in tests/test_fixture_freshness.py are the green-pair control, the mode change, the planted untracked file, and the missing tracked file. The four blind spots CHANGELOG.md names for 0.70.0 are the mode change, the symlink swap, the planted untracked file, and the missing tracked file. The symlink swap \u2014 named in the fix's own docstring at eval/fixture_freshness.py:45-49 \u2014 has no test.",
-        "THE BEHAVIOUR ITSELF IS SOUND, which is why this is a test gap and not a defect. Probed by hand on a miniature fixture repo: anchored green at `rc=0, 8 lines`, then replaced a tracked regular file with a symlink to identical content outside the tree \u2014 `rc=1, regenerated: 16 lines`. `copy2(follow_symlinks=False)` carries the link and `git diff --no-index` reports the type change.",
-        "WHY IT MATTERS AT ALL: this gate is a tamper-evidence anchor for the eval answer keys, and the symlink swap is the one blind spot of the four that an adversary rather than an accident would use. An untested guarantee on a trust anchor is the kind that quietly stops holding, which is the pesticide-paradox argument for pinning it now while the fix is fresh.",
-        "PROPOSED VERIFICATION: a fifth test alongside the existing three, building the same miniature repo, swapping a tracked file for a symlink with identical bytes, and asserting a non-zero exit \u2014 and failing when `follow_symlinks=False` is dropped from eval/fixture_freshness.py:76."
+        "Re-injected in an isolated scratch copy: `shutil.copy2(REPO / rel, dest, follow_symlinks=False)` at eval/fixture_freshness.py:76 replaced by `shutil.copyfile(REPO / rel, dest)` turns tests/test_fixture_freshness.py::test_a_symlink_swapped_for_a_regular_file_is_no_longer_invisible and ::test_a_mode_change_is_no_longer_invisible from `2 passed in 0.59s` into `2 failed in 0.61s`.",
+        "The overstated claim was corrected in place rather than left: CHANGELOG.md's 0.70.0 entry now reads \"a green-path control plus one each for the mode change, the planted untracked file and the missing tracked file\" and names the symlink case as covered by 0.72.0.",
+        "Verified on POSIX only \u2014 the new test is skipped on Windows by design (`os.name == \"nt\"`), and Windows is in the CI matrix but not testable here."
       ],
       "hash": "a369253f",
       "first_seen": "2026-09-02",
       "age_days": 0,
-      "delta": "NEW",
-      "outcome": "unknown",
-      "outcome_reason": "still open; nothing has settled it"
+      "delta": "RESOLVED",
+      "confidence": "proven",
+      "outcome": "confirmed",
+      "outcome_basis": "claimed",
+      "outcome_reason": "fix-verified: claimed by the tester, and no harness measurement contradicts it"
     },
     {
       "id": "VERDICT-F-48",
-      "status": "open",
-      "title": "Five non-equivalent operator and guard mutants in validate.py survive the whole 674-test suite \u2014 including the judgment validator's status-enum check and both of the PostToolUse hook's exit codes \u2014 while the profile records that only message text and two accepted-equivalent clock mutants remain",
+      "status": "resolved",
+      "title": "Five non-equivalent operator and guard mutants in validate.py survive the whole 674-test suite \u2014 including the judgment validator's status-enum check and both of the PostToolUse hook's exit codes",
       "severity": "Minor",
       "priority": "P2",
       "failure_classification": null,
-      "confidence": "proven",
+      "fix_verified": true,
       "evidence": [
-        "MEASURED THIS RUN, instrument controlled first as the profile requires. A fresh mutmut campaign over src/verdict_mcp/validate.py in a scratch tree, runner `tests/test_validate.py`: 574 mutants, 391 killed / 183 survived. Of the 183 survivors, 9 sit on lines with no string literal to rewrite. Each of those 9 was then applied one at a time and re-checked against the WHOLE suite \u2014 the method the previous campaign used and the only honest way to read a scoped run.",
-        "TWO OF THE NINE ARE SCOPED-RUNNER ARTIFACTS and die against the whole suite: the changed-lines guard at validate.py:278 mutated to admit a zero-line diff (`1 failed, 673 passed`) and the flaky_quarantine type guard at validate.py:519 mutated to its negation (`53 failed, 621 passed`). Two more are the clock tolerances the profile already accepts as equivalent \u2014 both comparison operators at validate.py:396 and :398 relaxed by one second \u2014 and both survive at `674 passed`, as documented.",
-        "FIVE SURVIVE THE WHOLE SUITE AND ARE NOT EQUIVALENT. Each was applied alone and produced `674 passed in ~74s`, with `674 passed` again after restoring; the scratch baseline was `674 passed in 74.02s`. (a) `status = _status(f)` rewritten to `status = None` inside `validate_judgment`, so the status-enum refusal never fires \u2014 and no test in the 0.67.0 batch covers `status`, while severity, priority, failure_classification, fix_verified, duplicate ids, index naming, every-finding and the pass-cap all have one. (b) and (c) two `continue` statements in the finding loops rewritten to `break`, which stops checking after the first malformed entry; the every-finding test passes well-formed dicts and so cannot reach the non-dict `continue`. (d) and (e) `_hook_mode`'s two exit codes, at validate.py:551 (an unreadable state.json, exit 2) and validate.py:556 (a clean state, exit 0), each rewritten to a different integer with nothing failing. That hook is what the agent contract calls binding.",
-        "THE PROFILE'S SUMMARY IS UNDERSTATED IN THE DIRECTION THAT MATTERS. .qa/profile.md:82-85 records \"What remains is mostly message-text and two `>` to `>=` mutants at the clock tolerances, which differ by one second and are accepted as equivalent.\" Measured: five more survive that are neither message text nor equivalent. The campaign's headline improvement is real and larger than claimed \u2014 335 killed to 391 killed, +56, same tool and scope \u2014 and the residual is smaller than it should be only in the profile's telling.",
-        "PROPOSED VERIFICATION, one test per gap and no source change: a judgment finding carrying an invented `status` must be refused; a judgment whose findings list holds a non-dict entry followed by a bad dict must still name the bad dict; and two hook-mode tests feeding a PostToolUse payload \u2014 one over an unreadable state.json asserting exit 2, one over a clean state.json asserting exit 0 with empty stderr.",
-        "SCOPE, stated so this is not read as a live defect: nothing in the shipped behaviour is wrong today. What is measured is that five guards could be broken without a test noticing, in the one module written to refuse what the model writes."
+        "All five re-applied by hand in an isolated scratch copy, each against the guard test written for it, with the instrument controlled first: unmutated, all five guards pass (`1 passed` each); mutated, all five fail (`1 failed` each). Killed 5 of 5.",
+        "The five: validate.py:214 `not in` becomes `in` (guard test_judgment_status_must_be_one_the_contract_knows); validate.py:198 `continue` becomes `break` (test_judgment_keeps_checking_after_a_malformed_entry); validate.py:429 `continue` becomes `break` (test_the_state_validator_keeps_checking_after_a_malformed_entry); validate.py:551 `return 2` becomes `return 0` (test_hook_mode_refuses_a_state_it_cannot_read); validate.py:556 `return 0` becomes `return 1` (test_hook_mode_is_silent_over_a_clean_state).",
+        "The scratch tree was restored byte-identically after every injection (`tree restored byte-identical: True`), and the module under test was confirmed to be the scratch's own (`verdict_mcp.validate.__file__` printed inside the scratch).",
+        "The first pass at this measurement read 4 of 5 \u2014 M3 SURVIVED \u2014 and that reading was wrong: it was running an earlier mutant's cached bytecode. Filed as VERDICT-F-50, and recorded in lessons.md, because the same error would have published a false survivor against a guard that works.",
+        "The profile's overstated summary (\"mostly message text\") was corrected in .qa/profile.md by 0.72.0, which is the other half of what this finding asked for."
       ],
       "hash": "c2250daa",
       "first_seen": "2026-09-02",
       "age_days": 0,
-      "delta": "NEW",
-      "outcome": "unknown",
-      "outcome_reason": "still open; nothing has settled it"
+      "delta": "RESOLVED",
+      "confidence": "proven",
+      "outcome": "confirmed",
+      "outcome_basis": "claimed",
+      "outcome_reason": "fix-verified: claimed by the tester, and no harness measurement contradicts it"
     }
   ],
   "verdict": "pass with risks",
   "release_blockers": [],
   "not_tested": [
-    "Windows and the rest of the CI matrix (ubuntu/windows x py3.10/py3.13). This machine is macOS + py3.13 only. Directly relevant this run: VERDICT-F-42's impact half depends on GNU tar, which this machine does not have, and `_check_copier`'s new `moves` path does path arithmetic that was never exercised on Windows separators.",
-    "The eval corpus, the scorer and the answer keys. `git diff --name-only 5dc59fb..a6011ec -- eval/fixtures/ agents/ standards/ templates/ action.yml commands/` prints nothing, so agent-prompt regressions \u2014 which are only visible through the corpus, not the unit suite \u2014 were not re-measured. eval/fixture_freshness.py is the one file under eval/ that changed and it was tested.",
-    "agents/verdict.md itself, untouched by the range and not re-read against the corpus \u2014 notable because VERDICT-F-43 is a defect in what that file instructs, and the fix belongs there.",
-    "The Action's gate mode as GitHub executes it, and the Action's run mode, which the profile forbids locally.",
-    "A mutation campaign over anything but src/verdict_mcp/validate.py. That one file was re-measured this run (574 mutants) with the instrument controlled first, and all nine non-string survivors were individually re-checked against the whole suite.",
-    "The other five modules in src/verdict_mcp/ and both hooks remain mutation-unmeasured. src/verdict_mcp/harness.py is this project's top defect cluster (21.0 severity-weighted, 9 findings, 7 still open) and has never had a campaign run against it.",
-    "server.py, runner.py, census.py, project_key.py, issues.py and profile.py were not read this run beyond `_render_calibration`'s consumer; none is in the range.",
-    "VERDICT-F-21's open half was deliberately not re-probed \u2014 it is blocked on a maintainer decision, and further measurement would add evidence to a question that is not empirical.",
-    "Whether runs 5-8's `fix_verified` claims were produced by a correctly isolated re-injection (VERDICT-F-43). The record does not carry the command, so this is unverifiable rather than untested, and no amount of re-reading state.json will settle it.",
-    "Concurrency: two verdict-facts/verdict-finalize runs against the same QA root at once. The run-number collision check was read, not exercised.",
-    "`tar`, `install` and `ln` shell forms beyond the probes listed in VERDICT-F-39 and VERDICT-F-42 \u2014 in particular globs, `--` separators, and quoted operands containing spaces."
+    "Windows and the py3.10 leg of the CI matrix \u2014 the profile names cross-platform as risk area 5 and this machine is macOS/py3.13 only. `test_a_symlink_swapped_for_a_regular_file_is_no_longer_invisible` is skipped on Windows by design, so the F-47 fix is verified on POSIX only.",
+    "The eval corpus was not run. No model run was made this run (it costs API tokens and the range's prompt change is judged from the record, not re-measured); the 6/6 claim in the 0.73.0 changelog is therefore assessed for auditability and discriminating power, not reproduced. See VERDICT-F-52.",
+    "A full mutmut campaign over src/verdict_mcp/validate.py was not re-run. Five named mutants were re-applied by hand with the instrument controlled; the other ~569 were not, so the killed/survived totals in the profile are unrefreshed this run.",
+    "src/verdict_mcp/harness.py has still never been mutation-measured, and it is this project's top defect cluster.",
+    "The MCP server surface (server.py) and gate.py were untouched by the range and were not exercised beyond the suite.",
+    "The remaining ~569 non-re-applied mutants aside, no structural coverage technique (MC-DC, data-flow) was applied to the new `_check_tar` argument loop; the two-line gap was found from the diff-coverage report and then probed by hand.",
+    "VERDICT-F-21's remedy is a maintainer decision, not a measurement; nothing new was measured against it this run.",
+    "The 22 files in the range include 8 .qa/ artifacts from run 9 itself (commit 3bbce81). Those were read as the baseline record, not audited as code.",
+    "No performance, concurrency or resource-exhaustion testing: out of scope for a plugin with no runtime service."
   ],
   "verified_intact": [
-    "The direction the bash guard exists to protect is unbroken, and the fix for VERDICT-F-39 did not buy it by breaking the copier. 13 of 13 write-into-the-checkout probes DENY(2) at HEAD (`cp -a`, multi-source `cp`, `cp -t`, `rsync`, `ln -sf`, `install -m 644`, `rm -rf`, `tar -x -C`, and six `mv` forms), and 8 of 8 read-out-to-scratch probes ALLOW(0). Both directions measured in one batch against the shipped hook.",
-    "Suite green and growing, measured by the harness: 674 passed, exit 0, 72.17s. Test-id set-diff is +35/\u22120 \u2014 no test was removed, silently or otherwise \u2014 and the count-drop gate could fire because the pytest dialect was recognised.",
-    "Suite duration is inside the 10% week-over-week gate and moved the right way: 72.2s against the previous run's 75.8s, \u22124.8%.",
-    "Production changed-line coverage rose: 34 of 34 changed measurable production lines executed (100%) against 99 of 102 (97%) last run, same command, status `measured`. The headline blended number fell for a reason that is not coverage (VERDICT-F-44).",
-    "The fixture-freshness gate passed, exit 0 in 0.07s, \"pricer-delta.diff still describes the fixture pair (78 lines)\" \u2014 and its four blind spots were re-probed by hand, three by re-injection and the fourth (symlink swap) directly.",
-    "Tamper-evidence anchors untouched by the range: `git diff --name-only 5dc59fb..a6011ec -- eval/fixtures/ agents/ standards/ templates/ action.yml commands/` prints nothing. No answer key, no corpus file, no fixture and no agent contract moved.",
-    "The mutation instrument is sound, which the profile required before any mutation number is quoted. Applying mutant 67 \u2014 a guard inversion the tool reports as KILLED \u2014 to the scratch tree took the whole suite from `674 passed` to `79 failed, 595 passed`; restoring returned it to green. Survivals in this campaign are therefore real survivals, not a broken runner.",
-    "Suite quality against validate.py improved measurably across 0.67.0 and 0.69.0, and the number is this run's own rather than the profile's: a fresh mutmut campaign over src/verdict_mcp/validate.py, same scope and same runner as the previous one, reports 574 mutants with 391 killed / 183 survived, against 335 killed / 239 survived before that work. +56 mutants now killed. The residual is larger than the profile records, which is VERDICT-F-48.",
-    "Version metadata agrees across the three files that carry it: pyproject.toml:8, server.json:10 and :15, and .claude-plugin/plugin.json:3 all read 0.70.0.",
-    "The explicit-citation half of VERDICT-F-26's 0.65.0 fix holds: an explicit `verification_test` still outranks prose order and is labelled `explicit`. It is the workaround this run used on all five findings it resolved, and it is why those five verifications can be trusted.",
-    "The code census over the range is clean. No placeholder or swallowed-exception hits in production code (the four `for_now` hits are all inside .qa/ prose written by the previous run), and the single undeclared-import lead \u2014 `pytest` at tests/test_fixture_freshness.py:15 \u2014 is a dev-group dependency declared at pyproject.toml:84, not a hallucinated package. 0 of 5 commits in the range carry AI-authorship trailers."
+    "The suite is green and grew honestly: 690 passed / 0 failed / 0 skipped in 74.55s, 16 test ids added and 0 removed against run 9's 674 (facts.json test_ids set-diff, not summary arithmetic).",
+    "Suite duration 74.82s against run 9's 72.17s, +3.7% \u2014 inside the 10% week-over-week gate.",
+    "Fixture freshness gate passes: `python3 eval/fixture_freshness.py` exit 0, \"pricer-delta.diff still describes the fixture pair (78 lines)\". The tamper anchor over the seeded-defect fixtures is intact.",
+    "The diff-coverage production/test split is arithmetically honest, not a relabelling: recomputing by_kind from facts.json per_file gives production 32/34 and tests 101/119, matching the reported 94% / 85% / 87% blended exactly.",
+    "The classifier behind that split was audited across the whole repository, not just the diff: of 74 tracked .py/.ts files, exactly the 25 project tests, tests/conftest.py and 10 eval fixture test files classify as test; no production file is misclassified in either direction.",
+    "Five of five mutants that 0.72.0 claims are now watched die against their named guard tests, with the bytecode cache controlled (M1 status enum, M2/M3 loop continues, M4/M5 both PostToolUse exit codes) \u2014 and all five pass unmutated first, so the guards are not passing vacuously.",
+    "Four of run 9's remaining code fixes are fix-verified by isolated re-injection: F-44, F-45, F-46, F-47 each pass at HEAD and fail when the defect is put back.",
+    "The `tar` guard's original reported shape is genuinely closed: `tar --remove-files -cf <scratch>/loot.tar <checkout>/src` is ALLOWED at a6011ec and DENIED at HEAD, measured on the same probe against both commits.",
+    "The guard's pre-existing behaviour did not regress: `tar -cf <scratch>/backup.tar <checkout>/src` still allowed, `tar -xf <scratch>/x.tar -C <checkout>/src` still denied, `tar --remove-files -cf <scratch>/x.tar <scratch>/stuff` still allowed.",
+    "The harness's own machine-side verifier does isolate: facts.json `verification.VERDICT-F-26.pythonpath` records two scratch paths, confirming that F-43 was only ever an agent-side gap.",
+    "The code census over the range is clean \u2014 no undeclared imports, and the four `for_now` placeholder hits are all inside `.qa/` prose from run 9, not in shipped code.",
+    "The run-history chain is unbroken: run 9's recorded chain `60a6773f\u2026` is carried and this run appends to it rather than re-baselining."
   ],
   "next_run_focus": [
-    "VERDICT-F-43 first, because it decides how much of this project's own track record is worth. Two things to settle: whether `agents/verdict.md` and lessons.md now name the isolation step, and whether the harness grew a helper that makes a correctly isolated scratch tree (the verifier at harness.py already sets PYTHONPATH \u2014 the agent-facing path is the one missing it). Verify by repeating this run's differential: four injections, with and without PYTHONPATH, expecting 4 of 4 caught either way once a helper exists.",
-    "VERDICT-F-42: check `_check_tar` grew a create-with-removal arm, and probe `tar --remove-files -cf <scratch>/x.tar <checkout>/hooks` in both directions \u2014 it must DENY while `tar -cf <scratch>/x.tar <checkout>/hooks` without the flag must still ALLOW, since archiving out is a read.",
-    "VERDICT-F-44 is a design decision before it is a fix: does the diff-coverage percent exclude `testpaths`, report production and test as two numbers, or stay blended with the gate reading only the production half? Whatever is chosen, the run-over-run comparison in \u00a76 must be made against a number that does not move with diff composition. Re-measure against this run's 78% blended / 100% production.",
-    "VERDICT-F-26's residual is unchanged and is now the oldest open Major. The fix is in the `preferred` reorder at harness.py:329, which is a no-op when every candidate is preferred; the two-real-ids probe with both ids in `added` is the regression test, and the `not_weighed` shield should key on \"the pick was not the tester's own citation\" rather than on the `first_cited` label.",
-    "VERDICT-F-21 needs the maintainer's answer, not another measurement: is deleting `outcomes.json`'s `chain` key an accepted residual risk? If yes, close it risk-accepted and correct CHANGELOG.md:32-34, which states a price the deletion does not pay. If no, the ratchet must leave the QA root. tests/test_chain.py:162-179 is the specification today and changes first either way.",
-    "Re-run the mutmut campaign over src/verdict_mcp/validate.py and compare against this run's measured 574 mutants / 391 killed / 183 survived (runner `tests/test_validate.py`). Control the instrument first as the profile requires; mutant 67 is a known-good control. Expect VERDICT-F-48's five whole-suite survivors to be killed. Then consider the first campaign over src/verdict_mcp/harness.py, this project's top defect cluster, which has never been mutation-measured.",
-    "Keep setting `verification_test` on every finding this project resolves. All five resolutions this run carry one; the harness still chose a third-party test for VERDICT-F-36 during facts, which is VERDICT-F-26 acting on live data and is the reason the explicit citation is not optional.",
-    "Re-read `.qa/outcomes.json` and join every `confirmed` row against its `verification` digest. This run's rows are the first that can be joined at all (0 of 40 carried one before); by next run there should be five, and each must show `at_previous: fail` and `at_head: pass` or say why not."
+    "VERDICT-F-50 first: check whether \u00a73's isolation paragraph grew a bytecode clause and whether its stated check became one that can actually fail. The regression probe is the one this run ran \u2014 two mutations of the same file with identical byte size written inside one second, expecting the second to bite. A `print(pkg.__file__)` that still passes in both directions means the check was not strengthened, only the prose.",
+    "VERDICT-F-42 second: re-run the seven-case tar probe. Cases B (`tar -cf <scratch>/x.tar --remove-files <checkout>/hooks`) and C (split `-c -f`, same suffix) must DENY, while E and G must still ALLOW. If the fix keys on `--remove-files` position rather than on proper option-argument parsing, it will pass B and fail some fourth ordering \u2014 so add at least one ordering the fix's author did not choose.",
+    "VERDICT-F-49 belongs in the same change as F-42 and should be checked with it: `tar --exclude=.venv -cf <scratch>/x.tar <checkout>/src` must be ALLOWED. Today the `x` in `exclude` reads as an extract flag and the command is denied against the cwd.",
+    "VERDICT-F-52 needs an artifact, not an argument: either an eval/README.md row dated for the 0.73.0 prompt naming model, fixture, mode, n and score, or a correction of the changelog sentence that claims the edit was eval-paid. Then answer the harder half \u2014 the seeded pricer key has no row that touches re-injection isolation and the fixture has no editable install, so no score on it can distinguish the 0.73.0 contract from the 0.72.0 one. A fixture that can is new work, and worth naming as such.",
+    "VERDICT-F-54: confirm `merge()` takes the run's UTC date rather than `date.today()`, and add the check that would have caught it \u2014 a NEW finding's `first_seen` must equal the date of `last_run.timestamp_utc`. The reproduction needs no fixture: run finalize on a host whose local date is behind UTC, or pass a `today` a day off and assert the state refuses itself.",
+    "VERDICT-F-51: the Track record footnote should sum the per-bucket unrecorded counts, not take their maximum. Today's state renders `Up to 17` where 21 of 28 confirmations are unrecorded; the regression test is a calibration block with two buckets both carrying unrecorded rows.",
+    "VERDICT-F-26 is now the oldest open Major and was untouched by this range. It acted on live data again this run: the harness picked `test_the_tally_separates_what_was_measured_from_what_was_asserted` for F-26 itself, pass/pass, settling nothing.",
+    "VERDICT-F-22 cost four blocked commands this run (a `>` inside a `{rc:>3}` format spec, a `<tmp>` inside a quoted string, a `->` inside a docstring, and a relative redirect resolved against the tool cwd rather than the `cd` in the same command). If it costs a fifth next run, raise it to Major \u2014 three consecutive runs of measurable friction is no longer a Minor.",
+    "Re-run the mutmut campaign over src/verdict_mcp/validate.py and compare against run 9's 574 mutants / 391 killed. Control the instrument first as the profile requires \u2014 and this run's evidence says the control must now include sweeping `__pycache__`, not only checking the import path.",
+    "Consider the first mutation campaign over src/verdict_mcp/harness.py. It is this project's top defect cluster by finding count and has never been mutation-measured; both of this run's renderer findings (F-51, F-53) live there."
   ],
   "flaky_quarantine": [],
   "coverage": {
     "status": "measured",
     "tool": "coverage.py dynamic contexts",
     "command": "uv run --group dev python -m coverage run -m pytest tests/ -q -o addopts=",
-    "sha_range": "5dc59fb3071a76068e3ec5d7237cfad46bf46637..a6011ec465aaf1fe793c2e7f4f002fcb999770e9",
+    "sha_range": "a6011ec465aaf1fe793c2e7f4f002fcb999770e9..d21d4f93c5868fea479e903710ada4d1ccf3df40",
     "suite_exit_code": 0,
-    "duration_s": 107.46,
-    "changed_files": 9,
-    "changed_lines": 285,
-    "changed_lines_executed": 223,
-    "changed_lines_executed_in_subprocess": 14,
+    "duration_s": 109.42,
+    "changed_files": 8,
+    "changed_lines": 153,
+    "changed_lines_executed": 133,
+    "changed_lines_executed_in_subprocess": 16,
     "subprocess_coverage": "measured",
-    "percent": 78,
+    "by_kind": {
+      "production": {
+        "changed_lines": 34,
+        "changed_lines_executed": 32,
+        "percent": 94
+      },
+      "tests": {
+        "changed_lines": 119,
+        "changed_lines_executed": 101,
+        "percent": 85
+      }
+    },
+    "percent": 87,
     "per_file": {
-      "eval/fixture_freshness.py": {
-        "changed": 24,
-        "measured": 7,
-        "executed": 7,
-        "executed_in_subprocess": 7,
-        "unexercised_ranges": [],
+      "hooks/enforce_bash_scope.py": {
+        "changed": 22,
+        "measured": 16,
+        "executed": 14,
+        "executed_in_subprocess": 14,
+        "unexercised_ranges": [
+          [
+            330,
+            331
+          ]
+        ],
         "tests": [],
         "unexercised_functions": []
       },
-      "hooks/enforce_bash_scope.py": {
-        "changed": 19,
-        "measured": 10,
-        "executed": 10,
-        "executed_in_subprocess": 6,
-        "unexercised_ranges": [],
-        "tests": [
-          "test_hooks.test_nested_shell_parses_a_quote_wrapped_command"
-        ],
-        "unexercised_functions": []
-      },
       "src/verdict_mcp/harness.py": {
-        "changed": 29,
-        "measured": 10,
-        "executed": 10,
+        "changed": 55,
+        "measured": 17,
+        "executed": 17,
+        "executed_in_subprocess": 2,
         "unexercised_ranges": [],
         "tests": [
-          "test_artifact_check.test_a_clean_finalize_has_nothing_to_report",
-          "test_artifact_check.test_a_history_row_that_does_not_carry_the_signed_link_is_named",
-          "test_artifact_check.test_a_missing_history_row_is_named",
-          "test_artifact_check.test_a_report_that_went_missing_is_named",
-          "test_artifact_check.test_an_index_row_dated_from_the_wrong_clock_is_named",
-          "test_artifact_check.test_an_index_row_naming_another_project_is_named",
-          "test_calibration.test_a_claim_the_harness_could_not_weigh_still_stands",
-          "test_calibration.test_a_finding_that_never_came_back_carries_no_marker",
-          "test_calibration.test_a_measured_re_injection_confirms",
-          "test_calibration.test_a_measurement_that_contradicts_the_claim_still_settles_nothing"
+          "test_calibration.test_a_project_with_nothing_claimed_keeps_the_plain_table",
+          "test_calibration.test_no_such_line_when_every_confirmation_carries_a_basis",
+          "test_calibration.test_the_footnote_no_longer_says_the_opposite_of_the_rule",
+          "test_calibration.test_the_ledger_is_folded_once_not_twice",
+          "test_calibration.test_the_ledger_keeps_outcomes_after_findings_leave_state",
+          "test_calibration.test_the_report_prints_how_many_of_the_confirmations_were_measured",
+          "test_calibration.test_the_report_says_how_many_confirmations_predate_the_basis",
+          "test_calibration.test_the_report_shows_counts_before_it_has_earned_a_rate",
+          "test_diff_coverage.test_a_file_the_render_cannot_read_does_not_lose_the_measurement",
+          "test_diff_coverage.test_a_line_only_a_child_process_executed_is_measured"
         ],
         "unexercised_functions": []
       },
       "src/verdict_mcp/state.py": {
-        "changed": 16,
-        "measured": 6,
-        "executed": 6,
-        "executed_in_subprocess": 1,
-        "unexercised_ranges": [],
-        "tests": [
-          "test_artifact_check.test_a_clean_finalize_has_nothing_to_report",
-          "test_artifact_check.test_a_history_row_that_does_not_carry_the_signed_link_is_named",
-          "test_artifact_check.test_a_missing_history_row_is_named",
-          "test_artifact_check.test_a_report_that_went_missing_is_named",
-          "test_artifact_check.test_an_index_row_dated_from_the_wrong_clock_is_named",
-          "test_artifact_check.test_an_index_row_naming_another_project_is_named",
-          "test_calibration.test_a_decided_outcome_sticks_when_the_finding_changes_state_again",
-          "test_calibration.test_a_decided_row_is_not_downgraded_by_a_later_unknown",
-          "test_calibration.test_a_finding_that_never_came_back_carries_no_marker",
-          "test_calibration.test_a_regression_is_recorded_on_the_finding_and_carried"
-        ],
-        "unexercised_functions": []
-      },
-      "src/verdict_mcp/validate.py": {
-        "changed": 5,
+        "changed": 6,
         "measured": 1,
         "executed": 1,
         "unexercised_ranges": [],
         "tests": [
-          "test_artifact_check.test_a_clean_finalize_has_nothing_to_report",
-          "test_artifact_check.test_a_history_row_that_does_not_carry_the_signed_link_is_named",
-          "test_artifact_check.test_a_missing_history_row_is_named",
-          "test_artifact_check.test_a_report_that_went_missing_is_named",
-          "test_artifact_check.test_an_index_row_dated_from_the_wrong_clock_is_named",
-          "test_artifact_check.test_an_index_row_naming_another_project_is_named",
-          "test_calibration.test_a_torn_write_cannot_leave_a_half_written_state",
-          "test_calibration.test_internal_keys_never_reach_the_written_state",
-          "test_calibration.test_the_ledger_is_folded_once_not_twice",
-          "test_calibration.test_the_ledger_keeps_outcomes_after_findings_leave_state"
+          "test_calibration.test_the_digest_keeps_what_makes_the_selection_readable",
+          "test_calibration.test_the_ledger_row_keeps_the_measurement_not_only_the_sentence",
+          "test_verification.test_a_fix_is_verified_when_the_cited_test_fails_before_and_passes_after",
+          "test_verification.test_a_missing_previous_commit_still_measures_head",
+          "test_verification.test_a_prose_pick_among_several_may_not_refuse_a_resolution",
+          "test_verification.test_a_regression_test_appended_to_an_existing_file_verifies",
+          "test_verification.test_a_regression_test_that_lands_with_its_fixture_verifies",
+          "test_verification.test_a_resolution_is_refused_while_the_cited_test_still_fails",
+          "test_verification.test_a_setup_error_at_the_old_commit_never_reads_as_fail",
+          "test_verification.test_a_single_cited_test_that_fails_at_head_still_refuses"
         ],
         "unexercised_functions": []
       },
       "tests/test_calibration.py": {
-        "changed": 92,
-        "measured": 47,
-        "executed": 39,
+        "changed": 44,
+        "measured": 21,
+        "executed": 18,
         "unexercised_ranges": [
-          [
-            494,
-            494
-          ],
-          [
-            506,
-            506
-          ],
           [
             514,
             514
           ],
           [
-            530,
-            530
+            531,
+            531
           ],
           [
-            538,
-            538
-          ],
-          [
-            549,
-            549
-          ],
-          [
-            561,
-            561
-          ],
-          [
-            573,
-            573
+            559,
+            559
           ]
         ],
         "tests": [
-          "test_calibration.test_a_measurement_the_harness_declined_to_weigh_does_not_deny_the_row",
-          "test_calibration.test_a_measurement_the_harness_did_weigh_still_denies_it",
-          "test_calibration.test_a_project_with_nothing_claimed_keeps_the_plain_table",
-          "test_calibration.test_a_row_with_nothing_measured_carries_no_empty_block",
-          "test_calibration.test_the_footnote_no_longer_says_the_opposite_of_the_rule",
-          "test_calibration.test_the_ledger_row_keeps_the_measurement_not_only_the_sentence",
-          "test_calibration.test_the_report_prints_how_many_of_the_confirmations_were_measured"
+          "test_calibration.test_no_such_line_when_every_confirmation_carries_a_basis",
+          "test_calibration.test_the_digest_keeps_what_makes_the_selection_readable",
+          "test_calibration.test_the_report_says_how_many_confirmations_predate_the_basis"
+        ],
+        "unexercised_functions": []
+      },
+      "tests/test_diff_coverage.py": {
+        "changed": 60,
+        "measured": 35,
+        "executed": 32,
+        "unexercised_ranges": [
+          [
+            362,
+            362
+          ],
+          [
+            398,
+            398
+          ],
+          [
+            409,
+            409
+          ]
+        ],
+        "tests": [
+          "test_diff_coverage.test_the_production_percent_falls_when_production_coverage_falls",
+          "test_diff_coverage.test_the_report_reads_production_first",
+          "test_diff_coverage.test_what_counts_as_a_test_file"
         ],
         "unexercised_functions": []
       },
       "tests/test_fixture_freshness.py": {
-        "changed": 108,
-        "measured": 62,
-        "executed": 32,
+        "changed": 22,
+        "measured": 14,
+        "executed": 12,
         "unexercised_ranges": [
-          [
-            10,
-            13
-          ],
-          [
-            15,
-            15
-          ],
-          [
-            17,
-            17
-          ],
-          [
-            20,
-            20
-          ],
-          [
-            26,
-            27
-          ],
-          [
-            29,
-            34
-          ],
-          [
-            36,
-            40
-          ],
-          [
-            42,
-            42
-          ],
-          [
-            44,
-            45
-          ],
-          [
-            48,
-            48
-          ],
-          [
-            53,
-            53
-          ],
-          [
-            67,
-            67
-          ],
-          [
-            73,
-            73
-          ],
-          [
-            77,
-            77
-          ],
           [
             89,
             89
           ],
           [
-            100,
-            100
+            92,
+            92
           ]
         ],
         "tests": [
-          "test_fixture_freshness.test_a_green_pair_stays_green",
-          "test_fixture_freshness.test_a_mode_change_is_no_longer_invisible",
-          "test_fixture_freshness.test_a_tracked_file_missing_from_the_tree_reports_rather_than_crashes",
-          "test_fixture_freshness.test_an_untracked_file_planted_in_the_fixture_is_reported"
+          "test_fixture_freshness.test_a_symlink_swapped_for_a_regular_file_is_no_longer_invisible"
         ],
         "unexercised_functions": []
       },
       "tests/test_hooks.py": {
-        "changed": 36,
+        "changed": 34,
         "measured": 18,
         "executed": 15,
         "unexercised_ranges": [
           [
-            553,
-            553
-          ],
-          [
-            569,
-            569
-          ],
-          [
-            579,
-            579
-          ]
-        ],
-        "tests": [
-          "test_hooks.test_bash_blocks_moving_anything_out_of_the_checkout",
-          "test_hooks.test_bash_still_allows_a_move_that_touches_neither_end_of_the_checkout",
-          "test_hooks.test_bash_still_allows_copying_out_which_is_the_whole_point_of_the_last_fix"
-        ],
-        "unexercised_functions": []
-      },
-      "tests/test_validate.py": {
-        "changed": 241,
-        "measured": 124,
-        "executed": 103,
-        "unexercised_ranges": [
-          [
-            152,
-            152
-          ],
-          [
-            161,
-            161
-          ],
-          [
-            567,
-            567
-          ],
-          [
-            577,
-            577
-          ],
-          [
-            586,
-            586
-          ],
-          [
-            595,
-            595
+            589,
+            589
           ],
           [
             603,
             603
           ],
           [
-            611,
-            611
-          ],
-          [
-            619,
-            619
-          ],
-          [
-            626,
-            626
-          ],
-          [
-            635,
-            635
-          ],
-          [
-            644,
-            644
-          ],
-          [
-            670,
-            670
-          ],
-          [
-            680,
-            680
-          ],
-          [
-            686,
-            686
-          ],
-          [
-            709,
-            709
-          ],
-          [
-            717,
-            717
-          ],
-          [
-            725,
-            725
-          ],
-          [
-            733,
-            733
-          ],
-          [
-            744,
-            744
-          ],
-          [
-            756,
-            756
+            614,
+            614
           ]
         ],
         "tests": [
-          "test_validate.test_a_run_number_must_be_a_positive_integer",
-          "test_validate.test_a_single_unexercised_changed_line_is_still_refused",
-          "test_validate.test_a_timestamp_that_is_not_a_string_is_refused",
-          "test_validate.test_cli_exit_codes",
-          "test_validate.test_cli_quiet_says_nothing_when_the_state_is_good",
-          "test_validate.test_cli_reads_the_previous_state_and_reports_its_own_errors",
-          "test_validate.test_judgment_allows_a_pass_with_nothing_open",
-          "test_validate.test_judgment_allows_a_resolved_critical_under_a_pass",
-          "test_validate.test_judgment_caps_a_pass_that_leaves_a_blocker_open",
-          "test_validate.test_judgment_checks_every_finding_not_just_the_first"
+          "test_hooks.test_bash_blocks_archiving_the_checkout_away",
+          "test_hooks.test_bash_still_allows_archiving_the_checkout_without_deleting_it",
+          "test_hooks.test_bash_still_blocks_extracting_into_the_checkout"
+        ],
+        "unexercised_functions": []
+      },
+      "tests/test_validate.py": {
+        "changed": 66,
+        "measured": 31,
+        "executed": 24,
+        "unexercised_ranges": [
+          [
+            772,
+            772
+          ],
+          [
+            785,
+            785
+          ],
+          [
+            795,
+            795
+          ],
+          [
+            802,
+            802
+          ],
+          [
+            806,
+            806
+          ],
+          [
+            815,
+            815
+          ],
+          [
+            824,
+            824
+          ]
+        ],
+        "tests": [
+          "test_validate.test_hook_mode_ignores_writes_to_anything_else",
+          "test_validate.test_hook_mode_is_silent_over_a_clean_state",
+          "test_validate.test_hook_mode_refuses_a_state_it_cannot_read",
+          "test_validate.test_judgment_keeps_checking_after_a_malformed_entry",
+          "test_validate.test_judgment_status_must_be_one_the_contract_knows",
+          "test_validate.test_the_state_validator_keeps_checking_after_a_malformed_entry"
         ],
         "unexercised_functions": []
       }
     },
     "tests_touching_diff": [
-      "test_artifact_check.test_a_clean_finalize_has_nothing_to_report",
-      "test_artifact_check.test_a_history_row_that_does_not_carry_the_signed_link_is_named",
-      "test_artifact_check.test_a_missing_history_row_is_named",
-      "test_artifact_check.test_a_report_that_went_missing_is_named",
-      "test_artifact_check.test_an_index_row_dated_from_the_wrong_clock_is_named",
-      "test_artifact_check.test_an_index_row_naming_another_project_is_named",
-      "test_calibration.test_a_claim_the_harness_could_not_weigh_still_stands",
-      "test_calibration.test_a_decided_outcome_sticks_when_the_finding_changes_state_again",
-      "test_calibration.test_a_decided_row_is_not_downgraded_by_a_later_unknown",
-      "test_calibration.test_a_finding_that_never_came_back_carries_no_marker",
-      "test_calibration.test_a_measured_re_injection_confirms",
-      "test_calibration.test_a_measurement_that_contradicts_the_claim_still_settles_nothing",
-      "test_calibration.test_a_measurement_the_harness_declined_to_weigh_does_not_deny_the_row",
-      "test_calibration.test_a_measurement_the_harness_did_weigh_still_denies_it",
       "test_calibration.test_a_project_with_nothing_claimed_keeps_the_plain_table",
-      "test_calibration.test_a_regression_is_recorded_on_the_finding_and_carried",
-      "test_calibration.test_a_resolution_with_neither_is_still_undecided",
-      "test_calibration.test_a_resolution_without_re_injection_settles_nothing",
-      "test_calibration.test_a_row_with_nothing_measured_carries_no_empty_block",
-      "test_calibration.test_a_torn_write_cannot_leave_a_half_written_state",
-      "test_calibration.test_a_withdrawal_is_the_one_thing_that_refutes",
-      "test_calibration.test_a_withdrawal_overrides_an_earlier_confirmation",
-      "test_calibration.test_a_withdrawn_finding_stops_counting_as_open",
-      "test_calibration.test_a_withdrawn_finding_survives_a_run_that_does_not_mention_it",
-      "test_calibration.test_an_inconclusive_measurement_is_silence_not_evidence",
-      "test_calibration.test_an_undecided_row_carries_no_decision_date",
-      "test_calibration.test_confidence_cannot_be_revised_after_the_fact",
-      "test_calibration.test_confidence_survives_being_carried_forward_unmentioned",
-      "test_calibration.test_internal_keys_never_reach_the_written_state",
-      "test_calibration.test_merge_normalizes_status_so_downstream_counts_are_right",
-      "test_calibration.test_regression_confirms_a_finding_because_it_came_back",
-      "test_calibration.test_the_basis_says_which_of_the_two_it_was",
+      "test_calibration.test_no_such_line_when_every_confirmation_carries_a_basis",
+      "test_calibration.test_the_digest_keeps_what_makes_the_selection_readable",
       "test_calibration.test_the_footnote_no_longer_says_the_opposite_of_the_rule",
       "test_calibration.test_the_ledger_is_folded_once_not_twice",
       "test_calibration.test_the_ledger_keeps_outcomes_after_findings_leave_state",
-      "test_calibration.test_the_ledger_row_carries_the_tally_fields_and_not_the_essay",
       "test_calibration.test_the_ledger_row_keeps_the_measurement_not_only_the_sentence",
-      "test_calibration.test_the_ledger_upserts_by_identity_so_nothing_is_counted_twice",
-      "test_calibration.test_the_model_cannot_mark_its_own_finding_correct",
       "test_calibration.test_the_report_prints_how_many_of_the_confirmations_were_measured",
+      "test_calibration.test_the_report_says_how_many_confirmations_predate_the_basis",
       "test_calibration.test_the_report_shows_counts_before_it_has_earned_a_rate",
-      "test_calibration.test_the_report_stays_silent_until_something_has_been_settled",
+      "test_diff_coverage.test_a_file_the_render_cannot_read_does_not_lose_the_measurement",
+      "test_diff_coverage.test_a_line_only_a_child_process_executed_is_measured",
+      "test_diff_coverage.test_a_new_file_the_suite_never_imported_is_wholly_unexercised",
       "test_diff_coverage.test_a_pass_over_a_change_no_test_executed_is_refused",
-      "test_diff_coverage.test_a_range_with_no_python_changes_measures_zero_honestly",
+      "test_diff_coverage.test_a_suite_that_spawns_nothing_says_so",
       "test_diff_coverage.test_changed_lines_are_split_into_executed_and_unexercised",
       "test_diff_coverage.test_measured_coverage_outranks_a_written_block",
-      "test_diff_coverage.test_without_a_command_it_is_unmeasurable_and_says_how",
-      "test_fixture_freshness.test_a_green_pair_stays_green",
-      "test_fixture_freshness.test_a_mode_change_is_no_longer_invisible",
-      "test_fixture_freshness.test_a_tracked_file_missing_from_the_tree_reports_rather_than_crashes"
+      "test_diff_coverage.test_the_coverage_run_leaves_nothing_in_the_qa_root",
+      "test_diff_coverage.test_the_production_percent_falls_when_production_coverage_falls",
+      "test_diff_coverage.test_the_report_reads_production_first",
+      "test_diff_coverage.test_the_repository_is_not_written_to_either",
+      "test_diff_coverage.test_the_subprocess_context_is_never_read_as_a_test",
+      "test_diff_coverage.test_what_counts_as_a_test_file",
+      "test_fixture_freshness.test_a_symlink_swapped_for_a_regular_file_is_no_longer_invisible",
+      "test_harness.test_report_is_rendered_from_state_and_cannot_contradict_it",
+      "test_hooks.test_bash_blocks_archiving_the_checkout_away",
+      "test_hooks.test_bash_still_allows_archiving_the_checkout_without_deleting_it",
+      "test_hooks.test_bash_still_blocks_extracting_into_the_checkout",
+      "test_validate.test_hook_mode_ignores_writes_to_anything_else",
+      "test_validate.test_hook_mode_is_silent_over_a_clean_state",
+      "test_validate.test_hook_mode_refuses_a_state_it_cannot_read",
+      "test_validate.test_judgment_keeps_checking_after_a_malformed_entry",
+      "test_validate.test_judgment_status_must_be_one_the_contract_knows",
+      "test_validate.test_the_state_validator_keeps_checking_after_a_malformed_entry",
+      "test_verification.test_a_fix_is_verified_when_the_cited_test_fails_before_and_passes_after",
+      "test_verification.test_a_missing_previous_commit_still_measures_head",
+      "test_verification.test_a_prose_pick_among_several_may_not_refuse_a_resolution",
+      "test_verification.test_a_regression_test_appended_to_an_existing_file_verifies",
+      "test_verification.test_a_regression_test_that_lands_with_its_fixture_verifies",
+      "test_verification.test_a_resolution_is_refused_while_the_cited_test_still_fails",
+      "test_verification.test_a_setup_error_at_the_old_commit_never_reads_as_fail",
+      "test_verification.test_a_single_cited_test_that_fails_at_head_still_refuses",
+      "test_verification.test_a_test_the_fix_added_is_carried_back_to_the_old_commit",
+      "test_verification.test_an_error_beside_a_failure_is_still_an_error",
+      "test_verification.test_pass_at_both_commits_verifies_nothing",
+      "test_verification.test_silence_is_verified_too",
+      "test_verification.test_the_collected_citation_wins_over_the_scraped_one"
     ],
     "unexercised_functions": []
   },
   "tests": {
-    "passed": 674,
-    "duration_s": 72.17,
-    "collected": 674
+    "passed": 690,
+    "duration_s": 74.82,
+    "collected": 690
   },
   "calibration": {
     "min_sample": 30,
-    "findings_tracked": 47,
-    "decided_outcomes": 28,
-    "undecided_outcomes": 19,
+    "findings_tracked": 53,
+    "decided_outcomes": 33,
+    "undecided_outcomes": 20,
     "by_confidence": {
       "proven": {
-        "confirmed": 24,
+        "confirmed": 29,
         "confirmed_measured": 0,
-        "confirmed_claimed": 7,
+        "confirmed_claimed": 12,
         "refuted": 0,
-        "unknown": 18,
-        "decided": 24,
+        "unknown": 19,
+        "decided": 29,
         "precision": null,
-        "reading": "24 of 24 decided so far \u2014 too few for a rate (needs 30)"
+        "reading": "29 of 29 decided so far \u2014 too few for a rate (needs 30)"
       },
       "unstated": {
         "confirmed": 3,
@@ -916,7 +899,38 @@
         "reading": "1 of 1 decided so far \u2014 too few for a rate (needs 30)"
       }
     },
-    "by_proof_method": {},
+    "by_proof_method": {
+      "counterfactual": {
+        "confirmed": 0,
+        "confirmed_measured": 0,
+        "confirmed_claimed": 0,
+        "refuted": 0,
+        "unknown": 3,
+        "decided": 0,
+        "precision": null,
+        "reading": "0 of 0 decided so far \u2014 too few for a rate (needs 30)"
+      },
+      "reading": {
+        "confirmed": 0,
+        "confirmed_measured": 0,
+        "confirmed_claimed": 0,
+        "refuted": 0,
+        "unknown": 2,
+        "decided": 0,
+        "precision": null,
+        "reading": "0 of 0 decided so far \u2014 too few for a rate (needs 30)"
+      },
+      "differential": {
+        "confirmed": 0,
+        "confirmed_measured": 0,
+        "confirmed_claimed": 0,
+        "refuted": 0,
+        "unknown": 2,
+        "decided": 0,
+        "precision": null,
+        "reading": "0 of 0 decided so far \u2014 too few for a rate (needs 30)"
+      }
+    },
     "caveats": [
       "`confirmed` means fix-verified or regressed; it therefore tracks which findings held up under a check, not correctness in the abstract",
       "still-open findings are undecided on purpose and are excluded from every rate rather than guessed at",
@@ -926,45 +940,26 @@
   },
   "test_ids": {
     "status": "measured",
-    "count": 674,
-    "added_count": 35,
+    "count": 690,
+    "added_count": 16,
     "removed_count": 0,
     "added": [
-      "tests/test_calibration.py::test_a_measurement_the_harness_declined_to_weigh_does_not_deny_the_row",
-      "tests/test_calibration.py::test_a_measurement_the_harness_did_weigh_still_denies_it",
-      "tests/test_calibration.py::test_a_project_with_nothing_claimed_keeps_the_plain_table",
-      "tests/test_calibration.py::test_a_row_with_nothing_measured_carries_no_empty_block",
-      "tests/test_calibration.py::test_the_footnote_no_longer_says_the_opposite_of_the_rule",
-      "tests/test_calibration.py::test_the_ledger_row_keeps_the_measurement_not_only_the_sentence",
-      "tests/test_calibration.py::test_the_report_prints_how_many_of_the_confirmations_were_measured",
-      "tests/test_fixture_freshness.py::test_a_green_pair_stays_green",
-      "tests/test_fixture_freshness.py::test_a_mode_change_is_no_longer_invisible",
-      "tests/test_fixture_freshness.py::test_a_tracked_file_missing_from_the_tree_reports_rather_than_crashes",
-      "tests/test_fixture_freshness.py::test_an_untracked_file_planted_in_the_fixture_is_reported",
-      "tests/test_hooks.py::test_bash_blocks_moving_anything_out_of_the_checkout",
-      "tests/test_hooks.py::test_bash_still_allows_a_move_that_touches_neither_end_of_the_checkout",
-      "tests/test_hooks.py::test_bash_still_allows_copying_out_which_is_the_whole_point_of_the_last_fix",
-      "tests/test_validate.py::test_a_run_number_must_be_a_positive_integer",
-      "tests/test_validate.py::test_a_single_unexercised_changed_line_is_still_refused",
-      "tests/test_validate.py::test_a_timestamp_that_is_not_a_string_is_refused",
-      "tests/test_validate.py::test_cli_quiet_says_nothing_when_the_state_is_good",
-      "tests/test_validate.py::test_cli_reads_the_previous_state_and_reports_its_own_errors",
-      "tests/test_validate.py::test_judgment_allows_a_pass_with_nothing_open",
-      "tests/test_validate.py::test_judgment_allows_a_resolved_critical_under_a_pass",
-      "tests/test_validate.py::test_judgment_caps_a_pass_that_leaves_a_blocker_open",
-      "tests/test_validate.py::test_judgment_checks_every_finding_not_just_the_first",
-      "tests/test_validate.py::test_judgment_failure_classification_is_checked_but_optional",
-      "tests/test_validate.py::test_judgment_fix_verified_must_be_a_boolean",
-      "tests/test_validate.py::test_judgment_fix_verified_must_cite_the_test_that_failed",
-      "tests/test_validate.py::test_judgment_names_the_finding_that_broke_a_rule",
-      "tests/test_validate.py::test_judgment_refuses_two_findings_with_one_id",
-      "tests/test_validate.py::test_the_clock_tolerances_are_where_they_say_they_are",
-      "tests/test_validate.py::test_the_report_field_must_be_a_non_empty_string",
-      "tests/test_validate.py::test_the_same_refusal_says_so_when_no_gate_reported_anything",
-      "tests/test_validate.py::test_the_state_validator_names_and_checks_every_finding_too",
-      "tests/test_validate.py::test_the_unmeasured_suite_refusal_names_which_gate_was_unreadable",
-      "tests/test_validate.py::test_the_zero_coverage_refusal_fires_only_on_a_clean_pass",
-      "tests/test_validate.py::test_verified_intact_must_be_a_list"
+      "tests/test_calibration.py::test_no_such_line_when_every_confirmation_carries_a_basis",
+      "tests/test_calibration.py::test_the_digest_keeps_what_makes_the_selection_readable",
+      "tests/test_calibration.py::test_the_report_says_how_many_confirmations_predate_the_basis",
+      "tests/test_diff_coverage.py::test_the_production_percent_falls_when_production_coverage_falls",
+      "tests/test_diff_coverage.py::test_the_report_reads_production_first",
+      "tests/test_diff_coverage.py::test_what_counts_as_a_test_file",
+      "tests/test_fixture_freshness.py::test_a_symlink_swapped_for_a_regular_file_is_no_longer_invisible",
+      "tests/test_hooks.py::test_bash_blocks_archiving_the_checkout_away",
+      "tests/test_hooks.py::test_bash_still_allows_archiving_the_checkout_without_deleting_it",
+      "tests/test_hooks.py::test_bash_still_blocks_extracting_into_the_checkout",
+      "tests/test_validate.py::test_hook_mode_ignores_writes_to_anything_else",
+      "tests/test_validate.py::test_hook_mode_is_silent_over_a_clean_state",
+      "tests/test_validate.py::test_hook_mode_refuses_a_state_it_cannot_read",
+      "tests/test_validate.py::test_judgment_keeps_checking_after_a_malformed_entry",
+      "tests/test_validate.py::test_judgment_status_must_be_one_the_contract_knows",
+      "tests/test_validate.py::test_the_state_validator_keeps_checking_after_a_malformed_entry"
     ],
     "removed": [],
     "truncated": false,
