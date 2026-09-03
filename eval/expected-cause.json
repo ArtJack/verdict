@@ -74,7 +74,7 @@
         "bytecode",
         "instrument control"
       ],
-      "note": "Added 2026-09-03 with the v0.74.0 contract clause it scores. Terms are taken from the clause, not from any run's phrasing. First draft also accepted the bare string `__pycache__` and a control run earned the row for the sentence 'clean apart from __pycache__' — naming the directory while reporting the checkout untouched is housekeeping, not isolation. As scored now: 3 of 3 treatment runs earn it, 0 of 3 byte-identical control runs on the v0.73.0 prompt do. The row exists because VERDICT-F-52 established that no fixture could tell one version of this contract from another."
+      "note": "Added 2026-09-03 with the v0.74.0 contract clause it scores. Terms are taken from the clause, not from any run's phrasing. First draft also accepted the bare string `__pycache__` and a control run earned the row for the sentence 'clean apart from __pycache__' — naming the directory while reporting the checkout untouched is housekeeping, not isolation. As scored now: 3 of 3 treatment runs earn it, 0 of 4 byte-identical control runs on the v0.73.0 prompt do. The row exists because VERDICT-F-52 established that no fixture could tell one version of this contract from another."
     }
   ],
   "prose": {
