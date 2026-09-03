@@ -33,6 +33,7 @@ tests/test_calibration.py::test_a_measurement_that_contradicts_the_claim_still_s
 tests/test_calibration.py::test_a_measurement_the_harness_declined_to_weigh_does_not_deny_the_row
 tests/test_calibration.py::test_a_measurement_the_harness_did_weigh_still_denies_it
 tests/test_calibration.py::test_a_missing_or_corrupt_ledger_reads_as_empty_and_never_raises
+tests/test_calibration.py::test_a_new_findings_first_seen_is_the_runs_own_utc_date
 tests/test_calibration.py::test_a_project_with_nothing_claimed_keeps_the_plain_table
 tests/test_calibration.py::test_a_rate_appears_once_the_sample_is_there
 tests/test_calibration.py::test_a_regression_is_recorded_on_the_finding_and_carried
@@ -45,9 +46,11 @@ tests/test_calibration.py::test_a_withdrawal_is_the_one_thing_that_refutes
 tests/test_calibration.py::test_a_withdrawal_overrides_an_earlier_confirmation
 tests/test_calibration.py::test_a_withdrawn_finding_stops_counting_as_open
 tests/test_calibration.py::test_a_withdrawn_finding_survives_a_run_that_does_not_mention_it
+tests/test_calibration.py::test_age_days_counts_from_the_runs_utc_date_too
 tests/test_calibration.py::test_an_inconclusive_measurement_is_silence_not_evidence
 tests/test_calibration.py::test_an_invented_confidence_value_is_not_given_its_own_row
 tests/test_calibration.py::test_an_undecided_row_carries_no_decision_date
+tests/test_calibration.py::test_an_unreadable_run_timestamp_falls_back_to_utc_now
 tests/test_calibration.py::test_an_unrecognised_status_reads_as_open_not_as_closed
 tests/test_calibration.py::test_confidence_cannot_be_revised_after_the_fact
 tests/test_calibration.py::test_confidence_survives_being_carried_forward_unmentioned
@@ -56,6 +59,7 @@ tests/test_calibration.py::test_internal_keys_never_reach_the_written_state
 tests/test_calibration.py::test_merge_normalizes_status_so_downstream_counts_are_right
 tests/test_calibration.py::test_no_rate_is_published_below_the_minimum_sample
 tests/test_calibration.py::test_no_such_line_when_every_confirmation_carries_a_basis
+tests/test_calibration.py::test_no_unrecorded_footnote_when_every_confirmation_carries_a_basis
 tests/test_calibration.py::test_proof_method_is_tallied_separately_from_confidence
 tests/test_calibration.py::test_regression_confirms_a_finding_because_it_came_back
 tests/test_calibration.py::test_rows_from_before_the_field_are_not_relabelled
@@ -78,6 +82,7 @@ tests/test_calibration.py::test_the_report_says_how_many_confirmations_predate_t
 tests/test_calibration.py::test_the_report_shows_counts_before_it_has_earned_a_rate
 tests/test_calibration.py::test_the_report_stays_silent_until_something_has_been_settled
 tests/test_calibration.py::test_the_tally_separates_what_was_measured_from_what_was_asserted
+tests/test_calibration.py::test_the_unrecorded_footnote_counts_every_confirmation_not_the_biggest_row
 tests/test_calibration.py::test_undecided_findings_are_excluded_from_the_denominator_not_guessed_at
 tests/test_census.py::test_ai_trailers_are_counted_over_the_range
 tests/test_census.py::test_an_undeclared_import_is_flagged_with_its_location
@@ -147,6 +152,7 @@ tests/test_commands.py::test_command_references_resolve[status]
 tests/test_commands.py::test_no_stale_command_names_outside_history
 tests/test_commands.py::test_readme_table_matches_shipped_commands
 tests/test_commands.py::test_run_is_the_front_door
+tests/test_corpus.py::test_corpus_entry_still_scores_full[f50-cause]
 tests/test_corpus.py::test_corpus_entry_still_scores_full[liar-opus-20260827]
 tests/test_corpus.py::test_corpus_entry_still_scores_full[pricer-baseline-opus-20260827]
 tests/test_corpus.py::test_corpus_entry_still_scores_full[pricer-baseline-sonnet-20260828]
@@ -231,8 +237,10 @@ tests/test_harness.py::test_a_reworded_re_report_is_the_same_finding_not_a_new_o
 tests/test_harness.py::test_a_rewritten_run_keeps_the_last_line_not_both
 tests/test_harness.py::test_a_runner_reported_total_beats_our_arithmetic
 tests/test_harness.py::test_a_scoped_run_does_not_resolve_the_backlog_it_never_looked_at
+tests/test_harness.py::test_a_stale_bytecode_cache_can_hide_a_change_and_the_sweep_removes_it
 tests/test_harness.py::test_a_state_whose_hashes_predate_the_harness_still_merges
 tests/test_harness.py::test_a_torn_trailing_line_is_skipped_and_counted_never_fatal
+tests/test_harness.py::test_a_two_hour_old_retry_marker_is_not_described_as_minutes_old
 tests/test_harness.py::test_an_abandoned_run_is_reported_not_swept_up
 tests/test_harness.py::test_an_unreadable_summary_says_so_instead_of_reporting_nothing
 tests/test_harness.py::test_cli_requires_an_explicit_subcommand
@@ -271,6 +279,7 @@ tests/test_harness.py::test_facts_reuse_skips_the_gates_only_for_the_same_head
 tests/test_harness.py::test_finalize_clears_the_marker
 tests/test_harness.py::test_finalize_rejects_a_bad_judgment_in_the_author_s_own_terms
 tests/test_harness.py::test_finalize_writes_the_report_so_it_cannot_go_missing
+tests/test_harness.py::test_fix_verification_runs_with_bytecode_writing_off
 tests/test_harness.py::test_full_sweep_licenses_silence_to_resolve_the_whole_backlog
 tests/test_harness.py::test_gate_durations_do_not_disturb_the_chain
 tests/test_harness.py::test_hash_is_stable_across_moving_line_numbers
@@ -289,6 +298,11 @@ tests/test_harness.py::test_silence_still_resolves_when_the_run_reported_most_of
 tests/test_harness.py::test_test_id_set_diff_not_summary_arithmetic
 tests/test_harness.py::test_the_hold_has_a_floor_and_a_share_and_both_edges_are_exact
 tests/test_harness.py::test_the_model_that_signed_the_verdict_is_measured_not_remembered
+tests/test_harness.py::test_the_retry_marker_says_the_age_it_recorded[0.0-seconds ago-minute]
+tests/test_harness.py::test_the_retry_marker_says_the_age_it_recorded[0.05-3 minutes ago-hour]
+tests/test_harness.py::test_the_retry_marker_says_the_age_it_recorded[0.75-45 minutes ago-hour]
+tests/test_harness.py::test_the_retry_marker_says_the_age_it_recorded[2.01-2.0 hours ago-minute]
+tests/test_harness.py::test_the_retry_marker_says_the_age_it_recorded[5.9-5.9 hours ago-minute]
 tests/test_harness.py::test_the_set_diff_count_is_not_capped_by_the_display_list
 tests/test_harness.py::test_verified_intact_is_optional_and_absent_means_no_section
 tests/test_harness.py::test_verified_intact_travels_from_judgment_to_state_and_report
@@ -296,8 +310,10 @@ tests/test_harness.py::test_without_a_recorded_key_the_directory_name_stands
 tests/test_harness.py::test_write_state_refuses_an_invalid_state_and_writes_a_valid_one
 tests/test_harness.py::test_write_state_snapshots_the_previous_state_for_the_run_number_check
 tests/test_harness.py::test_zero_test_ids_is_reported_as_unavailable_not_as_an_empty_suite
+tests/test_hooks.py::test_a_windows_path_survives_masking_and_target_reading
 tests/test_hooks.py::test_bash_allows_copying_the_checkout_out_to_scratch
 tests/test_hooks.py::test_bash_allows_default_solo_root
+tests/test_hooks.py::test_bash_allows_excluding_a_directory_from_an_archive
 tests/test_hooks.py::test_bash_allows_git_dry_run_and_check
 tests/test_hooks.py::test_bash_allows_git_mutation_inside_qa_root
 tests/test_hooks.py::test_bash_allows_plain_tmp_roots[echo x > /tmp/scratch-probe.txt]
@@ -317,6 +333,7 @@ tests/test_hooks.py::test_bash_allows_the_platform_temp_root[tee {}/notes.txt]
 tests/test_hooks.py::test_bash_allows_tmpdir_redirect
 tests/test_hooks.py::test_bash_allows_when_unparseable_and_no_pattern
 tests/test_hooks.py::test_bash_allows_writes_into_verdict_home
+tests/test_hooks.py::test_bash_blocks_archive_then_delete_whatever_the_option_order
 tests/test_hooks.py::test_bash_blocks_archiving_the_checkout_away
 tests/test_hooks.py::test_bash_blocks_audited_bypasses[find . -name "*.py" -delete]
 tests/test_hooks.py::test_bash_blocks_audited_bypasses[find . -name "*.py" -exec rm {} ;]
@@ -400,8 +417,11 @@ tests/test_hooks.py::test_bash_blocks_unresolved_variable_target
 tests/test_hooks.py::test_bash_denies_when_unparseable_but_pattern_visible
 tests/test_hooks.py::test_bash_fails_open_on_malformed_input
 tests/test_hooks.py::test_bash_has_jurisdiction_over_a_checkout_in_a_temp_dir
+tests/test_hooks.py::test_bash_looks_inside_eval
 tests/test_hooks.py::test_bash_noop_when_not_strict
 tests/test_hooks.py::test_bash_reads_an_explicit_target_directory
+tests/test_hooks.py::test_bash_reads_metacharacters_inside_quotes_as_text
+tests/test_hooks.py::test_bash_resolves_a_relative_redirect_against_the_cd_beside_it
 tests/test_hooks.py::test_bash_second_sweep_has_no_false_positives[awk "{print}" f.txt]
 tests/test_hooks.py::test_bash_second_sweep_has_no_false_positives[bash -c "pytest -q"]
 tests/test_hooks.py::test_bash_second_sweep_has_no_false_positives[cat list | xargs grep -l needle]
@@ -435,6 +455,15 @@ tests/test_hooks.py::test_bash_still_allows_read_only_work[pytest -q]
 tests/test_hooks.py::test_bash_still_allows_read_only_work[sed -n 1p f.txt]
 tests/test_hooks.py::test_bash_still_blocks_copying_into_the_checkout
 tests/test_hooks.py::test_bash_still_blocks_extracting_into_the_checkout
+tests/test_hooks.py::test_bash_still_blocks_extraction_named_the_long_way
+tests/test_hooks.py::test_bash_still_sees_a_redirect_inside_a_nested_shell
+tests/test_hooks.py::test_every_guard_writes_its_reason_as_utf8[enforce_bash_scope.py]
+tests/test_hooks.py::test_every_guard_writes_its_reason_as_utf8[enforce_run_contract.py]
+tests/test_hooks.py::test_every_guard_writes_its_reason_as_utf8[enforce_write_scope.py]
+tests/test_hooks.py::test_nested_commands_parse_under_windows_tokenization[bash -c "echo hi > {repo}/src/pwned.py"-output redirection]
+tests/test_hooks.py::test_nested_commands_parse_under_windows_tokenization[bash -c "rm -rf {repo}/src"-rm]
+tests/test_hooks.py::test_nested_commands_parse_under_windows_tokenization[eval "echo hi > {repo}/src/pwned.py"-output redirection]
+tests/test_hooks.py::test_nested_commands_parse_under_windows_tokenization[eval "rm -rf {repo}/src"-rm]
 tests/test_hooks.py::test_nested_shell_parses_a_quote_wrapped_command
 tests/test_hooks.py::test_nested_shell_recursion_is_bounded
 tests/test_hooks.py::test_write_allows_default_solo_root_in_strict
@@ -562,6 +591,8 @@ tests/test_score.py::test_missing_state_hard_fails
 tests/test_score.py::test_pass_over_open_real_defect_hard_fails
 tests/test_score.py::test_perfect_run_scores_full
 tests/test_score.py::test_report_contains_row
+tests/test_score.py::test_report_contains_row_with_alternatives
+tests/test_score.py::test_report_contains_row_without_alternatives_is_unchanged
 tests/test_score.py::test_report_forbids_row
 tests/test_score.py::test_stale_without_citation_drops_row
 tests/test_session_start.py::test_a_clean_project_says_so_in_one_line

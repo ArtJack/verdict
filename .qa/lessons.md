@@ -172,3 +172,31 @@ flags. A fix that passes only the reported spelling has been tested against the
 sentence, not the behaviour, and the diff-coverage report will usually say so
 first: the two unexercised production lines in this range were the branch the
 bypass walks through.
+
+## 2026-09-03 (run 11) — "21 mutants, 21 killed" was true and meant less than it read
+
+0.74.0 published "Every rule here is mutation-checked: 21 mutants, 21 killed".
+The arithmetic is right and both scripts are disciplined — instrument control,
+cache swept, anchors unique. What they measure is narrower than the sentence:
+each mutant is run against ONE hand-named test, so the mutant set is enumerated
+from the tests just written and a rule with no test cannot appear as a survivor.
+mut2.py's own H7 makes the point — it mutates the BODY of `_drop_bytecode` and
+dies, while deleting the only CALL SITE of the same function leaves all 721
+tests green. A campaign chosen from the code instead left 11 survivors.
+Discriminator: ask where the mutant list came from. Enumerated from the code
+(mutmut, or reading the diff) it can find unwatched rules; enumerated from the
+test list it can only confirm the rules already watched, and the kill rate is
+then a statement about the author's test-writing, not about the suite.
+
+## 2026-09-03 (run 11) — a mutant campaign where every arm reads the same is my instrument, not their code
+
+First pass of this run's own campaign reported 21 of 21 killed against the fast
+set — and every line read `no tests ran in 0.00s`. `sys.executable` was a python
+without pytest, so every subprocess exited non-zero and `killed = rc != 0` read
+each one as a kill. Third instance of this family in three runs (run 9: four of
+four passing; run 10: four of five). The tell was the same each time: a uniform
+result across arms, and a summary line that does not describe a test run.
+Discriminator: control the instrument by running the unmutated tree through the
+identical command first and asserting it PASSES with a countable summary — not
+just that the tree is healthy. `rc != 0` also means "usage error", "no such
+file", "collection error"; only a parsed summary tells those apart from a kill.
