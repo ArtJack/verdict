@@ -47,6 +47,16 @@ Verdict is a Claude Code plugin built the way QA is actually practiced:
 /plugin install verdict@verdict
 ```
 
+**Python 3.9 or newer**, whatever your `python3` resolves to — the hooks and the
+fact harness are stdlib-only and are invoked by that name, which on a stock Mac is
+`/usr/bin/python3` (3.9). The optional MCP server is a pip install and needs 3.10+,
+which is what `requires-python` in `pyproject.toml` refers to. The floor is tested:
+a module that would fail to import on 3.9 fails CI instead
+([tests/test_interpreter_floor.py](tests/test_interpreter_floor.py)) — because the
+failure it prevents was silent. The Bash guard once raised on import there while the
+write guard beside it kept working, so a strict session looked armed with half its
+controls missing.
+
 ## What installs, and when it runs
 
 Installing a plugin means letting its code run in your sessions, so here is exactly

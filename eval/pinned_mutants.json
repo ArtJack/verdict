@@ -1,0 +1,194 @@
+[
+ {
+  "label": "M1 F-42: consume an argument after any token containing f",
+  "path": "hooks/enforce_bash_scope.py",
+  "old": "            elif name in _TAR_LONG_WITH_ARG:\n                yield \"opt\", name, next(it, None)",
+  "new": "            elif \"f\" in name:\n                yield \"opt\", name, next(it, None)"
+ },
+ {
+  "label": "M2 F-49: any option containing x is an extraction",
+  "path": "hooks/enforce_bash_scope.py",
+  "old": "    if any(kind == \"opt\" and (name == \"x\" or _tar_abbrev(name, \"extract\")\n                              or _tar_abbrev(name, \"get\"))\n           for kind, name, _ in parsed):",
+  "new": "    if any(kind == \"opt\" and \"x\" in name for kind, name, _ in parsed):"
+ },
+ {
+  "label": "M3 F-22: stop masking quoted text and heredoc bodies",
+  "path": "hooks/enforce_bash_scope.py",
+  "old": "    out = list(command)\n    i, n, heredocs, balanced = 0, len(command), [], True",
+  "new": "    return command, True\n    out = list(command)\n    i, n, heredocs, balanced = 0, len(command), [], True"
+ },
+ {
+  "label": "M4 F-22: ignore the cd beside a relative redirect",
+  "path": "hooks/enforce_bash_scope.py",
+  "old": "    if not toks or os.path.basename(toks[0]) != \"cd\":\n        return None",
+  "new": "    return None\n    if not toks or os.path.basename(toks[0]) != \"cd\":\n        return None"
+ },
+ {
+  "label": "M5 regression: nested shell stops scanning its own redirects",
+  "path": "hooks/enforce_bash_scope.py",
+  "old": "                for target in _redirect_targets(seg, seg_view):\n                    yield \"output redirection\", target\n                yield from _check_segment(_tokens(seg), cwd, depth + 1)",
+  "new": "                yield from _check_segment(_tokens(seg), cwd, depth + 1)"
+ },
+ {
+  "label": "M6 regression: >| loses to > in the operator alternation",
+  "path": "hooks/enforce_bash_scope.py",
+  "old": "r\"(?:^|[^<>])(?:>\\||&>{1,2}|\\d?>{1,2})\"",
+  "new": "r\"(?:^|[^<>])(?:\\d?>{1,2}|&>{1,2}|>\\|)\""
+ },
+ {
+  "label": "M7 regression: the | of >| splits the segment",
+  "path": "hooks/enforce_bash_scope.py",
+  "old": "r\"(?:&&|\\|\\||[;\\n]|(?<!>)\\|)\"",
+  "new": "r\"(?:&&|\\|\\||[;|\\n])\""
+ },
+ {
+  "label": "M8 regression: drop the fail-closed raw rescan",
+  "path": "hooks/enforce_bash_scope.py",
+  "old": "    for scan in ([view] if balanced else [view, command]):",
+  "new": "    for scan in [view]:"
+ },
+ {
+  "label": "M9 over-correction: deny every tar create as if it removed files",
+  "path": "hooks/enforce_bash_scope.py",
+  "old": "    if not any(kind == \"opt\" and _tar_abbrev(name, \"remove-files\")\n               for kind, name, _ in parsed):\n        return",
+  "new": "    if False:\n        return"
+ },
+ {
+  "label": "M11 regression: eval stops being parsed as a shell",
+  "path": "hooks/enforce_bash_scope.py",
+  "old": "    elif head == \"eval\" and depth < 3:\n        yield from _check_eval(args, cwd, depth)",
+  "new": "    elif head == \"eval\" and False:\n        yield from _check_eval(args, cwd, depth)"
+ },
+ {
+  "label": "M12 regression: nested command keeps its quotes (the Windows shape)",
+  "path": "hooks/enforce_bash_scope.py",
+  "old": "    if len(text) >= 2 and text[0] == text[-1] and text[0] in \"\\\"'\":\n        return text[1:-1]\n    return text",
+  "new": "    return text"
+ },
+ {
+  "label": "M13 regression: backslash is an escape everywhere (the Windows path shape)",
+  "path": "hooks/enforce_bash_scope.py",
+  "old": "        if ch == \"\\\\\" and _POSIX and i + 1 < n:\n            out.append(text[i + 1])",
+  "new": "        if ch == \"\\\\\" and i + 1 < n:\n            out.append(text[i + 1])"
+ },
+ {
+  "label": "M10 over-correction: treat a heredoc body as masked everywhere, incl. real redirects",
+  "path": "hooks/enforce_bash_scope.py",
+  "old": "        for target in _redirect_targets(segment, seg_view):",
+  "new": "        for target in []:"
+ },
+ {
+  "label": "H1 F-51: back to the maximum over the concatenated buckets",
+  "path": "src/verdict_mcp/harness.py",
+  "old": "    unrecorded = max((_unrecorded(store) for store in\n                      (cal.get(\"by_confidence\") or {}, cal.get(\"by_proof_method\") or {})\n                      if store), default=0)",
+  "new": "    unrecorded = max((v.get(\"confirmed\", 0) - v.get(\"confirmed_measured\", 0)\n                      - v.get(\"confirmed_claimed\", 0) for v in buckets), default=0)"
+ },
+ {
+  "label": "H2 F-51 over-correction: sum across BOTH stores, double-counting",
+  "path": "src/verdict_mcp/harness.py",
+  "old": "    unrecorded = max((_unrecorded(store) for store in\n                      (cal.get(\"by_confidence\") or {}, cal.get(\"by_proof_method\") or {})\n                      if store), default=0)",
+  "new": "    unrecorded = sum(_unrecorded(store) for store in\n                     (cal.get(\"by_confidence\") or {}, cal.get(\"by_proof_method\") or {}))"
+ },
+ {
+  "label": "H3 F-54: back to the machine's local calendar",
+  "path": "src/verdict_mcp/harness.py",
+  "old": "    today = today or run_date(facts)",
+  "new": "    today = today or date.today()"
+ },
+ {
+  "label": "H4 F-54 over-correction: ignore the run stamp, always use now",
+  "path": "src/verdict_mcp/harness.py",
+  "old": "    stamp = str(((facts or {}).get(\"last_run\") or {}).get(\"timestamp_utc\") or \"\")",
+  "new": "    stamp = \"\""
+ },
+ {
+  "label": "H5 F-53: back to the fixed 'minutes ago' phrase",
+  "path": "src/verdict_mcp/harness.py",
+  "old": "                \"meaning\": f\"an earlier attempt at this same commit, {_ago(age_h)} — \"\n                           \"this run's own retry, not a lost run. Nothing is missing\",",
+  "new": "                \"meaning\": \"an earlier attempt at this same commit, minutes ago — \"\n                           \"this run's own retry, not a lost run. Nothing is missing\","
+ },
+ {
+  "label": "H6 F-53: _ago reports hours as minutes",
+  "path": "src/verdict_mcp/harness.py",
+  "old": "    if minutes < 60:",
+  "new": "    if minutes < 600:"
+ },
+ {
+  "label": "H7 F-50: the scratch sweep becomes a no-op",
+  "path": "src/verdict_mcp/harness.py",
+  "old": "    for cache in Path(root).rglob(\"__pycache__\"):\n        shutil.rmtree(cache, ignore_errors=True)",
+  "new": "    return"
+ },
+ {
+  "label": "H8 F-50: verification subprocesses write bytecode again",
+  "path": "src/verdict_mcp/harness.py",
+  "old": "    env = dict(os.environ, PYTHONDONTWRITEBYTECODE=\"1\")\n    if pythonpath:",
+  "new": "    env = dict(os.environ)\n    if pythonpath:"
+ },
+ {
+  "label": "P1 the guard loses its lazy annotations (the 3.9 import death)",
+  "path": "hooks/enforce_bash_scope.py",
+  "old": "from __future__ import annotations\n",
+  "new": "\n"
+ },
+ {
+  "label": "P2 the harness loses them",
+  "path": "src/verdict_mcp/harness.py",
+  "old": "from __future__ import annotations\n",
+  "new": "\n"
+ },
+ {
+  "label": "P3 state.py loses them (gate.py dies through the import chain)",
+  "path": "src/verdict_mcp/state.py",
+  "old": "from __future__ import annotations\n",
+  "new": "\n"
+ },
+ {
+  "label": "P4 the README stops naming the floor",
+  "path": "README.md",
+  "old": "**Python 3.9 or newer**",
+  "new": "**Some Python or newer**"
+ },
+ {
+  "label": "P5 over-correction: the union detector matches nothing",
+  "path": "tests/test_interpreter_floor.py",
+  "old": "    return any(isinstance(n, ast.BinOp) and isinstance(n.op, ast.BitOr)\n               for n in ast.walk(node))",
+  "new": "    return False"
+ },
+ {
+  "label": "F-57: the bytecode sweep's only call site is deleted",
+  "path": "src/verdict_mcp/harness.py",
+  "old": "                _drop_bytecode(scratch)\n",
+  "new": ""
+ },
+ {
+  "label": "F-57: the UTF-8 stderr pin is never called by the bash guard",
+  "path": "hooks/enforce_bash_scope.py",
+  "old": "def main() -> int:\n    utf8_stderr()\n",
+  "new": "def main() -> int:\n"
+ },
+ {
+  "label": "F-57: the run's UTC date is computed and then not used",
+  "path": "src/verdict_mcp/harness.py",
+  "old": "    today = today or run_date(facts)",
+  "new": "    run_date(facts)\n    today = today or date.today()"
+ },
+ {
+  "label": "F-56: tar operands stop being read relative to -C",
+  "path": "hooks/enforce_bash_scope.py",
+  "old": "                   name if os.path.isabs(name) else os.path.join(target, name))",
+  "new": "                   name)"
+ },
+ {
+  "label": "F-59: a -T deletion list is treated as having no targets",
+  "path": "hooks/enforce_bash_scope.py",
+  "old": "        if kind == \"opt\" and (name == \"T\" or _tar_abbrev(name, \"files-from\")):",
+  "new": "        if False:"
+ },
+ {
+  "label": "F-56 over-correction: every operand is forced under -C, absolute ones included",
+  "path": "hooks/enforce_bash_scope.py",
+  "old": "                   name if os.path.isabs(name) else os.path.join(target, name))",
+  "new": "                   os.path.join(target, name.lstrip(\"/\")))"
+ }
+]

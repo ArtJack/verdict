@@ -5,6 +5,15 @@ programmatic form used by `verdict-gate` to resolve a checkout to its solo
 key. If the two ever disagree, docs/project-key.md wins. Stdlib only.
 """
 
+# Lazy annotations, so this module IMPORTS on the interpreter it is actually
+# invoked with. `hooks.json` and the agent contract both spell it `python3`, and on
+# a stock Mac that is /usr/bin/python3 = 3.9, where `str | None` is evaluated at
+# function-definition time and raises TypeError. The Bash guard died that way while
+# the write guard beside it kept denying, so a strict session looked armed with half
+# its controls missing (VERDICT-F-55). `requires-python` binds pip; a plugin is not
+# installed by pip.
+from __future__ import annotations
+
 import re
 import subprocess
 from pathlib import Path

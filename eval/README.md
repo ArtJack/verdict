@@ -189,6 +189,32 @@ Reproduce: copy the tree, `pip install -e . pytest "mutmut>=2.5,<3"`, then
 `mutmut run --paths-to-mutate <files> --runner "python -m pytest -x -q tests/"`. Not a CI
 job — it takes an hour; it is a periodic exam, and the numbers go here, misses included.
 
+### The other mutation question: is a rule we fixed actually pinned?
+
+`mutmut` enumerates mutants mechanically and asks what the suite misses at large.
+[`eval/pin_check.py`](pin_check.py) asks something narrower and more accountable: take a
+rule this project claims to have fixed, put the defect back, and does the suite notice?
+
+It exists because a published number was wrong. v0.74.0's changelog said "21 mutants, 21
+killed"; the run that audited it found that every mutant had been run against **one
+hand-named test**, chosen from the same reading of the same finding — and that the scripts
+were never committed, so nobody could reproduce the figure. Re-run against the whole suite
+the catalogue was **27 of 29**, and both survivors were real: a README assertion that
+matched a digit inside a parenthetical rather than the claim, and the only call site of
+`_drop_bytecode`, whose deletion left every test passing because the mutant that "killed"
+it had changed the function's *body*.
+
+| | mutants | killed |
+|---|---|---|
+| 2026-09-03, v0.74.0 as published | 21 | 21, each against one named test |
+| re-run against the whole suite | 29 | **27** |
+| v0.75.0, both survivors closed, this release's rules added | **32** | **32** |
+
+The catalogue is [`eval/pinned_mutants.json`](pinned_mutants.json) — data, beside the number
+it supports. It carries a class the hand-written scripts never had: mutants that delete a
+**call site** while leaving the code correct, because "the code is right" and "the code
+runs" are different claims and only the first was ever being tested.
+
 ### Variance — a score is n=1 until repeated
 
 `run_eval.py --repeat N` runs a protocol N times in fresh workdirs. First measured series

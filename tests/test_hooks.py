@@ -826,3 +826,51 @@ def test_every_guard_writes_its_reason_as_utf8(script):
 
     src = (HOOKS / script).read_text(encoding="utf-8")
     assert "utf8_stderr()" in src, f"{script} does not pin its stderr encoding"
+
+
+def test_bash_blocks_archive_then_delete_reached_through_a_change_of_directory(repo, tmp_path):
+    """VERDICT-F-56: tar reads its operands relative to `-C`, and the handler
+    yielded them bare. From a scratch cwd, `-C <checkout> hooks` resolved to
+    `<scratch>/hooks` — a path that does not exist and is allowed — while tar
+    deleted the checkout's copy. Proven with real GNU tar during the audit.
+
+    Both directions, from a cwd that is neither: the checkout must be denied
+    and a scratch directory must survive, or the fix is just a wider refusal.
+    """
+    scratch = tmp_path / "scratch"
+    (scratch / "stuff").mkdir(parents=True)
+    elsewhere = tmp_path / "elsewhere"
+    elsewhere.mkdir()
+    named = repr(str(Path(repo, "hooks")))[1:-1]
+    for command in (f"tar -cf {scratch}/x.tar --remove-files -C {repo} hooks",
+                    f"tar -cf {scratch}/x.tar --remove-files --directory={repo} hooks"):
+        rc, err = run_hook("enforce_bash_scope.py", bash_event(command, elsewhere), strict="1")
+        assert rc == 2, f"expected deny for: {command}"
+        assert named in err, f"the checkout's path should be named: {err}"
+
+    rc, err = run_hook("enforce_bash_scope.py",
+                       bash_event(f"tar -cf {scratch}/x.tar --remove-files -C {scratch} stuff",
+                                  elsewhere), strict="1")
+    assert rc == 0, f"archiving scratch out of scratch must still be allowed: {err}"
+
+
+def test_bash_blocks_a_deletion_list_it_cannot_read(repo, tmp_path):
+    """VERDICT-F-59: `-T <file>` puts the operands in a file, so nothing on the
+    command line names them and the handler yielded nothing at all. The module
+    already had a word for a target it cannot see — `xargs` uses it — and this
+    site did not.
+
+    A `-T` without `--remove-files` only reads, and must stay allowed."""
+    scratch = tmp_path / "scratch"
+    scratch.mkdir()
+    Path(repo, "list.txt").write_text("hooks\n", encoding="utf-8")
+    for command in (f"tar --remove-files -cf {scratch}/x.tar -T {repo}/list.txt",
+                    f"tar --remove-files -cf {scratch}/x.tar --files-from {repo}/list.txt"):
+        rc, err = run_hook("enforce_bash_scope.py", bash_event(command, repo), strict="1")
+        assert rc == 2, f"expected deny for: {command}"
+        assert "name the paths on the command line" in err, err
+
+    rc, err = run_hook("enforce_bash_scope.py",
+                       bash_event(f"tar -cf {scratch}/x.tar -T {repo}/list.txt", repo),
+                       strict="1")
+    assert rc == 0, f"reading a file list without --remove-files is not a write: {err}"

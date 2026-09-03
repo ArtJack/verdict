@@ -549,3 +549,63 @@ def test_a_single_cited_test_that_fails_at_head_still_refuses(tmp_path):
     f = merge(facts, resolved(), prev)["findings"][0]
     assert f["delta"] == "STILL_OPEN" and f["status"] == "open"
     assert "resolution_refused" in f
+
+
+def test_a_stale_cache_planted_in_the_scratch_does_not_survive_the_run(tmp_path, monkeypatch):
+    """The sweep has to happen in the real flow, not merely exist.
+
+    VERDICT-F-57 caught this the honest way: `_drop_bytecode`'s body was
+    mutation-tested and its **only call site** was not, so deleting the call
+    left all 721 tests passing. A rule nothing calls is a rule that can be
+    removed by accident, and the suite says the same thing either way.
+
+    Fault injection rather than a mock assertion: the scratch checkout is
+    poisoned with a `__pycache__` before verification runs, and the check is
+    what the filesystem says afterwards. Deleting the call site fails this.
+    """
+    repo, sha_a = bugged_repo(tmp_path)
+    (repo / "pkg.py").write_text(FIXED, encoding="utf-8")
+    commit(repo, "fix")
+    qa = tmp_path / "qa"
+    previous_state(qa, sha_a)
+
+    real_scratch = h._scratch_checkout
+    planted = {}
+
+    def poisoned(repo_path, sha):
+        """A real worktree, plus the stale cache a previous run could leave."""
+        scratch = real_scratch(repo_path, sha)
+        cache = scratch / "__pycache__"
+        cache.mkdir(exist_ok=True)
+        stale = cache / "pkg.cpython-stale.pyc"
+        stale.write_bytes(b"not really bytecode, and that is the point")
+        planted["path"] = stale
+        return scratch
+
+    # Observed at the only moment that matters: when the old code actually
+    # runs. Checking after the run proves nothing — verification removes the
+    # whole scratch worktree on the way out, so the planted file is gone
+    # whether it was swept or not. The first version of this test asserted
+    # exactly that, passed, and was killed by the mutant it was written for.
+    seen = []
+    real_run_test = h._run_test
+
+    def watch(template, test_id, cwd, repo_path, timeout, pythonpath=None):
+        seen.append((str(cwd), planted.get("path") is not None
+                     and planted["path"].exists()))
+        return real_run_test(template, test_id, cwd, repo_path, timeout, pythonpath)
+
+    monkeypatch.setattr(h, "_scratch_checkout", poisoned)
+    monkeypatch.setattr(h, "_run_test", watch)
+    facts = collect(repo, qa, [], test_one_cmd=CMD)
+
+    assert planted, "the scratch was never built; this test measured nothing"
+    scratch_dir = str(planted["path"].parent.parent)
+    in_scratch = [cache_present for cwd, cache_present in seen if cwd == scratch_dir]
+    assert in_scratch, f"the old commit never ran in the scratch; saw {seen}"
+    assert not any(in_scratch), (
+        "a planted __pycache__ was still there when the previous commit ran — the "
+        "scratch is not swept, so a stale .pyc could decide the result")
+    # And the measurement itself must still be right, not merely cache-free.
+    rec = facts["verification"]["P-F-1"]
+    assert (rec["at_previous"], rec["at_head"]) == ("fail", "pass"), rec

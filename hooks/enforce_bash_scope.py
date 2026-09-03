@@ -26,6 +26,24 @@ an unresolved `$variable` after environment substitution is denied — strict
 mode is strict; use literal paths inside the QA root.
 """
 
+# Lazy annotations, so this module IMPORTS on the interpreter it is actually
+# invoked with. `hooks.json` and the agent contract both spell it `python3`, and on
+# a stock Mac that is /usr/bin/python3 = 3.9, where `str | None` is evaluated at
+# function-definition time and raises TypeError. The Bash guard died that way while
+# the write guard beside it kept denying, so a strict session looked armed with half
+# its controls missing (VERDICT-F-55). `requires-python` binds pip; a plugin is not
+# installed by pip.
+from __future__ import annotations
+
+# Lazy annotations, so this module IMPORTS on the interpreter it is actually
+# invoked with. `hooks.json` and the agent contract both spell it `python3`, and on
+# a stock Mac that is /usr/bin/python3 = 3.9, where `str | None` is evaluated at
+# function-definition time and raises TypeError. The Bash guard died that way while
+# the write guard beside it kept denying, so a strict session looked armed with half
+# its controls missing (VERDICT-F-55). `requires-python` binds pip; a plugin is not
+# installed by pip.
+
+
 import json
 import os
 import re
@@ -112,8 +130,9 @@ _DURATION = re.compile(r"^\d+(?:\.\d+)?[smhd]?$")
 # Shells re-enter the same parser: `bash -c "rm x"` is not opaque the way an
 # interpreter's `-c` is, and refusing to look inside it would be a choice.
 _SHELLS = {"bash", "sh", "zsh", "dash", "ksh", "ash"}
-# A target that cannot be read off the command line at all. Distinct from a
-# path so it can never be mistaken for one — "-" was, and _target_ok waved it
+# A target that cannot be read off the command line at all: `xargs` taking its
+# list from stdin, `tar --remove-files -T` taking it from a file. Distinct from
+# a path so it can never be mistaken for one — "-" was, and _target_ok waved it
 # through as a flag.
 # Backslash is an escape character on POSIX and a path separator on Windows,
 # and this module has to pick one. `_tokens` already picked: it runs shlex with
@@ -186,7 +205,8 @@ def _in_checkout(path: str, stop_at: str) -> bool:
 def _target_ok(target: str, cwd: str) -> tuple[bool, str]:
     """(allowed, resolved-or-reason) for one candidate write target."""
     if target == _UNKNOWABLE:
-        return False, "a target read from stdin (pipe the list to a file and name it)"
+        return False, ("a target this command reads from somewhere other than its "
+                       "own arguments — name the paths on the command line")
     if not target or target.startswith(("&", "-")):
         return True, target  # fd duplication or a flag, not a file
     if target.startswith("/dev/"):
@@ -577,8 +597,19 @@ def _check_tar(args, cwd):
                for kind, name, _ in parsed):
         return
     for kind, name, _ in parsed:
-        if kind == "arg":
-            yield "tar --remove-files (deletes what it archived)", name
+        if kind == "opt" and (name == "T" or _tar_abbrev(name, "files-from")):
+            # The operands are in a file, so there is nothing on the command
+            # line to judge. The module already has a word for that, and not
+            # using it here let `tar --remove-files -cf x.tar -T list.txt`
+            # delete whatever the list named (VERDICT-F-59).
+            yield "tar --remove-files -T (deletes what a file lists)", _UNKNOWABLE
+        elif kind == "arg":
+            # Operands are read relative to `-C`, not to the shell's cwd. Yielded
+            # bare, `hooks` under `-C <checkout>` resolved against a scratch cwd
+            # and was allowed, while tar deleted the checkout's copy
+            # (VERDICT-F-56). Absolute operands are unaffected.
+            yield ("tar --remove-files (deletes what it archived)",
+                   name if os.path.isabs(name) else os.path.join(target, name))
 
 
 def _check_find(args, cwd):

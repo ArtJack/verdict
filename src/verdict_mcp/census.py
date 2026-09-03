@@ -25,6 +25,15 @@ own scope — "added lines in <range>" or "tree scan, capped" — because a cens
 that silently covered less than the reader assumed is worse than none.
 """
 
+# Lazy annotations, so this module IMPORTS on the interpreter it is actually
+# invoked with. `hooks.json` and the agent contract both spell it `python3`, and on
+# a stock Mac that is /usr/bin/python3 = 3.9, where `str | None` is evaluated at
+# function-definition time and raises TypeError. The Bash guard died that way while
+# the write guard beside it kept denying, so a strict session looked armed with half
+# its controls missing (VERDICT-F-55). `requires-python` binds pip; a plugin is not
+# installed by pip.
+from __future__ import annotations
+
 import re
 import subprocess
 import sys

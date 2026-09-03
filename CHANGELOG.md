@@ -3,6 +3,81 @@
 Plugin and `verdict-mcp` share one version line; `.claude-plugin/plugin.json` and
 `pyproject.toml` are bumped together.
 
+## 0.75.0 — 2026-09-03 · "a rule nothing calls"
+
+Run 11's first four findings, and the number in 0.74.0's own changelog that
+turned out to be measuring the wrong thing.
+
+**VERDICT-F-57 — "21 mutants, 21 killed" counted the tests I had just written,
+not the rules I shipped.** Every mutant ran against one hand-named test, chosen
+from the same reading of the same finding, so the pair could only confirm a rule
+already watched. And the scripts lived in a scratch directory, so nobody could
+reproduce the number — while the eval half of the very same release archived its
+artifact. The concrete failure: **deleting the only call site of `_drop_bytecode`
+left all 721 tests passing.** The killing mutant had changed the function's body.
+
+`eval/pin_check.py` and `eval/pinned_mutants.json` ship instead of a claim.
+Every mutant runs against the **whole suite**, the catalogue is data anyone can
+read beside the number it supports, and it carries a class that did not exist
+before: mutants that delete a **call site** while leaving the code correct.
+"The code is right" and "the code runs" are different claims.
+
+| | mutants | killed |
+|---|---|---|
+| 0.74.0, as published | 21 | 21, each against one named test |
+| re-run against the whole suite | 29 | **27** |
+| after closing both survivors, plus this release's rules | **32** | **32** |
+
+The two survivors were the point. One was a README assertion of mine that asked
+whether the string "3.9" appeared anywhere in the file — it does, inside a
+parenthetical, so gutting the actual claim left the test green. The other was
+the call site above.
+
+**VERDICT-F-55 — the Bash guard was a silent no-op on macOS's system Python.**
+`hooks/hooks.json` invokes bare `python3`; on a stock Mac that is
+`/usr/bin/python3`, which is 3.9; `str | None` in a signature is evaluated when
+the function is defined, so the guard raised `TypeError` and exited 1. Under the
+same interpreter `enforce_write_scope.py` kept denying with exit 2, so a strict
+session **looked armed with half its controls missing**. `requires-python` binds
+pip, and a plugin is not installed by pip.
+
+Nine modules now defer their annotations. Measured on 3.9.6: the guard denies
+with its reason and lets `pytest` through, the gate reads a state, the validator
+passes, every hook still fails open on malformed input, and all four entry points
+behave identically to 3.13. The README states the floor, and
+`tests/test_interpreter_floor.py` enforces it by *parsing* for the syntax — CI has
+3.10 and 3.13 and no way to run the interpreter that exposed this.
+
+**VERDICT-F-56 and F-59 — two more tar bypasses in the family 0.74.0 fixed.**
+tar reads its operands relative to `-C`, and the handler yielded them bare: from
+a scratch working directory, `-C <checkout> hooks` resolved to `<scratch>/hooks`,
+a path that does not exist and is allowed, while tar deleted the checkout's copy.
+And `-T <file>` puts the operands in a file, so nothing on the command line named
+them and the handler yielded nothing at all — the module already had a word for a
+target it cannot see, and this site did not use it. Both are tested in both
+directions from a third directory, because a fix that only ever refuses more is
+not a distinction.
+
+**VERDICT-F-61** — a published count contradicting its own measurement, inside a
+declared trust anchor. Fixed with run 11's record.
+
+**What the tool cost to build, recorded because it is the same shape as what it
+hunts.** A killed run left a mutation in the working tree, where it read as a test
+failure rather than as a mutant nobody put back — so the runner now restores on
+interrupt, kill and hangup, proven by sending it a real signal mid-run. Two
+instances started together and one read a failure the other had caused — so it
+takes a lock. And running it while editing produced a hand-probe that reported a
+guard bug which was only the mutant of the moment; that one has no technical
+remedy and is written at the top of the file instead. Three times, the code was
+right and the conditions around it were not.
+
+**Not in this release, on purpose.** VERDICT-F-58 — §3's instrument control cannot
+fire in the ordering VERDICT-F-50 described, because the bytecode is written once
+at the first injection and re-running it reads its own genuine cache. The
+prophylactic half works (0 of 2 caught with the cache in place, 2 of 2 swept). The
+cure is a contract change, prompt edits are eval-paid here, and the release that
+found a problem does not get to author its own evidence.
+
 ## 0.74.0 — 2026-09-03 · "the right answer to the wrong question"
 
 Run 10's eight findings, closed together. Six of them share a shape: a check that ran, and

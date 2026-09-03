@@ -11,3 +11,6 @@ node_modules/
 # mutmut writes its result database beside the tree it mutates; it is a
 # campaign byproduct, re-derived by re-running the campaign.
 .mutmut-cache
+
+# pin_check holds this while it is mutating the working tree.
+.pin_check.lock
