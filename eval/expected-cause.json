@@ -5,28 +5,47 @@
   "rows": [
     {
       "key": "cause-truncation-in-to-cents",
-      "match_any": ["to_cents", "truncat", "int(amount * 100)", "int(amount*100)"],
+      "match_any": [
+        "to_cents",
+        "truncat",
+        "int(amount * 100)",
+        "int(amount*100)"
+      ],
       "classification": "REAL_DEFECT"
     },
     {
       "key": "class-other-truncation-sites",
-      "match_any": ["invoice", "report.py", "monthly_total", "line_total", "three sites",
-                    "same shape", "other site"]
+      "match_any": [
+        "invoice",
+        "report.py",
+        "monthly_total",
+        "line_total",
+        "three sites",
+        "same shape",
+        "other site"
+      ]
     },
     {
       "key": "verdict-fails",
       "type": "verdict",
-      "expect": ["fail"]
+      "expect": [
+        "fail"
+      ]
     },
     {
       "key": "chain-reported-with-mechanism",
       "type": "report_contains",
-      "terms_all": ["mechanism", "money.py"]
+      "terms_all": [
+        "mechanism",
+        "money.py"
+      ]
     },
     {
       "key": "trigger-separated-from-cause",
       "type": "report_contains",
-      "terms_all": ["trigger"]
+      "terms_all": [
+        "trigger"
+      ]
     },
     {
       "key": "decoy-cache-not-blamed",
@@ -43,9 +62,24 @@
         "root cause is the test change",
         "caused by the test change"
       ]
+    },
+    {
+      "key": "counterfactual-isolated-from-stale-bytecode",
+      "type": "report_contains",
+      "terms_all": [
+        "scratch"
+      ],
+      "terms_any": [
+        "pythondontwritebytecode",
+        "bytecode",
+        "instrument control"
+      ],
+      "note": "Added 2026-09-03 with the v0.74.0 contract clause it scores. Terms are taken from the clause, not from any run's phrasing. First draft also accepted the bare string `__pycache__` and a control run earned the row for the sentence 'clean apart from __pycache__' — naming the directory while reporting the checkout untouched is housekeeping, not isolation. As scored now: 3 of 3 treatment runs earn it, 0 of 3 byte-identical control runs on the v0.73.0 prompt do. The row exists because VERDICT-F-52 established that no fixture could tell one version of this contract from another."
     }
   ],
   "prose": {
-    "forbid": ["no bugs found"]
+    "forbid": [
+      "no bugs found"
+    ]
   }
 }

@@ -5,6 +5,7 @@ wrong at least once in production.
 """
 
 import json
+import os
 import subprocess
 import sys
 from datetime import date, datetime, timedelta, timezone
@@ -868,3 +869,106 @@ def test_a_previous_states_key_beats_the_directory_name(repo, qa_root):
 def test_without_a_recorded_key_the_directory_name_stands(repo, qa_root):
     facts = collect(repo, qa_root, [])
     assert facts["project_key_source"] == "git" and facts["project"] == repo.name.lower()
+
+
+@pytest.mark.parametrize("age_h, expected, forbidden", [
+    (0.0, "seconds ago", "minute"),
+    (0.05, "3 minutes ago", "hour"),
+    (0.75, "45 minutes ago", "hour"),
+    (2.01, "2.0 hours ago", "minute"),
+    (5.9, "5.9 hours ago", "minute"),
+])
+def test_the_retry_marker_says_the_age_it_recorded(age_h, expected, forbidden):
+    """VERDICT-F-53: the retry window is six hours wide and every marker inside
+    it was narrated as "minutes ago", so a live run published `age_hours: 2.01`
+    beside a sentence calling it minutes old.
+
+    Same shape as VERDICT-F-36 and VERDICT-F-45, which this project has now
+    fixed three times: a rendered sentence contradicting the measured value
+    printed next to it.
+    """
+    from verdict_mcp.harness import _ago
+    assert _ago(age_h) == expected
+    assert forbidden not in _ago(age_h)
+
+
+def test_a_two_hour_old_retry_marker_is_not_described_as_minutes_old(repo, qa_root):
+    """The end-to-end version: the phrase in `meaning` and the number in
+    `age_hours` are written into the same object and must agree."""
+    facts_args = [sys.executable, str(HARNESS), "facts", "--repo", str(repo),
+                  "--qa-root", str(qa_root)]
+    subprocess.run(facts_args, capture_output=True, text=True, check=True)
+    marker = json.loads((qa_root / "run-in-progress.json").read_text(encoding="utf-8"))
+    two_hours_ago = datetime.now(timezone.utc) - timedelta(hours=2, minutes=1)
+    marker["started_utc"] = two_hours_ago.strftime("%Y-%m-%dT%H:%M:%SZ")
+    (qa_root / "run-in-progress.json").write_text(json.dumps(marker), encoding="utf-8")
+
+    out = json.loads(subprocess.run(facts_args, capture_output=True, text=True,
+                                    check=True).stdout)
+    attempt = out["previous_attempt_this_run"]
+    assert 2.0 <= attempt["age_hours"] <= 2.2, attempt
+    assert "hours ago" in attempt["meaning"], attempt["meaning"]
+    assert "minutes ago" not in attempt["meaning"], attempt["meaning"]
+    assert "this run's own retry" in attempt["meaning"], "still a retry, not a lost run"
+
+
+def test_a_stale_bytecode_cache_can_hide_a_change_and_the_sweep_removes_it(tmp_path):
+    """VERDICT-F-50: CPython validates a cached module on the source's mtime in
+    WHOLE SECONDS plus its size, so a same-size rewrite that lands in the same
+    second runs the previous version's bytecode with no sign anything is wrong.
+
+    This is the mechanism behind a re-injection campaign that killed 4 of 5
+    mutants with the cache in place and 5 of 5 once swept, while the check the
+    contract prescribed — printing the loaded module's `__file__` — was right
+    both times, because the path was never what was wrong.
+
+    Note what the fix has to be. `PYTHONDONTWRITEBYTECODE` stops a cache being
+    written; it does not stop an existing one being read. Only the sweep does.
+    """
+    from verdict_mcp.harness import _drop_bytecode
+    mod = tmp_path / "probe.py"
+    mod.write_text("VALUE = 'first'\n", encoding="utf-8")
+    read = [sys.executable, "-c", "import probe; print(probe.VALUE)"]
+    # Explicit, not inherited: a caller that already suppresses bytecode would
+    # otherwise leave this test asserting on a cache that was never written,
+    # and it would pass by never reaching the thing it is about.
+    writes = {k: v for k, v in os.environ.items() if k != "PYTHONDONTWRITEBYTECODE"}
+
+    first = subprocess.run(read, cwd=tmp_path, capture_output=True, text=True,
+                           env=writes, check=True)
+    assert first.stdout.strip() == "first"
+    assert list(tmp_path.rglob("__pycache__")), "the cache this test is about"
+
+    stamp = mod.stat().st_mtime
+    mod.write_text("VALUE = 'secnd'\n", encoding="utf-8")   # same length, on purpose
+    os.utime(mod, (stamp, stamp))                            # ...and the same second
+
+    stale = subprocess.run(read, cwd=tmp_path, capture_output=True, text=True,
+                           env=writes, check=True)
+    assert stale.stdout.strip() == "first", "the defect: the cache outranks the source"
+
+    _drop_bytecode(tmp_path)
+    assert not list(tmp_path.rglob("__pycache__"))
+    fresh = subprocess.run(read, cwd=tmp_path, capture_output=True, text=True,
+                           env={**writes, "PYTHONDONTWRITEBYTECODE": "1"}, check=True)
+    assert fresh.stdout.strip() == "secnd", "after the sweep the source decides"
+    assert not list(tmp_path.rglob("__pycache__")), "and no new cache is left behind"
+
+
+def test_fix_verification_runs_with_bytecode_writing_off(tmp_path, monkeypatch):
+    """The other half of VERDICT-F-50: the harness must not create the cache it
+    would then have to sweep. `_run_test` is where every verification
+    subprocess is spawned, at HEAD and at the previous commit alike."""
+    from verdict_mcp import harness
+    seen = {}
+
+    def fake_run(cmd, **kw):
+        seen.update(kw.get("env") or {})
+        return subprocess.CompletedProcess(cmd, 0, "1 passed", "")
+
+    # Cleared first: inherited from the caller, this assertion holds whether or
+    # not `_run_test` sets anything, which is a test that cannot fail.
+    monkeypatch.delenv("PYTHONDONTWRITEBYTECODE", raising=False)
+    monkeypatch.setattr(harness.subprocess, "run", fake_run)
+    harness._run_test("pytest {id}", "tests/t.py::x", tmp_path, tmp_path, 30)
+    assert seen.get("PYTHONDONTWRITEBYTECODE") == "1"

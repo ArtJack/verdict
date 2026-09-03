@@ -33,7 +33,7 @@ import shlex
 import sys
 import tempfile
 
-from qa_paths import is_allowed_path
+from qa_paths import is_allowed_path, utf8_stderr
 
 # Commands whose non-flag arguments name files they (may) mutate.
 _MUTATORS = {
@@ -53,6 +53,21 @@ _COPIERS = {"cp", "install", "rsync", "ln"}
 # that exact command was denied (VERDICT-F-39). Both ends are targets here.
 _MOVERS = {"mv"}
 _TARGET_FLAGS = ("-t", "--target-directory")
+# tar's option grammar, only as far as this guard needs it. Short options that
+# consume the token after them: under-listing here costs at worst a spurious
+# deletion candidate on a command that already carries `--remove-files`, while
+# over-listing hides a real one, so the list stays short and certain.
+_TAR_SHORT_WITH_ARG = set("bCfFgHIKLNTVX")
+# Long options in their `--opt VALUE` form; `--opt=VALUE` carries its own.
+_TAR_LONG_WITH_ARG = frozenset({
+    "add-file", "after-date", "blocking-factor", "checkpoint-action",
+    "directory", "exclude", "exclude-from", "file", "files-from", "format",
+    "group", "index-file", "info-script", "label", "listed-incremental",
+    "mode", "newer", "newer-mtime", "occurrence", "owner", "quoting-style",
+    "record-size", "rmt-command", "rsh-command", "starting-file",
+    "strip-components", "suffix", "tape-length", "to-command", "transform",
+    "use-compress-program", "volno-file", "warning", "xform",
+})
 # git verbs that mutate the working tree, index, refs, or config.
 _GIT_MUTATORS = {
     "commit", "push", "checkout", "switch", "restore", "reset", "clean",
@@ -100,10 +115,33 @@ _SHELLS = {"bash", "sh", "zsh", "dash", "ksh", "ash"}
 # A target that cannot be read off the command line at all. Distinct from a
 # path so it can never be mistaken for one — "-" was, and _target_ok waved it
 # through as a flag.
+# Backslash is an escape character on POSIX and a path separator on Windows,
+# and this module has to pick one. `_tokens` already picked: it runs shlex with
+# posix=False on Windows because "posix=True would eat path backslashes as
+# escapes, mangling every target it is supposed to judge". The masker and the
+# redirect-target reader below must make the same choice or they mangle the
+# targets shlex was careful to keep — which is exactly what they did, turning
+# `C:\Users\...\repo\src` into `C:Usersreposrc` and reading an absolute path
+# as a relative one.
+_POSIX = os.name != "nt"
 _UNKNOWABLE = "\x00stdin"
 _ASSIGNMENT = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*=")
-# `> path`, `>> path`, `2> path`, `&> path`, `>| path` — captures the target token.
-_REDIRECT = re.compile(r"(?:^|[^<>])(?:\d?>{1,2}|&>{1,2}|>\|)\s*([^\s;|&<>]+)")
+# `>`, `>>`, `2>`, `&>`, `>|` — locates the OPERATOR only. The target used to
+# be captured by the same regex out of the raw command line, which read a `>`
+# inside a quoted string or a heredoc body as live syntax: a `{rc:>3}` format
+# spec, a `->` in a docstring and a quoted `"<tmp>"` each denied a read-only
+# command in one QA run (VERDICT-F-22). Operators are now found in a masked
+# view and targets read from the original, so quoting decides both.
+# `>|` leads the alternation: when operator and target were one pattern, a
+# failed target match backtracked into it, and splitting them took that away.
+_REDIRECT = re.compile(r"(?:^|[^<>])(?:>\||&>{1,2}|\d?>{1,2})")
+# One character standing in for text the shell would not read as syntax.
+_MASK = "\x01"
+# The `|` of a `>|` clobber-redirect is part of the operator, not a pipe. The
+# whole command used to be scanned for redirects before it was split, so this
+# never came up; scanning per segment made the split able to cut a redirect in
+# half and lose its target.
+_SEPARATOR = re.compile(r"(?:&&|\|\||[;\n]|(?<!>)\|)")
 _VAR = re.compile(r"\$\{?([A-Za-z_][A-Za-z0-9_]*)\}?")
 
 
@@ -180,8 +218,137 @@ def _target_ok(target: str, cwd: str) -> tuple[bool, str]:
     return False, resolved
 
 
-def _segments(command: str):
-    return [s for s in re.split(r"(?:&&|\|\||[;|\n])", command) if s.strip()]
+def _mask_quoted(command: str) -> str:
+    """Blank out quoted text, escapes and heredoc bodies, preserving offsets.
+
+    The result is the same length as the input, so an offset into it is an
+    offset into the original — the guard decides *where* syntax is on this
+    view and reads *what* it says from the real string. The second value is
+    False when the command left a quote or a heredoc open, which is the
+    module's fail-closed case: a string that does not parse must not be able
+    to hide a visible deny pattern behind a quote it never closes.
+    """
+    out = list(command)
+    i, n, heredocs, balanced = 0, len(command), [], True
+    while i < n:
+        ch = command[i]
+        if ch == "\\" and _POSIX and i + 1 < n:
+            out[i] = out[i + 1] = _MASK
+            i += 2
+        elif ch in "\"'":
+            j = i + 1
+            while j < n:
+                if ch == '"' and _POSIX and command[j] == "\\" and j + 1 < n:
+                    j += 2
+                    continue
+                if command[j] == ch:
+                    break
+                j += 1
+            else:
+                balanced = False        # an unterminated quote parses as nothing
+            for k in range(i, min(j + 1, n)):
+                out[k] = _MASK
+            i = j + 1
+        elif command.startswith("<<", i) and not command.startswith("<<<", i):
+            j = i + 2
+            if j < n and command[j] == "-":
+                j += 1
+            while j < n and command[j] in " \t":
+                j += 1
+            quote = command[j] if j < n and command[j] in "\"'" else ""
+            j += 1 if quote else 0
+            start = j
+            while j < n and (command[j].isalnum() or command[j] in "_-."):
+                j += 1
+            delimiter = command[start:j]
+            j += 1 if quote and j < n and command[j] == quote else 0
+            if delimiter:
+                heredocs.append(delimiter)
+            i = j
+        elif ch == "\n" and heredocs:
+            j = i + 1
+            while heredocs:
+                delimiter = heredocs.pop(0)
+                while j < n:
+                    end = command.find("\n", j)
+                    end = n if end == -1 else end
+                    if command[j:end].strip() == delimiter:
+                        j = end
+                        break
+                    j = n if end >= n else end + 1
+            for k in range(i + 1, min(j, n)):
+                out[k] = _MASK
+            i = max(j, i + 1)
+        else:
+            i += 1
+    return "".join(out), balanced and not heredocs
+
+
+def _segments(command: str, view: str | None = None):
+    """Split into simple commands, yielding (separator-before, text, masked).
+
+    Where to split is decided on the masked view — a `;` inside quotes is text,
+    not a separator — while the text handed on is the original, so the
+    tokenizer still sees real quoting.
+    """
+    view = _mask_quoted(command)[0] if view is None else view
+    out, start, sep = [], 0, ""
+    for m in _SEPARATOR.finditer(view):
+        if command[start:m.start()].strip():
+            out.append((sep, command[start:m.start()], view[start:m.start()]))
+        start, sep = m.end(), m.group(0)
+    if command[start:].strip():
+        out.append((sep, command[start:], view[start:]))
+    return out
+
+
+def _token_after(text: str, i: int) -> str:
+    """Read one shell word out of `text` starting at `i`, honouring quotes."""
+    n = len(text)
+    while i < n and text[i] in " \t":
+        i += 1
+    out = []
+    while i < n:
+        ch = text[i]
+        if ch in " \t\n;|&<>":
+            break
+        if ch in "\"'":
+            i += 1
+            while i < n and text[i] != ch:
+                out.append(text[i])
+                i += 1
+            i += 1
+            continue
+        if ch == "\\" and _POSIX and i + 1 < n:
+            out.append(text[i + 1])
+            i += 2
+            continue
+        out.append(ch)
+        i += 1
+    return "".join(out)
+
+
+def _redirect_targets(text: str, view: str):
+    for m in _REDIRECT.finditer(view):
+        target = _token_after(text, m.end())
+        if target:
+            yield target
+
+
+def _cd_target(toks, cwd: str):
+    """Where a `cd` in this segment leaves the shell, or None to keep `cwd`.
+
+    A relative redirect belongs to the directory the same command line changed
+    into: `cd <scratch> && cat > note.py` writes into the scratch, and reading
+    it against the tool's own cwd refused a temp-file write as a write to the
+    checkout (VERDICT-F-22).
+    """
+    if not toks or os.path.basename(toks[0]) != "cd":
+        return None
+    rest = [t for t in toks[1:] if not t.startswith("-")]
+    if not rest or _VAR.search(rest[0]):
+        return None
+    return os.path.normpath(os.path.join(cwd, os.path.expanduser(rest[0])))
 
 
 def _tokens(segment: str):
@@ -218,6 +385,20 @@ def _edits_in_place(tok: str) -> bool:
     return "i" in tok[1:].split(".", 1)[0]
 
 
+def _unquote_nested(text: str) -> str:
+    """Strip one enclosing pair of quotes from a nested command string.
+
+    `_tokens` runs shlex with posix=False on Windows so path backslashes
+    survive, and that mode *keeps* the quotes around a token. Left on, the
+    nested command is entirely quoted text in the masked view and parses as
+    nothing — the same platform split that once made `bash -c` recursion dead
+    on Windows while it worked on POSIX.
+    """
+    if len(text) >= 2 and text[0] == text[-1] and text[0] in "\"'":
+        return text[1:-1]
+    return text
+
+
 def _check_shell(args, cwd, depth):
     """`bash -c "rm x"` is shell inside shell, and this module parses shell:
     declining to look would be a choice, not a limit."""
@@ -229,11 +410,30 @@ def _check_shell(args, cwd, depth):
             # token. Without stripping them the nested command arrived as the
             # single token '"rm f.txt"' and parsed as nothing at all — the
             # recursion worked on POSIX and was dead on Windows.
-            if len(nested) >= 2 and nested[0] == nested[-1] and nested[0] in "\"'":
-                nested = nested[1:-1]
-            for seg in _segments(nested):
+            nested = _unquote_nested(nested)
+            # The nested string's own redirects are found here or nowhere: the
+            # outer scan reads a masked view, in which everything between these
+            # quotes is text.
+            for _sep, seg, seg_view in _segments(nested):
+                for target in _redirect_targets(seg, seg_view):
+                    yield "output redirection", target
                 yield from _check_segment(_tokens(seg), cwd, depth + 1)
             return
+
+
+def _check_eval(args, cwd, depth):
+    """`eval` re-enters the parser with its arguments joined — a shell by
+    another name, and this module parses shell.
+
+    It earns its own branch because of how redirects are found now: the outer
+    scan reads a masked view, where everything inside `eval "... > file"` is
+    quoted text. The raw scan used to catch that by accident; nothing else
+    would.
+    """
+    for _sep, seg, seg_view in _segments(_unquote_nested(" ".join(args))):
+        for target in _redirect_targets(seg, seg_view):
+            yield "output redirection", target
+        yield from _check_segment(_tokens(seg), cwd, depth + 1)
 
 
 def _check_xargs(head, args):
@@ -306,35 +506,79 @@ def _check_awk(args):
             yield "awk -i inplace", t
 
 
-def _check_tar(args, cwd):
-    extracting = (any(t.startswith("-") and "x" in t.lstrip("-") for t in args)
-                  or (args and not args[0].startswith("-") and "x" in args[0]))
-    target, it = cwd, iter(args)
+def _tar_abbrev(name: str, canonical: str) -> bool:
+    """Is `name` `canonical`, or a prefix of it GNU tar would accept?
+
+    Three characters is the floor, which is enough to keep `--ext` (only
+    `--extract`) and `--rem` (only `--remove-files`) unambiguous while never
+    matching a short option letter.
+    """
+    return len(name) >= 3 and canonical.startswith(name)
+
+
+def _tar_parse(args):
+    """Walk tar's arguments, yielding ("opt", name, value) and ("arg", operand, None).
+
+    `name` is one short letter or a long option's name, and `--opt=V` and
+    `--opt V` both arrive the same way. Reading the option grammar by substring
+    broke this handler twice in opposite directions: any token containing `f`
+    was treated as taking an argument, so `--remove-files` swallowed the
+    operand behind it and the deletion went unseen (VERDICT-F-42); and any
+    token containing `x` was treated as an extraction, so `--exclude=.venv`
+    denied a plain create (VERDICT-F-49).
+    """
+    args = list(args)
+    if args and args[0] and not args[0].startswith("-"):
+        # Old style: `tar cf x.tar foo` is `tar -cf x.tar foo`, and its option
+        # arguments follow the whole bundle in letter order — which is exactly
+        # what the per-letter walk below consumes.
+        args[0] = "-" + args[0]
+    it = iter(args)
     for t in it:
-        if t in ("-C", "--directory"):
-            target = next(it, cwd)
-    if extracting:
+        if t == "--":
+            for rest in it:
+                yield "arg", rest, None
+            return
+        if t.startswith("--"):
+            name, sep, inline = t[2:].partition("=")
+            if sep:
+                yield "opt", name, inline
+            elif name in _TAR_LONG_WITH_ARG:
+                yield "opt", name, next(it, None)
+            else:
+                yield "opt", name, None
+        elif t.startswith("-") and len(t) > 1:
+            for ch in t[1:]:
+                yield "opt", ch, (next(it, None) if ch in _TAR_SHORT_WITH_ARG
+                                  else None)
+        else:
+            yield "arg", t, None
+
+
+def _check_tar(args, cwd):
+    parsed = list(_tar_parse(args))
+    target = cwd
+    for kind, name, value in parsed:
+        if kind == "opt" and name in ("C", "directory") and value:
+            target = value
+    if any(kind == "opt" and (name == "x" or _tar_abbrev(name, "extract")
+                              or _tar_abbrev(name, "get"))
+           for kind, name, _ in parsed):
         yield "tar extract (overwrites in place)", target
         return
     # Creating an archive only reads — unless it is told to delete what it read.
     # `tar --remove-files -cf <scratch>/loot.tar <checkout>/hooks` is the
     # archive-then-delete form of the `mv` shape that VERDICT-F-39 was about,
     # and the handler returned early on anything that was not an extraction
-    # (VERDICT-F-42). The operands of such a command are all sources it removes.
-    if "--remove-files" not in args:
+    # (VERDICT-F-42). The operands of such a command are all sources it removes;
+    # the archive named by `-f` is written, not removed, and arrives here as an
+    # option value rather than an operand.
+    if not any(kind == "opt" and _tar_abbrev(name, "remove-files")
+               for kind, name, _ in parsed):
         return
-    skip = {"-C", "--directory", "-f", "--file"}
-    it = iter(args)
-    for t in it:
-        if t in skip:
-            next(it, None)
-            continue
-        if t.startswith("-"):
-            # `-cf NAME` — the archive itself is written, not removed.
-            if "f" in t.lstrip("-"):
-                next(it, None)
-            continue
-        yield "tar --remove-files (deletes what it archived)", t
+    for kind, name, _ in parsed:
+        if kind == "arg":
+            yield "tar --remove-files (deletes what it archived)", name
 
 
 def _check_find(args, cwd):
@@ -367,6 +611,8 @@ def _check_segment(toks, cwd, depth=0):
     args = toks[1:]
     if head in _SHELLS and depth < 3:
         yield from _check_shell(args, cwd, depth)
+    elif head == "eval" and depth < 3:
+        yield from _check_eval(args, cwd, depth)
     elif head in ("xargs", "parallel"):
         yield from _check_xargs(head, args)
     elif head == "dd":
@@ -429,6 +675,7 @@ def _check_copier(head: str, args: list, moves: bool = False):
 
 
 def main() -> int:
+    utf8_stderr()
     if not _strict():
         return 0
     try:
@@ -440,16 +687,26 @@ def main() -> int:
         return 0
     cwd = data.get("cwd") or os.getcwd()
 
+    view, balanced = _mask_quoted(command)
+    # An unbalanced command is scanned twice: once as the shell would read it,
+    # and once as raw text, so a deny pattern behind an unclosed quote is still
+    # positively visible. Both passes only ever add denials.
     denials = []
-    for target in _REDIRECT.findall(command):
-        ok, resolved = _target_ok(target, cwd)
-        if not ok:
-            denials.append(("output redirection", resolved))
-    for segment in _segments(command):
-        for what, target in _check_segment(_tokens(segment), cwd):
-            ok, resolved = _target_ok(target, cwd)
-            if not ok:
-                denials.append((what, resolved))
+    for scan in ([view] if balanced else [view, command]):
+        here = cwd
+        for separator, segment, seg_view in _segments(command, scan):
+            if separator == "|":
+                here = cwd  # a pipeline stage is a subshell; its `cd` is local
+            for target in _redirect_targets(segment, seg_view):
+                ok, resolved = _target_ok(target, here)
+                if not ok:
+                    denials.append(("output redirection", resolved))
+            toks = _tokens(segment)
+            for what, target in _check_segment(toks, here):
+                ok, resolved = _target_ok(target, here)
+                if not ok:
+                    denials.append((what, resolved))
+            here = _cd_target(toks, here) or here
 
     if not denials:
         return 0

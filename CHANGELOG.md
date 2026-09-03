@@ -3,6 +3,125 @@
 Plugin and `verdict-mcp` share one version line; `.claude-plugin/plugin.json` and
 `pyproject.toml` are bumped together.
 
+## 0.74.0 — 2026-09-03 · "the right answer to the wrong question"
+
+Run 10's eight findings, closed together. Six of them share a shape: a check that ran, and
+reported truthfully, about something other than what it was asked.
+
+**The integrity one first (VERDICT-F-52, Major).** 0.73.0's entry said prompt edits are
+eval-paid here "so this one was paid". Run 10 checked. No row was published, the eval
+directory was untouched by that release, the run was never archived — and the fixture the
+entry named holds no importable package and no scored row about re-injection isolation, so
+it cannot tell the new contract from the old one. 6/6 established that the edit did not
+regress the fixture. It did not establish that the new instruction works, which is what
+"paid" implied. The 0.73.0 entry now says so, and this release pays properly — on the
+`cause` fixture, which is the one that exercises §3, against a byte-identical control:
+
+| rows | treatment (v0.74.0 prompt) | control (v0.73.0 prompt) |
+|---|---|---|
+| the six that predate the clause | 5/6 · 5/6 · 6/6 | 5/6 · 5/6 · 6/6 · 6/6 |
+| `counterfactual-isolated-from-stale-bytecode` | **3 of 3** | **0 of 4** |
+
+Indistinguishable on everything that existed before, completely separated on the thing that
+changed. Every treatment run exported `PYTHONDONTWRITEBYTECODE=1`, swept `__pycache__`
+between injections and ran an instrument control; no control run did any of the three. The
+seventh row is new, and it is the part that answers F-52's actual complaint — which was
+never the score, but that no fixture could tell one version of this contract from another.
+Its first draft accepted the bare string `__pycache__` and a control run earned it for
+saying the checkout was "clean apart from `__pycache__`"; that is housekeeping, and the
+control is what caught it. A fourth treatment run died on an API 529 with no state written
+and is recorded as void, not as zero: a server error is not a measurement. The row, the
+control, the void run and the archived 7/7 are all in `eval/README.md`.
+
+**The series also caught something nobody was looking for.** The `trigger` row misses 2 of 3
+treatment runs and 2 of 4 control runs — so not this release, and not amended away. It was
+last measured at 6/6, n=1, four days and 225 prompt-lines ago, against a command file that
+has since been rewritten. A single reading never established the row was reliable, so it is filed as a
+measured weakness for the next run. Fixing it is a prompt change, and a prompt change is
+eval-paid; it does not get smuggled into the release that found it.
+
+**The isolation step 0.73.0 added is defeated by a stale bytecode cache (VERDICT-F-50,
+Major).** CPython validates a cached module on the source's modification time in *whole
+seconds* plus its size, so two same-size injections written inside one second are
+indistinguishable and the second silently runs the first's bytecode.
+
+| re-injection campaign | mutants caught |
+|---|---|
+| with `__pycache__` in place | **4 of 5** |
+| swept | **5 of 5** |
+
+The check 0.73.0 prescribed — print the loaded module's `__file__` — was correct in both
+runs, because the path was never what was wrong. §3 now carries the bytecode clause and,
+more importantly, a check that *can* fail: re-run an injection you have already watched
+fail, and if it now passes you are measuring the cache. The harness stopped relying on
+prose: every verification subprocess runs with `PYTHONDONTWRITEBYTECODE=1`, and the scratch
+worktree is swept before the previous-commit run — the two are not the same guarantee, one
+stops a cache being written and only the other stops one being read.
+
+**The bash guard read its own option grammar by substring, in both directions.**
+`--remove-files` contains an `f`, so it was treated as taking an argument and swallowed the
+operand behind it: `tar -cf <scratch>/loot.tar --remove-files <checkout>/hooks` archived the
+checkout away and the guard saw no target (VERDICT-F-42, Major — 0.71.0 had closed only the
+one command the original finding quoted). `--exclude` contains an `x`, so a plain create
+read as an extraction and `tar --exclude=.venv -cf ...` was denied — the contract's own
+scratch-copy step, refused (VERDICT-F-49). tar's options are now parsed as options: a short
+bundle, a long name, an old-style leading bundle, `--opt=value` and `--opt value` alike.
+
+**And it read shell metacharacters inside quotes as live syntax (VERDICT-F-22).** Four
+read-only commands blocked in one QA run: a `{rc:>3}` format spec and a quoted `"<tmp>"`
+inside heredoc bodies, a `->` in a docstring, and a genuine redirect whose relative target
+was resolved against the tool's cwd instead of the `cd` beside it. Redirects and separators
+are now located in a masked view of the command where quoted text and heredoc bodies are
+blanked, and read back from the original so a quoted path arrives whole; a `cd` carries
+across `&&` and `;` but not into a pipeline stage. The fail-closed rule survives: a command
+that leaves a quote open is scanned twice, once as the shell would read it and once raw, so
+nothing hides behind a quote it never closes.
+
+**Two sentences that contradicted the number printed beside them.** The `Up to N` footnote
+0.72.0 added took the largest single bucket where its sentence scopes over the whole column,
+publishing `Up to 17` where 21 of 28 confirmations were unrecorded — leaving a reader to
+subtract and credit 11 to the tester's word when the true figure was 7 (VERDICT-F-51). And
+the retry-marker narration said "minutes ago" for anything inside a six-hour window, beside
+its own `age_hours: 2.01` (VERDICT-F-53). Third and fourth of this shape after F-36 and
+F-45.
+
+**Findings were dated by the machine's local calendar inside a state timestamped in UTC**
+(VERDICT-F-54). On a host running behind UTC, every run in that window filed findings dated
+the day before its own state, report filename and INDEX row — permanently, since
+`first_seen` is copied forward for the life of a finding and `age_days` is measured from it.
+`merge()` now reads the date off `last_run.timestamp_utc`, so the two agree by construction
+even when a run straddles midnight.
+
+Every rule here is mutation-checked: 21 mutants, 21 killed, including over-correction
+mutants that must *not* fire and regression mutants for the behaviour the rewrite could
+have dropped — among them `eval "... > file"`, which the masked view turns into quoted text
+and which the raw scan used to catch by accident, and the Windows tokenizer's habit of
+leaving a nested command's quotes on, which would have made that same branch dead on one
+platform and live on the other.
+
+**Every guard now pins its stderr to UTF-8**, which the Windows leg also surfaced. Each one
+explains itself in prose containing an em-dash; on Windows stderr defaults to the console
+codepage, so the byte written is cp1252's `0x97` while the caller decodes UTF-8 and the
+explanation arrives as a `UnicodeDecodeError` raised inside a subprocess reader thread. The
+easy misreading is an empty message rather than a lost one — and a guard that blocks without
+a readable reason blocks for nothing. Shared helper in `hooks/qa_paths.py`, wrapped so a
+stream it cannot configure still lets the hook run, because fail-open is the rule everywhere
+else here. The test helper that spawns these hooks was decoding on the locale default too,
+so on Windows every assertion about a guard's reason was passing or failing for reasons
+unrelated to the guard.
+
+**A note on the platform the guard nearly shipped broken on.** Backslash is an escape on
+POSIX and a path separator on Windows, and this module had already chosen — its tokenizer
+runs shlex with `posix=False` there precisely so paths keep their separators. The new
+masker and target reader did not follow, and `C:\Users\…\repo\src` reached the check as
+`C:Usersreposrc`, which then read as a *relative* path resolving inside the checkout: three
+correct commands denied and one deletion target named something nothing matches. Only the
+Windows CI leg could see it. Both platforms' branches are now exercised on both platforms,
+by forcing the flag. Two of those kills were against my own new tests — one
+asserted on an environment variable it had inherited rather than one the code set, and one
+chose fixture numbers where the broken maximum happened to equal the correct sum. A test
+that cannot fail is the thing this release is about.
+
 ## 0.73.0 — 2026-09-02 · "a counterfactual you did not isolate is evidence of nothing"
 
 **The agent contract names the isolation step** (VERDICT-F-43, run 9's sharpest finding, and
@@ -34,10 +153,14 @@ the flat statement that a green counterfactual you did not isolate is evidence o
 §6's `fix_verified` clause points at it. The harness's own verifier already did this and
 records the `pythonpath` it used; only the agent-facing prose was missing it.
 
-**Prompt edits are eval-paid here, so this one was paid.** The seeded pricer eval scores
-**6/6 with no hard failures** against the edited prompt, matching the published baseline.
-A documentation-shaped change to a prompt is still a behaviour change, and the only way to
-know it did not regress is to run the thing.
+**Prompt edits are eval-paid here. This one was under-paid; 0.74.0 pays the difference.**
+The seeded pricer eval scored **6/6 with no hard failures** against the edited prompt,
+matching the published baseline. But that run was never archived, no row was published in
+`eval/README.md`, and the pricer fixture holds no importable package and no scored row
+about re-injection isolation — so it cannot tell this contract from the one before it.
+6/6 establishes that the edit did not regress the fixture. It does not establish that the
+new instruction works, which is what "paid" implied. Filed by run 10 against this very
+paragraph (VERDICT-F-52); the measured payment is the dated row in `eval/README.md`.
 
 ## 0.72.0 — 2026-09-02 · "five guards nobody was watching"
 

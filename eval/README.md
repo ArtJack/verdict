@@ -80,6 +80,7 @@ run's evidence list should show it never looked.
 
 | Date | Model | Fixture / mode | Score | Notes |
 |---|---|---|---|---|
+| 2026-09-03 | Opus (`run_eval.py --fixture cause`, **v0.74.0 prompt** = v0.73.0 + the §3 bytecode-isolation clause, **n=3**) against a byte-identical control on the v0.73.0 prompt, **n=4** | rates (root cause) | **6/7 · 6/7 · 7/7** — control **5/7 · 5/7 · 6/7 · 6/7** | The payment VERDICT-F-52 said 0.73.0 owed, made on the fixture that actually exercises §3 rather than the one 0.73.0 named. Treatment and control trees are identical but for `agents/verdict.md`. **What it establishes:** the clause changes behaviour in the intended direction and nothing else moved. On the six rows that predate it the two arms are indistinguishable — **5/6 · 5/6 · 6/6** against **5/6 · 5/6 · 6/6 · 6/6** — while the new `counterfactual-isolated-from-stale-bytecode` row separates them completely: **3 of 3 treatment runs earn it, 0 of 4 control runs do.** Every treatment run exported `PYTHONDONTWRITEBYTECODE=1`, swept `__pycache__` between injections, and ran an instrument control; no control run did any of the three. **What it does not establish:** the rates fixture has no trap a stale cache would spring, so this measures adoption of the instruction, not that following it catches a defect the old contract missed. The measurement that does is in the 0.74.0 changelog — 4 of 5 mutants against this repository with the cache in place, 5 of 5 swept. **Run counts, exactly:** the control arm has four because a duplicate invocation was launched by mistake; it completed and wrote a full state, so it is reported rather than discarded, and dropping it changes nothing (0 of 3 becomes 0 of 4). The treatment arm has three valid runs and one void: a fourth died on an API 529 with no state written, recorded as void rather than 0/7, because a server error is not a measurement. Archived: [corpus/f50-cause](corpus/f50-cause). **And it caught something nobody was looking for:** `trigger-separated-from-cause` misses **2 of 3 treatment runs and 2 of 4 control runs** — see "A vocabulary that stopped being reliable" below. |
 | 2026-09-01 | Opus (`run_eval.py --fixture liar`, **v0.50.0 prompt** = v0.49.1 + the `full_sweep` paragraph, **n=3**) | liar (adversarial honesty) | **6/6 · 6/6 · 6/6** | The paragraph's measurement, against a 6/6 ×3 control on the byte-identical pre-paragraph prompt. **Scar:** the first reading was **6/6 · 5/6 · 6/6**, and the 5 was the scorer, not the agent. Run 2 filed the conftest finding first, classified it `REAL_DEFECT`, and quoted `pending(3, 2)` in its counterfactual evidence — so the greedy scorer credited it to the `pending-subtracts` row (which matches on the bare term "pending") and the `conftest-skips-entire-suite` row, answered at **Blocker**, scored nothing. Runs 1 and 3 hit 6/6 by filing in a luckier order. Fixed in v0.50.0 (maximum matching seeded in the old greedy order — every archived corpus run scores identically); run 2's kept state **re-scored 6/6** with the assignment a human would make. Recorded here because the instrument's error would have been read as a prompt regression. |
 | 2026-09-01 | Opus (`run_eval.py --fixture pricer --mode seeded`, v0.50.0 prompt) | pricer delta (the flagship) | **6/6** | Control that the paragraph moved nothing on the delta flagship. All four delta classes correct, verdict `fail`. |
 | 2026-09-01 | **local 8B** (`qwen3`/`llama3.1` via LiteLLM, judgment step only, **n=3**) | liar (adversarial honesty) | **not scored — see notes** | Not a capability run. The judgment step was handed to an 8B local model to ask the inverted question: *when the model is too weak for the job, does Verdict block or does it hand out a green light?* **0 of 3 produced a false green** — every run returned `fail` and found the `queued - in_flight` sign defect; one found all three headline defects including the `conftest` skip-all and the lying entrypoint. Its weakness was **vocabulary, not honesty**: the strongest run was rejected outright by `validate_judgment` for five enum violations (`'Fail'`, `'critical'`, `'1'`, `'logic_error'`, `'high'`). Deliberately unscored — `score.py` measures QA capability, and no protocol-conformance run was made. The false green came instead from a hand-written *lazy* judgment (`pass`, no findings), which reached **exit 0 through `--require-harness`** and exposed three real defects, all fixed in v0.49.0. |
@@ -219,8 +220,42 @@ when a row misses: open the state file, find whether the finding is present and 
 classified, and only then decide who failed. Re-scoring a preserved workdir costs nothing
 — `run_eval.py` keeps it on any failure precisely for this.
 
+### A vocabulary that stopped being reliable (open, measured 2026-09-03)
+
+The 2026-09-03 cause series found a row that had quietly stopped holding:
+`trigger-separated-from-cause` requires the report to use the word **trigger**, and it
+misses **2 of 3 treatment runs and 2 of 4 control runs** — the v0.74.0 prompt and the
+byte-identical v0.73.0 control fail it at a comparable rate, so this release did not cause
+it.
+
+What the missing runs actually do is build the chain `/cause` asks for in step 3 —
+symptom → mechanism → **origin** → class — and then answer step 5's substance without its
+vocabulary: they name the memoize commit a red herring and observe that the failing test is
+younger than the defect it exposes, which *is* separating the trigger from the cause. They
+never say the word.
+
+It was last measured at **6/6, n=1, on 2026-08-29**, against a 566-line prompt and a command
+file that no longer exists (`commands/qa-cause.md`, rewritten as `commands/cause.md` in
+v0.39.0). Today's prompt is 791 lines. One reading, four days and 225 lines ago, never
+established that the row was reliable — so this is a **measured weakness, not a demonstrated
+regression**, the same reading this file already applies to the liar fixture's Blocker row.
+
+Deliberately **not** amended away. The key is right that the three things need separating by
+name; the runs are right about the substance. Either move is a prompt change, and a prompt
+change is eval-paid — so it is filed for the next run rather than smuggled into the release
+that found it.
+
 ### Answer-key amendments
 
+- **2026-09-03, cause row 7 (new):** `counterfactual-isolated-from-stale-bytecode` added
+  alongside the v0.74.0 contract clause it scores, because VERDICT-F-52 established that no
+  fixture could tell one version of this contract from another — the complaint was never the
+  score, it was that the instrument was blind. Terms come from the clause, not from any run's
+  phrasing. **Its own first draft was wrong and a control caught it:** the draft accepted the
+  bare string `__pycache__`, and a control run that practised none of the discipline earned
+  the row for the sentence "clean apart from `__pycache__`". Naming the directory while
+  reporting the checkout untouched is housekeeping. As scored now the row separates the arms
+  completely (0 of 4 control runs, 3 of 3 treatment).
 - **2026-08-27, baseline row 5:** originally required `FLAKY` + quarantine. A run that
   *diagnoses* the nondeterminism (time-seeded input) and files it as `BRITTLE_TEST` with a
   test-fix task now also scores — §3 was sharpened to define `FLAKY` as *undiagnosed*

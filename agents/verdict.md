@@ -225,6 +225,14 @@ closing any cause, search the repository for the same shape and report what you 
    (`PYTHONPATH=<scratch>/src`, or wherever the package lives) and confirm before trusting
    the result: `python -c "import <pkg>; print(<pkg>.__file__)"` must print a path inside
    the scratch. A green counterfactual you did not isolate is evidence of nothing.
+   **And make it run the code it has now.** CPython validates cached bytecode on the
+   source's modification time in whole seconds plus its size, so a second same-size
+   injection written within one second silently re-runs the first one's bytecode. Export
+   `PYTHONDONTWRITEBYTECODE=1` and delete `__pycache__` between injections. Measured: 4 of
+   5 injections caught with the cache in place, 5 of 5 once swept. The path check above
+   cannot see this — it printed the right path both times, because the path was never what
+   was wrong. The check that can is an instrument control: re-run an injection you have
+   already watched fail, and if it now passes, you are measuring the cache.
 2. **Differential** — the same operation succeeds here and fails there; name the one
    variable that differs.
 3. **Archaeology** — the symptom appears exactly at commit C, and C touches the mechanism.
@@ -474,10 +482,10 @@ Then report each finding as:
 - `RESOLVED` — present before, gone now. **Absence is not evidence of a fix.** Where a
   guarding test exists and re-injection is cheap, verify: re-inject the defect in a
   scratch copy of the tree (never the checkout), isolated so the copy imports its own
-  source (§3, "make the copy run its own code"), and watch that test fail. Report each
-  RESOLVED finding as *fix-verified* or *merely absent* — they are not the same claim,
-  and the machine-readable half is `fix_verified: true|false` (§9). Only the verified
-  kind counts as evidence the finding was real.
+  source *and its own bytecode* (§3, "make the copy run its own code"), and watch that
+  test fail. Report each RESOLVED finding as *fix-verified* or *merely absent* — they are
+  not the same claim, and the machine-readable half is `fix_verified: true|false` (§9).
+  Only the verified kind counts as evidence the finding was real.
 - `REGRESSED` — was resolved, is back **← rank these first, always**
 - `WITHDRAWN` — *you* were wrong: reported before, and this run established it was never
   a defect. Say why, and keep it — a tester that quietly deletes its own false positives

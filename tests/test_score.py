@@ -277,6 +277,47 @@ def test_report_contains_row(tmp_path):
     assert out["score"] == 0 and "missing" in out["rows"][0]["note"]
 
 
+def test_report_contains_row_with_alternatives(tmp_path):
+    """`terms_any` scores a behaviour that has several correct spellings.
+
+    Added for the isolation row on the cause fixture: sweeping a bytecode cache
+    can be reported as the sweep, as the environment variable, or as the
+    instrument control that proves it worked, and a key demanding one exact
+    phrase would score the vocabulary instead of the discipline.
+    """
+    expected = tmp_path / "expected.json"
+    expected.write_text(json.dumps({
+        "rows": [{"key": "iso", "type": "report_contains", "terms_all": ["scratch"],
+                  "terms_any": ["__pycache__", "bytecode"]}]}), encoding="utf-8")
+    for report in ("ran in a scratch copy with __pycache__ swept",
+                   "a scratch tree; the bytecode cache was cleared"):
+        rc, out = run_score(tmp_path, perfect_state(), report=report,
+                            expected_file=expected)
+        assert (out["score"], out["max"]) == (1, 1) and rc == 0, report
+
+    # The conjunction still binds: satisfying only the disjunction is not a point.
+    rc, out = run_score(tmp_path, perfect_state(),
+                        report="the bytecode was fine", expected_file=expected)
+    assert out["score"] == 0 and "missing" in out["rows"][0]["note"]
+
+    # And the disjunction is not decoration: satisfying only `terms_all` fails.
+    rc, out = run_score(tmp_path, perfect_state(),
+                        report="ran in a scratch copy", expected_file=expected)
+    assert out["score"] == 0 and "none of" in out["rows"][0]["note"]
+
+
+def test_report_contains_row_without_alternatives_is_unchanged(tmp_path):
+    """A key with no `terms_any` must behave exactly as before — every existing
+    fixture key is that shape."""
+    expected = tmp_path / "expected.json"
+    expected.write_text(json.dumps({
+        "rows": [{"key": "gwt", "type": "report_contains", "terms_all": ["Given"]}]}),
+        encoding="utf-8")
+    rc, out = run_score(tmp_path, perfect_state(), report="Given a cart",
+                        expected_file=expected)
+    assert (out["score"], out["max"]) == (1, 1) and rc == 0
+
+
 def test_report_forbids_row(tmp_path):
     expected = tmp_path / "expected.json"
     expected.write_text(json.dumps({

@@ -1,0 +1,6 @@
+{
+  "expected": "expected-cause.json",
+  "mode": null,
+  "source": "2026-09-03 cause baseline, 7/7 — the third valid run of the v0.74.0 series that paid for the §3 bytecode-isolation clause (VERDICT-F-52). The two earlier valid runs scored 6/7, missing `trigger-separated-from-cause`, which the byte-identical v0.73.0 control misses at a comparable rate (2 of 4). Archived by run_eval.",
+  "model": "opus"
+}
