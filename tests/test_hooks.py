@@ -29,6 +29,13 @@ def run_hook(script, payload, *, strict=None, env_extra=None):
     proc = subprocess.run(
         [sys.executable, str(HOOKS / script)],
         input=raw, capture_output=True, text=True, env=env,
+        # Explicit, because the default is the locale codepage on Windows and
+        # every guard's reason contains an em-dash. Without it the reader
+        # thread dies on 0x97, stderr comes back empty, and an assertion on
+        # the reason passes or fails for reasons that have nothing to do with
+        # the guard. `errors` so a decode problem is visible as text rather
+        # than as a lost message.
+        encoding="utf-8", errors="replace",
     )
     return proc.returncode, proc.stderr
 
@@ -618,3 +625,204 @@ def test_bash_still_blocks_extracting_into_the_checkout(repo, tmp_path):
     rc, err = run_hook("enforce_bash_scope.py",
                        bash_event(f"tar -xf {scratch}/x.tar -C {repo}/src", repo), strict="1")
     assert rc == 2 and "QA root" in err
+
+
+def test_bash_blocks_archive_then_delete_whatever_the_option_order(repo, tmp_path):
+    """VERDICT-F-42, second pass. The first fix closed the one command the
+    finding quoted and left the family open: every option token containing the
+    letter `f` was treated as taking an argument, so `--remove-files` swallowed
+    the operand behind it and the deletion had no visible target.
+
+    The last case is the reason the old test passed for half the wrong reason —
+    with `--remove-files` leading, it ate `-cf` rather than the archive name.
+    """
+    scratch = tmp_path / "scratch"
+    scratch.mkdir()
+    for command in (f"tar -cf {scratch}/loot.tar --remove-files {repo}/src",
+                    f"tar -c -f {scratch}/loot.tar --remove-files {repo}/src",
+                    f"tar cf {scratch}/loot.tar --remove-files {repo}/src",
+                    f"tar -cf {scratch}/loot.tar --rem {repo}/src",
+                    f"tar --remove-files -cf {scratch}/loot.tar {repo}/src"):
+        rc, err = run_hook("enforce_bash_scope.py", bash_event(command, repo), strict="1")
+        assert rc == 2, f"expected deny for: {command}"
+        # Two platform details, both in the message rather than the guard: it
+        # normalizes the target before reporting (so `repo/src` becomes
+        # `repo\src` on Windows) and prints it with `!r`, which doubles every
+        # backslash. Rendering the expectation the same way keeps this an
+        # assertion about *which path* was named, on either platform.
+        named = repr(str(Path(repo, "src")))[1:-1]
+        assert named in err, f"the deletion target should be named: {err}"
+
+
+def test_bash_allows_excluding_a_directory_from_an_archive(repo, tmp_path):
+    """VERDICT-F-49: substring option parsing in the other direction. Any flag
+    containing the letter `x` read as an extraction, so `--exclude=.venv` — the
+    natural way to snapshot a checkout without dragging the virtualenv along,
+    which is the contract's own scratch-copy step — was denied as an overwrite
+    of the current directory. `-X` is exclude-from and is not extraction either.
+    """
+    scratch = tmp_path / "scratch"
+    scratch.mkdir()
+    Path(repo, "ex.txt").write_text("junk\n", encoding="utf-8")
+    for command in (f"tar --exclude=.venv -cf {scratch}/backup.tar {repo}/src",
+                    f"tar -cf {scratch}/backup.tar --exclude junk {repo}/src",
+                    f"tar -cf {scratch}/backup.tar -X {repo}/ex.txt {repo}/src"):
+        rc, err = run_hook("enforce_bash_scope.py", bash_event(command, repo), strict="1")
+        assert rc == 0, f"{command}: {err}"
+
+
+def test_bash_still_blocks_extraction_named_the_long_way(repo, tmp_path):
+    """The precision of the `x` fix must not cost the denial it exists for:
+    `--extract` and its unambiguous abbreviation still overwrite in place."""
+    scratch = tmp_path / "scratch"
+    scratch.mkdir()
+    for command in (f"tar --extract --file {scratch}/x.tar -C {repo}/src",
+                    f"tar --ext -f {scratch}/x.tar -C {repo}/src",
+                    f"tar xf {scratch}/x.tar -C {repo}/src"):
+        rc, err = run_hook("enforce_bash_scope.py", bash_event(command, repo), strict="1")
+        assert rc == 2, f"expected deny for: {command}"
+
+
+def test_bash_reads_metacharacters_inside_quotes_as_text(repo):
+    """VERDICT-F-22: redirects were found by scanning the raw command line, so
+    a `>` that the shell would never execute denied four read-only commands in
+    one QA run — a `{rc:>3}` format spec and a quoted `"<tmp>"` inside a
+    heredoc body, and a `->` in a docstring.
+    """
+    heredoc = "python3 - <<'EOF'\n%s\nEOF"
+    for command in (heredoc % "print(f'{rc:>3}')",
+                    heredoc % 'print("<tmp> -> here")',
+                    heredoc % "def f(x) -> int:\n    return x",
+                    "echo 'a; rm -rf %s/src'" % repo,
+                    'echo "pipe | and > arrow"'):
+        rc, err = run_hook("enforce_bash_scope.py", bash_event(command, repo), strict="1")
+        assert rc == 0, f"{command!r}: {err}"
+
+
+def test_bash_resolves_a_relative_redirect_against_the_cd_beside_it(repo, tmp_path):
+    """VERDICT-F-22, fourth shape: a genuine redirect whose relative target was
+    resolved against the tool's cwd rather than the `cd` in the same command
+    line, so writing a scratch file was refused as writing to the checkout.
+
+    The second case is the one that must stay denied — a `cd` back into the
+    checkout puts the same relative name inside it.
+    """
+    scratch = tmp_path / "scratch"
+    scratch.mkdir()
+    rc, err = run_hook("enforce_bash_scope.py",
+                       bash_event(f"cd {scratch} && cat > trace.py <<'EOF'\nx = 1\nEOF", repo),
+                       strict="1")
+    assert rc == 0, err
+    rc, err = run_hook("enforce_bash_scope.py",
+                       bash_event(f"cd {scratch} && cd {repo} && echo hi > pwned.py", repo),
+                       strict="1")
+    assert rc == 2, "a cd back into the checkout must not launder the redirect"
+    rc, err = run_hook("enforce_bash_scope.py",
+                       bash_event(f"cd {scratch} | true; echo hi > pwned.py", repo),
+                       strict="1")
+    assert rc == 2, "a pipeline stage is a subshell; its cd does not carry"
+
+
+def test_bash_still_sees_a_redirect_inside_a_nested_shell(repo):
+    """Masking quoted text would have hidden `bash -c "... > file"` from the
+    outer scan, where the raw-text scan used to catch it by accident. The
+    nested parse has to look for redirects itself now."""
+    rc, err = run_hook("enforce_bash_scope.py",
+                       bash_event(f'bash -c "echo hi > {repo}/src/pwned.py"', repo),
+                       strict="1")
+    assert rc == 2 and "QA root" in err
+
+
+def test_bash_looks_inside_eval(repo, tmp_path):
+    """`eval` is a shell by another name, and masking made it the one place a
+    redirect could hide: everything inside `eval "... > file"` is quoted text
+    in the masked view, and the raw scan that used to catch it by accident is
+    gone. Both a redirect and a mutating command inside it must still be seen.
+    """
+    scratch = tmp_path / "scratch"
+    scratch.mkdir()
+    for command in (f'eval "echo hi > {repo}/src/pwned.py"',
+                    f'eval "rm -rf {repo}/src"'):
+        rc, err = run_hook("enforce_bash_scope.py", bash_event(command, repo), strict="1")
+        assert rc == 2, f"expected deny for: {command}"
+    rc, err = run_hook("enforce_bash_scope.py",
+                       bash_event(f'eval "pytest -q > {scratch}/out.txt"', repo), strict="1")
+    assert rc == 0, err
+
+
+@pytest.mark.parametrize("command, expect", [
+    ('eval "echo hi > {repo}/src/pwned.py"', "output redirection"),
+    ('eval "rm -rf {repo}/src"', "rm"),
+    ('bash -c "echo hi > {repo}/src/pwned.py"', "output redirection"),
+    ('bash -c "rm -rf {repo}/src"', "rm"),
+])
+def test_nested_commands_parse_under_windows_tokenization(repo, command, expect):
+    """Run the non-POSIX tokenizer on every platform, not only on Windows.
+
+    `_tokens` uses `shlex.split(posix=False)` there so path backslashes survive,
+    and that mode keeps the quotes around a token — which once made the
+    `bash -c` recursion work on POSIX and do nothing on Windows. Masking gave
+    `eval` the same exposure, since a nested command left in quotes is entirely
+    text in the masked view. Asserting it here means neither platform is the
+    only place the bug can be seen.
+    """
+    import shlex
+    sys.path.insert(0, str(HOOKS))
+    import enforce_bash_scope as guard
+
+    toks = shlex.split(command.format(repo=repo), posix=False)
+    hits = list(guard._check_segment(toks, str(repo)))
+    assert hits, f"nothing seen inside: {command}"
+    assert hits[0][0] == expect
+    assert str(repo) in hits[0][1]
+
+
+def test_a_windows_path_survives_masking_and_target_reading(monkeypatch):
+    """Backslash is an escape on POSIX and a path separator on Windows.
+
+    `_tokens` already chose — shlex with posix=False on Windows, so paths keep
+    their separators — and the masker and the redirect-target reader have to
+    make the same choice. They did not, and the only place it could fire was
+    the Windows CI leg: `C:\\Users\\...\\repo\\src` arrived as
+    `C:Usersreposrc`, which then read as a *relative* path and resolved inside
+    the checkout, so three correct commands were denied and one deletion target
+    was reported under a name nothing matches.
+
+    Forcing the flag here means the next such bug fails on every platform.
+    """
+    sys.path.insert(0, str(HOOKS))
+    import enforce_bash_scope as guard
+
+    win = r"C:\Users\runner\AppData\Local\Temp\repo\src\out.txt"
+    monkeypatch.setattr(guard, "_POSIX", False)
+    view, balanced = guard._mask_quoted(f"echo hi > {win}")
+    assert balanced and len(view) == len(f"echo hi > {win}")
+    assert list(guard._redirect_targets(f"echo hi > {win}", view)) == [win]
+
+    # And the POSIX behaviour it must not cost: there, a backslash escapes.
+    monkeypatch.setattr(guard, "_POSIX", True)
+    assert list(guard._redirect_targets(r"echo hi > a\ b.txt",
+                                        guard._mask_quoted(r"echo hi > a\ b.txt")[0])) \
+        == ["a b.txt"]
+
+
+@pytest.mark.parametrize("script", ["enforce_bash_scope.py", "enforce_write_scope.py",
+                                    "enforce_run_contract.py"])
+def test_every_guard_writes_its_reason_as_utf8(script):
+    """A guard that blocks without a readable reason blocks for nothing.
+
+    Each one explains itself in prose containing an em-dash. On Windows stderr
+    defaults to the console codepage, so the byte written is cp1252's 0x97
+    while the caller decodes UTF-8 — the explanation is replaced by a
+    UnicodeDecodeError raised in a subprocess reader thread, which is easy to
+    read as an empty message rather than a lost one.
+
+    Checked as bytes, so this holds wherever it runs.
+    """
+    proc = subprocess.run([sys.executable, str(HOOKS / script)],
+                          input=b"not json at all", capture_output=True)
+    assert proc.returncode == 0, "malformed input must still fail open"
+    proc.stderr.decode("utf-8")  # raises if the stream is not UTF-8
+
+    src = (HOOKS / script).read_text(encoding="utf-8")
+    assert "utf8_stderr()" in src, f"{script} does not pin its stderr encoding"

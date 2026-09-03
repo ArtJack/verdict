@@ -7,3 +7,7 @@ dist/
 uv.lock
 node_modules/
 .env
+
+# mutmut writes its result database beside the tree it mutates; it is a
+# campaign byproduct, re-derived by re-running the campaign.
+.mutmut-cache

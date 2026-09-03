@@ -7,6 +7,23 @@ resolution.
 """
 
 import os
+import sys
+
+
+def utf8_stderr() -> None:
+    """Make this process's stderr UTF-8, so its reason survives the trip.
+
+    Every guard explains itself in prose containing an em-dash, and on Windows
+    stderr defaults to the console codepage: the byte written is cp1252's 0x97,
+    the caller decodes UTF-8, and the explanation is replaced by a decode error
+    in a reader thread. A guard whose reason cannot be read is a guard that
+    blocks without saying why. Wrapped, because a hook that cannot configure a
+    stream must still run — fail-open is the rule everywhere else here too.
+    """
+    try:
+        sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+    except (AttributeError, ValueError, OSError):
+        pass
 
 
 def solo_root() -> str:

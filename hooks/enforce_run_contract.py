@@ -34,9 +34,13 @@ that bricks sessions is worse than the problem it polices.
 """
 
 import json
+import os
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from qa_paths import utf8_stderr  # noqa: E402  (path set above, as the guards do)
 
 # A QA run that finished more than this long ago is not this turn's work. Long
 # enough for a slow suite inside one turn, short enough that yesterday's state
@@ -50,6 +54,7 @@ def _silent(code: int = 0) -> int:
 
 
 def main() -> int:
+    utf8_stderr()
     try:
         event = json.load(sys.stdin)
     except Exception:

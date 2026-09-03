@@ -1,0 +1,83 @@
+{
+  "measured_at": "2026-09-03T16:11:07Z",
+  "project": "rates",
+  "project_key_source": "git",
+  "qa_root": "/private/var/folders/95/670m4j2n4738g9pq1tq1mq8c0000gn/T/verdict-eval-2ubc_a5u/qa-home/rates",
+  "schema_version": 1,
+  "run_number": 1,
+  "run_type": "baseline",
+  "run_type_reason": "no previous state",
+  "last_run": {
+    "timestamp_utc": "2026-09-03T16:11:07Z",
+    "git_sha": "53377c8230115a1f388a6d213e841ee6c7f20873",
+    "git_branch": "main",
+    "sha_range": null,
+    "diff_stat": null
+  },
+  "gates": {
+    "suite": {
+      "command": "python3 -m pytest -q",
+      "exit_code": 1,
+      "result": "fail",
+      "duration_s": 0.11,
+      "summary": "1 failed, 5 passed in 0.01s",
+      "counts": {
+        "passed": 5,
+        "failed": 1
+      },
+      "counts_dialect": "pytest"
+    }
+  },
+  "code_census": {
+    "scope": "tree scan of 6 source files",
+    "imports": {
+      "undeclared": {},
+      "declared_count": 0,
+      "caveat": "candidates, not convictions: import names and package names differ (a small alias map covers the famous cases) \u2014 verify before filing"
+    },
+    "placeholders": {
+      "counts": {},
+      "samples": {}
+    },
+    "provenance": {
+      "scope": "last 30 commits",
+      "commits": 3,
+      "ai_attributed": 0,
+      "caveat": "absence of trailers is not evidence of human authorship"
+    },
+    "reading": "leads, not findings: counts tell judgment where to look; judgment decides what they mean"
+  },
+  "tests": {
+    "passed": 5,
+    "failed": 1,
+    "duration_s": 0.11,
+    "collected": 6
+  },
+  "test_ids": {
+    "status": "measured",
+    "count": 6,
+    "added_count": 6,
+    "removed_count": 0,
+    "added": [
+      "test_rates.py::test_invoice_renders_lines",
+      "test_rates.py::test_quote_east",
+      "test_rates.py::test_quote_west_partial_weight",
+      "test_rates.py::test_quote_west_whole_weight",
+      "test_rates.py::test_report_renders_month",
+      "test_rates.py::test_unknown_zone_is_an_error"
+    ],
+    "removed": [],
+    "truncated": false,
+    "source": "id set-diff, not summary arithmetic"
+  },
+  "coverage": {
+    "status": "unavailable",
+    "reason": "no coverage_suite_cmd in the profile \u2014 set one that runs the suite under coverage.py (e.g. `.venv/bin/python -m coverage run -m pytest`) to measure which changed lines any test executed"
+  },
+  "gates_from_profile": [
+    "suite"
+  ],
+  "profile_notes": [
+    "test_ids_cmd taken from the profile"
+  ]
+}

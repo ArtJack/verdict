@@ -27,7 +27,7 @@ import json
 import os
 import sys
 
-from qa_paths import is_allowed_path as _is_allowed
+from qa_paths import is_allowed_path as _is_allowed, utf8_stderr
 
 
 def _caller_is_verdict(data: dict) -> bool:
@@ -39,6 +39,7 @@ def _caller_is_verdict(data: dict) -> bool:
 
 
 def main() -> int:
+    utf8_stderr()
     try:
         data = json.load(sys.stdin)
     except Exception:

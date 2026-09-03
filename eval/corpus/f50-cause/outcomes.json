@@ -1,0 +1,56 @@
+{
+  "chain": {
+    "last_link": "7d21a998545a57c0747a3210fa5dc5b2759761d1378769730aef3ed58944003c",
+    "since_run": 1
+  },
+  "findings": {
+    "871bea2a": {
+      "confidence": "proven",
+      "first_seen": "2026-09-03",
+      "hash": "871bea2a",
+      "id": "RATES-F-002",
+      "outcome": "unknown",
+      "outcome_reason": "still open; nothing has settled it",
+      "severity": "Critical"
+    },
+    "b1ca4ece": {
+      "confidence": "proven",
+      "first_seen": "2026-09-03",
+      "hash": "b1ca4ece",
+      "id": "RATES-F-004",
+      "outcome": "unknown",
+      "outcome_reason": "still open; nothing has settled it",
+      "severity": "Minor"
+    },
+    "b6f8d732": {
+      "confidence": "proven",
+      "first_seen": "2026-09-03",
+      "hash": "b6f8d732",
+      "id": "RATES-F-005",
+      "outcome": "unknown",
+      "outcome_reason": "still open; nothing has settled it",
+      "severity": "Minor"
+    },
+    "c16dba6e": {
+      "confidence": "proven",
+      "first_seen": "2026-09-03",
+      "hash": "c16dba6e",
+      "id": "RATES-F-001",
+      "outcome": "unknown",
+      "outcome_reason": "still open; nothing has settled it",
+      "proof_method": "counterfactual",
+      "severity": "Critical"
+    },
+    "c3f809d6": {
+      "confidence": "proven",
+      "first_seen": "2026-09-03",
+      "hash": "c3f809d6",
+      "id": "RATES-F-003",
+      "outcome": "unknown",
+      "outcome_reason": "still open; nothing has settled it",
+      "severity": "Major"
+    }
+  },
+  "project": "rates",
+  "schema_version": 1
+}

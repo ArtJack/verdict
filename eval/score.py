@@ -229,16 +229,26 @@ def score(qa_root: Path, expected: dict, mode: str | None, fixture_dir: Path | N
                 point = 1
             note = f"verdict={state.get('verdict')!r}"
         elif typ == "report_contains":
+            # `terms_all` is the conjunction; `terms_any`, when present, adds a
+            # disjunction beside it. A step with several correct spellings —
+            # sweeping a cache, naming the variable, running the control — is a
+            # single behaviour, and a key that demanded one exact phrase would
+            # score the vocabulary rather than the discipline.
             terms = row.get("terms_all", [])
+            alternatives = row.get("terms_any", [])
             if report_raw is None:
                 note = "no report to check"
             else:
                 lowered = report_raw.lower()
                 missing = [t for t in terms if t.lower() not in lowered]
-                if not missing:
+                unmet = bool(alternatives) and not any(
+                    t.lower() in lowered for t in alternatives)
+                if not missing and not unmet:
                     point = 1
                 else:
-                    note = "report missing: " + ", ".join(missing)
+                    note = "; ".join(filter(None, [
+                        "report missing: " + ", ".join(missing) if missing else "",
+                        "none of: " + ", ".join(alternatives) if unmet else ""]))
         elif typ == "report_forbids":
             # Decoy rows: the point is earned by NOT saying something. Kept
             # narrow — phrases that assert the decoy IS the cause, so a run

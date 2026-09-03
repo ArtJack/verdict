@@ -244,6 +244,20 @@ def _counts(output: str) -> tuple[dict, str | None]:
 _UNSET = object()
 
 
+def _ago(age_h: float) -> str:
+    """A short age phrase that cannot contradict the hours beside it.
+
+    The retry window is six hours wide, and a fixed "minutes ago" inside it put
+    a false sentence next to a true number in the same object (VERDICT-F-53).
+    """
+    minutes = int(round(age_h * 60))
+    if minutes < 1:
+        return "seconds ago"
+    if minutes < 60:
+        return f"{minutes} minute{'s' if minutes != 1 else ''} ago"
+    return f"{age_h:.1f} hours ago" if age_h >= 1.05 else "1 hour ago"
+
+
 def _parse_marker_time(value):
     try:
         return datetime.strptime(str(value), "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc)
@@ -399,7 +413,13 @@ def _classify(proc, output: str) -> str:
 def _run_test(template: str, test_id: str, cwd, repo: Path, timeout: float,
               pythonpath: list | None = None) -> dict:
     cmd = _one_test_cmd(template, test_id, repo)
-    env = dict(os.environ)
+    # Never let a cached module decide what ran. CPython validates bytecode on
+    # the source's modification time in WHOLE SECONDS plus its size, so two
+    # same-size writes inside one second are indistinguishable and the second
+    # silently executes the first's bytecode. Fix verification is exactly that
+    # shape: the same test id is run against two versions of a tree, and this
+    # scratch has files copied into it from HEAD (VERDICT-F-50).
+    env = dict(os.environ, PYTHONDONTWRITEBYTECODE="1")
     if pythonpath:
         env["PYTHONPATH"] = os.pathsep.join([*pythonpath, env.get("PYTHONPATH", "")]).rstrip(os.pathsep)
     try:
@@ -424,6 +444,21 @@ def _scratch_checkout(repo: Path, sha: str):
         shutil.rmtree(tmp, ignore_errors=True)
         return None
     return tmp
+
+
+def _drop_bytecode(root: Path) -> None:
+    """Remove every `__pycache__` under `root`.
+
+    Belt to `PYTHONDONTWRITEBYTECODE`'s braces: the variable stops this run
+    writing a cache, and this stops it reading one an earlier run left. The
+    measurement that named the cost: a re-injection campaign against this
+    project killed 4 of 5 mutants with the cache in place and 5 of 5 with it
+    swept, while the check the contract prescribed — printing the loaded
+    module's `__file__` — was correct in both cases, because the path was never
+    what was wrong (VERDICT-F-50).
+    """
+    for cache in Path(root).rglob("__pycache__"):
+        shutil.rmtree(cache, ignore_errors=True)
 
 
 def _remove_scratch(repo: Path, tmp: Path) -> None:
@@ -527,6 +562,7 @@ def verify_findings(repo: Path, previous: dict | None, test_one_cmd: str | None,
                 # The old source must be what runs. An editable install points at
                 # the main checkout regardless of cwd; PYTHONPATH outranks it.
                 pp = [str(p) for p in (scratch / "src", scratch) if p.is_dir()]
+                _drop_bytecode(scratch)
                 prev = _run_test(test_one_cmd, test_id, scratch, repo, VERIFY_TIMEOUT_S,
                                  pythonpath=pp)
                 rec["at_previous"] = prev["result"]
@@ -996,8 +1032,11 @@ def collect(repo: Path, qa_root: Path, gates: list[tuple[str, str]],
             facts["previous_attempt_this_run"] = {
                 **abandoned,
                 "age_hours": round(age_h, 2),
-                "meaning": "an earlier attempt at this same commit, minutes ago — this "
-                           "run's own retry, not a lost run. Nothing is missing",
+                # The window is six hours wide; saying "minutes ago" inside it
+                # put a false sentence beside the true number in the same
+                # object — `age_hours: 2.01` under "minutes ago" (VERDICT-F-53).
+                "meaning": f"an earlier attempt at this same commit, {_ago(age_h)} — "
+                           "this run's own retry, not a lost run. Nothing is missing",
             }
         else:
             facts["previous_run_incomplete"] = {
@@ -1203,6 +1242,29 @@ CARRY_RESOLVE_FLOOR = 5
 CARRY_RESOLVE_SHARE = 0.5
 
 
+def run_date(facts: dict | None) -> date:
+    """The calendar date of the run, read from the run's own UTC timestamp.
+
+    Not `date.today()`. Every other clock in this module is UTC, and the local
+    one disagrees with them for part of every day — seven hours wide on the
+    machine where this was found, which filed five findings dated the day
+    before the state, report filename and INDEX row that carry them
+    (VERDICT-F-54). Reading the date off `last_run.timestamp_utc` rather than
+    off a second clock call also makes the two agree by construction when a
+    long run straddles midnight. The stamp is permanent — `first_seen` is
+    copied forward for the life of a finding, and `age_days` is measured from
+    it — so a wrong date never washes out.
+    """
+    stamp = str(((facts or {}).get("last_run") or {}).get("timestamp_utc") or "")
+    try:
+        when = datetime.fromisoformat(stamp.replace("Z", "+00:00"))
+    except ValueError:
+        return datetime.now(timezone.utc).date()
+    if when.tzinfo is not None:
+        when = when.astimezone(timezone.utc)
+    return when.date()
+
+
 def merge(facts: dict, judgment: dict, previous: dict | None, today: date | None = None,
           ledger: dict | None = None) -> dict:
     """Facts + judgment → a state file, with identity and deltas computed.
@@ -1211,7 +1273,7 @@ def merge(facts: dict, judgment: dict, previous: dict | None, today: date | None
     keeps this function pure while letting the calibration block count every
     finding this project ever filed, not just the ones still in state.
     """
-    today = today or date.today()
+    today = today or run_date(facts)
     prev_by_hash, prev_by_id = {}, {}
     for f in ((previous or {}).get("findings") or []):
         if f.get("hash"):
@@ -1835,8 +1897,21 @@ def _render_calibration(cal: dict) -> list[str]:
     # 19 as the tester's word — the state careful, the renderer not, which is
     # the split-brain shape VERDICT-F-36 was about, one release later
     # (VERDICT-F-45).
-    unrecorded = max((v.get("confirmed", 0) - v.get("confirmed_measured", 0)
-                      - v.get("confirmed_claimed", 0) for v in buckets), default=0)
+    # `buckets` is two stores concatenated, and each one partitions the same
+    # settled outcomes — so the count has to be summed WITHIN a store and
+    # compared ACROSS them, never taken over the concatenation. Taking a
+    # maximum over the individual buckets reported the largest single row where
+    # the sentence beneath says "those confirmations", meaning the whole
+    # column: `Up to 17` where 21 of 28 were unrecorded, leaving a reader to
+    # subtract 17 from 28 and credit 11 to the tester's word when the real
+    # figure was 7 (VERDICT-F-51). The maximum across stores is a guard against
+    # one of them carrying fewer rows than the other.
+    def _unrecorded(store):
+        return sum(max(0, v.get("confirmed", 0) - v.get("confirmed_measured", 0)
+                       - v.get("confirmed_claimed", 0)) for v in store.values())
+    unrecorded = max((_unrecorded(store) for store in
+                      (cal.get("by_confidence") or {}, cal.get("by_proof_method") or {})
+                      if store), default=0)
     lines += [f"*A rate appears once a row has {cal.get('min_sample')} settled outcomes. "
               "Settled means fix-verified or regressed (it held up) against withdrawn "
               "(it did not); a resolution nobody checked at all settles nothing.*"]
@@ -1846,7 +1921,7 @@ def _render_calibration(cal: dict) -> list[str]:
                   "contradicts it. The `measured` column is the first kind. Read them "
                   "apart.*"]
     if unrecorded:
-        lines += ["", f"*Up to {unrecorded} of those confirmations were settled before "
+        lines += ["", f"*{unrecorded} of those confirmations were settled before "
                   "`outcome_basis` was recorded and are neither kind. They are counted in "
                   "`held up` and in no other column, because calling them the tester's word "
                   "would be a claim of its own.*"]

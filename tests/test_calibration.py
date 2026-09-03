@@ -625,3 +625,89 @@ def test_a_project_with_nothing_claimed_keeps_the_plain_table():
     assert "of those, measured" not in text, text
     assert "Read them apart" not in text, text
     assert "| proven | 3 | 1 |" in text, text
+
+
+def test_the_unrecorded_footnote_counts_every_confirmation_not_the_biggest_row():
+    """VERDICT-F-51: the footnote summed nothing — it took the maximum over the
+    concatenation of two stores that each partition the same outcomes, so it
+    reported the largest single row while its own sentence says "those
+    confirmations", meaning the whole column.
+
+    The numbers are the ones the defect was found on: 24 + 3 + 1 = 28 held up,
+    of which 7 carry a basis, so 21 are unrecorded. The old code printed 17.
+
+    Both stores are split across several rows on purpose. With the second store
+    held in one row, that row's own figure IS the answer, and the broken
+    maximum lands on it — the test would then pass under the defect it exists
+    to catch.
+    """
+    state = {"calibration": {
+        "min_sample": 3, "decided_outcomes": 28,
+        "by_confidence": {
+            "proven": {"confirmed": 24, "confirmed_measured": 0,
+                       "confirmed_claimed": 7, "refuted": 0},
+            "unstated": {"confirmed": 3, "confirmed_measured": 0,
+                         "confirmed_claimed": 0, "refuted": 0},
+            "probable": {"confirmed": 1, "confirmed_measured": 0,
+                         "confirmed_claimed": 0, "refuted": 0}},
+        "by_proof_method": {
+            "re-injection": {"confirmed": 20, "confirmed_measured": 0,
+                             "confirmed_claimed": 5, "refuted": 0},
+            "inspection": {"confirmed": 8, "confirmed_measured": 0,
+                           "confirmed_claimed": 2, "refuted": 0}}}}
+    footnote = [ln for ln in render_report(state).splitlines()
+                if "settled before" in ln]
+    assert len(footnote) == 1, footnote
+    assert "21 of those confirmations" in footnote[0], footnote[0]
+    assert "17" not in footnote[0], "the largest bucket is not the count"
+    assert "Up to" not in footnote[0], "a sum is exact; it is not an upper bound"
+
+
+def test_no_unrecorded_footnote_when_every_confirmation_carries_a_basis():
+    """The negative control: the sum must be able to reach zero, or the
+    footnote would appear on states it does not describe."""
+    state = {"calibration": {
+        "min_sample": 3, "decided_outcomes": 5,
+        "by_confidence": {"proven": {"confirmed": 5, "confirmed_measured": 2,
+                                     "confirmed_claimed": 3, "refuted": 0}},
+        "by_proof_method": {"re-injection": {"confirmed": 5, "confirmed_measured": 2,
+                                             "confirmed_claimed": 3, "refuted": 0}}}}
+    assert not [ln for ln in render_report(state).splitlines() if "settled before" in ln]
+
+
+def test_a_new_findings_first_seen_is_the_runs_own_utc_date():
+    """VERDICT-F-54: `first_seen` and `age_days` were stamped from the machine's
+    local calendar inside a state timestamped in UTC, so on a machine running
+    behind UTC every run in that window filed findings dated the day before its
+    own state, report filename and INDEX row — permanently, because the stamp
+    is copied forward for the life of the finding.
+
+    The check is the one that would have caught it: the date a NEW finding
+    carries must be the date of the run that filed it. The timestamp is years
+    away from any plausible `date.today()` on purpose — a probe taken from
+    near today passes under the defect for most of every day, which is a test
+    that cannot fail rather than a test that holds.
+    """
+    stamped = dict(facts(1), last_run={"timestamp_utc": "2019-07-04T01:44:59Z",
+                                       "git_sha": "abc1234"})
+    state = merge(stamped, judgment([finding()]), None)
+    assert state["findings"][0]["first_seen"] == "2019-07-04"
+    assert state["findings"][0]["age_days"] == 0
+
+
+def test_age_days_counts_from_the_runs_utc_date_too():
+    """The same clock has to drive the age, or a finding filed correctly still
+    reports the wrong pressure. Two calendar days apart is two days old."""
+    prior = dict(finding(), hash=finding_hash(finding()), first_seen="2019-07-02")
+    stamped = dict(facts(2), last_run={"timestamp_utc": "2019-07-04T01:44:59Z",
+                                       "git_sha": "abc1234"})
+    state = merge(stamped, judgment([finding()]), {"findings": [prior]})
+    assert state["findings"][0]["age_days"] == 2
+
+
+def test_an_unreadable_run_timestamp_falls_back_to_utc_now():
+    """A state with no usable timestamp must still date its findings, and must
+    do it on the same clock as everything else in the module."""
+    state = merge(dict(facts(1), last_run={"git_sha": "abc1234"}),
+                  judgment([finding()]), None)
+    assert state["findings"][0]["first_seen"] == datetime.now(timezone.utc).date().isoformat()
