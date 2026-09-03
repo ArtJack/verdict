@@ -1,6 +1,6 @@
 {
   "chain": {
-    "last_link": "60a6773f68e9169f65d451332e919e0917f4615621cefa8afb47def1a383c8d9",
+    "last_link": "b30c5aab68e9a51e132ad41820fdb78fedb185009aa1caa7787ce83c48cd7721",
     "since_run": 8
   },
   "findings": {
@@ -50,11 +50,13 @@
     },
     "1052aefa": {
       "confidence": "proven",
+      "decided_on": "2026-09-03",
       "first_seen": "2026-09-02",
       "hash": "1052aefa",
       "id": "VERDICT-F-45",
-      "outcome": "unknown",
-      "outcome_reason": "still open; nothing has settled it",
+      "outcome": "confirmed",
+      "outcome_basis": "claimed",
+      "outcome_reason": "fix-verified: claimed by the tester, and no harness measurement contradicts it",
       "severity": "Minor"
     },
     "1f06e26a": {
@@ -86,6 +88,26 @@
       "id": "VERDICT-F-10",
       "outcome": "unknown",
       "outcome_reason": "resolved but not fix-verified \u2014 absence is not proof",
+      "severity": "Major"
+    },
+    "2d99a695": {
+      "confidence": "proven",
+      "first_seen": "2026-09-02",
+      "hash": "2d99a695",
+      "id": "VERDICT-F-49",
+      "outcome": "unknown",
+      "outcome_reason": "still open; nothing has settled it",
+      "proof_method": "counterfactual",
+      "severity": "Minor"
+    },
+    "3d940871": {
+      "confidence": "proven",
+      "first_seen": "2026-09-02",
+      "hash": "3d940871",
+      "id": "VERDICT-F-50",
+      "outcome": "unknown",
+      "outcome_reason": "still open; nothing has settled it",
+      "proof_method": "counterfactual",
       "severity": "Major"
     },
     "44f6d6fe": {
@@ -170,6 +192,16 @@
       "outcome": "unknown",
       "outcome_reason": "claimed fix-verified, but the harness's own re-injection showed pass \u2192 pass, which settles nothing",
       "severity": "Major"
+    },
+    "66c92f37": {
+      "confidence": "proven",
+      "first_seen": "2026-09-02",
+      "hash": "66c92f37",
+      "id": "VERDICT-F-54",
+      "outcome": "unknown",
+      "outcome_reason": "still open; nothing has settled it",
+      "proof_method": "differential",
+      "severity": "Minor"
     },
     "6c241826": {
       "confidence": "proven",
@@ -266,6 +298,7 @@
       "id": "VERDICT-F-42",
       "outcome": "unknown",
       "outcome_reason": "still open; nothing has settled it",
+      "proof_method": "counterfactual",
       "severity": "Major"
     },
     "8da9b0a8": {
@@ -278,6 +311,16 @@
       "outcome_reason": "fix-verified: the guarding test failed on re-injection",
       "severity": "Minor"
     },
+    "927656c7": {
+      "confidence": "proven",
+      "first_seen": "2026-09-02",
+      "hash": "927656c7",
+      "id": "VERDICT-F-52",
+      "outcome": "unknown",
+      "outcome_reason": "still open; nothing has settled it",
+      "proof_method": "reading",
+      "severity": "Major"
+    },
     "a1f3c9d2": {
       "decided_on": "2026-08-30",
       "first_seen": "2026-08-28T20:33:24Z",
@@ -289,11 +332,13 @@
     },
     "a369253f": {
       "confidence": "proven",
+      "decided_on": "2026-09-03",
       "first_seen": "2026-09-02",
       "hash": "a369253f",
       "id": "VERDICT-F-47",
-      "outcome": "unknown",
-      "outcome_reason": "still open; nothing has settled it",
+      "outcome": "confirmed",
+      "outcome_basis": "claimed",
+      "outcome_reason": "fix-verified: claimed by the tester, and no harness measurement contradicts it",
       "severity": "Minor"
     },
     "a717edb9": {
@@ -345,11 +390,13 @@
     },
     "c2250daa": {
       "confidence": "proven",
+      "decided_on": "2026-09-03",
       "first_seen": "2026-09-02",
       "hash": "c2250daa",
       "id": "VERDICT-F-48",
-      "outcome": "unknown",
-      "outcome_reason": "still open; nothing has settled it",
+      "outcome": "confirmed",
+      "outcome_basis": "claimed",
+      "outcome_reason": "fix-verified: claimed by the tester, and no harness measurement contradicts it",
       "severity": "Minor"
     },
     "c235a036": {
@@ -392,11 +439,23 @@
     },
     "d0f59be9": {
       "confidence": "proven",
+      "decided_on": "2026-09-03",
       "first_seen": "2026-09-02",
       "hash": "d0f59be9",
       "id": "VERDICT-F-46",
+      "outcome": "confirmed",
+      "outcome_basis": "claimed",
+      "outcome_reason": "fix-verified: claimed by the tester, and no harness measurement contradicts it",
+      "severity": "Minor"
+    },
+    "d3dc108b": {
+      "confidence": "proven",
+      "first_seen": "2026-09-02",
+      "hash": "d3dc108b",
+      "id": "VERDICT-F-53",
       "outcome": "unknown",
       "outcome_reason": "still open; nothing has settled it",
+      "proof_method": "reading",
       "severity": "Minor"
     },
     "d9a52f70": {
@@ -405,6 +464,16 @@
       "id": "VERDICT-F-4",
       "outcome": "unknown",
       "outcome_reason": "resolved but not fix-verified \u2014 absence is not proof",
+      "severity": "Minor"
+    },
+    "e5b552f9": {
+      "confidence": "proven",
+      "first_seen": "2026-09-02",
+      "hash": "e5b552f9",
+      "id": "VERDICT-F-51",
+      "outcome": "unknown",
+      "outcome_reason": "still open; nothing has settled it",
+      "proof_method": "differential",
       "severity": "Minor"
     },
     "e9e4569a": {
@@ -433,16 +502,18 @@
       "hash": "f0776466",
       "id": "VERDICT-F-43",
       "outcome": "unknown",
-      "outcome_reason": "still open; nothing has settled it",
+      "outcome_reason": "resolved but not fix-verified \u2014 absence is not proof",
       "severity": "Major"
     },
     "f15c2239": {
       "confidence": "proven",
+      "decided_on": "2026-09-03",
       "first_seen": "2026-09-02",
       "hash": "f15c2239",
       "id": "VERDICT-F-44",
-      "outcome": "unknown",
-      "outcome_reason": "still open; nothing has settled it",
+      "outcome": "confirmed",
+      "outcome_basis": "claimed",
+      "outcome_reason": "fix-verified: claimed by the tester, and no harness measurement contradicts it",
       "severity": "Major"
     },
     "f326277a": {
@@ -466,8 +537,9 @@
       "verification": {
         "at_head": "pass",
         "at_previous": "pass",
+        "candidates": 1,
         "selected_by": "first_cited",
-        "test": "tests/test_verification.py::test_a_node_id_scraped_from_prose_is_never_run"
+        "test": "tests/test_calibration.py::test_the_tally_separates_what_was_measured_from_what_was_asserted"
       }
     },
     "fe1f07b3": {

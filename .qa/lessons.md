@@ -133,3 +133,42 @@ for this project's mutation-campaign releases is most of it.
 Discriminator: before reading a blended ratio as a trend, split it by the thing
 that changed and check the parts move together. Two runs agreeing on a number is
 not evidence that the number measures what its name says. Filed as VERDICT-F-44.
+
+## 2026-09-03 (run 10) — a re-injection can measure the right file and the wrong bytecode
+
+Re-measuring VERDICT-F-48's five mutants in a scratch copy, isolated exactly as
+the contract 0.73.0 had just added says to, read 4 of 5: mutant M3 (validate.py's
+state-validator `continue` becoming `break`) reported SURVIVED. It had not
+survived. `cp -a` carries `__pycache__`, and CPython validates a cached .pyc on
+the source's size and its mtime truncated to whole seconds. M2 and M3 both
+replace a `continue` with a `break`, so both files are 31075 bytes, and both
+landed at mtime second 1788400567 — so M3's import silently ran M2's bytecode
+and the mutation was never executed. Swept the cache, and it was killed: 5 of 5.
+The prescribed check did not help, and cannot: `verdict_mcp.validate.__file__`
+printed the correct scratch path in both directions.
+What stopped the false finding was the shape, not any single result. Four of five
+biting where the two sibling mutants of the same kind both bit is an instrument
+fault before it is a coverage gap — the same reasoning run 9 used when four of
+four passing turned out to be an instrument reading zero.
+Discriminator: before believing a re-injection, delete `__pycache__` (or set
+PYTHONDONTWRITEBYTECODE) between injections. Path isolation and bytecode
+isolation are two different claims, and only one of them is checkable by
+printing a path. Filed as VERDICT-F-50.
+
+## 2026-09-03 (run 10) — a guard fix verified only in the shape the finding quoted
+
+VERDICT-F-42 was reported with a command in its title, 0.71.0 made that exact
+command deny, three tests were written, and the changelog closed it. Moving
+`--remove-files` after the archive name — legal GNU tar, and the way most people
+would write it — is still permitted at HEAD, because the new loop treats any
+option containing the letter `f` as taking an argument and `--remove-files`
+swallows the operand behind it. All three new tests use the token order the
+finding's title happened to use. I kept the id rather than minting a new one,
+following the 2026-09-02 lesson: when a fix lands halfway the wording changes
+and the file does not.
+Discriminator: when verifying a fix to a parser or a guard, vary the input along
+the axis the finding did not — argument order, long-form spelling, separated
+flags. A fix that passes only the reported spelling has been tested against the
+sentence, not the behaviour, and the diff-coverage report will usually say so
+first: the two unexercised production lines in this range were the branch the
+bypass walks through.
