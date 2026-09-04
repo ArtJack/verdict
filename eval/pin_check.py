@@ -166,7 +166,7 @@ def main() -> int:
         return 1
     print(f"control: suite green · {len(mutants)} mutants to apply\n")
 
-    survivors = []
+    survivors, equivalents = [], []
     for i, m in enumerate(mutants, 1):
         path = ROOT / m["path"]
         src = path.read_text(encoding="utf-8")
@@ -184,12 +184,20 @@ def main() -> int:
             keeper.restore()
         if result.returncode != 0:
             print(f"[{i:2}/{len(mutants)}] KILLED   {m['label']}")
+        elif m.get("equivalent"):
+            # Documented, not hidden: a mutant that provably cannot change a
+            # verdict is a question with no answer, and scoring it as a miss
+            # would push someone to write a test that can only ever pass.
+            print(f"[{i:2}/{len(mutants)}] EQUIV    {m['label']}")
+            equivalents.append(m["label"])
         else:
             print(f"[{i:2}/{len(mutants)}] SURVIVED {m['label']}")
             survivors.append(m["label"])
 
-    killed = len(mutants) - len(survivors)
-    print(f"\n{killed} of {len(mutants)} killed by the whole suite")
+    killed = len(mutants) - len(survivors) - len(equivalents)
+    scored = len(mutants) - len(equivalents)
+    print(f"\n{killed} of {scored} killed by the whole suite"
+          + (f" ({len(equivalents)} equivalent, excluded)" if equivalents else ""))
     if survivors:
         print("\nsurvivors — each is a rule the suite does not defend:")
         for s in survivors:

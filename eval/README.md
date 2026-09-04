@@ -204,11 +204,34 @@ matched a digit inside a parenthetical rather than the claim, and the only call 
 `_drop_bytecode`, whose deletion left every test passing because the mutant that "killed"
 it had changed the function's *body*.
 
-| | mutants | killed |
+| enumerated from | mutants | killed |
 |---|---|---|
-| 2026-09-03, v0.74.0 as published | 21 | 21, each against one named test |
-| re-run against the whole suite | 29 | **27** |
-| v0.75.0, both survivors closed, this release's rules added | **32** | **32** |
+| the tests (v0.74.0, as published) | 21 | 21, each against one named test |
+| — re-run against the whole suite | 29 | **27** |
+| the fix list (v0.75.0) | 32 | **32** |
+| **the code (v0.76.0)** | **46** | **45 of 45, 1 equivalent** |
+
+**Where the mutants come from decides what the number means.** Run 12 made the
+point with one fact: the v0.75.0 catalogue scored **killed** on the entry *"tar
+operands stop being read relative to `-C`"* — a perfect mark on a rule the same
+run proved bypassable five ways. Mutation testing answers *would a test notice if
+this line changed*; it never answers *is this line right*. A catalogue drawn from
+the fix list inherits the fix's blind spots, exactly as a test written from a
+finding's own sentence does.
+
+v0.76.0 enumerated by reading `_tar_parse` and `_check_tar` line by line — every
+branch, every operator, sixteen mutants. Five survived the first pass and four
+were real gaps: `--` ending the option list, a long option's separate value read
+as a deletion target, `-c --remove-files -f` swallowing the flag, and extraction
+reporting the shell's cwd instead of `-C`. It also flagged three existing entries
+as **stale** against the rewritten handler rather than passing them silently,
+which is the behaviour a catalogue-as-data buys you.
+
+The fifth survivor is a genuine **equivalent mutant** and is marked so in the
+catalogue: a bare `-` either yields no operand or yields one `_target_ok` waves
+through as a flag — the verdict is the same either way. Equivalents are reported
+and excluded from the denominator, because scoring a question with no answer only
+pressures someone into writing a test that cannot fail.
 
 The catalogue is [`eval/pinned_mutants.json`](pinned_mutants.json) — data, beside the number
 it supports. It carries a class the hand-written scripts never had: mutants that delete a

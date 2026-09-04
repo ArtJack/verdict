@@ -8,13 +8,13 @@ import json
 import os
 import subprocess
 import sys
-from datetime import date, datetime, timedelta, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import pytest
 
 from verdict_mcp.harness import (
-    INDEX_HEADER, collect, finding_hash, index_row, merge, write_state)
+    INDEX_HEADER, collect, finding_hash, index_row, merge, run_date, write_state)
 
 HARNESS = Path(__file__).resolve().parent.parent / "src" / "verdict_mcp" / "harness.py"
 
@@ -154,10 +154,19 @@ def test_merge_assigns_deltas_the_model_used_to_guess(repo, qa_root):
 
 
 def test_merge_ages_from_first_seen(repo, qa_root):
+    """The expected date comes off the run's own clock, not the machine's.
+
+    This asserted against `date.today()` and went red the first evening UTC
+    crossed midnight ahead of a UTC-7 host — green in CI, red locally for seven
+    hours a day. VERDICT-F-54 moved `merge` to the run's UTC stamp precisely so
+    the two could not disagree; a test that keeps one foot in the local clock
+    re-opens the gap it closed. Same shape as VERDICT-F-24, which this file
+    already has a test for.
+    """
     facts = collect(repo, qa_root, [])
     previous = {"findings": [{
         "hash": finding_hash(judgment()["findings"][0]), "status": "open",
-        "first_seen": (date.today() - timedelta(days=6)).isoformat()}]}
+        "first_seen": (run_date(facts) - timedelta(days=6)).isoformat()}]}
     state = merge(facts, judgment(), previous)
     assert state["findings"][0]["age_days"] == 6
 
@@ -166,7 +175,7 @@ def test_merge_carries_forward_a_finding_this_run_did_not_mention(repo, qa_root)
     facts = collect(repo, qa_root, [])
     previous = {"findings": [{
         "id": "W-F-9", "hash": "beefbeef", "status": "open", "severity": "Minor",
-        "priority": "P3", "first_seen": date.today().isoformat(), "title": "old thing",
+        "priority": "P3", "first_seen": run_date(facts).isoformat(), "title": "old thing",
         "evidence": ["z.py:1"]}]}
     state = merge(facts, judgment(), previous)
     carried = [f for f in state["findings"] if f["hash"] == "beefbeef"][0]
@@ -178,7 +187,8 @@ def _backlog(n):
     """`n` prior open findings — the standing backlog a scoped run never reads."""
     return [{"id": f"W-B-{i}", "hash": f"b{i:07x}", "status": "open",
              "severity": "Critical", "priority": "P1", "title": f"old thing {i}",
-             "first_seen": date.today().isoformat(), "evidence": [f"z{i}.py:1"]}
+             "first_seen": datetime.now(timezone.utc).date().isoformat(),
+             "evidence": [f"z{i}.py:1"]}
             for i in range(n)]
 
 

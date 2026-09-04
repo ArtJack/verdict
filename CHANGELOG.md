@@ -3,6 +3,68 @@
 Plugin and `verdict-mcp` share one version line; `.claude-plugin/plugin.json` and
 `pyproject.toml` are bumped together.
 
+## 0.76.0 — 2026-09-04 · "measure the tool, then encode it"
+
+Run 12 found the tar handler bypassed five ways and my mutation catalogue
+scoring it 100%. Both are fixed, and the second one is the more important.
+
+**VERDICT-F-62 — the option walker ignored attached values.** It walked a bundle
+letter by letter and took the next *token* for a letter that carries an
+argument, so `-cf<scratch>/loot.tar` made `f` swallow `--remove-files` and the
+deletion had no visible target. Measured against GNU tar 1.35 in a throwaway
+checkout: guard allowed, tar exited 0, the checkout's directory gone. One space
+turned the same command into a correct denial. Attached `-C<dir>` was worse —
+`/` parsed as an option letter. This was VERDICT-F-42's swallowing again, in the
+parser written to close VERDICT-F-42. It now follows getopt: the remainder of
+the token is the value when there is one.
+
+**VERDICT-F-56 — `-C` is positional, and the handler took the last one.** Real
+tar changes directory at the point the flag appears, so every operand belongs to
+the `-C` before it, and successive values compound (`-C /a -C b` is `/a/b`).
+Taking the last and joining everything to it reported two scratch paths for
+`-C <checkout> hooks -C <scratch> junk`, which tar answers by deleting both.
+The walk is now ordered and carries the directory forward.
+
+**The order this was done in is the point.** Every directory rule above was
+measured by running GNU tar and looking at what was gone, *before* any code was
+written. The reason `-C` was modelled as last-one-wins is that nobody had ever
+executed it. Nineteen shapes now sit in the suite twice: once asserting the
+guard's verdict, once running real tar and asserting the matrix still describes
+it. On a stock Mac the second half skips honestly — bsdtar has no
+`--remove-files`, so four findings' worth of rules are unreachable there.
+
+**And the catalogue is enumerated from the code.** Run 12's sharpest fact: entry
+30, *"tar operands stop being read relative to `-C`"*, was **killed** — a perfect
+score on the rule it had just proved bypassable five ways. Mutation testing
+answers whether a test would notice a line changing; it never answers whether the
+line is right. 0.74.0 enumerated from the tests, 0.75.0 from the fix list,
+neither from the source. Reading the parser and the handler line by line added
+sixteen mutants covering every branch and operator — and immediately flagged
+three catalogue entries as stale against the rewritten code rather than passing
+them silently.
+
+| enumerated from | mutants | result |
+|---|---|---|
+| the tests (0.74.0) | 21 | 21 killed, one named test each |
+| the fix list (0.75.0) | 32 | 32 killed, whole suite |
+| **the code (0.76.0)** | **46** | **45 of 45 killed, 1 equivalent** |
+
+Five of the sixteen survived the first pass and four were real gaps no fix-list
+enumeration could reach: `--` ending the option list, a long option's separate
+value being read as a deletion target, a swallowed `--remove-files` in
+`-c --remove-files -f`, and extraction reporting the shell's cwd instead of `-C`
+— that last a false positive in the common case, since a run's cwd is nearly
+always the checkout. The fifth is genuinely equivalent and is marked as such:
+scoring a question with no answer only pressures someone into writing a test that
+cannot fail.
+
+**A latent flake, surfaced by working after dark.** Three tests computed expected
+dates from the local clock while VERDICT-F-54 had moved the harness to the run's
+UTC stamp. They go red the moment UTC crosses midnight ahead of a UTC-7 host and
+green again seven hours later — passing in CI, failing on the maintainer's
+machine, which is the worst way round. The same shape as VERDICT-F-24, which this
+suite already has a test for. All three now read the run's clock.
+
 ## 0.75.0 — 2026-09-03 · "a rule nothing calls"
 
 Run 11's first four findings, and the number in 0.74.0's own changelog that
