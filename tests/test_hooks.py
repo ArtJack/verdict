@@ -7,6 +7,7 @@ variables. Exit 0 = allow, 2 = deny.
 
 import json
 import os
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -874,3 +875,130 @@ def test_bash_blocks_a_deletion_list_it_cannot_read(repo, tmp_path):
                        bash_event(f"tar -cf {scratch}/x.tar -T {repo}/list.txt", repo),
                        strict="1")
     assert rc == 0, f"reading a file list without --remove-files is not a write: {err}"
+
+
+# ── tar, checked against the tar that would actually run ────────────────────
+
+def _gnu_tar():
+    """GNU tar, or None. macOS ships bsdtar, which rejects `--remove-files`
+    outright — so on a stock Mac these rules are unreachable and the honest
+    answer is to skip, not to pretend the platform was covered."""
+    for name in ("tar", "gtar"):
+        exe = shutil.which(name)
+        if not exe:
+            continue
+        out = subprocess.run([exe, "--version"], capture_output=True, text=True)
+        if "GNU tar" in out.stdout:
+            return exe
+    return None
+
+
+TAR_SHAPES = [
+    # (argv template, does real tar delete something in the checkout?)
+    (["-cf", "{scratch}/x.tar", "--remove-files", "{repo}/hooks"], True),
+    (["-cf{scratch}/x.tar", "--remove-files", "{repo}/hooks"], True),
+    (["-cf{scratch}/x.tar", "--remove-files", "-C", "{repo}", "hooks"], True),
+    (["-cf", "{scratch}/x.tar", "--remove-files", "-C", "{repo}", "hooks"], True),
+    (["-cf", "{scratch}/x.tar", "--remove-files", "-C{repo}", "hooks"], True),
+    (["-cf", "{scratch}/x.tar", "--remove-files",
+      "-C", "{repo}", "hooks", "-C", "{scratch}", "junk"], True),
+    (["-cf", "{scratch}/x.tar", "--remove-files",
+      "-C", "{scratch}", "junk", "-C", "{repo}", "hooks"], True),
+    (["-cf", "{scratch}/x.tar", "--remove-files", "--directory={repo}", "hooks"], True),
+    (["-cf", "{scratch}/x.tar", "--remove-files", "-C", "{root}", "-C", "repo", "hooks"], True),
+    (["-cf", "{scratch}/x.tar", "--remove-files", "--", "{repo}/hooks"], True),
+    # `--` makes `-C` a filename, so the operand behind it is deleted rather
+    # than consumed as a directory. Measured: tar exits 2 (no file named `-C`)
+    # and removes the other one anyway.
+    (["-cf", "{scratch}/x.tar", "--remove-files", "--", "-C", "{repo}/hooks"], True),
+    # The operation and the archive split across separate tokens, with
+    # `--remove-files` between them — a letter wrongly treated as taking an
+    # argument swallows the flag and the deletion disappears.
+    (["-c", "--remove-files", "-f", "{scratch}/x.tar", "{repo}/hooks"], True),
+    # An `--exclude` value is a pattern, not an operand: measured, only the
+    # scratch directory is removed.
+    (["-cf", "{scratch}/x.tar", "--remove-files",
+      "--exclude", "{repo}/src", "{scratch}/junk"], False),
+    # …and the ones that must survive, or the guard is just a wider refusal
+    (["-cf", "{scratch}/x.tar", "--remove-files", "-C", "{scratch}", "junk"], False),
+    (["-cf{scratch}/x.tar", "--remove-files", "-C{scratch}", "junk"], False),
+    (["-cf", "{scratch}/x.tar", "--remove-files",
+      "-C", "{root}/repo", "-C", "../scratch", "junk"], False),
+    (["-cf", "{scratch}/x.tar", "{repo}/src"], False),
+    (["-czf", "{scratch}/x.tgz", "{repo}/src"], False),
+]
+
+
+def _tar_world(tmp_path):
+    """A checkout, a scratch directory, and a cwd that is neither."""
+    root = tmp_path / "world"
+    repo, scratch, cwd = root / "repo", root / "scratch", root / "cwd"
+    for d in (repo / "hooks", repo / "src", scratch / "junk", cwd):
+        d.mkdir(parents=True)
+    subprocess.run(["git", "init", "-q", str(repo)], check=True)
+    for f in (repo / "hooks" / "a.py", repo / "src" / "b.py", scratch / "junk" / "c.py"):
+        f.write_text("x\n", encoding="utf-8")
+    return root, repo, scratch, cwd
+
+
+@pytest.mark.parametrize("shape, deletes_in_checkout", TAR_SHAPES,
+                         ids=[" ".join(s) for s, _ in TAR_SHAPES])
+def test_the_guard_agrees_with_the_tar_that_would_run(tmp_path, shape, deletes_in_checkout):
+    """The acceptance criterion is the axis, not the example.
+
+    VERDICT-F-42, F-49, F-56, F-59 and F-62 were all one handler and all found
+    the same way: someone tried a spelling nobody had tried. Every one of these
+    shapes was checked against GNU tar 1.35 by running it and looking at what
+    was gone — `-C` is positional and compounds, and an attached `-cf<archive>`
+    made `f` swallow `--remove-files` so the deletion had no visible target.
+
+    Both directions on purpose: a guard that denies everything passes the first
+    ten rows and fails the last five.
+    """
+    root, repo, scratch, cwd = _tar_world(tmp_path)
+    argv = [a.format(repo=repo, scratch=scratch, root=root) for a in shape]
+    rc, err = run_hook("enforce_bash_scope.py",
+                       bash_event("tar " + " ".join(argv), cwd), strict="1")
+    if deletes_in_checkout:
+        assert rc == 2, f"real tar deletes inside the checkout here; guard allowed it: {argv}"
+    else:
+        assert rc == 0, f"nothing in the checkout is touched, and the guard refused: {err}"
+
+
+@pytest.mark.parametrize("shape, deletes_in_checkout", TAR_SHAPES,
+                         ids=[" ".join(s) for s, _ in TAR_SHAPES])
+def test_real_tar_still_behaves_the_way_this_matrix_claims(tmp_path, shape, deletes_in_checkout):
+    """The other half, and the reason the matrix can be trusted: run the actual
+    tar and look. Without this the table above is a set of assertions about a
+    program nobody executed, which is how the guard came to model `-C` as
+    last-one-wins when tar has always applied it positionally."""
+    exe = _gnu_tar()
+    if exe is None:
+        pytest.skip("no GNU tar here (macOS ships bsdtar, which has no --remove-files)")
+    root, repo, scratch, cwd = _tar_world(tmp_path)
+    argv = [a.format(repo=repo, scratch=scratch, root=root) for a in shape]
+    subprocess.run([exe, *argv], cwd=cwd, capture_output=True)
+    gone_in_checkout = not (repo / "hooks").exists() or not (repo / "src").exists()
+    assert gone_in_checkout == deletes_in_checkout, (
+        f"the matrix says deletes_in_checkout={deletes_in_checkout}; real tar disagrees "
+        f"for: {' '.join(argv)}")
+
+
+def test_extraction_into_scratch_is_allowed_from_inside_the_checkout(repo, tmp_path):
+    """`-C` decides where an extraction lands, and the cwd does not.
+
+    Reported against the shell's cwd instead, a QA session unpacking a fixture
+    into its own scratch directory is refused for standing in the wrong place —
+    and the run's working directory is nearly always the checkout, so the false
+    positive is the common case rather than the rare one.
+    """
+    scratch = tmp_path / "scratch"
+    scratch.mkdir()
+    (scratch / "x.tar").write_bytes(b"")
+    rc, err = run_hook("enforce_bash_scope.py",
+                       bash_event(f"tar -xf {scratch}/x.tar -C {scratch}", repo), strict="1")
+    assert rc == 0, f"extraction into scratch must not depend on where you stand: {err}"
+
+    rc, err = run_hook("enforce_bash_scope.py",
+                       bash_event(f"tar -xf {scratch}/x.tar -C {repo}/src", repo), strict="1")
+    assert rc == 2, "and extraction into the checkout is still refused"

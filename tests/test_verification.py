@@ -9,7 +9,7 @@ real runner say whether the cited test fails before the fix and passes after.
 import json
 import subprocess
 import sys
-from datetime import date, datetime, timezone
+from datetime import datetime, timezone
 
 import verdict_mcp.harness as h
 from verdict_mcp.harness import (cited_tests, collect, merge, render_report,
@@ -56,7 +56,8 @@ def previous_state(qa_root, sha, evidence=("pkg.py:2 return q - i",
                      "timestamp_utc": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")},
         "findings": [{"id": "P-F-1", "hash": "h1", "status": "open", "severity": "Major",
                       "priority": "P1", "title": "pending subtracts", "confidence": "proven",
-                      "first_seen": date.today().isoformat(), "evidence": list(evidence)}],
+                      "first_seen": datetime.now(timezone.utc).date().isoformat(),
+                      "evidence": list(evidence)}],
     }), encoding="utf-8")
     return json.loads((qa_root / "state.json").read_text(encoding="utf-8"))
 

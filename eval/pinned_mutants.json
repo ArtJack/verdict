@@ -174,21 +174,106 @@
   "new": "    run_date(facts)\n    today = today or date.today()"
  },
  {
-  "label": "F-56: tar operands stop being read relative to -C",
+  "label": "T01 old-style bundle: the leading dash is not supplied",
   "path": "hooks/enforce_bash_scope.py",
-  "old": "                   name if os.path.isabs(name) else os.path.join(target, name))",
-  "new": "                   name)"
+  "old": "        args[0] = \"-\" + args[0]",
+  "new": "        pass"
  },
  {
-  "label": "F-59: a -T deletion list is treated as having no targets",
+  "label": "T02 `--` stops ending the option list",
   "path": "hooks/enforce_bash_scope.py",
-  "old": "        if kind == \"opt\" and (name == \"T\" or _tar_abbrev(name, \"files-from\")):",
+  "old": "        if t == \"--\":",
   "new": "        if False:"
  },
  {
-  "label": "F-56 over-correction: every operand is forced under -C, absolute ones included",
+  "label": "T03 `--opt=V` inline value is discarded",
   "path": "hooks/enforce_bash_scope.py",
-  "old": "                   name if os.path.isabs(name) else os.path.join(target, name))",
-  "new": "                   os.path.join(target, name.lstrip(\"/\")))"
+  "old": "                yield \"opt\", name, inline",
+  "new": "                yield \"opt\", name, None"
+ },
+ {
+  "label": "T04 a long option never takes a separate value",
+  "path": "hooks/enforce_bash_scope.py",
+  "old": "            elif name in _TAR_LONG_WITH_ARG:\n                yield \"opt\", name, next(it, None)",
+  "new": "            elif False:\n                yield \"opt\", name, next(it, None)"
+ },
+ {
+  "label": "T05 F-62: the attached value is ignored, the next token taken",
+  "path": "hooks/enforce_bash_scope.py",
+  "old": "                yield \"opt\", ch, (rest if rest else next(it, None))",
+  "new": "                yield \"opt\", ch, next(it, None)"
+ },
+ {
+  "label": "T06 the attached value is taken but the bundle keeps walking it",
+  "path": "hooks/enforce_bash_scope.py",
+  "old": "                yield \"opt\", ch, (rest if rest else next(it, None))\n                rest = \"\"",
+  "new": "                yield \"opt\", ch, (rest if rest else next(it, None))"
+ },
+ {
+  "label": "T07 every short letter is treated as taking an argument",
+  "path": "hooks/enforce_bash_scope.py",
+  "old": "                if ch not in _TAR_SHORT_WITH_ARG:",
+  "new": "                if False:"
+ },
+ {
+  "label": "T08 a bare `-` is parsed as an option bundle [EQUIVALENT: yields no operand vs an operand `_target_ok` waves through as a flag — same verdict either way]",
+  "path": "hooks/enforce_bash_scope.py",
+  "old": "        elif t.startswith(\"-\") and len(t) > 1:",
+  "new": "        elif t.startswith(\"-\"):",
+  "equivalent": true
+ },
+ {
+  "label": "T09 F-56: -C stops moving the directory (last-wins by omission)",
+  "path": "hooks/enforce_bash_scope.py",
+  "old": "        if kind == \"opt\" and (name == \"C\" or _tar_abbrev(name, \"directory\")) and value:\n            here = value if os.path.isabs(value) else os.path.join(here, value)",
+  "new": "        if False:\n            here = value"
+ },
+ {
+  "label": "T10 F-56: -C directories stop compounding",
+  "path": "hooks/enforce_bash_scope.py",
+  "old": "            here = value if os.path.isabs(value) else os.path.join(here, value)",
+  "new": "            here = value"
+ },
+ {
+  "label": "T11 operands stop being resolved against the directory in effect",
+  "path": "hooks/enforce_bash_scope.py",
+  "old": "            operands.append(name if os.path.isabs(name) else os.path.join(here, name))",
+  "new": "            operands.append(name)"
+ },
+ {
+  "label": "T12 an absolute operand is forced under -C anyway",
+  "path": "hooks/enforce_bash_scope.py",
+  "old": "            operands.append(name if os.path.isabs(name) else os.path.join(here, name))",
+  "new": "            operands.append(os.path.join(here, name.lstrip(\"/\")))"
+ },
+ {
+  "label": "T13 extraction reports the shell's cwd instead of the -C in effect",
+  "path": "hooks/enforce_bash_scope.py",
+  "old": "        yield \"tar extract (overwrites in place)\", here\n        return",
+  "new": "        yield \"tar extract (overwrites in place)\", cwd\n        return"
+ },
+ {
+  "label": "T14 the long spelling --directory stops being recognised",
+  "path": "hooks/enforce_bash_scope.py",
+  "old": "        if kind == \"opt\" and (name == \"C\" or _tar_abbrev(name, \"directory\")) and value:",
+  "new": "        if kind == \"opt\" and name == \"C\" and value:"
+ },
+ {
+  "label": "T15 an option abbreviation of any length is accepted",
+  "path": "hooks/enforce_bash_scope.py",
+  "old": "    return len(name) >= 3 and canonical.startswith(name)",
+  "new": "    return len(name) >= 1 and canonical.startswith(name)"
+ },
+ {
+  "label": "T16 over-correction: every tar command reports its cwd as a target",
+  "path": "hooks/enforce_bash_scope.py",
+  "old": "    if not any(kind == \"opt\" and _tar_abbrev(name, \"remove-files\")\n               for kind, name, _ in parsed):\n        return",
+  "new": "    if False:\n        return"
+ },
+ {
+  "label": "T17 F-59: a -T deletion list is treated as having no targets",
+  "path": "hooks/enforce_bash_scope.py",
+  "old": "    if any(kind == \"opt\" and (name == \"T\" or _tar_abbrev(name, \"files-from\"))\n           for kind, name, _ in parsed):",
+  "new": "    if False:"
  }
 ]

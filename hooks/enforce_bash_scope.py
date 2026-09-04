@@ -568,23 +568,49 @@ def _tar_parse(args):
             else:
                 yield "opt", name, None
         elif t.startswith("-") and len(t) > 1:
-            for ch in t[1:]:
-                yield "opt", ch, (next(it, None) if ch in _TAR_SHORT_WITH_ARG
-                                  else None)
+            rest = t[1:]
+            while rest:
+                ch, rest = rest[0], rest[1:]
+                if ch not in _TAR_SHORT_WITH_ARG:
+                    yield "opt", ch, None
+                    continue
+                # getopt: the remainder of this token IS the value when there is
+                # one. Always taking the next *token* let `-cf<archive>` read
+                # `--remove-files` as the archive name, so the deletion had no
+                # visible target and real tar removed the checkout with the
+                # guard's blessing (VERDICT-F-62). One space was the whole
+                # difference between allow and deny. `-C<dir>` was worse: `/`
+                # parsed as an option letter.
+                yield "opt", ch, (rest if rest else next(it, None))
+                rest = ""
         else:
             yield "arg", t, None
 
 
 def _check_tar(args, cwd):
+    """Which paths does this tar command write to or delete?
+
+    Every directory decision here is measured against GNU tar 1.35 rather than
+    read off the manual: `-C` changes directory *at the point it appears*, so
+    each operand belongs to the `-C` before it and not to the last one on the
+    line, and successive `-C` values compound (`-C /a -C b` is `/a/b`). Taking
+    the last one and joining every operand to it reported two scratch paths for
+    `-C <checkout> hooks -C <scratch> junk`, which real tar answers by deleting
+    both `<checkout>/hooks` and `<scratch>/junk` (VERDICT-F-56).
+    """
     parsed = list(_tar_parse(args))
-    target = cwd
+    here, operands = cwd, []
     for kind, name, value in parsed:
-        if kind == "opt" and name in ("C", "directory") and value:
-            target = value
+        if kind == "opt" and (name == "C" or _tar_abbrev(name, "directory")) and value:
+            here = value if os.path.isabs(value) else os.path.join(here, value)
+        elif kind == "arg":
+            operands.append(name if os.path.isabs(name) else os.path.join(here, name))
     if any(kind == "opt" and (name == "x" or _tar_abbrev(name, "extract")
                               or _tar_abbrev(name, "get"))
            for kind, name, _ in parsed):
-        yield "tar extract (overwrites in place)", target
+        # Extraction writes into the directory in effect when it runs, which is
+        # the last one the walk reached.
+        yield "tar extract (overwrites in place)", here
         return
     # Creating an archive only reads — unless it is told to delete what it read.
     # `tar --remove-files -cf <scratch>/loot.tar <checkout>/hooks` is the
@@ -596,20 +622,15 @@ def _check_tar(args, cwd):
     if not any(kind == "opt" and _tar_abbrev(name, "remove-files")
                for kind, name, _ in parsed):
         return
-    for kind, name, _ in parsed:
-        if kind == "opt" and (name == "T" or _tar_abbrev(name, "files-from")):
-            # The operands are in a file, so there is nothing on the command
-            # line to judge. The module already has a word for that, and not
-            # using it here let `tar --remove-files -cf x.tar -T list.txt`
-            # delete whatever the list named (VERDICT-F-59).
-            yield "tar --remove-files -T (deletes what a file lists)", _UNKNOWABLE
-        elif kind == "arg":
-            # Operands are read relative to `-C`, not to the shell's cwd. Yielded
-            # bare, `hooks` under `-C <checkout>` resolved against a scratch cwd
-            # and was allowed, while tar deleted the checkout's copy
-            # (VERDICT-F-56). Absolute operands are unaffected.
-            yield ("tar --remove-files (deletes what it archived)",
-                   name if os.path.isabs(name) else os.path.join(target, name))
+    if any(kind == "opt" and (name == "T" or _tar_abbrev(name, "files-from"))
+           for kind, name, _ in parsed):
+        # The operands are in a file, so there is nothing on the command line to
+        # judge. The module already has a word for that, and not using it here
+        # let `tar --remove-files -cf x.tar -T list.txt` delete whatever the
+        # list named (VERDICT-F-59).
+        yield "tar --remove-files -T (deletes what a file lists)", _UNKNOWABLE
+    for operand in operands:
+        yield "tar --remove-files (deletes what it archived)", operand
 
 
 def _check_find(args, cwd):
