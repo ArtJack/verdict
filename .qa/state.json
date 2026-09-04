@@ -2,23 +2,26 @@
   "project": "verdict",
   "schema_version": 1,
   "run_type": "delta",
-  "run_number": 11,
+  "run_number": 12,
   "last_run": {
-    "timestamp_utc": "2026-09-03T17:02:45Z",
-    "git_sha": "36771fa070bbdaad7eafec449bbe6a6cfa31f132",
+    "timestamp_utc": "2026-09-03T22:44:23Z",
+    "git_sha": "00fedc3b4757eeeb8c7397710bdb2ecc04c957ee",
     "git_branch": "main",
-    "sha_range": "d21d4f93c5868fea479e903710ada4d1ccf3df40..36771fa070bbdaad7eafec449bbe6a6cfa31f132",
-    "diff_stat": "33 files changed, 2892 insertions(+), 678 deletions(-)",
-    "report": "reports/2026-09-03-delta-run11.md",
-    "chain": "7671c9695fac31bb975c2dc16fed7c28f63e8492db9a86be1791d1314e1eed00"
+    "sha_range": "36771fa070bbdaad7eafec449bbe6a6cfa31f132..00fedc3b4757eeeb8c7397710bdb2ecc04c957ee",
+    "diff_stat": "28 files changed, 1901 insertions(+), 613 deletions(-)",
+    "report": "reports/2026-09-03-delta-run12.md",
+    "chain": "35ea2628d25a3967810909d22a47adba11a6a852338e7e2175f81e9bc24a3503"
   },
   "isolation_check": {
     "result": "pass",
     "checks": [
       "1. no network/DB/credential usage: `grep -rlE \"requests\\.|httpx|urlopen|boto3|psycopg|DATABASE_URL\" tests/ src/` -> no matches (exit 1)",
-      "2. `pyproject.toml:90` has `testpaths = [\"tests\"]`, so the seeded-defect fixtures under eval/fixtures/ are not collected by the project suite",
-      "3. the suite writes only to pytest tmp_path and hook-guarded QA roots; 721 passed with no checkout mutation (`git status --porcelain` unchanged apart from the pre-existing untracked dist-0.49.0/)",
-      "every counterfactual in this run ran in /private/tmp scratch copies with PYTHONPATH pinned to the scratch and PYTHONDONTWRITEBYTECODE=1, __pycache__ swept between injections, and an instrument control run before each campaign"
+      "2. `pyproject.toml` has `testpaths = [\"tests\"]`, so the intentionally-seeded fixtures under eval/fixtures/ are not collected by the project suite",
+      "3. the suite writes only to pytest tmp_path and hook-guarded QA roots: 758 passed with the checkout unchanged -- `git status --porcelain` still shows only the pre-existing untracked dist-0.49.0/",
+      "Every counterfactual this run ran in a /private/tmp scratch built with `git archive 00fedc3`, never `cp -a`, so no `.venv` and no `__pycache__` were carried. Isolation verified rather than assumed: the campaign tree's `verdict_mcp.__file__` printed /private/tmp/pincheck-run12/src/verdict_mcp/__init__.py and its interpreter /private/tmp/pincheck-run12/.venv/bin/python3.",
+      "Bytecode isolation held separately from path isolation (VERDICT-F-50): PYTHONDONTWRITEBYTECODE=1 exported and `__pycache__` swept around every re-injection.",
+      "The pin check mutates its own tree, so it ran only in the scratch copy and nothing else read that directory while it held its lock. No command in this run wrote inside /Users/artjack/Projects/verdict outside `.qa/`.",
+      "The real-tar reproductions ran GNU tar 1.35 against throwaway git checkouts under /private/tmp only."
     ]
   },
   "gates": {
@@ -26,10 +29,10 @@
       "command": "uv run --group dev python -m pytest tests/",
       "exit_code": 0,
       "result": "pass",
-      "duration_s": 75.47,
-      "summary": "721 passed in 74.40s (0:01:14)",
+      "duration_s": 76.11,
+      "summary": "758 passed in 74.94s (0:01:14)",
       "counts": {
-        "passed": 721
+        "passed": 758
       },
       "counts_dialect": "pytest"
     },
@@ -37,226 +40,26 @@
       "command": "python3 eval/fixture_freshness.py",
       "exit_code": 0,
       "result": "pass",
-      "duration_s": 0.06,
+      "duration_s": 0.07,
       "summary": "fixture_freshness: OK \u2014 pricer-delta.diff still describes the fixture pair (78 lines)",
       "counts_unparsed": "no recognised runner summary \u2014 the count-drop gate and the id set-diff cannot fire for this gate"
     }
   },
   "verification_notes": [
-    "7 open finding(s) cite no test id, so the harness cannot fix-verify them"
+    "8 open finding(s) cite no test id, so the harness cannot fix-verify them"
   ],
   "findings": [
     {
-      "id": "VERDICT-F-55",
-      "status": "open",
-      "title": "The strict Bash guard is a silent no-op on macOS's system Python: `hooks/enforce_bash_scope.py` raises TypeError at import under 3.9 and exits 1, so every Bash command is permitted in a VERDICT_STRICT session while the write-scope guard beside it still works and the session looks armed",
-      "severity": "Major",
-      "priority": "P1",
-      "failure_classification": "REAL_DEFECT",
-      "confidence": "proven",
-      "evidence": [
-        "hooks/enforce_bash_scope.py:158 `def _resolve(target: str, cwd: str) -> str | None:` \u2014 PEP 604 union in a function annotation, evaluated at import time on Python 3.9.",
-        "Measured. `echo '{\"tool_input\":{\"command\":\"rm -rf /Users/artjack/Projects/verdict/hooks\"},\"cwd\":\"/Users/artjack/Projects/verdict\"}' | VERDICT_STRICT=1 /usr/bin/python3 hooks/enforce_bash_scope.py` -> `TypeError: unsupported operand type(s) for |: 'type' and 'NoneType'`, exit=1. The identical event under .venv/bin/python (3.13) -> the guard's reason on stderr, exit=2.",
-        "Differential, one variable: same file, same stdin, same env; only the interpreter differs. `/usr/bin/python3 --version` -> `Python 3.9.6`.",
-        "The failure is selective, which is what makes it invisible: under the same 3.9 interpreter `hooks/enforce_write_scope.py` still denies (exit 2, readable reason), and `hooks/enforce_run_contract.py` and `src/verdict_mcp/validate.py` still import cleanly. `src/verdict_mcp/gate.py` and `src/verdict_mcp/harness.py` also die with the same TypeError.",
-        "Reachability: `hooks/hooks.json` invokes the guards as bare `python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/...\"`, resolved from PATH. On a stock macOS install PATH's python3 is /usr/bin/python3 (3.9.6 through current macOS); Debian 11 ships 3.9 as well. Nothing in the install path pins an interpreter: `requires-python = \">=3.10\"` (pyproject.toml:15) binds pip, and the plugin is not installed by pip.",
-        "It also misses the project's own documented fail-open contract: README.md:65 says a broken hook means `exit 0 and silence`. This one exits 1 with a traceback on stderr.",
-        "Not raised to Critical because the structural layer holds (the write-scope guard denies on 3.9) and README.md:487 already states the Bash guard is a heuristic, not a boundary. What would raise it: a threat model in which VERDICT_STRICT is treated as enforcement for unattended runs \u2014 the nightly, the Action's run mode \u2014 rather than as a cost-raiser."
-      ],
-      "root_cause": {
-        "symptom": "A VERDICT_STRICT session on Python 3.9 permits `rm -rf <checkout>/hooks`.",
-        "mechanism": "PEP 604 `X | None` annotations are evaluated when the module is imported; 3.9 has no `type.__or__`, so the module raises TypeError before `main()` exists. Claude Code treats a PreToolUse exit of 1 as a non-blocking error, so the tool call proceeds.",
-        "origin": "The annotation style predates this release; the release did not introduce it. What is new is that 0.74.0 makes the guard load-bearing in more places without adding an interpreter floor.",
-        "class": "Searched every shipped entry point by running each one under /usr/bin/python3: enforce_bash_scope.py, gate.py and harness.py die; enforce_write_scope.py, enforce_run_contract.py, qa_paths.py and validate.py survive. Three of seven, and the one that matters most for the safety claim is among them.",
-        "latent_condition": "The CI matrix is py3.10 + py3.13, so no leg ever imports these modules on the interpreter a stranger is most likely to have, and no hook asserts its own interpreter version."
-      },
-      "hash": "794fbc73",
-      "first_seen": "2026-09-03",
-      "age_days": 0,
-      "delta": "NEW",
-      "outcome": "unknown",
-      "outcome_reason": "still open; nothing has settled it"
-    },
-    {
-      "id": "VERDICT-F-56",
-      "status": "open",
-      "title": "The bash guard still permits archiving the checkout away: `-C`/`--directory` redirects where tar's operands live and `_check_tar` reads that option only for the extract branch, so `tar -cf <scratch>/x.tar --remove-files -C <checkout> hooks` resolves the operand against the wrong directory and is allowed",
-      "severity": "Major",
-      "priority": "P1",
-      "failure_classification": "REAL_DEFECT",
-      "confidence": "proven",
-      "evidence": [
-        "hooks/enforce_bash_scope.py:558-573 `_check_tar`: `target` is set from `('C','directory')` only for the extract yield; the `--remove-files` loop below yields each `kind == 'arg'` operand verbatim, and `_target_ok` then resolves it against the segment's cwd.",
-        "Guard measured: with cwd = the scratch, `tar -cf <scratch>/x.tar --remove-files -C /Users/artjack/Projects/verdict hooks` -> ALLOW (exit 0). Same with `--directory=/Users/artjack/Projects/verdict` -> ALLOW. Written as one line from the checkout, `cd <scratch> && tar -cf x.tar --remove-files -C <checkout> hooks` reaches the same state, because `_cd_target` correctly carries the `cd` across `&&`.",
-        "Mechanism proven with real GNU tar, entirely inside scratch and never against the checkout: a fake repo at <scratch>/fake/repo with `hooks/enforce_bash_scope.py` in it; `cd <scratch>/fake/out && gtar -cf loot.tar --remove-files -C <scratch>/fake/repo hooks` -> exit 0, archive contains `hooks/enforce_bash_scope.py`, and `ls <scratch>/fake/repo/hooks` -> `No such file or directory`. The operand was archived and deleted relative to `-C`, which is what the guard did not model.",
-        "Not filed as VERDICT-F-42 continued: F-42's mechanism was substring option parsing (`--remove-files` swallowing the operand because it contains an `f`), and that is fixed and re-verified this run across 15 token orderings. This is a different mechanism in the same handler, present before and after 0.74.0.",
-        "Mutation confirms nothing watches the rule: deleting `target = value` from the `('C','directory')` branch survives the whole 721-test suite, and it flips a real decision \u2014 `tar -xf <scratch>/a.tar -C <scratch>` turns ALLOW into DENY. So the option is read for exactly one branch, that read is untested, and the branch where it is not read is this finding."
-      ],
-      "root_cause": {
-        "symptom": "A working archive-then-delete of the checkout passes the guard.",
-        "mechanism": "`_check_tar` yields the operand string; `_target_ok` joins it to the segment cwd. tar joins it to `-C` instead. The two directories differ exactly when the command is dangerous.",
-        "origin": "`_check_tar` has read `-C` for the extract target since it was written; the `--remove-files` branch added in 0.71.0 and repaired in 0.74.0 never consulted it.",
-        "class": "Searched the module for other handlers that resolve an operand against cwd while an option redirects it: `_check_find` (`find -delete`) takes its roots off the command line and has no `-C` analogue; `_check_copier` reads `-t/--target-directory` correctly; `_check_git` reads `-C`/`--work-tree` correctly. tar is the only site, and the fix belongs beside the existing `-C` read rather than in a new place.",
-        "latent_condition": "Every tar test in tests/test_hooks.py runs from a cwd where the operand's resolution is the same either way, so the `-C` rule has no test that can distinguish it."
-      },
-      "hash": "23fe4815",
-      "first_seen": "2026-09-03",
-      "age_days": 0,
-      "delta": "NEW",
-      "outcome": "unknown",
-      "outcome_reason": "still open; nothing has settled it"
-    },
-    {
-      "id": "VERDICT-F-57",
-      "status": "open",
-      "title": "\"Every rule here is mutation-checked: 21 mutants, 21 killed\" measures the tests the release wrote, not the rules it shipped \u2014 each mutant is run against one hand-named test, so a rule nobody wrote a test for cannot appear as a survivor, and the scripts are not in the repository",
-      "severity": "Major",
-      "priority": "P2",
-      "failure_classification": null,
-      "confidence": "proven",
-      "evidence": [
-        "CHANGELOG.md:97 \u2014 \"Every rule here is mutation-checked: 21 mutants, 21 killed\".",
-        "The two scripts survive in the release session's scratchpad (mut.py, 13 mutants over hooks/enforce_bash_scope.py; mut2.py, 8 over src/verdict_mcp/harness.py \u2014 21, so the arithmetic is right). Both are disciplined in every other respect: an instrument control before the campaign, `__pycache__` swept between mutants, anchors asserted unique. Both run each mutant against a single named test: `subprocess.run([\"uv\",\"run\",\"--group\",\"dev\",\"pytest\", ..., test])`. A campaign whose mutants are chosen from the test list cannot discover a rule with no test.",
-        "The clean demonstration is mut2.py's own H7. It mutates the BODY of `_drop_bytecode` to `return`, and the direct unit test kills it. Deleting the only CALL SITE \u2014 `_drop_bytecode(scratch)` in `verify_findings` (src/verdict_mcp/harness.py:565) \u2014 leaves all 721 tests green. Same rule, one line away, opposite result. Measured in an isolated scratch copy (PYTHONPATH pinned, PYTHONDONTWRITEBYTECODE=1, cache swept, instrument controlled): `721 passed in 72.44s`.",
-        "An independent 21-mutant campaign over the same release, with mutants chosen by reading the new code rather than the new tests, left 11 survivors. Fast set first (459 tests across test_hooks, test_harness, test_calibration, test_score, test_validate, test_verification, test_agent_contract; instrument controlled: `459 passed in 21.21s`), then every survivor escalated to the whole suite one at a time as the profile requires \u2014 all 11 survive `721 passed`. The survivors are listed in VERDICT-F-60.",
-        "Not reproducible from the tree: neither script is committed, so a reader of CHANGELOG.md:97 cannot re-run the claim. The eval half of this release did the opposite and archived its artifact (eval/corpus/f50-cause), which is the standard this claim should meet.",
-        "This is the same shape as VERDICT-F-52 one release earlier \u2014 a release sentence that asserts a measurement stronger than the one performed \u2014 and it is the third such (0.72.0's \"four now, one per blind spot\", VERDICT-F-47; 0.73.0's \"eval-paid\", VERDICT-F-52)."
-      ],
-      "root_cause": {
-        "symptom": "A published 21/21 kill rate reads as \"every rule in this release is watched\" and is not.",
-        "mechanism": "The mutant set is enumerated from the tests that were just written, so the campaign's coverage is bounded by the author's own test-writing rather than by the code.",
-        "origin": "mut.py/mut2.py were written alongside the release's tests, in the same session, by the same author.",
-        "class": "Both scripts share the shape, and so did the 0.72.0/0.69.0 mutmut campaigns recorded in .qa/profile.md \u2014 except those ran a tool that enumerates mutants FROM THE CODE, which is exactly why they found the five unwatched guards of VERDICT-F-48. The regression is in method, not in diligence: hand-picked mutants replaced tool-enumerated ones.",
-        "latent_condition": "Nothing in the repository records what was mutated, so the next release cannot tell which rules are already watched."
-      },
-      "hash": "9dbe59d5",
-      "first_seen": "2026-09-03",
-      "age_days": 0,
-      "delta": "NEW",
-      "outcome": "unknown",
-      "outcome_reason": "still open; nothing has settled it"
-    },
-    {
-      "id": "VERDICT-F-58",
-      "status": "open",
-      "title": "The instrument control \u00a73 now prescribes for the stale-bytecode fault cannot fire in the ordering that produced VERDICT-F-50: re-running an injection you already watched fail reads FAIL while the shadowed injection beside it reads SURVIVED, so the tester concludes the instrument is sound and files a false coverage gap",
-      "severity": "Major",
-      "priority": "P2",
-      "failure_classification": null,
-      "confidence": "proven",
-      "evidence": [
-        "agents/verdict.md:228-235 \u2014 \"The check that can is an instrument control: re-run an injection you have already watched fail, and if it now passes, you are measuring the cache.\" CHANGELOG.md:60 calls it \"more importantly, a check that *can* fail\".",
-        "Controlled reproduction, run 10's ordering exactly (cache swept once at the start, then a normal campaign; module with two functions, two same-size mutants pinned to the same whole-second mtime, each with its own guard test): 1. inject A, run test_f -> FAIL(killed). 2. inject B, run test_g -> PASS(survived) \u2014 the stale one. 3. instrument control, re-run A -> FAIL(killed). The control does not fire.",
-        "Mechanism, read off the cache: after step 1 the .pyc holds A (`pyc(mtime=1788400567, size=56)`); B's write matches on both fields so CPython considers the cache valid and never rewrites it \u2014 `import pkg.mod` prints `XX-f ok-g` at step 2, i.e. A's bytecode. Re-injecting A at step 3 therefore reads its own genuine bytecode and behaves correctly. The control can only fire when the injection you happen to re-run is itself the shadowed one \u2014 which is the case you would already have seen fail.",
-        "The prophylactic half of the same clause does work, and that is the important half: same experiment with `PYTHONDONTWRITEBYTECODE=1` exported and `__pycache__` swept between injections -> both mutants killed, 2 of 2; without -> 0 of 2. So a tester who follows the whole clause is safe; a tester who uses the control to decide whether they needed to is not.",
-        "This is why the release's own re-measurement of VERDICT-F-48 was needed at all, and it is the second consecutive release in which F-50's remedy is a check that is correct in both directions of the fault it names. The previous one was `print(pkg.__file__)`."
-      ],
-      "root_cause": {
-        "symptom": "The contract's stated detector for a stale-cache measurement returns \"instrument sound\" while the instrument is unsound.",
-        "mechanism": "The control re-runs a mutation whose bytecode IS the cached one, so the cache agrees with the source and nothing looks wrong. The fault is visible only from the mutant that was shadowed, or from the campaign's shape (a lone survivor among siblings of the same kind).",
-        "origin": "Written in 0.74.0 (36771fa) as the replacement for the `__file__` check that VERDICT-F-50 showed could not fail.",
-        "class": "Searched agents/verdict.md for other prescribed self-checks of the same shape \u2014 a check whose passing state is compatible with the fault: \u00a73 step 1's `print(<pkg>.__file__)` (already known, kept, and now correctly labelled as insufficient), and \u00a713's pre-handoff `ls` of the report file (that one can fail, and did not this run). This is the only prescribed check in the contract that is blind to its own named failure mode.",
-        "latent_condition": "A prompt clause has no unit test by construction, and the eval row added for this clause scores the words `scratch` + one of `pythondontwritebytecode`/`bytecode`/`instrument control` in the report \u2014 so a control that never fires still earns the point."
-      },
-      "hash": "240d7a02",
-      "first_seen": "2026-09-03",
-      "age_days": 0,
-      "delta": "NEW",
-      "outcome": "unknown",
-      "outcome_reason": "still open; nothing has settled it"
-    },
-    {
-      "id": "VERDICT-F-59",
-      "status": "open",
-      "title": "`tar --remove-files -cf <scratch>/x.tar -T <checkout>/list.txt` is allowed: the operands arrive from a file, `_check_tar` sees none and yields nothing, while the module already has an `_UNKNOWABLE` idiom for exactly this shape and does not use it here",
-      "severity": "Minor",
-      "priority": "P2",
-      "failure_classification": "REAL_DEFECT",
-      "confidence": "proven",
-      "evidence": [
-        "Guard measured: `tar --remove-files -cf <scratch>/x.tar -T /Users/artjack/Projects/verdict/list.txt` -> ALLOW (exit 0). `T` is in `_TAR_SHORT_WITH_ARG` (hooks/enforce_bash_scope.py:60) so the list file is consumed as an option value, correctly; the loop at :570 then finds no `kind == 'arg'` operand and yields nothing.",
-        "Mechanism proven with real GNU tar in scratch: a fake repo with `hooks/g.py`, a list file naming it, then `cd <scratch>/fake2/out && gtar --remove-files -cf loot.tar -T <scratch>/fake2/list.txt` -> exit 0, archive holds the file, `ls <scratch>/fake2/repo/hooks` -> empty. The listed file was archived and removed.",
-        "The idiom already exists: `_check_xargs` (hooks/enforce_bash_scope.py:437-446) yields `_UNKNOWABLE` for `xargs rm` precisely because \"targets arrive on stdin and cannot be checked\", and `_target_ok` denies it with a readable reason. `-T`/`--files-from` (and `-T -`, which reads stdin) is the same case in a different command.",
-        "Filed Minor rather than Major on the interrupt test: it needs a list file to exist first, so it is far less likely to be typed by accident than VERDICT-F-56's `-C`. It shares F-56's fix site."
-      ],
-      "root_cause": {
-        "symptom": "A tar command that deletes files the guard cannot see is allowed rather than refused.",
-        "mechanism": "The guard's target model assumes operands are on the command line; `-T` moves them into a file.",
-        "origin": "`_check_tar`'s `--remove-files` branch, added 0.71.0 and rewritten 0.74.0, enumerates only `kind == 'arg'` yields.",
-        "class": "Searched the module for other commands with a file-list or stdin option that the guard parses: `xargs`/`parallel` (handled via _UNKNOWABLE), `find -exec` (targets are roots on the line), `rsync --files-from` (not modelled \u2014 `_check_copier` would read the operands only), `git` (n/a). So two sites, not one: tar `-T` and rsync `--files-from`.",
-        "latent_condition": "No test asserts what the guard does when a mutating command's targets are not on the command line, except the one xargs case."
-      },
-      "hash": "c4b57ba3",
-      "first_seen": "2026-09-03",
-      "age_days": 0,
-      "delta": "NEW",
-      "outcome": "unknown",
-      "outcome_reason": "still open; nothing has settled it"
-    },
-    {
-      "id": "VERDICT-F-60",
-      "status": "open",
-      "title": "Eleven rules shipped in 0.74.0 survive mutation against the whole 721-test suite, including the only call site of the `__pycache__` sweep, the whole UTF-8 stderr fix, both `_ago` boundaries and `run_date`'s timezone normalisation",
-      "severity": "Minor",
-      "priority": "P2",
-      "failure_classification": null,
-      "confidence": "proven",
-      "evidence": [
-        "Method: 21 mutants chosen by reading the release's new code (not its new tests), applied one at a time in an isolated scratch copy with PYTHONPATH pinned to the scratch, PYTHONDONTWRITEBYTECODE=1 and `__pycache__` swept between injections. Instrument controlled first: unmutated tree, `459 passed in 21.21s`.",
-        "Survivors \u2014 each applied alone, then escalated to the full suite, every one `721 passed`: (1) `_drop_bytecode(scratch)` call site deleted (src/verdict_mcp/harness.py:565); (2) `_TAR_SHORT_WITH_ARG` loses `f`; (3) `_check_tar`'s `-C`/`--directory` target assignment removed; (4) `_tar_abbrev` floor 3 -> 2; (5) `_token_after` stops honouring quotes (hooks/enforce_bash_scope.py:315-321, the lines this run's diff-coverage marks unexercised); (6) `utf8_stderr` becomes a no-op; (7) `utf8_stderr` errors=replace -> strict; (8) `_ago`'s `minutes < 60` -> `<= 60`; (9) `_ago`'s `age_h >= 1.05` -> `> 1.05`; (10) `run_date` stops normalising a non-UTC offset to UTC; (11) `_unrecorded`'s cross-store `max` -> `min`.",
-        "Behaviour demonstrated for the ones that matter, so these are unwatched rules and not just unkilled mutants. (3) and (5) each flip a guard decision on a 22-command probe set: without the `-C` read, `tar -xf <scratch>/a.tar -C <scratch>` turns ALLOW -> DENY; without the quote branch, `echo hi > \"<scratch>/my note.txt\"` turns ALLOW -> DENY. (8) and (9) change the printed phrase at the switch points \u2014 at age_h=1.0 the mutant says '60 minutes ago' where the code says '1 hour ago', and at 1.05 it says '1 hour ago' where the code says '1.1 hours ago'. (10) is visible directly: `run_date` maps `2019-07-04T01:44:59+05:00` to 2019-07-03, and the mutant would date it 2019-07-04 \u2014 the same class of defect VERDICT-F-54 just closed.",
-        "Held honestly: for (2) and (4) I could not demonstrate a changed decision on the 22 commands probed, so they are survivors whose behavioural effect is unproven, not demonstrated gaps. (11)'s `max(0, ...)` clamp is defensive and may be equivalent on any real ledger. The other eight are demonstrated above or, for (1), (6) and (7), plain by construction \u2014 a deleted call site and a stderr reconfiguration that the suite never observes.",
-        "The `run_date` survivor is the same defect class the release just closed: VERDICT-F-54 was a timezone bug, and the timezone-normalising line of its fix is untested. A `last_run.timestamp_utc` carrying a non-Z offset would date findings by the offset's local day.",
-        "`utf8_stderr` is the whole Windows-stderr fix (hooks/qa_paths.py:10-27, added this release after a Windows CI round trip) and nothing asserts it \u2014 the module can be reduced to `pass` with the suite green.",
-        "Behavioural note, so this is not overstated: for (5) I probed the affected commands by hand and the guard still decides correctly on quoted absolute targets (`echo hi > \"<checkout>/src/my x.py\"` -> DENY; `echo hi > \"<scratch>/my note.txt\"` -> ALLOW). These are unwatched rules, not currently-wrong ones \u2014 except (3), which is VERDICT-F-56."
-      ],
-      "root_cause": {
-        "symptom": "Rules the release describes as load-bearing can be deleted with the suite green.",
-        "mechanism": "Tests were written per finding, aimed at reproducing each reported symptom; the supporting rules those fixes rest on (a call site, a boundary, a normalisation) were not enumerated separately.",
-        "origin": "0.74.0 (36771fa) added all eleven.",
-        "class": "Ran the same reading over the two files the release touched most; the survivors cluster in hooks/enforce_bash_scope.py (4) and src/verdict_mcp/harness.py (5), which are also this project's top two defect sites by finding count. eval/score.py's two new rules are both watched.",
-        "latent_condition": "See VERDICT-F-57 \u2014 the campaign that would have found these enumerated its mutants from the test list."
-      },
-      "hash": "407239c9",
-      "first_seen": "2026-09-03",
-      "age_days": 0,
-      "delta": "NEW",
-      "outcome": "unknown",
-      "outcome_reason": "still open; nothing has settled it"
-    },
-    {
-      "id": "VERDICT-F-61",
-      "status": "open",
-      "title": "The `cause` answer key's note for the row added this release says the control arm was three runs where the README and the changelog both say four, so a declared tamper-evidence anchor carries a number its own citations contradict",
-      "severity": "Minor",
-      "priority": "P3",
-      "failure_classification": null,
-      "confidence": "proven",
-      "evidence": [
-        "eval/expected-cause.json, row `counterfactual-isolated-from-stale-bytecode`, note: \"3 of 3 treatment runs earn it, 0 of 3 byte-identical control runs on the v0.73.0 prompt do\".",
-        "eval/README.md (2026-09-03 row): \"0 of 4 control runs do\" \u2014 twice. CHANGELOG.md:23 table: `| **3 of 3** | **0 of 4** |`.",
-        "The README explains the fourth control run (\"a duplicate invocation was launched by mistake; it completed and wrote a full state, so it is reported rather than discarded\"), so 4 is the corrected figure and the key holds the pre-correction one.",
-        "Why it is worth a line: .qa/profile.md's forbidden-commands section names the answer keys as \"tamper-evidence and trust anchors\". A stale count inside the anchor is the fifth instance of this release family's recurring shape \u2014 a sentence contradicting the number it cites (VERDICT-F-36, F-45, F-51, F-53)."
-      ],
-      "hash": "f0441fe0",
-      "first_seen": "2026-09-03",
-      "age_days": 0,
-      "delta": "NEW",
-      "outcome": "unknown",
-      "outcome_reason": "still open; nothing has settled it"
-    },
-    {
       "id": "VERDICT-F-21",
       "status": "open",
-      "title": "The run-history chain's anti-fabrication signal can still be shed by deleting data, and the gate then exits 0: 0.66.0 moved the ratchet into outcomes.json, but the anchor is itself unauthenticated, so removing one JSON key restores `unchained` with the whole track record intact",
       "severity": "Major",
       "priority": "P2",
       "failure_classification": null,
       "confidence": "proven",
+      "title": "The run-history chain's anti-fabrication signal can still be shed by deleting data, and the gate then exits 0: 0.66.0 moved the ratchet into outcomes.json, but the anchor is itself unauthenticated, so removing one JSON key restores `unchained` with the whole track record intact",
       "evidence": [
-        "Untouched by this range: `git diff d21d4f9..36771fa -- src/verdict_mcp/state.py src/verdict_mcp/gate.py` is empty.",
-        "Carried unchanged from run 9. Nothing was re-measured against it this run; its remedy is a maintainer decision about whether an unauthenticated local anchor is worth keeping, not a measurement.",
-        "Second-oldest open finding and the only open one whose fix is a design call rather than a repair."
+        "Not re-measured this run, and not fixed: `git log 36771fa..00fedc3 --oneline -- src/verdict_mcp/gate.py src/verdict_mcp/harness.py` shows the range touched harness.py only to add `from __future__ import annotations` (9 lines, the P2 mutant's anchor), and gate.py not at all.",
+        "Its remedy is a maintainer decision about whether a local, unauthenticated anchor is worth signing \u2014 listed under Needs human decision, not under work this run can settle."
       ],
       "hash": "1009c259",
       "first_seen": "2026-09-01",
@@ -268,647 +71,781 @@
     {
       "id": "VERDICT-F-26",
       "status": "open",
-      "title": "Fix verification picks its test by scraping any pytest node id out of a finding's prose evidence, so a mis-scraped id that fails at HEAD force-reopens a correctly-resolved finding over the tester's judgment",
       "severity": "Major",
       "priority": "P1",
       "failure_classification": "REAL_DEFECT",
       "confidence": "proven",
+      "title": "Fix verification picks its test by scraping any pytest node id out of a finding's prose evidence, so a mis-scraped id that fails at HEAD force-reopens a correctly-resolved finding over the tester's judgment",
       "evidence": [
-        "Acted on live data for the third consecutive run, and this time on the finding the release was built around. .qa/facts.json `verification`: VERDICT-F-50 was verified against `tests/test_validate.py::test_the_state_validator_keeps_checking_after_a_malformed_entry` (`selected_by: first_cited`), pass/pass \u2014 a test with no relationship to the stale-bytecode fix, scraped out of F-50's evidence prose.",
-        "VERDICT-F-26 itself was verified against `tests/test_calibration.py::test_the_tally_separates_what_was_measured_from_what_was_asserted`, pass/pass, settling nothing \u2014 the same self-referential miss as run 10.",
-        "`verification_notes`: \"7 open finding(s) cite no test id, so the harness cannot fix-verify them\" \u2014 so of ten findings carried into this run, the harness measured three and picked the wrong test for at least two of them.",
-        "Mitigation used this run, and it is a workaround rather than a fix: every RESOLVED finding below leads its evidence with its guard's node id, which is what `first_cited` will pick. That only works because the tester knows about the defect.",
-        "Untouched by this range: `git log d21d4f9..36771fa --oneline -- src/verdict_mcp/runner.py` is empty."
+        "Mis-selected again on live data, for the FOURTH consecutive run, and this time the wrong id came out of the sentence describing the defect itself. `.qa/facts.json` `verification` this run holds exactly one record: `VERDICT-F-26` -> `tests/test_validate.py::test_the_state_validator_keeps_checking_after_a_malformed_entry`, `selected_by: first_cited`, `candidates: 2`, `at_previous: pass`, `at_head: pass`, `summary: \"1 passed in 1.07s -> 1 passed in 0.98s\"`.",
+        "That id is not F-26's guard and has nothing to do with the selector. It is quoted inside F-26's own run-11 evidence, where it appears as the id F-50 was WRONGLY verified against. The finding that documents a mis-scrape is now the cause of the next mis-scrape.",
+        "`verification_notes` this run: \"8 open finding(s) cite no test id, so the harness cannot fix-verify them\" -- so of nine open findings carried into this run the harness measured one, and picked the wrong test for it. The pass/pass record it produced settles nothing and reads as a measurement.",
+        "Untouched by this range: `git diff --name-only 36771fa..00fedc3 -- src/verdict_mcp/runner.py src/verdict_mcp/harness.py` shows harness.py changed by the 9-line future-import block only; the selector is unchanged.",
+        "Mitigation used again this run, and it is still a workaround: every resolved finding below leads its evidence with its guard's node id. It only works because the tester knows about the defect."
       ],
+      "root_cause": {
+        "mechanism": "The selector takes the first pytest node id that appears anywhere in a finding's evidence prose, and evidence prose legitimately quotes other findings' ids -- including, now, ids quoted precisely to document a previous mis-selection.",
+        "origin": "v0.53.0 introduced the scraper; every mitigation since has been the tester remembering to put the guard id first.",
+        "class": {
+          "pattern": "a declared field vs. a scraped one",
+          "sites": [
+            "src/verdict_mcp/harness.py verify_findings (first_cited)"
+          ]
+        },
+        "latent_condition": "There is no declared `verification.test` field a judgment can write, so the harness has to guess, and guessing produces a record indistinguishable from a measurement.",
+        "fix_location": "code",
+        "proof": {
+          "method": "differential",
+          "evidence": "This run's facts vs. F-26's own recorded evidence text: the selected id is a verbatim quote from the finding's fourth-run-old prose."
+        },
+        "confidence": "proven"
+      },
       "hash": "f6c0bdc3",
       "first_seen": "2026-09-02",
       "age_days": 1,
       "delta": "STILL_OPEN",
       "verification": {
-        "test": "tests/test_calibration.py::test_the_tally_separates_what_was_measured_from_what_was_asserted",
+        "test": "tests/test_validate.py::test_the_state_validator_keeps_checking_after_a_malformed_entry",
         "selected_by": "first_cited",
-        "candidates": 1,
-        "previous_sha": "d21d4f93c5868fea479e903710ada4d1ccf3df40",
+        "candidates": 2,
+        "previous_sha": "36771fa070bbdaad7eafec449bbe6a6cfa31f132",
         "at_previous": "pass",
         "at_head": "pass",
-        "test_copied_from_head": true,
         "pythonpath": [
-          "/var/folders/95/670m4j2n4738g9pq1tq1mq8c0000gn/T/verdict-verify-utokfybb/src",
-          "/var/folders/95/670m4j2n4738g9pq1tq1mq8c0000gn/T/verdict-verify-utokfybb"
+          "/var/folders/95/670m4j2n4738g9pq1tq1mq8c0000gn/T/verdict-verify-fp1f11rn/src",
+          "/var/folders/95/670m4j2n4738g9pq1tq1mq8c0000gn/T/verdict-verify-fp1f11rn"
         ],
-        "summary": "1 passed in 0.04s \u2192 1 passed in 0.05s"
+        "summary": "1 passed in 1.07s \u2192 1 passed in 0.98s"
       },
       "outcome": "unknown",
       "outcome_reason": "still open; nothing has settled it"
     },
     {
-      "id": "VERDICT-F-22",
-      "status": "resolved",
-      "title": "The VERDICT_STRICT bash guard reads shell metacharacters inside quoted strings and heredoc bodies as live syntax and resolves phantom targets against the checkout, blocking read-only QA commands",
-      "severity": "Minor",
-      "priority": "P2",
+      "id": "VERDICT-F-56",
+      "status": "open",
+      "severity": "Major",
+      "priority": "P1",
       "failure_classification": "REAL_DEFECT",
       "confidence": "proven",
-      "fix_verified": true,
+      "title": "The bash guard still permits archiving the checkout away: `-C`/`--directory` redirects where tar's operands live and `_check_tar` reads that option only for the extract branch, so `tar -cf <scratch>/x.tar --remove-files -C <checkout> hooks` resolves the operand against the wrong directory and is allowed",
       "evidence": [
-        "tests/test_hooks.py::test_bash_reads_metacharacters_inside_quotes_as_text and tests/test_hooks.py::test_bash_resolves_a_relative_redirect_against_the_cd_beside_it are the guards.",
-        "Re-injected twice in an isolated scratch copy, both killed: locating redirects in the raw string again (`_redirect_targets(segment, segment)`) -> `1 failed, 165 passed`; dropping the `cd` carry (`here = here`) -> `1 failed, 165 passed`.",
-        "All four commands run 10 lost now pass the guard: a `{rc:>3}` format spec inside a heredoc, a quoted `<tmp>` inside a heredoc, a `->` inside a docstring, and `cd <scratch> && echo hi > note.py` \u2014 ALLOW, all four.",
-        "Over-correction checked in the same pass: `cat <<EOF > <checkout>/src/x.py` still DENIES, `echo hi > \"<checkout>/src/my x.py\"` still DENIES, `cd $NOSUCHVAR && echo hi > note.py` still DENIES against the checkout.",
-        "Cost to this run: zero blocked commands, against four in run 10. The Minor->Major escalation run 10 threatened is not warranted."
+        "tests/test_hooks.py::test_bash_blocks_archive_then_delete_reached_through_a_change_of_directory is the guard the release wrote, and it passes: the two spellings it uses (`-C <dir> hooks` and `--directory=<dir> hooks`, both with the option BEFORE the operand) now deny, and the ALLOW beside them survives. Confirmed independently -- guard rc=2 with the checkout's path named, rc=0 for `-C <scratch> stuff`.",
+        "The behaviour is not fixed. hooks/enforce_bash_scope.py:580-583 computes ONE `target` by taking the last `-C`/`--directory` in the whole command, then :612 joins every relative operand to it. GNU tar applies `-C` positionally, to the operands that FOLLOW it. Three orderings still bypass, each run against real GNU tar 1.35 in a scratch tree with the guard asked the same command:",
+        "A. `tar -cf <scr>/x.tar --remove-files hooks -C <scr>` from the checkout -> guard ALLOW; gtar warns \"-C ... has no effect\" and exits 2 but has already archived and removed `<checkout>/hooks` (archive lists `hooks/`, `hooks/x.py`; the directory is gone).",
+        "B. `tar -cf <scr>/x.tar --remove-files -C <checkout> hooks -C <scr> stuff` from a third directory -> guard ALLOW; gtar exit 0, no warning, BOTH `<checkout>/hooks` and `<scr>/stuff` deleted. The guard resolved both operands under the LAST `-C`, so both looked like scratch.",
+        "C. `tar -cf <scr>/x.tar --remove-files --dir=<checkout> hooks` from a third directory -> guard ALLOW; gtar exit 0, `<checkout>/hooks` deleted. :582 matches `name in (\"C\", \"directory\")` exactly, while the same function uses `_tar_abbrev` for `extract`, `get`, `remove-files` and `files-from`. `--direc=` behaves the same.",
+        "Both directions checked from a cwd that is neither, as run 11's focus item asked: the DENY the guard owes, and an ALLOW that must survive (`-C <scr> stuff` -> rc=0; plain create reading the checkout -> rc=0; `--exclude=.venv` create -> rc=0).",
+        "The extract branch's last-`-C`-wins IS correct and was verified, not assumed: `gtar -xf a.tar -C d1 -C d2` extracts into d2 and not d1. The defect is confined to the create/`--remove-files` branch, where operands and `-C` interleave.",
+        "This is run 11's own prediction, verbatim: \"a fix that keys on `-C` position rather than on where the operand actually resolves will pass the first and fail a fourth ordering.\"",
+        "The sharpest evidence that a kill rate is not a correctness claim: catalogue entry \"F-56: tar operands stop being read relative to -C\" is KILLED by the whole suite (entry 30 of 32 in this run's campaign), so the `-C` join IS watched by a test -- and the rule it watches is the one this finding shows is bypassable five ways. Mutation testing answers \"does a test notice if this line changes\"; it cannot answer \"is this line right\"."
       ],
-      "hash": "ae408082",
-      "first_seen": "2026-09-01",
-      "age_days": 2,
-      "delta": "RESOLVED",
-      "outcome": "confirmed",
-      "outcome_basis": "claimed",
-      "outcome_reason": "fix-verified: claimed by the tester, and no harness measurement contradicts it"
+      "root_cause": {
+        "mechanism": "`_check_tar` models `-C` as a single command-wide directory (last one wins) instead of as a cursor that moves while the operand list is walked, so operands are resolved against a directory tar will not use for them.",
+        "origin": "v0.75.0 (00fedc3) added the `-C` read at hooks/enforce_bash_scope.py:580-583 and the join at :612.",
+        "class": {
+          "pattern": "an option that redirects where operands resolve",
+          "sites": [
+            "hooks/enforce_bash_scope.py _check_tar (`-C`/`--directory`) -- defective",
+            "hooks/enforce_bash_scope.py _check_git `_GIT_TREE_FLAGS` (`-C`/`--work-tree`) -- correct for git, which applies them once for the whole command; verified DENY from a third cwd",
+            "hooks/enforce_bash_scope.py _check_copier `_TARGET_FLAGS` (`-t`) -- not applicable: cp/rsync do not chdir, their operands are always cwd-relative"
+          ]
+        },
+        "latent_condition": "The acceptance test fixes the option's POSITION (always before the operand) in every case it checks, so the model and the test share the same blind spot.",
+        "fix_location": "code",
+        "proof": {
+          "method": "counterfactual",
+          "evidence": "Five-case reproduction: guard verdict, then real gtar 1.35 in a scratch git checkout, then the filesystem. Control row (the release's own spelling) DENY; A/B/C ALLOW with the checkout's directory deleted."
+        },
+        "confidence": "proven"
+      },
+      "hash": "23fe4815",
+      "first_seen": "2026-09-03",
+      "age_days": 0,
+      "delta": "STILL_OPEN",
+      "outcome": "unknown",
+      "outcome_reason": "still open; nothing has settled it"
     },
     {
-      "id": "VERDICT-F-42",
+      "id": "VERDICT-F-58",
+      "status": "open",
+      "severity": "Major",
+      "priority": "P2",
+      "failure_classification": null,
+      "confidence": "proven",
+      "title": "The instrument control \u00a73 now prescribes for the stale-bytecode fault cannot fire in the ordering that produced VERDICT-F-50: re-running an injection you already watched fail reads FAIL while the shadowed injection beside it reads SURVIVED, so the tester concludes the instrument is sound and files a false coverage gap",
+      "evidence": [
+        "Deliberately deferred by the release, and the deferral is honest: `git diff --name-only 36771fa..00fedc3 -- agents/ standards/ templates/ commands/ docs/` prints nothing, and CHANGELOG.md's \"Not in this release, on purpose\" names this finding with a reason (a prompt change is eval-paid here).",
+        "Re-reproduced at HEAD, run 10's ordering exactly, in /private/tmp: cache swept once at the start; two same-size mutants of one module; step 1 inject A run test_f -> FAIL(killed); step 2 inject B run test_g -> PASS(survived) -- the shadowed one; step 3 the contract's control, re-run A -> FAIL(killed). The control does NOT fire.",
+        "Run 11's focus item 3 proposed a replacement, and it WORKS -- measured in the same experiment, same process: re-run the LAST injection (B) with `__pycache__` swept -> FAIL(killed), against PASS(survived) unswept. The two disagree, which is exactly the signal the contract needs, and it is available at the cost of one extra run per campaign.",
+        "The prophylactic half still works and was used for every re-injection this run: the pin-check campaign exports PYTHONDONTWRITEBYTECODE=1 and sweeps `__pycache__` before every mutant (eval/pin_check.py:62-67, :180), and this run's own scratch was built with `git archive` so no `__pycache__` was carried at all."
+      ],
+      "hash": "240d7a02",
+      "first_seen": "2026-09-03",
+      "age_days": 0,
+      "delta": "STILL_OPEN",
+      "outcome": "unknown",
+      "outcome_reason": "still open; nothing has settled it"
+    },
+    {
+      "id": "VERDICT-F-60",
+      "status": "open",
+      "severity": "Minor",
+      "priority": "P2",
+      "failure_classification": null,
+      "confidence": "proven",
+      "title": "Eleven rules shipped in 0.74.0 survive mutation against the whole 721-test suite, including the only call site of the `__pycache__` sweep, the whole UTF-8 stderr fix, both `_ago` boundaries and `run_date`'s timezone normalisation",
+      "evidence": [
+        "Neither closed nor deferred: CHANGELOG.md 0.75.0 lists F-57, F-55, F-56, F-59 and F-61 as fixed and names only F-58 under \"Not in this release, on purpose\". F-60 is absent from both lists.",
+        "Mapped the eleven survivors against the new `eval/pinned_mutants.json` by searching each survivor's anchor text in the catalogue's `old`/`new` fields. ONE is closed exactly: (1) `_drop_bytecode`'s call site, catalogue entry \"F-57: the bytecode sweep's only call site is deleted\".",
+        "Nine are absent from the catalogue entirely: (2) `_TAR_SHORT_WITH_ARG` loses `f`; (3) `_check_tar`'s `-C`/`--directory` target assignment removed; (4) `_tar_abbrev` floor 3 -> 2; (5) `_token_after` stops honouring quotes; (6) `utf8_stderr` body becomes a no-op; (7) `utf8_stderr` errors=replace -> strict; (9) `_ago`'s `age_h >= 1.05` -> `> 1.05`; (10) `run_date` stops normalising a non-UTC offset; (11) `_unrecorded`'s cross-store `max` -> `min`.",
+        "The tenth, (8) `_ago`'s `minutes < 60` -> `<= 60`, is only partly addressed: the catalogue's H6 mutates the same line to `< 600`, which is a coarse change any assertion on the phrase would catch, not the off-by-one boundary F-60 measured. (11) likewise shares a line with H1/H2 without being either of them.",
+        "So the honest count is 1 of 11 closed, 1 of 11 partially, 9 of 11 untouched -- and the release's own headline number for the catalogue is 32 of 32 killed. See VERDICT-F-65.",
+        "Held honestly: this is a static mapping of anchors, not a re-run. I did not re-measure that the nine still survive at HEAD; the release did not touch the lines they sit on except through the future-import block, so the claim is that they are UNADDRESSED, not that they were re-measured."
+      ],
+      "hash": "407239c9",
+      "first_seen": "2026-09-03",
+      "age_days": 0,
+      "delta": "STILL_OPEN",
+      "outcome": "unknown",
+      "outcome_reason": "still open; nothing has settled it"
+    },
+    {
+      "id": "VERDICT-F-55",
       "status": "resolved",
-      "title": "The strict bash guard still permits archiving the checkout away \u2014 0.71.0 closed the exact command the finding quoted, but `tar -cf <scratch>/loot.tar --remove-files <checkout>/hooks` is allowed, because every option token containing the letter `f` is treated as taking an argument and `--remove-files` swallows the operand",
       "severity": "Major",
       "priority": "P1",
       "failure_classification": "REAL_DEFECT",
       "confidence": "proven",
       "fix_verified": true,
+      "title": "The strict Bash guard is a silent no-op on macOS's system Python: `hooks/enforce_bash_scope.py` raises TypeError at import under 3.9 and exits 1, so every Bash command is permitted in a VERDICT_STRICT session while the write-scope guard beside it still works and the session looks armed",
       "evidence": [
-        "tests/test_hooks.py::test_bash_blocks_archive_then_delete_whatever_the_option_order is the guard.",
-        "Re-injected in an isolated scratch copy: restoring the substring rule (consume a token after any option containing `f`) -> `2 failed, 164 passed`. Killed.",
-        "Probed along the axis run 10's lesson demands \u2014 orderings the fix's author did not choose. Nine `--remove-files` shapes all DENY: flag first; flag after the archive name (run 10's shape); split `-c -f`; old-style `tar cf`; `--create --file=`; `--create --file` with the abbreviation `--rem`; bundled `-cvf`; operands after `--`; and the same with the archive under scratch. Three ALLOW shapes stay allowed: plain create, and both `--exclude` spellings.",
-        "Residual, filed separately rather than held against this id because the mechanism differs: `-C`/`--directory` still redirects the operand past the guard (VERDICT-F-56) and `-T` hides it in a file (VERDICT-F-59). F-42's own mechanism \u2014 substring option parsing \u2014 is gone."
+        "FIX-VERIFIED by re-injection. Copied `hooks/enforce_bash_scope.py` + `qa_paths.py` to /private/tmp, swept `__pycache__`, exported PYTHONDONTWRITEBYTECODE=1. Unmutated under /usr/bin/python3 (3.9.6): rc=2 with the reason `verdict bash guard (VERDICT_STRICT): rm targets '<checkout>/src (a git checkout...'`. Removed the `from __future__ import annotations` line: rc=1, `File .../enforce_bash_scope.py, line ... def _resolve(target: str, cwd: str) -> str | None: TypeError: unsupported operand type(s) for |: 'type' and 'NoneType'` -- F-55's exact failure. The same re-injected file under 3.13.13 still returns rc=2, which is why CI never saw it.",
+        "The whole surface, as run 11's focus item 1 asked, not the one file. Every entry point in hooks/hooks.json (6 invocations, 4 scripts) plus all seven console-script modules, run as a 27-case matrix under three interpreters -- 3.9.6 (/usr/bin/python3), 3.11.14 (>= the declared 3.10 floor) and 3.13.13. The hooks behave IDENTICALLY on all three: write guard DENY rc=2 with reason / ALLOW rc=0 / fail-open on garbage rc=0; bash guard DENY rc=2 with reason / ALLOW `pytest -q` rc=0 / fail-open rc=0 / silent rc=0 when VERDICT_STRICT is unset; the Stop and SessionStart hooks rc=0 (the latter printing its summary); the PostToolUse validator rc=0 on garbage and on a good state; `gate.py` reading a real state rc=0 with a verdict line; facts/finalize/issues/run/census/profile/project_key `--help` rc=0.",
+        "Import sweep of all 22 shipped modules under 3.9.6: every file under hooks/ and src/verdict_mcp/ imports (server.py stops only at `No module named 'mcp'`, which is the documented pip-only surface). The nine that gained the future import are exactly the nine that needed it -- the seven without it have no union annotation at all.",
+        "Residue, filed separately rather than left inside this finding because it is a different file set and a loud rather than silent failure: three eval entry points still die on 3.9 (VERDICT-F-63), and the test that is supposed to prevent all of this can be defeated by a comment (VERDICT-F-64)."
       ],
-      "hash": "8a7dbdaa",
-      "first_seen": "2026-09-02",
-      "age_days": 1,
+      "hash": "794fbc73",
+      "first_seen": "2026-09-03",
+      "age_days": 0,
       "delta": "RESOLVED",
       "outcome": "confirmed",
       "outcome_basis": "claimed",
       "outcome_reason": "fix-verified: claimed by the tester, and no harness measurement contradicts it"
     },
     {
-      "id": "VERDICT-F-49",
+      "id": "VERDICT-F-57",
       "status": "resolved",
-      "title": "The same substring option parsing in the other direction: any tar flag containing the letter `x` reads as an extraction, so `tar --exclude=.venv -cf <scratch>/x.tar <checkout>/src` is denied as an overwrite of the current directory",
+      "severity": "Major",
+      "priority": "P2",
+      "failure_classification": null,
+      "confidence": "proven",
+      "fix_verified": false,
+      "title": "\"Every rule here is mutation-checked: 21 mutants, 21 killed\" measures the tests the release wrote, not the rules it shipped -- each mutant is run against one hand-named test, so a rule nobody wrote a test for cannot appear as a survivor, and the scripts are not in the repository",
+      "evidence": [
+        "MERELY ABSENT, not fix-verified: nothing in tests/ references `pin_check` or `pinned_mutants` (`grep -rn \"pin_check\\|pinned_mutants\" tests/` -> no matches), so there is no guard to re-inject against. The two named mechanisms are demonstrably gone, by running the tool rather than by reading it.",
+        "Mechanism (a), one hand-named test per mutant: gone. eval/pin_check.py:57-59 `SUITE = [\"uv\",\"run\",\"--group\",\"dev\",\"pytest\",\"-q\",\"-p\",\"no:cacheprovider\",\"-o\",\"addopts=\"]` with no test id, and :71 `run_suite` passes it unchanged. Observed: every arm of the campaign I ran is a whole-suite run.",
+        "Mechanism (b), scripts not in the repository: gone. `eval/pin_check.py` (201 lines) and `eval/pinned_mutants.json` (32 entries) ship at 00fedc3.",
+        "REPRODUCED INDEPENDENTLY. Campaign re-run from a clean `git archive 00fedc3` scratch tree at /private/tmp/pincheck-run12 (no `.venv`, no `__pycache__` carried), instrument controlled first -- unmutated suite `758 passed in 109.93s`, and `verdict_mcp.__file__` printed `/private/tmp/pincheck-run12/src/verdict_mcp/__init__.py`, i.e. the scratch's own source and not the checkout's. Result: **32 of 32 killed by the whole suite**, exit 0 -- the published number reproduces exactly. 33 whole-suite runs, ~1h of wall clock, on a tree the release did not build.",
+        "The tool's own discipline is real and better than the scripts it replaces: a green-suite control before the campaign, `__pycache__` swept and PYTHONDONTWRITEBYTECODE=1 around every mutant, a unique-anchor check that reports STALE as a survivor, an exclusive lock, and restoration on SIGINT/SIGTERM/SIGHUP.",
+        "What the release did NOT close, filed separately: the catalogue's selection (VERDICT-F-65), the \"call-site class\" claim (VERDICT-F-66), and the un-parsed kill criterion (VERDICT-F-68)."
+      ],
+      "hash": "9dbe59d5",
+      "first_seen": "2026-09-03",
+      "age_days": 0,
+      "delta": "RESOLVED",
+      "outcome": "unknown",
+      "outcome_reason": "resolved but not fix-verified \u2014 absence is not proof"
+    },
+    {
+      "id": "VERDICT-F-59",
+      "status": "resolved",
       "severity": "Minor",
       "priority": "P2",
       "failure_classification": "REAL_DEFECT",
       "confidence": "proven",
       "fix_verified": true,
+      "title": "`tar --remove-files -cf <scratch>/x.tar -T <checkout>/list.txt` is allowed: the operands arrive from a file, `_check_tar` sees none and yields nothing, while the module already has an `_UNKNOWABLE` idiom for exactly this shape and does not use it here",
       "evidence": [
-        "tests/test_hooks.py::test_bash_allows_excluding_a_directory_from_an_archive is the guard.",
-        "Re-injected in an isolated scratch copy: restoring `\"x\" in name` as the extract test -> `1 failed, 165 passed`. Killed.",
-        "Both spellings now ALLOW: `tar --exclude=.venv -cf <scratch>/x.tar <checkout>/src` and `tar --exclude .venv -cf ...`. Real extractions still DENY: `-xf ... -C <checkout>`, `--get -f ... -C <checkout>`, old-style `tar xf ... -C <checkout>`; and `-xf ... -C <scratch>` correctly ALLOWs.",
-        "Boundary probed: `_tar_abbrev`'s three-character floor holds `--rem` (only `--remove-files`) and `--ext` (only `--extract`) unambiguous; the mutant that lowers it to two survives the fast set and is listed in VERDICT-F-60."
+        "tests/test_hooks.py::test_bash_blocks_a_deletion_list_it_cannot_read is the guard. FIX-VERIFIED by re-injection: catalogue mutant \"F-59: a -T deletion list is treated as having no targets\" replaces `if kind == \"opt\" and (name == \"T\" or _tar_abbrev(name, \"files-from\")):` with `if False:` -- KILLED, entry 31 of 32 in that campaign: with `if False:` in place of the `-T`/`--files-from` test the suite goes red, and green again when it is restored.",
+        "Verified along axes the release's tests did not use, all denying with the new reason (\"a target this command reads from somewhere other than its own arguments -- name the paths on the command line\"): `--files-from=<file>` inline, the abbreviation `--files-fr`, the bundle `-cfT x.tar list.txt`, old-style `tar cfT x.tar list.txt --remove-files`, the attached `-T<file>`, and `-T -` (stdin).",
+        "Both directions, as run 11's focus item asked: `tar -cf <scr>/x.tar -T <checkout>/list.txt` WITHOUT `--remove-files` still returns rc=0 -- reading a file list is not a write.",
+        "Accepted cost, stated so the maintainer sees it: `-T` now yields `_UNKNOWABLE` unconditionally, so a legitimate scratch-only `tar --remove-files -cf <scr>/x.tar -T <scr>/list.txt` is denied too (measured, rc=2). The message names the workaround, and it matches the `xargs` precedent in the same module."
       ],
-      "hash": "2d99a695",
-      "first_seen": "2026-09-02",
-      "age_days": 1,
+      "hash": "c4b57ba3",
+      "first_seen": "2026-09-03",
+      "age_days": 0,
       "delta": "RESOLVED",
       "outcome": "confirmed",
       "outcome_basis": "claimed",
       "outcome_reason": "fix-verified: claimed by the tester, and no harness measurement contradicts it"
     },
     {
-      "id": "VERDICT-F-50",
+      "id": "VERDICT-F-61",
       "status": "resolved",
-      "title": "The isolation step 0.73.0 just added to the contract is defeated by a stale __pycache__, and the check it prescribes cannot see that: two same-size mutations of one file inside one second, and the second runs the first's bytecode",
-      "severity": "Major",
-      "priority": "P1",
-      "failure_classification": "REAL_DEFECT",
-      "confidence": "proven",
-      "fix_verified": true,
-      "evidence": [
-        "tests/test_harness.py::test_a_stale_bytecode_cache_can_hide_a_change_and_the_sweep_removes_it is the guard, and it is a good one: it reproduces the mechanism end to end (same-size rewrite, mtime pinned to the same second, stale read asserted before the sweep) and explicitly strips an inherited PYTHONDONTWRITEBYTECODE so it cannot pass by never reaching the thing it is about.",
-        "Re-injected in an isolated scratch copy: removing `PYTHONDONTWRITEBYTECODE=\"1\"` from `_run_test`'s env -> `1 failed, 1 passed`. Killed.",
-        "Independently reproduced the defect and its cure without using the project's own code: a two-function module, two same-size mutants pinned to one whole-second mtime, each with its own guard test. Cache in place and no env var -> 0 of 2 caught. `PYTHONDONTWRITEBYTECODE=1` exported and `__pycache__` swept between injections -> 2 of 2 caught. The clause works.",
-        "Residual, filed separately because it concerns text written after this finding: the instrument control the clause prescribes cannot fire in this finding's own ordering (VERDICT-F-58), and the harness's sweep call site is unwatched (VERDICT-F-57, VERDICT-F-60).",
-        "The harness's own verification block this run is not evidence either way \u2014 VERDICT-F-26 selected `tests/test_validate.py::test_the_state_validator_keeps_checking_after_a_malformed_entry` for this finding, pass/pass, which is a measurement of a third party."
-      ],
-      "hash": "3d940871",
-      "first_seen": "2026-09-02",
-      "age_days": 1,
-      "delta": "RESOLVED",
-      "verification": {
-        "test": "tests/test_validate.py::test_the_state_validator_keeps_checking_after_a_malformed_entry",
-        "selected_by": "first_cited",
-        "candidates": 1,
-        "previous_sha": "d21d4f93c5868fea479e903710ada4d1ccf3df40",
-        "at_previous": "pass",
-        "at_head": "pass",
-        "pythonpath": [
-          "/var/folders/95/670m4j2n4738g9pq1tq1mq8c0000gn/T/verdict-verify-utokfybb/src",
-          "/var/folders/95/670m4j2n4738g9pq1tq1mq8c0000gn/T/verdict-verify-utokfybb"
-        ],
-        "summary": "1 passed in 0.93s \u2192 1 passed in 0.31s"
-      },
-      "outcome": "confirmed",
-      "outcome_basis": "claimed",
-      "outcome_reason": "fix-verified: claimed by the tester, and no harness measurement contradicts it"
-    },
-    {
-      "id": "VERDICT-F-51",
-      "status": "resolved",
-      "title": "The footnote 0.72.0 added to close VERDICT-F-45 reports the largest per-bucket count where its sentence scopes over every confirmation, so the published table says `Up to 17` of 28 confirmations are unrecorded when 21 of them are",
-      "severity": "Minor",
-      "priority": "P2",
-      "failure_classification": null,
-      "confidence": "proven",
-      "fix_verified": true,
-      "evidence": [
-        "tests/test_calibration.py::test_the_unrecorded_footnote_counts_every_confirmation_not_the_biggest_row is the guard, and it is built so it cannot pass under the defect: both stores are split across several rows on purpose, so the broken maximum cannot land on the right answer by accident.",
-        "Re-injected in an isolated scratch copy: restoring the maximum over the concatenated buckets -> `1 failed, 1 passed`. Killed.",
-        "The `Up to` hedge is gone from the renderer and the sentence now states an exact sum.",
-        "Residual listed in VERDICT-F-60: the cross-store `max` that guards against one store carrying fewer rows survives being changed to `min`, so the guard the changelog explains is itself unwatched."
-      ],
-      "hash": "e5b552f9",
-      "first_seen": "2026-09-02",
-      "age_days": 1,
-      "delta": "RESOLVED",
-      "verification": {
-        "test": "tests/test_calibration.py::test_the_report_says_how_many_confirmations_predate_the_basis",
-        "selected_by": "first_cited",
-        "candidates": 1,
-        "previous_sha": "d21d4f93c5868fea479e903710ada4d1ccf3df40",
-        "at_previous": "pass",
-        "at_head": "pass",
-        "pythonpath": [
-          "/var/folders/95/670m4j2n4738g9pq1tq1mq8c0000gn/T/verdict-verify-utokfybb/src",
-          "/var/folders/95/670m4j2n4738g9pq1tq1mq8c0000gn/T/verdict-verify-utokfybb"
-        ],
-        "summary": "1 passed in 0.05s \u2192 1 passed in 0.05s"
-      },
-      "outcome": "confirmed",
-      "outcome_basis": "claimed",
-      "outcome_reason": "fix-verified: claimed by the tester, and no harness measurement contradicts it"
-    },
-    {
-      "id": "VERDICT-F-52",
-      "status": "resolved",
-      "title": "The 0.73.0 prompt release says it was eval-paid, but no eval row was published for it, and the fixture it names cannot distinguish the new contract from the old \u2014 the seeded pricer key has no row that touches re-injection isolation and the fixture has no importable package to isolate",
-      "severity": "Major",
-      "priority": "P2",
-      "failure_classification": null,
-      "confidence": "proven",
-      "fix_verified": true,
-      "evidence": [
-        "tests/test_corpus.py::test_corpus_entry_still_scores_full[f50-cause] is the standing guard on the archived run.",
-        "Reproduced the archive independently: `python3 eval/score.py --qa-root eval/corpus/f50-cause --expected eval/expected-cause.json` -> `\"score\": 7, \"max\": 7`, no hard fails, harness signals all true.",
-        "Reproduced the published A/B table from artifacts, not from the write-up. Five eval workdirs from the release session survive in /var/folders; re-scoring each against the 7-row key gives treatment fhw_jdp5 6/7 and qucynkcr 6/7 (both with the new row earned), control 84xxtw6i 5/7, c275290l 5/7, oz591xd0 6/7 (none earning it), and mom4xvkn holds no state \u2014 corroborating the void 529 run. With the archived corpus as the third treatment run that is exactly the published 6/7 \u00b7 6/7 \u00b7 7/7 against 5/7 \u00b7 5/7 \u00b7 6/7 \u00b7 (one control workdir since deleted).",
-        "Arm assignment verified from each workdir's own prompt, not from the labels: `grep -rl PYTHONDONTWRITEBYTECODE=1 <workdir> --include=*.md` hits `rates/.claude/agents/verdict-rc.md` in fhw_jdp5, qucynkcr and mom4xvkn only.",
-        "Counterfactual, which is what makes this fix-verified rather than merely present: score the same five states against a six-row key with the new row removed. The arms become indistinguishable \u2014 treatment 5/6, 5/6; control 5/6, 5/6, 6/6. Add the row back and every treatment run gains the point and no control run does. The row is what discriminates, which is precisely the complaint this finding made.",
-        "Honest limit, and the release states it too: the row is a term match on report prose (`terms_all: [\"scratch\"]`, `terms_any: [pythondontwritebytecode | bytecode | instrument control]`), so what it measures is adoption of the instruction's vocabulary, not that following it catches a defect. See the eval-adequacy note in this run's report."
-      ],
-      "hash": "927656c7",
-      "first_seen": "2026-09-02",
-      "age_days": 1,
-      "delta": "RESOLVED",
-      "outcome": "confirmed",
-      "outcome_basis": "claimed",
-      "outcome_reason": "fix-verified: claimed by the tester, and no harness measurement contradicts it"
-    },
-    {
-      "id": "VERDICT-F-53",
-      "status": "resolved",
-      "title": "The abandoned-run marker narrates any marker up to six hours old as \"minutes ago\", contradicting the age it records in the same object \u2014 this run's facts read `age_hours: 2.01` beside \"minutes ago \u2026 Nothing is missing\"",
       "severity": "Minor",
       "priority": "P3",
       "failure_classification": null,
       "confidence": "proven",
-      "fix_verified": true,
+      "fix_verified": false,
+      "title": "The `cause` answer key's note for the row added this release says the control arm was three runs where the README and the changelog both say four, so a declared tamper-evidence anchor carries a number its own citations contradict",
       "evidence": [
-        "tests/test_harness.py::test_a_two_hour_old_retry_marker_is_not_described_as_minutes_old is the guard.",
-        "Re-injected in an isolated scratch copy: restoring the fixed `minutes ago` string -> `1 failed, 5 passed`. Killed.",
-        "Residual listed in VERDICT-F-60: the parametrised companion test samples 0.0, 0.05, 0.75, 2.01 and 5.9 hours and touches neither boundary, so both of `_ago`'s comparisons survive mutation."
+        "MERELY ABSENT, not fix-verified: an answer-key note has no guard test, so there is nothing to re-inject against. The correction is present and I checked it against both citations rather than against the diff alone.",
+        "eval/expected-cause.json now reads \"0 of 4 byte-identical control runs on the v0.73.0 prompt do\" (was \"0 of 3\"). eval/README.md:83 reads \"**0 of 4 control runs do**\" and \"the control arm has four because a duplicate invocation was launched by mistake\"; CHANGELOG.md's 0.74.0 table reads \"**0 of 4**\". All three agree now.",
+        "Cross-checked the neighbouring numbers in the same note for the same class of drift: \"3 of 3 treatment runs\" matches eval/README.md:83's \"**3 of 3**\" and the changelog's \"**3 of 3**\", and the void fourth treatment run is described identically in all three places."
       ],
-      "hash": "d3dc108b",
-      "first_seen": "2026-09-02",
-      "age_days": 1,
+      "hash": "f0441fe0",
+      "first_seen": "2026-09-03",
+      "age_days": 0,
       "delta": "RESOLVED",
-      "outcome": "confirmed",
-      "outcome_basis": "claimed",
-      "outcome_reason": "fix-verified: claimed by the tester, and no harness measurement contradicts it"
+      "outcome": "unknown",
+      "outcome_reason": "resolved but not fix-verified \u2014 absence is not proof"
     },
     {
-      "id": "VERDICT-F-54",
-      "status": "resolved",
-      "title": "Every finding's `first_seen` and `age_days` are stamped from the machine's local calendar while the run that stamps them is timestamped in UTC, so this run filed five findings dated 2026-09-02 inside a state whose own timestamp, report filename and INDEX row all read 2026-09-03",
+      "id": "VERDICT-F-62",
+      "status": "open",
+      "severity": "Major",
+      "priority": "P1",
+      "failure_classification": "REAL_DEFECT",
+      "confidence": "proven",
+      "title": "The tar option walker never handles a value attached to its flag, so `tar -cf<archive> --remove-files hooks` lets `f` swallow `--remove-files` and the whole archive-then-delete family goes unseen -- the same command with a space denies",
+      "evidence": [
+        "hooks/enforce_bash_scope.py:571 walks a bundle letter by letter and, for a letter in `_TAR_SHORT_WITH_ARG`, takes `next(it)` -- the next TOKEN. tar accepts the value attached to the letter, and then the next token is not the value.",
+        "Measured against real GNU tar 1.35 in a scratch git checkout, guard asked the same command: `tar -cf<scr>/loot.tar --remove-files hooks` from the checkout -> guard rc=0 ALLOW; gtar exit 0, no warning, `<checkout>/hooks` archived and DELETED. The identical command with a space after `-f` -> guard rc=2 DENY.",
+        "The parse, printed from the shipped module: `_tar_parse(['-cf/private/.../loot.tar','--remove-files','hooks'])` yields `('opt','c',None), ('opt','f','--remove-files'), ('opt','/',None), ('opt','p',None), ...` -- `f` has eaten `--remove-files`, so `_check_tar`'s `_tar_abbrev(name,\"remove-files\")` test at :596 never matches and the function returns before looking at any operand. This is VERDICT-F-42's mechanism (`--remove-files` swallowed) arriving through a different door.",
+        "Second exploitable spelling, same cause: `tar -cf <scr>/x.tar --remove-files -C<checkout> hooks` from a third directory -> guard rc=0 ALLOW; gtar exit 0, `<checkout>/hooks` DELETED. Here `C` swallows the operand `hooks` as its directory, so `_check_tar` sees no operands at all: `_tar_parse(['-C/tmp/repo','hooks'])` -> `('opt','C','hooks'), ('opt','/',None), ('opt','t',None), ...`.",
+        "The guard's verdict on the attached form is a coin flip on the path's letters, which is why this reads as intermittently working: an archive named `x.tar` puts an `x` into the bundle, `_check_tar` takes the command for an extraction and denies for the wrong reason. Renaming it `loot.tar` removes the `x` and the command is allowed.",
+        "Class link, searched rather than asserted -- every other place the guard matches an option token exactly where the tool accepts an attached value: `_check_git`'s `_GIT_TREE_FLAGS = {\"-C\",\"--work-tree\"}` (hooks/enforce_bash_scope.py:119) has the same shape and `git -C<dir> clean -fd` IS allowed by the guard, but git 2.50.1 rejects it (`unknown option: -C<path>`, working tree untouched), so it is not exploitable; `_check_copier`'s `_TARGET_FLAGS = (\"-t\",\"--target-directory\")` (:73) likewise, and macOS `cp` has no `-t` at all. tar is the one site where the tool accepts what the parser cannot read."
+      ],
+      "root_cause": {
+        "mechanism": "`_tar_parse` treats a short-option bundle as a sequence of letters whose arguments are always the following token, so `-Xvalue` is read as the letters of `value` and the real next token is consumed as X's argument.",
+        "origin": "The bundle walk predates this release; 0.74.0 rewrote it away from substring matching (VERDICT-F-42/F-49) and kept the token-only value model, and 0.75.0 built the `-C` fix on top of it.",
+        "class": {
+          "pattern": "exact-token option matching against a tool that accepts attached values",
+          "sites": [
+            "hooks/enforce_bash_scope.py:571 `_tar_parse` -- exploitable, proven",
+            "hooks/enforce_bash_scope.py:119 `_GIT_TREE_FLAGS` -- same shape, git rejects the attached form, proven not exploitable",
+            "hooks/enforce_bash_scope.py:73 `_TARGET_FLAGS` -- same shape, cp on macOS has no `-t`"
+          ]
+        },
+        "latent_condition": "Every tar test in the suite writes options and values as separate tokens, which is the shape the parser was written from.",
+        "fix_location": "code",
+        "proof": {
+          "method": "counterfactual",
+          "evidence": "Guard verdict plus real gtar 1.35 plus the filesystem, in one scratch tree per case; and the shipped `_tar_parse` printed on the same argv."
+        },
+        "confidence": "proven"
+      },
+      "hash": "0a22d563",
+      "first_seen": "2026-09-03",
+      "age_days": 0,
+      "delta": "NEW",
+      "outcome": "unknown",
+      "outcome_reason": "still open; nothing has settled it"
+    },
+    {
+      "id": "VERDICT-F-63",
+      "status": "open",
+      "severity": "Minor",
+      "priority": "P2",
+      "failure_classification": "REAL_DEFECT",
+      "confidence": "proven",
+      "title": "Three shipped entry points still die on 3.9 with F-55's exact TypeError, and the floor test cannot see them: its module list globs `hooks/` and `src/verdict_mcp/` only, while `eval/` holds both a README-documented `python3` command and a declared QA gate",
+      "evidence": [
+        "Measured under /usr/bin/python3 (3.9.6): `python3 eval/run_eval.py --help` -> rc=1, `File eval/run_eval.py, line 172, in <module> def _seconds_until_reset(output: str) -> int | None: TypeError: unsupported operand type(s) for |: 'type' and 'NoneType'`. `eval/score.py --help` -> rc=1 at line 39, `def _first_finding_tag(report: str) -> str | None`. `eval/run_mutation.py --help` -> rc=1, through `from run_eval import ...` at line 45. All three return rc=0 under 3.11.14 and 3.13.13.",
+        "README.md:163 documents one of them as a `python3` command: \"`python3 eval/run_eval.py --mode seeded|live|baseline` runs it all in an isolated scratch repo\". On a stock Mac that is the interpreter that fails.",
+        "tests/test_interpreter_floor.py:25-26 -- `MODULES = sorted([*(ROOT / \"hooks\").glob(\"*.py\"), *(ROOT / \"src\" / \"verdict_mcp\").glob(\"*.py\")])`. Its own docstring says the set is \"Everything reachable from hooks.json or from the contract's own commands, plus the modules they import. Discovered, not listed: a new file must not be able to join the invoked set without meeting the floor.\" `eval/fixture_freshness.py` IS a contract command -- `.qa/profile.md` front matter declares the gate as `python3 eval/fixture_freshness.py` -- and it is not in the set. It happens to import on 3.9 today; nothing holds it there.",
+        "Stated precisely so this is not overclaimed: README.md:50-54's floor paragraph scopes its promise to \"the hooks and the fact harness\", and those are clean (VERDICT-F-55). The contradiction is with README.md:163 and with the test docstring's own discovery claim, not with the floor sentence.",
+        "The plugin ships eval/: `/Users/artjack/.claude/plugins/cache/verdict/verdict/0.75.0/eval` exists and is byte-identical to the repo's."
+      ],
+      "root_cause": {
+        "mechanism": "The fix and its test were both scoped to the two directories the finding named; the module set is discovered within those directories rather than across the invoked surface.",
+        "origin": "v0.75.0 (00fedc3) added tests/test_interpreter_floor.py with this glob.",
+        "class": {
+          "pattern": "a discovery-based guard whose discovery root is narrower than its claim",
+          "sites": [
+            "tests/test_interpreter_floor.py:25-26"
+          ]
+        },
+        "latent_condition": "Nothing enumerates 'the commands this project tells a reader to type with python3', so the guard's root is a hand-written pair of globs.",
+        "fix_location": "test",
+        "proof": {
+          "method": "counterfactual",
+          "evidence": "27-case entry-point matrix under three interpreters; the three failures are exactly the three modules outside the glob that carry a union annotation."
+        },
+        "confidence": "proven"
+      },
+      "hash": "f1a7cf6c",
+      "first_seen": "2026-09-03",
+      "age_days": 0,
+      "delta": "NEW",
+      "outcome": "unknown",
+      "outcome_reason": "still open; nothing has settled it"
+    },
+    {
+      "id": "VERDICT-F-64",
+      "status": "open",
+      "severity": "Major",
+      "priority": "P2",
+      "failure_classification": "BRITTLE_TEST",
+      "confidence": "proven",
+      "title": "The floor test asks whether the string `from __future__ import annotations` appears anywhere in the file, so demoting the import to a comment re-opens VERDICT-F-55 on 3.9 and leaves the suite green -- the same anti-pattern the release fixed one function away in the same file",
+      "evidence": [
+        "tests/test_interpreter_floor.py:58 -- `if offenders and FUTURE not in src:` where `FUTURE` is the literal string. A substring test on the file's text, not a check that the statement exists as a real, correctly-placed `__future__` import.",
+        "Demonstrated. In a clean `git archive 00fedc3` scratch, replaced the line in `hooks/enforce_bash_scope.py` with `# from __future__ import annotations  (moved, see below)`. Result: `/usr/bin/python3 -c 'import enforce_bash_scope'` -> `def _resolve(target: str, cwd: str) -> str | None: TypeError: unsupported operand type(s) for |: 'type' and 'NoneType'` -- F-55 is back on 3.9 -- while `pytest tests/test_interpreter_floor.py -q` reports `34 passed in 0.11s`.",
+        "The release fixed exactly this shape in the adjacent test and wrote the reason down: `test_the_floor_is_written_down`'s docstring says \"The first version of this test asked whether \\\"3.9\\\" appeared anywhere in the README -- and it does, inside a parenthetical, so gutting the actual claim left the test green. Asserting on the claim itself is the difference between checking the page and checking the sentence.\" The same sentence applies verbatim to the function above it.",
+        "Scope, measured so the size is not overstated: of the 16 parametrisations of `test_new_style_unions_are_lazy`, 9 can fail today (the modules that carry a union annotation) and 7 assert nothing because their module has no union -- the latter is fine, they arm automatically if a union ever lands. All 9 that can fail are defeated by the comment above.",
+        "This test is the whole CI enforcement of the floor: README.md:54 says \"a module that would fail to import on 3.9 fails CI instead\", and CI has 3.10 and 3.13 only, so nothing else can catch it."
+      ],
+      "root_cause": {
+        "mechanism": "A property (\"annotations are lazy in this module\") is checked by a substring of the source rather than by parsing for the `ImportFrom` node, so any text containing the string satisfies it.",
+        "origin": "v0.75.0 (00fedc3), tests/test_interpreter_floor.py:58.",
+        "class": {
+          "pattern": "asserting on the presence of text rather than on the claim the text makes",
+          "sites": [
+            "tests/test_interpreter_floor.py:58 -- defective",
+            "tests/test_interpreter_floor.py:95-99 `test_the_floor_is_written_down` -- the same shape, fixed this release and documented in its docstring",
+            "tests/test_hooks.py:826-831 `test_every_guard_writes_its_reason_as_utf8` -- `assert \"utf8_stderr()\" in src`, the same shape on a different rule; VERDICT-F-60 already records that `utf8_stderr` can be reduced to a no-op with the suite green"
+          ]
+        },
+        "latent_condition": "The file already parses itself with `ast` for the union check; the future import was the one property checked by string instead.",
+        "fix_location": "test",
+        "proof": {
+          "method": "counterfactual",
+          "evidence": "Demoted the import to a comment in a scratch tree: module raises on 3.9.6, suite reports 34 passed."
+        },
+        "confidence": "proven"
+      },
+      "hash": "b80e05bf",
+      "first_seen": "2026-09-03",
+      "age_days": 0,
+      "delta": "NEW",
+      "outcome": "unknown",
+      "outcome_reason": "still open; nothing has settled it"
+    },
+    {
+      "id": "VERDICT-F-65",
+      "status": "open",
       "severity": "Minor",
       "priority": "P2",
       "failure_classification": null,
       "confidence": "proven",
-      "fix_verified": true,
+      "title": "The pinned-mutant catalogue is assembled from the finding list, not from the code, and it omits nine of the eleven survivors the same audit had already measured -- so \"32 of 32 killed\" is a rate over a set chosen after the survivors were known",
       "evidence": [
-        "tests/test_calibration.py::test_a_new_findings_first_seen_is_the_runs_own_utc_date is the guard, and it is exactly the check run 10 asked for \u2014 a NEW finding's `first_seen` must equal the date of `last_run.timestamp_utc`, probed with a timestamp years away from any plausible `date.today()` so it cannot pass under the defect for most of a day.",
-        "Re-injected in an isolated scratch copy: restoring `today = today or date.today()` -> `2 failed`. Killed, and `test_age_days_counts_from_the_runs_utc_date_too` is the second guard.",
-        "Cross-checked on this run's own artifacts after finalize: every NEW finding's `first_seen` equals the date of `last_run.timestamp_utc`, and the report filename and INDEX row carry the same date.",
-        "Residual listed in VERDICT-F-60: `run_date`'s conversion of a non-UTC offset to UTC survives being removed, so the timezone half of a timezone fix is untested."
+        "The catalogue's 32 entries are labelled by finding -- M1..M13 (F-42, F-49, F-22 and regression/over-correction pairs), H1..H8 (F-51, F-54, F-53, F-50), P1..P5 (the 3.9 floor), and five F-56/F-57/F-59 entries. Enumerated from the fix list, which is a real improvement on 0.74.0's enumeration from the test list -- and still not enumeration from the code, which is the thing that can surface an unwatched rule.",
+        "The proof that it matters is in the same state file: VERDICT-F-60 enumerated 21 mutants BY READING THE CODE and found eleven survivors against the whole suite. Nine of those eleven are absent from the catalogue and one more is present only as a coarser mutation of the same line (see VERDICT-F-60 for the mapping). A catalogue that omits the known survivors and reports 100% is selecting for its own answer.",
+        "The published table compounds it by presenting three rows as one kind of measurement: CHANGELOG.md and eval/README.md both print \"21 / 21 each against one named test\", \"29 / 27\" and \"32 / 32\". Only the third is reproducible from the tree -- `git log --all -- eval/pinned_mutants.json eval/pin_check.py` shows both files first appear at 00fedc3, `git ls-files | grep -E 'mut2?\\.py$'` is empty, and no artifact records the 21 or the 29. The unreproducible rows are not marked as such, which is the half of VERDICT-F-57 the release could not retroactively fix and does not say so.",
+        "Reproduced the third row independently this run: **32 of 32 killed by the whole suite**, exit 0 -- the published number reproduces exactly. 33 whole-suite runs, ~1h of wall clock, on a tree the release did not build. So the number is honest about what it measures; the complaint is what it is a rate OVER.",
+        "Two of the 32 entries are not rules of the shipped code at all -- P4 mutates a README sentence and P5 mutates the detector inside `tests/test_interpreter_floor.py`. Both are legitimate instrument controls; counting them in the same denominator as a guard rule makes the 32 read larger than the rule set it covers.",
+        "Demonstrated inside this very campaign: entry 30, \"F-56: tar operands stop being read relative to -C\", is KILLED -- a perfect score on a rule that VERDICT-F-56 and VERDICT-F-62 show is bypassable by five different orderings of the same command. A catalogue enumerated from fixes can only ever certify that each fix is watched; it is structurally incapable of reporting that a fix is wrong, and a 32-of-32 headline invites the reader to draw the stronger conclusion."
       ],
-      "hash": "66c92f37",
-      "first_seen": "2026-09-02",
-      "age_days": 1,
-      "delta": "RESOLVED",
-      "outcome": "confirmed",
-      "outcome_basis": "claimed",
-      "outcome_reason": "fix-verified: claimed by the tester, and no harness measurement contradicts it"
+      "root_cause": {
+        "mechanism": "The mutant list is derived from the findings that were fixed, so a rule that was never a finding -- and, more sharply, a rule already MEASURED as unwatched in a code-enumerated campaign -- cannot appear as a survivor.",
+        "origin": "v0.75.0 (00fedc3) created eval/pinned_mutants.json.",
+        "class": {
+          "pattern": "a kill rate over a set the author chose",
+          "sites": [
+            "eval/pinned_mutants.json (32 entries, all labelled by finding)"
+          ]
+        },
+        "trigger": "VERDICT-F-57 asked for whole-suite runs and a committed artifact; both were delivered, and the selection question was not part of the sentence.",
+        "latent_condition": "No mutmut campaign has ever been run over src/verdict_mcp/harness.py, this project's top defect cluster, so there is no tool-enumerated baseline to compare the catalogue against.",
+        "fix_location": "process",
+        "proof": {
+          "method": "differential",
+          "evidence": "F-60's eleven code-enumerated survivors searched against the catalogue's anchor text: one exact match, one same-line coarser mutation, nine absent."
+        },
+        "confidence": "proven"
+      },
+      "hash": "c1fe9c44",
+      "first_seen": "2026-09-03",
+      "age_days": 0,
+      "delta": "NEW",
+      "outcome": "unknown",
+      "outcome_reason": "still open; nothing has settled it"
+    },
+    {
+      "id": "VERDICT-F-66",
+      "status": "open",
+      "severity": "Minor",
+      "priority": "P3",
+      "failure_classification": null,
+      "confidence": "proven",
+      "title": "The \"class that did not exist before\" is two of three, not three: the catalogue's third call-site mutant shares its anchor line with H3 and produces H3's behaviour with an unused call bolted on",
+      "evidence": [
+        "CHANGELOG.md 0.75.0: \"it carries a class that did not exist before: mutants that delete a **call site** while leaving the code correct\", and eval/README.md repeats it. Three catalogue entries are labelled F-57 and presented as that class.",
+        "Two are genuine call-site deletions. `F-57: the bytecode sweep's only call site is deleted` removes `                _drop_bytecode(scratch)\\n` (src/verdict_mcp/harness.py:574) and leaves the function body intact. `F-57: the UTF-8 stderr pin is never called by the bash guard` turns `def main() -> int:\\n    utf8_stderr()\\n` into `def main() -> int:\\n`.",
+        "The third is not. `F-57: the run's UTC date is computed and then not used` mutates `    today = today or run_date(facts)` into `    run_date(facts)\\n    today = today or date.today()`. Catalogue entry H3, `F-54: back to the machine's local calendar`, mutates the SAME line into `    today = today or date.today()`. The two differ only by a call whose result is discarded; the behaviour they produce is identical, so whatever kills H3 kills this one for the same reason.",
+        "Confirmed structurally: `eval/pinned_mutants.json` has exactly three pairs of entries sharing a `(path, old)` anchor -- H1/H2, H3/this one, and the F-56 pair -- and only this pair claims to be a different class.",
+        "Cost of the error: the release's headline story is that body mutants and call-site mutants are different claims. It is right, and the evidence offered for it is three examples of which one is a body mutant in call-site clothing."
+      ],
+      "hash": "16e324f7",
+      "first_seen": "2026-09-03",
+      "age_days": 0,
+      "delta": "NEW",
+      "outcome": "unknown",
+      "outcome_reason": "still open; nothing has settled it"
+    },
+    {
+      "id": "VERDICT-F-67",
+      "status": "open",
+      "severity": "Minor",
+      "priority": "P2",
+      "failure_classification": "REAL_DEFECT",
+      "confidence": "proven",
+      "title": "On macOS none of the four tar rules can fire on a binary that can perform the attack: `/usr/bin/tar` is bsdtar and rejects `--remove-files` outright, while GNU tar is installed as `gtar`, which the guard's dispatcher does not recognise",
+      "evidence": [
+        "hooks/enforce_bash_scope.py:659 -- `elif head == \"tar\":`, an exact basename match. Measured: `gtar -cf <scr>/x.tar --remove-files <checkout>/hooks` -> guard rc=0 ALLOW; the same command spelled `tar` -> rc=2 DENY. `bsdtar` and the absolute path `/opt/homebrew/bin/gtar` are likewise rc=0.",
+        "And the guarded spelling cannot do the thing: `/usr/bin/tar` is a symlink to `bsdtar` (libarchive 3.7.4), and `tar -cf x.tar --remove-files hooks` prints `tar: Option --remove-files is not supported` and leaves the directory in place. So on this platform the rules that VERDICT-F-42, F-49, F-56 and F-59 built are unreachable on `tar` and unarmed on `gtar`.",
+        "Not a general aliasing complaint -- I checked which of the g-prefixed GNU tools actually exist here: `gtar` is present at /opt/homebrew/bin/gtar (GNU tar 1.35); `grm`, `gcp`, `gmv`, `gsed`, `gfind`, `gawk` are all absent. gtar is the single case, and it is the one that matters, because it is the only tar on this machine with `--remove-files`.",
+        "Scope stated: on Linux and in CI `tar` IS GNU tar, so the rules do fire there. This is a macOS-only gap -- on the platform the release's own VERDICT-F-55 fix was about."
+      ],
+      "hash": "1ec7dba9",
+      "first_seen": "2026-09-03",
+      "age_days": 0,
+      "delta": "NEW",
+      "outcome": "unknown",
+      "outcome_reason": "still open; nothing has settled it"
+    },
+    {
+      "id": "VERDICT-F-68",
+      "status": "open",
+      "severity": "Minor",
+      "priority": "P3",
+      "failure_classification": null,
+      "confidence": "probable",
+      "title": "The pin check reads any non-zero exit as a kill, so a mutant that breaks collection instead of failing a test would be counted as defended -- the exact reading run 11 recorded a lesson about one release earlier",
+      "evidence": [
+        "eval/pin_check.py:188-192 -- `result = run_suite(env)` then `if result.returncode != 0: print(... KILLED ...)`. No summary is parsed. pytest exits non-zero for a usage error (4), a collection/internal error (2 or 3) and \"no tests ran\" (5) as well as for a failure (1).",
+        "`.qa/lessons.md`, 2026-09-03 (run 11): \"`rc != 0` also means 'usage error', 'no such file', 'collection error'; only a parsed summary tells those apart from a kill.\" The control run at :171-176 does assert the tree is green before the campaign, which is the other half of that lesson and is present -- but it runs once, so it cannot say what any individual mutant's non-zero exit meant.",
+        "Currently latent, and I checked rather than assumed: applied all 32 catalogue mutants in memory and `ast.parse`d the result -- 32 of 32 still parse, and every anchor matches exactly once. So no entry in today's catalogue can produce a false kill. The gap is that nothing stops the next one from doing so.",
+        "Held honestly: `probable`, not `proven`. I read the code path and established the catalogue does not currently trip it; I did not run a syntax-breaking mutant through the tool to watch it print KILLED. Doing that -- one entry, one suite run -- would settle it either way."
+      ],
+      "hash": "9e987b71",
+      "first_seen": "2026-09-03",
+      "age_days": 0,
+      "delta": "NEW",
+      "outcome": "unknown",
+      "outcome_reason": "still open; nothing has settled it"
+    },
+    {
+      "id": "VERDICT-F-69",
+      "status": "open",
+      "severity": "Trivial",
+      "priority": "P3",
+      "failure_classification": null,
+      "confidence": "proven",
+      "title": "The comment explaining the 3.9 future import is pasted twice in the bash guard, the second copy orphaned below the import it explains",
+      "evidence": [
+        "hooks/enforce_bash_scope.py:29-35 and :38-44 are byte-identical seven-line comment blocks; the import sits between them at :36. `sed -n '29,46p'` shows the pair.",
+        "Harmless, and worth a line only because it is in the file this project treats as a security control and because it is the visible residue of how the fix was applied."
+      ],
+      "hash": "d4e4376b",
+      "first_seen": "2026-09-03",
+      "age_days": 0,
+      "delta": "NEW",
+      "outcome": "unknown",
+      "outcome_reason": "still open; nothing has settled it"
     }
   ],
   "verdict": "pass with risks",
   "release_blockers": [],
   "not_tested": [
-    "Windows and the py3.10 leg of the CI matrix. The profile names cross-platform as risk area 5; this machine is macOS/py3.13 and 3.9.6 only. The release's three Windows CI round trips are read from the changelog and from the two forced-flag tests (`test_nested_commands_parse_under_windows_tokenization`, `test_a_windows_path_survives_masking_and_target_reading`), not reproduced. The backslash-as-escape and stderr-encoding defects are therefore assessed by reading, not by running on Windows.",
-    "No model run was made. The eval corpus was re-SCORED (deterministic, free) and the release's preserved workdirs were re-scored, but no new agent run was launched: it costs API tokens and would send the repository off this machine, which the run's constraints forbid. So the 0.74.0 A/B is verified as a measurement that reproduces, not repeated as an experiment.",
-    "The eval fixtures other than `cause` were not scored at all this run: pricer, pricer-ts, pricer_rev_b/delta, liar, slop, refund-spec, golden. A prompt regression outside \u00a73 would not have been seen.",
-    "No mutmut campaign. The profile's standing number (574 mutants over src/verdict_mcp/validate.py, 391 killed at run 9) is unrefreshed; validate.py was untouched by this range. src/verdict_mcp/harness.py has still never been tool-enumerated for mutants \u2014 the 21 hand-chosen ones in this report are not a substitute, and harness.py remains this project's top defect cluster.",
-    "The MCP server surface (src/verdict_mcp/server.py) was not exercised beyond the suite; it was untouched by the range. `mcp` is not importable under the system interpreter, so the 3.9 sweep says nothing about it.",
-    "The install path was audited structurally, not performed: `/plugin marketplace add` and `/plugin install` are slash commands this agent cannot execute, and no PyPI install was attempted because nothing may leave the machine. What was checked is the installed 0.74.0 plugin cache on disk \u2014 manifests, shipped `src/`, and every entry point run under both interpreters.",
-    "No structural coverage technique (MC-DC, data-flow) was applied to `_check_tar`'s rewritten option loop. The `-C` and `-T` gaps were found by varying the input along axes the fix's author did not choose, and by mutation; a truth-vector reading of that loop might find more.",
-    "The 33 files in `d21d4f9..36771fa` include the .qa/ artifacts of run 10 itself. Those were read as the baseline record, not audited as code.",
+    "Windows, and the py3.10 leg of the CI matrix exactly. The interpreter sweep ran 3.9.6 (/usr/bin/python3), 3.11.14 and 3.13.13; 3.10 is not installed on this machine and fetching it is network traffic the run's constraints forbid, so \"at the declared floor\" was met with the nearest interpreter above it, not with 3.10 itself. The release's Windows behaviour is read from the changelog and from the two forced-flag tests, not run.",
+    "No model run and no eval scoring. `git diff --name-only 36771fa..00fedc3 -- eval/` touched only README.md, expected-cause.json, pin_check.py and pinned_mutants.json -- the scorer, the corpus and every answer key but one are untouched -- so no fixture was scored. Run 11's focus items 6 (the `trigger-separated-from-cause` row, still the only eval row known to be unreliable) and 7 (no fixture exercises the contract's \u00a70, \u00a74 or \u00a75) are unaddressed by the release and unmeasured by this run.",
+    "No mutmut campaign. Run 11's focus item 4 asked for the first tool-enumerated campaign over src/verdict_mcp/harness.py, this project's top defect cluster by finding weight, and it was not run -- not by the release and not by me. The 32-entry pin-check catalogue is not a substitute; VERDICT-F-65 is the whole point. The profile's standing mutmut number (574 mutants over validate.py, 391 killed at run 9) is unrefreshed; validate.py was untouched by this range.",
+    "VERDICT-F-60's nine uncatalogued survivors were MAPPED against the new catalogue by anchor text, not re-run. I did not re-measure that they still survive at HEAD -- only that the release neither catalogued nor otherwise addressed them.",
     "VERDICT-F-21 was not re-measured. Its remedy is a maintainer decision about an unauthenticated local anchor, not a measurement.",
-    "No performance, concurrency or resource-exhaustion testing: out of scope for a plugin with no runtime service. The suite's 75s and the coverage run's 112s are recorded, nothing more."
+    "The MCP server surface (src/verdict_mcp/server.py) beyond the suite. `mcp` is not importable under any interpreter I swept, so the 3.9 result for that one module is `No module named 'mcp'` and says nothing about its behaviour. It was untouched by the range apart from the future-import line.",
+    "The install path was audited structurally, not performed: `/plugin marketplace add` and `/plugin install` are slash commands this agent cannot run, and nothing may leave the machine. What was checked instead is that the installed 0.75.0 plugin cache is byte-identical to the repository tree.",
+    "No structural coverage technique (MC-DC, data-flow) over `_tar_parse`'s bundle loop or `_check_tar`'s option scan. The five bypasses were found by varying orderings and spellings the fix's author did not vary; a truth-vector reading of those two loops would probably find more, and the fact that five fell out of one afternoon's variation says the surface is not exhausted.",
+    "The `-C`-after-the-operand ordering was proven against GNU tar 1.35 only. bsdtar has no `--remove-files` so it cannot be tested there, and I did not test any other tar implementation or any Linux tar.",
+    "The 28 files in `36771fa..00fedc3` include run 11's own `.qa/` artifacts (state.json, the report, outcomes.json, lessons.md, test-ids.txt, runs.jsonl). Those were read as the baseline record, not audited as code under test.",
+    "No performance, concurrency or resource-exhaustion testing: out of scope for a plugin with no runtime service. Durations are recorded (suite 76.11s, coverage 106.85s, pin-check campaign ~1h) and nothing more.",
+    "VERDICT-F-68 was established by reading plus a static check that today's catalogue cannot trip it. A syntax-breaking mutant was not put through the tool, so the false-kill is a traced code path rather than an observed one."
   ],
   "verified_intact": [
-    "The structural read-only control holds on every interpreter tested. `hooks/enforce_write_scope.py` denies a Write to `src/verdict_mcp/harness.py` with exit 2 and a readable reason under both python3.13 and the system python3.9 that breaks the Bash guard \u2014 so VERDICT-F-55 degrades defence-in-depth, it does not open the file tools.",
-    "The 0.74.0 eval payment reproduces independently. Re-scoring the archived corpus gives 7/7; re-scoring the release session's five surviving workdirs reproduces the published treatment/control table exactly, with each arm confirmed from its own prompt file; and removing the new row from the key collapses the separation, which is the counterfactual that makes the row the discriminator.",
-    "The \u00a73 bytecode clause's prophylactic half works: in a controlled reproduction, same-size same-second injections were caught 0 of 2 with the cache in place and 2 of 2 with `PYTHONDONTWRITEBYTECODE=1` and a sweep between injections.",
-    "VERDICT-F-22's fix costs this run nothing: zero read-only commands were blocked, against four in run 10, and the over-correction probes (heredoc-then-redirect, quoted absolute target, `cd $UNSET`) all still deny correctly.",
-    "The tar guard behaves as specified across 15 of 18 probed shapes, including six `--remove-files` orderings nobody wrote a test for (bundled `-cvf`, operands after `--`, the `--rem` abbreviation, `--create --file=`, old-style `tar cf`, split `-c -f`).",
-    "The gate's exit-code contract behaves as documented on this state: bare -> 0, `--fail-on risks` -> 1, `--max-age-hours 1` -> 5, `--max-commits-behind 0` -> 5. An earlier reading of exit 2 was my own shell quoting, not the gate.",
-    "Suite and lint are clean and the count moved the right way: 721 passed, 0 failed, 0 skipped; ruff `All checks passed!`; the fixture-freshness gate passes; test-id set-diff +31/-0, so nothing was removed.",
-    "Provenance matches the maintainer's claim: `code_census.provenance` counts 2 commits in the range and 0 AI-attributed. The census's two `undeclared` imports (`enforce_bash_scope`, `qa_paths`) are sys.path-inserted local modules, checked and benign, and its one swallowed exception is `utf8_stderr`'s documented fail-open."
+    "All six hook invocations in `hooks/hooks.json` behave identically under 3.9.6, 3.11.14 and 3.13.13 -- a 27-case matrix per interpreter. Deny returns 2 with a reason a reader can act on, allow returns 0, malformed stdin returns 0 (fail open), and an unset VERDICT_STRICT returns 0 silently. This is the property VERDICT-F-55 was about, and it now holds on the interpreter that broke it.",
+    "Every one of the seven console-script modules runs under 3.9.6: gate.py reads a real state and prints a verdict line, facts/finalize/issues/run/census/profile/project_key all answer `--help` with rc=0.",
+    "The installed plugin cache at /Users/artjack/.claude/plugins/cache/verdict/verdict/0.75.0 is byte-identical to the repository tree for every tracked path (`diff -rq` excluding .git/.qa/caches: only .DS_Store, .pytest_cache, .ruff_cache, dist/ and the cache's own .in_use marker differ). What a session loads is what was reviewed.",
+    "The suite is green and grew: 758 passed in 74.94s, +37 test ids, 0 removed, measured by set-diff against the previous ledger and not by summary arithmetic. Collection errors: none. `uv run --with ruff ruff check .` -> All checks passed!",
+    "`_check_tar`'s extract branch resolves `-C` correctly, and this was measured rather than assumed: `gtar -xf a.tar -C d1 -C d2` extracts into d2, which is the last-one-wins model the guard implements. The defect is confined to the create/`--remove-files` branch.",
+    "The legitimate tar operations the guard must not block all still pass: archiving scratch out of scratch with `-C`, a plain create that only READS the checkout, `--exclude=.venv` on a create (VERDICT-F-49's direction), and `-T` without `--remove-files`.",
+    "VERDICT-F-59's denial holds across eight spellings, six of them not used by the release's own test: `-T`, `-T -`, `-T<file>` attached, `--files-from`, `--files-from=`, the abbreviation `--files-fr`, the bundle `-cfT`, and old-style `cfT`.",
+    "The fixture-freshness tamper-evidence gate passes: `python3 eval/fixture_freshness.py` -> `fixture_freshness: OK -- pricer-delta.diff still describes the fixture pair (78 lines)`, exit 0, under 3.9.6 and 3.13.13 alike.",
+    "The release's deferral of VERDICT-F-58 is honest: `git diff --name-only 36771fa..00fedc3 -- agents/ standards/ templates/ commands/ docs/` prints nothing, so the contract it says it did not change is byte-identical.",
+    "Production changed-line coverage is flat, not regressed, once the split VERDICT-F-44's lesson requires is applied: the blended 30% and the by_kind production 6% are both dominated by eval/pin_check.py (201 of the 215 measured production lines, 0 executed, no test references it). Excluding it, production changed lines are 13 of 14 executed = 93%, against run 11's 198 of 212 = 93%. The one unexercised line is `src/verdict_mcp/server.py:22`, which needs `mcp` to import.",
+    "The pin-check campaign reproduced the release's headline number from an independent tree: **32 of 32 killed by the whole suite**, exit 0, after a green instrument control (`758 passed in 109.93s`). The tool also cleaned up after itself -- every mutated file in the scratch is byte-identical to the checkout's afterwards, and the lock is released."
   ],
   "next_run_focus": [
-    "VERDICT-F-55 first, and check the whole surface rather than the one file: run every shipped entry point under an interpreter at the declared floor (3.10) and one below it (3.9), and assert the failure mode. The question to settle is not whether 3.9 is supported \u2014 it is not \u2014 but whether an unsupported interpreter should leave a security control silently inert. A guard that cannot arm and says nothing is the one failure the fail-open rule should not cover.",
-    "VERDICT-F-56 and VERDICT-F-59 belong in one change to `_check_tar`, and the acceptance test is the axis, not the sentence: for each of `-C <dir>`, `--directory=<dir>` and `-T <list>`, assert both the DENY the guard owes and an ALLOW that must survive, run from a cwd that differs from the redirected directory. A fix that keys on `-C` position rather than on where the operand actually resolves will pass the first and fail a fourth ordering.",
-    "VERDICT-F-58 needs a check that can fail in F-50's own ordering, and there is a cheap one: after a campaign, re-run the LAST injection with `__pycache__` swept and compare against the unswept result. If they differ, every earlier result is suspect. Whatever replaces the current sentence, test it the way this run tested the current one \u2014 reproduce the fault, then see whether the check fires.",
-    "VERDICT-F-57 and VERDICT-F-60 together: run mutmut over src/verdict_mcp/harness.py for the first time \u2014 it is the top defect cluster and has never been tool-enumerated \u2014 and commit the campaign script beside the claim it supports. The eleven survivors in F-60 are the acceptance list; control the instrument first (apply a mutant the tool reports as killed and confirm the suite fails), then sweep `__pycache__`, as the profile now requires.",
-    "VERDICT-F-26 has now mis-selected on live data three runs running, and this run it mis-selected on the release's headline finding. Every mitigation so far has been the tester remembering to put the guard id first. Either the selector reads a declared field (`verification.test` written by the judgment) or the harness reports `unselectable` instead of guessing \u2014 but the current behaviour manufactures pass/pass records that read as measurements.",
-    "The `trigger-separated-from-cause` row that 0.74.0 filed as a measured weakness is still open and is now the only eval row known to be unreliable. Decide it with a measurement rather than a judgement call: score the six surviving workdirs' reports for the substance (a named red herring, an origin older than the trigger) against the word, and either widen the key's terms or accept that the row scores vocabulary.",
-    "The eval suite has no fixture that exercises \u00a70 (the safety gate and project-key resolution), \u00a74 (naming a test-design technique) or \u00a75 (the TDD red-first evidence rule). A prompt edit deleting any of the three scores 50/50 on every existing fixture. Cheapest first: \u00a70 is testable without a model \u2014 a fixture whose profile is missing on a money-touching project must produce `blocked`.",
-    "Re-check the coverage split rather than the blended percent, as VERDICT-F-44's lesson requires: production changed-line coverage moved 94% (32/34) to 93% (198/212) over a 6x larger denominator. Flat, not a regression \u2014 but the 14 unexercised production lines are the place to look first next run, and this run's five in `enforce_bash_scope.py` were probed by hand and found behaviourally correct."
+    "VERDICT-F-62 and VERDICT-F-56 are one afternoon's work and belong together, because they are two models of the same argv. The acceptance test is not another spelling: walk `_tar_parse`'s output as a POSITIONAL stream -- an operand's directory is whatever `-C` was most recent BEFORE it -- and make the option walker accept a value attached to its letter or its long name. Then assert the matrix rather than the examples: {`-C` before / after / twice / attached / abbreviated} x {`-f` separated / attached} x {DENY owed, ALLOW that must survive}, from a cwd that is none of the directories. Five orderings fell out of one afternoon of variation; the number that matters next run is whether a sixth does.",
+    "VERDICT-F-64 first among the test-quality items, because it is three lines and it re-arms VERDICT-F-55: parse for an `ast.ImportFrom` whose module is `__future__` and whose names include `annotations`, and assert it is the first statement after the docstring. Then apply the same reading to `tests/test_hooks.py:826` (`assert \"utf8_stderr()\" in src`), which is the same shape on a rule VERDICT-F-60 already measured as unwatched. The instrument control for both: demote the thing to a comment and watch the test fail.",
+    "VERDICT-F-26 has now mis-selected on live data four runs running, and this run the wrong id was scraped out of the sentence that describes the defect. Every mitigation so far has been the tester remembering to put the guard id first, which is a workaround that stops working the moment a run is handed to anyone else. Either the judgment declares `verification.test` and the harness reads it, or the harness reports `unselectable` instead of guessing -- but a pass/pass record about a third party must stop being written into the state as a measurement.",
+    "Run the first mutmut campaign over src/verdict_mcp/harness.py -- still owed from run 11's focus item 4, still this project's top defect cluster, still never tool-enumerated. That is the measurement VERDICT-F-65 needs to become falsifiable: a code-enumerated survivor list is what tells you whether a finding-enumerated catalogue is a coverage claim or a lap of honour. Control the instrument first (apply a mutant the tool reports as killed and confirm the suite fails), sweep `__pycache__`, and commit the campaign script beside the number.",
+    "VERDICT-F-58's replacement is now measured, not proposed: re-running the LAST injection with the cache swept fires where the contract's current control cannot (PASS(survived) unswept vs FAIL(killed) swept, in F-50's own ordering). It costs one extra suite run per campaign. The remaining question is the eval payment -- the `counterfactual-isolated-from-stale-bytecode` row scores the words `scratch` plus one of `pythondontwritebytecode`/`bytecode`/`instrument control`, so a control that never fires still earns the point, and that row cannot tell the new clause from the old.",
+    "VERDICT-F-63 and VERDICT-F-67 are the two places where a rule exists and cannot reach: the floor test's glob does not cover `eval/`, and the tar dispatcher does not cover `gtar`. Both are one-line sets. The general question worth one paragraph next run is whether any other guard's reach is narrower than its claim -- the census to run is \"every command name the dispatcher matches\" against \"every binary on a stock macOS PATH that can do the thing\".",
+    "Still owed from run 11 and untouched by this release: the `trigger-separated-from-cause` eval row (focus item 6), and the absence of any fixture exercising the contract's \u00a70, \u00a74 or \u00a75 (focus item 7). Both are prompt/eval work, both are unmeasured for a second consecutive run, and the \u00a70 half is testable without a model."
   ],
   "flaky_quarantine": [],
   "coverage": {
     "status": "measured",
     "tool": "coverage.py dynamic contexts",
     "command": "uv run --group dev python -m coverage run -m pytest tests/ -q -o addopts=",
-    "sha_range": "d21d4f93c5868fea479e903710ada4d1ccf3df40..36771fa070bbdaad7eafec449bbe6a6cfa31f132",
+    "sha_range": "36771fa070bbdaad7eafec449bbe6a6cfa31f132..00fedc3b4757eeeb8c7397710bdb2ecc04c957ee",
     "suite_exit_code": 0,
-    "duration_s": 112.38,
-    "changed_files": 10,
-    "changed_lines": 371,
-    "changed_lines_executed": 332,
-    "changed_lines_executed_in_subprocess": 107,
+    "duration_s": 106.85,
+    "changed_files": 13,
+    "changed_lines": 313,
+    "changed_lines_executed": 93,
+    "changed_lines_executed_in_subprocess": 11,
     "subprocess_coverage": "measured",
     "by_kind": {
       "production": {
-        "changed_lines": 212,
-        "changed_lines_executed": 198,
-        "percent": 93
+        "changed_lines": 215,
+        "changed_lines_executed": 13,
+        "percent": 6
       },
       "tests": {
-        "changed_lines": 159,
-        "changed_lines_executed": 134,
-        "percent": 84
+        "changed_lines": 98,
+        "changed_lines_executed": 80,
+        "percent": 82
       }
     },
-    "percent": 89,
+    "percent": 30,
     "per_file": {
-      "eval/score.py": {
-        "changed": 12,
-        "measured": 4,
-        "executed": 4,
-        "executed_in_subprocess": 4,
-        "unexercised_ranges": [],
-        "tests": [],
-        "unexercised_functions": []
-      },
-      "hooks/enforce_bash_scope.py": {
-        "changed": 295,
-        "measured": 170,
-        "executed": 158,
-        "executed_in_subprocess": 92,
+      "eval/pin_check.py": {
+        "changed": 201,
+        "measured": 201,
+        "executed": 0,
         "unexercised_ranges": [
           [
-            255,
-            255
-          ],
-          [
-            257,
-            257
-          ],
-          [
-            316,
-            321
-          ],
-          [
-            350,
-            350
-          ],
-          [
-            539,
-            541
+            1,
+            201
           ]
         ],
+        "tests": [],
+        "note": "no test executed it, and no subprocess the suite spawned recorded a line of it"
+      },
+      "hooks/enforce_bash_scope.py": {
+        "changed": 36,
+        "measured": 6,
+        "executed": 6,
+        "executed_in_subprocess": 5,
+        "unexercised_ranges": [],
         "tests": [
-          "test_hooks.test_a_windows_path_survives_masking_and_target_reading",
           "test_hooks.test_nested_commands_parse_under_windows_tokenization",
           "test_hooks.test_nested_shell_parses_a_quote_wrapped_command"
         ],
         "unexercised_functions": []
       },
-      "hooks/enforce_run_contract.py": {
-        "changed": 5,
-        "measured": 4,
-        "executed": 4,
-        "executed_in_subprocess": 4,
+      "src/verdict_mcp/census.py": {
+        "changed": 9,
+        "measured": 1,
+        "executed": 1,
+        "executed_in_subprocess": 1,
         "unexercised_ranges": [],
         "tests": [],
-        "unexercised_functions": []
-      },
-      "hooks/enforce_write_scope.py": {
-        "changed": 2,
-        "measured": 2,
-        "executed": 2,
-        "executed_in_subprocess": 2,
-        "unexercised_ranges": [],
-        "tests": [],
-        "unexercised_functions": []
-      },
-      "hooks/qa_paths.py": {
-        "changed": 17,
-        "measured": 6,
-        "executed": 4,
-        "executed_in_subprocess": 2,
-        "unexercised_ranges": [
-          [
-            25,
-            26
-          ]
-        ],
-        "tests": [
-          "test_hooks.test_nested_shell_parses_a_quote_wrapped_command"
-        ],
         "unexercised_functions": []
       },
       "src/verdict_mcp/harness.py": {
-        "changed": 82,
-        "measured": 26,
-        "executed": 26,
-        "executed_in_subprocess": 3,
+        "changed": 9,
+        "measured": 1,
+        "executed": 1,
+        "executed_in_subprocess": 1,
+        "unexercised_ranges": [],
+        "tests": [],
+        "unexercised_functions": []
+      },
+      "src/verdict_mcp/issues.py": {
+        "changed": 9,
+        "measured": 1,
+        "executed": 1,
+        "executed_in_subprocess": 1,
+        "unexercised_ranges": [],
+        "tests": [],
+        "unexercised_functions": []
+      },
+      "src/verdict_mcp/profile.py": {
+        "changed": 9,
+        "measured": 1,
+        "executed": 1,
+        "executed_in_subprocess": 1,
+        "unexercised_ranges": [],
+        "tests": [],
+        "unexercised_functions": []
+      },
+      "src/verdict_mcp/project_key.py": {
+        "changed": 9,
+        "measured": 1,
+        "executed": 1,
         "unexercised_ranges": [],
         "tests": [
-          "test_artifact_check.test_a_clean_finalize_has_nothing_to_report",
-          "test_artifact_check.test_a_history_row_that_does_not_carry_the_signed_link_is_named",
-          "test_artifact_check.test_a_missing_history_row_is_named",
-          "test_artifact_check.test_a_report_that_went_missing_is_named",
-          "test_artifact_check.test_an_index_row_dated_from_the_wrong_clock_is_named",
-          "test_artifact_check.test_an_index_row_naming_another_project_is_named",
-          "test_calibration.test_a_decided_outcome_sticks_when_the_finding_changes_state_again",
-          "test_calibration.test_a_finding_that_never_came_back_carries_no_marker",
-          "test_calibration.test_a_new_findings_first_seen_is_the_runs_own_utc_date",
-          "test_calibration.test_a_project_with_nothing_claimed_keeps_the_plain_table"
+          "test_gate.test_drift_note_says_only_what_is_actionable"
         ],
         "unexercised_functions": []
       },
-      "tests/test_calibration.py": {
-        "changed": 86,
-        "measured": 23,
-        "executed": 18,
-        "unexercised_ranges": [
-          [
-            630,
-            630
-          ],
-          [
-            666,
-            666
-          ],
-          [
-            678,
-            678
-          ],
-          [
-            698,
-            698
-          ],
-          [
-            708,
-            708
-          ]
-        ],
-        "tests": [
-          "test_calibration.test_a_new_findings_first_seen_is_the_runs_own_utc_date",
-          "test_calibration.test_age_days_counts_from_the_runs_utc_date_too",
-          "test_calibration.test_an_unreadable_run_timestamp_falls_back_to_utc_now",
-          "test_calibration.test_no_unrecorded_footnote_when_every_confirmation_carries_a_basis",
-          "test_calibration.test_the_unrecorded_footnote_counts_every_confirmation_not_the_biggest_row"
-        ],
+      "src/verdict_mcp/runner.py": {
+        "changed": 9,
+        "measured": 1,
+        "executed": 1,
+        "executed_in_subprocess": 1,
+        "unexercised_ranges": [],
+        "tests": [],
         "unexercised_functions": []
       },
-      "tests/test_harness.py": {
-        "changed": 104,
-        "measured": 48,
-        "executed": 42,
+      "src/verdict_mcp/server.py": {
+        "changed": 9,
+        "measured": 1,
+        "executed": 0,
         "unexercised_ranges": [
           [
-            8,
-            8
-          ],
-          [
-            874,
-            874
-          ],
-          [
-            881,
-            881
-          ],
-          [
-            895,
-            895
-          ],
-          [
-            915,
-            915
-          ],
-          [
-            958,
-            958
+            22,
+            22
           ]
         ],
-        "tests": [
-          "test_harness.test_a_stale_bytecode_cache_can_hide_a_change_and_the_sweep_removes_it",
-          "test_harness.test_a_two_hour_old_retry_marker_is_not_described_as_minutes_old",
-          "test_harness.test_fix_verification_runs_with_bytecode_writing_off",
-          "test_harness.test_the_retry_marker_says_the_age_it_recorded"
-        ],
+        "tests": [],
+        "unexercised_functions": []
+      },
+      "src/verdict_mcp/state.py": {
+        "changed": 9,
+        "measured": 1,
+        "executed": 1,
+        "executed_in_subprocess": 1,
+        "unexercised_ranges": [],
+        "tests": [],
         "unexercised_functions": []
       },
       "tests/test_hooks.py": {
-        "changed": 208,
-        "measured": 73,
-        "executed": 61,
+        "changed": 48,
+        "measured": 22,
+        "executed": 20,
         "unexercised_ranges": [
           [
-            630,
-            630
+            831,
+            831
           ],
           [
-            657,
-            657
-          ],
-          [
-            674,
-            674
-          ],
-          [
-            686,
-            686
-          ],
-          [
-            702,
-            702
-          ],
-          [
-            726,
-            726
-          ],
-          [
-            736,
-            736
-          ],
-          [
-            753,
-            753
-          ],
-          [
-            759,
-            759
-          ],
-          [
-            780,
-            780
-          ],
-          [
-            809,
-            809
-          ],
-          [
-            811,
-            811
+            857,
+            857
           ]
         ],
         "tests": [
-          "test_hooks.test_a_windows_path_survives_masking_and_target_reading",
-          "test_hooks.test_bash_allows_excluding_a_directory_from_an_archive",
-          "test_hooks.test_bash_blocks_archive_then_delete_whatever_the_option_order",
-          "test_hooks.test_bash_looks_inside_eval",
-          "test_hooks.test_bash_reads_metacharacters_inside_quotes_as_text",
-          "test_hooks.test_bash_resolves_a_relative_redirect_against_the_cd_beside_it",
-          "test_hooks.test_bash_still_blocks_extraction_named_the_long_way",
-          "test_hooks.test_bash_still_sees_a_redirect_inside_a_nested_shell",
-          "test_hooks.test_every_guard_writes_its_reason_as_utf8",
-          "test_hooks.test_nested_commands_parse_under_windows_tokenization"
+          "test_hooks.test_bash_blocks_a_deletion_list_it_cannot_read",
+          "test_hooks.test_bash_blocks_archive_then_delete_reached_through_a_change_of_directory"
         ],
         "unexercised_functions": []
       },
-      "tests/test_score.py": {
-        "changed": 41,
-        "measured": 15,
-        "executed": 13,
+      "tests/test_interpreter_floor.py": {
+        "changed": 106,
+        "measured": 45,
+        "executed": 30,
         "unexercised_ranges": [
           [
-            280,
-            280
+            16,
+            17
           ],
           [
-            309,
-            309
+            19,
+            19
+          ],
+          [
+            21,
+            21
+          ],
+          [
+            25,
+            25
+          ],
+          [
+            27,
+            27
+          ],
+          [
+            30,
+            30
+          ],
+          [
+            47,
+            47
+          ],
+          [
+            52,
+            53
+          ],
+          [
+            59,
+            59
+          ],
+          [
+            64,
+            65
+          ],
+          [
+            86,
+            86
+          ],
+          [
+            95,
+            95
           ]
         ],
         "tests": [
-          "test_score.test_report_contains_row_with_alternatives",
-          "test_score.test_report_contains_row_without_alternatives_is_unchanged"
+          "test_interpreter_floor.test_new_style_unions_are_lazy",
+          "test_interpreter_floor.test_no_syntax_the_floor_cannot_parse",
+          "test_interpreter_floor.test_the_floor_is_written_down",
+          "test_interpreter_floor.test_the_test_can_fail"
+        ],
+        "unexercised_functions": []
+      },
+      "tests/test_verification.py": {
+        "changed": 60,
+        "measured": 31,
+        "executed": 30,
+        "unexercised_ranges": [
+          [
+            554,
+            554
+          ]
+        ],
+        "tests": [
+          "test_verification.test_a_stale_cache_planted_in_the_scratch_does_not_survive_the_run"
         ],
         "unexercised_functions": []
       }
     },
     "tests_touching_diff": [
-      "test_artifact_check.test_a_clean_finalize_has_nothing_to_report",
-      "test_artifact_check.test_a_history_row_that_does_not_carry_the_signed_link_is_named",
-      "test_artifact_check.test_a_missing_history_row_is_named",
-      "test_artifact_check.test_a_report_that_went_missing_is_named",
-      "test_artifact_check.test_an_index_row_dated_from_the_wrong_clock_is_named",
-      "test_artifact_check.test_an_index_row_naming_another_project_is_named",
-      "test_calibration.test_a_decided_outcome_sticks_when_the_finding_changes_state_again",
-      "test_calibration.test_a_finding_that_never_came_back_carries_no_marker",
-      "test_calibration.test_a_new_findings_first_seen_is_the_runs_own_utc_date",
-      "test_calibration.test_a_project_with_nothing_claimed_keeps_the_plain_table",
-      "test_calibration.test_a_regression_is_recorded_on_the_finding_and_carried",
-      "test_calibration.test_a_resolution_without_re_injection_settles_nothing",
-      "test_calibration.test_a_torn_write_cannot_leave_a_half_written_state",
-      "test_calibration.test_a_withdrawal_is_the_one_thing_that_refutes",
-      "test_calibration.test_a_withdrawal_overrides_an_earlier_confirmation",
-      "test_calibration.test_a_withdrawn_finding_stops_counting_as_open",
-      "test_calibration.test_a_withdrawn_finding_survives_a_run_that_does_not_mention_it",
-      "test_calibration.test_age_days_counts_from_the_runs_utc_date_too",
-      "test_calibration.test_an_unreadable_run_timestamp_falls_back_to_utc_now",
-      "test_calibration.test_confidence_cannot_be_revised_after_the_fact",
-      "test_calibration.test_confidence_survives_being_carried_forward_unmentioned",
-      "test_calibration.test_internal_keys_never_reach_the_written_state",
-      "test_calibration.test_merge_normalizes_status_so_downstream_counts_are_right",
-      "test_calibration.test_no_such_line_when_every_confirmation_carries_a_basis",
-      "test_calibration.test_no_unrecorded_footnote_when_every_confirmation_carries_a_basis",
-      "test_calibration.test_regression_confirms_a_finding_because_it_came_back",
-      "test_calibration.test_the_footnote_no_longer_says_the_opposite_of_the_rule",
-      "test_calibration.test_the_ledger_is_folded_once_not_twice",
-      "test_calibration.test_the_ledger_keeps_outcomes_after_findings_leave_state",
-      "test_calibration.test_the_model_cannot_mark_its_own_finding_correct",
-      "test_calibration.test_the_report_prints_how_many_of_the_confirmations_were_measured",
-      "test_calibration.test_the_report_says_how_many_confirmations_predate_the_basis",
-      "test_calibration.test_the_report_shows_counts_before_it_has_earned_a_rate",
-      "test_calibration.test_the_report_stays_silent_until_something_has_been_settled",
-      "test_calibration.test_the_unrecorded_footnote_counts_every_confirmation_not_the_biggest_row",
-      "test_diff_coverage.test_a_pass_over_a_change_no_test_executed_is_refused",
-      "test_diff_coverage.test_a_range_with_no_python_changes_measures_zero_honestly",
-      "test_diff_coverage.test_changed_lines_are_split_into_executed_and_unexercised",
-      "test_diff_coverage.test_measured_coverage_outranks_a_written_block",
-      "test_diff_coverage.test_the_report_reads_production_first",
-      "test_diff_coverage.test_without_a_command_it_is_unmeasurable_and_says_how",
-      "test_harness.test_a_correction_appended_after_a_rollback_outranks_the_row_it_corrects",
-      "test_harness.test_a_held_backlog_is_a_state_the_pipeline_will_write",
-      "test_harness.test_a_reworded_re_report_is_the_same_finding_not_a_new_one",
-      "test_harness.test_a_scoped_run_does_not_resolve_the_backlog_it_never_looked_at",
-      "test_harness.test_a_stale_bytecode_cache_can_hide_a_change_and_the_sweep_removes_it",
-      "test_harness.test_a_state_whose_hashes_predate_the_harness_still_merges",
-      "test_harness.test_a_two_hour_old_retry_marker_is_not_described_as_minutes_old",
-      "test_harness.test_every_finalized_run_appends_one_machine_native_history_line",
-      "test_harness.test_fix_verification_runs_with_bytecode_writing_off"
+      "test_gate.test_drift_note_says_only_what_is_actionable",
+      "test_hooks.test_bash_blocks_a_deletion_list_it_cannot_read",
+      "test_hooks.test_bash_blocks_archive_then_delete_reached_through_a_change_of_directory",
+      "test_hooks.test_nested_commands_parse_under_windows_tokenization",
+      "test_hooks.test_nested_shell_parses_a_quote_wrapped_command",
+      "test_interpreter_floor.test_new_style_unions_are_lazy",
+      "test_interpreter_floor.test_no_syntax_the_floor_cannot_parse",
+      "test_interpreter_floor.test_the_floor_is_written_down",
+      "test_interpreter_floor.test_the_test_can_fail",
+      "test_verification.test_a_stale_cache_planted_in_the_scratch_does_not_survive_the_run"
     ],
     "unexercised_functions": []
   },
   "tests": {
-    "passed": 721,
-    "duration_s": 75.47,
-    "collected": 721
+    "passed": 758,
+    "duration_s": 76.11,
+    "collected": 758
   },
   "calibration": {
     "min_sample": 30,
-    "findings_tracked": 60,
-    "decided_outcomes": 41,
-    "undecided_outcomes": 19,
+    "findings_tracked": 68,
+    "decided_outcomes": 43,
+    "undecided_outcomes": 25,
     "by_confidence": {
       "proven": {
-        "confirmed": 37,
+        "confirmed": 39,
         "confirmed_measured": 0,
-        "confirmed_claimed": 20,
+        "confirmed_claimed": 22,
         "refuted": 0,
-        "unknown": 18,
-        "decided": 37,
+        "unknown": 23,
+        "decided": 39,
         "precision": 1.0,
-        "reading": "37 of 37 held up (0 measured, 20 on the tester's word)"
+        "reading": "39 of 39 held up (0 measured, 22 on the tester's word)"
       },
       "unstated": {
         "confirmed": 3,
@@ -925,13 +862,34 @@
         "confirmed_measured": 0,
         "confirmed_claimed": 0,
         "refuted": 0,
-        "unknown": 0,
+        "unknown": 1,
         "decided": 1,
         "precision": null,
         "reading": "1 of 1 decided so far \u2014 too few for a rate (needs 30)"
       }
     },
-    "by_proof_method": {},
+    "by_proof_method": {
+      "counterfactual": {
+        "confirmed": 0,
+        "confirmed_measured": 0,
+        "confirmed_claimed": 0,
+        "refuted": 0,
+        "unknown": 4,
+        "decided": 0,
+        "precision": null,
+        "reading": "0 of 0 decided so far \u2014 too few for a rate (needs 30)"
+      },
+      "differential": {
+        "confirmed": 0,
+        "confirmed_measured": 0,
+        "confirmed_claimed": 0,
+        "refuted": 0,
+        "unknown": 2,
+        "decided": 0,
+        "precision": null,
+        "reading": "0 of 0 decided so far \u2014 too few for a rate (needs 30)"
+      }
+    },
     "caveats": [
       "`confirmed` means fix-verified or regressed; it therefore tracks which findings held up under a check, not correctness in the abstract",
       "still-open findings are undecided on purpose and are excluded from every rate rather than guessed at",
@@ -941,41 +899,47 @@
   },
   "test_ids": {
     "status": "measured",
-    "count": 721,
-    "added_count": 31,
+    "count": 758,
+    "added_count": 37,
     "removed_count": 0,
     "added": [
-      "tests/test_calibration.py::test_a_new_findings_first_seen_is_the_runs_own_utc_date",
-      "tests/test_calibration.py::test_age_days_counts_from_the_runs_utc_date_too",
-      "tests/test_calibration.py::test_an_unreadable_run_timestamp_falls_back_to_utc_now",
-      "tests/test_calibration.py::test_no_unrecorded_footnote_when_every_confirmation_carries_a_basis",
-      "tests/test_calibration.py::test_the_unrecorded_footnote_counts_every_confirmation_not_the_biggest_row",
-      "tests/test_corpus.py::test_corpus_entry_still_scores_full[f50-cause]",
-      "tests/test_harness.py::test_a_stale_bytecode_cache_can_hide_a_change_and_the_sweep_removes_it",
-      "tests/test_harness.py::test_a_two_hour_old_retry_marker_is_not_described_as_minutes_old",
-      "tests/test_harness.py::test_fix_verification_runs_with_bytecode_writing_off",
-      "tests/test_harness.py::test_the_retry_marker_says_the_age_it_recorded[0.0-seconds ago-minute]",
-      "tests/test_harness.py::test_the_retry_marker_says_the_age_it_recorded[0.05-3 minutes ago-hour]",
-      "tests/test_harness.py::test_the_retry_marker_says_the_age_it_recorded[0.75-45 minutes ago-hour]",
-      "tests/test_harness.py::test_the_retry_marker_says_the_age_it_recorded[2.01-2.0 hours ago-minute]",
-      "tests/test_harness.py::test_the_retry_marker_says_the_age_it_recorded[5.9-5.9 hours ago-minute]",
-      "tests/test_hooks.py::test_a_windows_path_survives_masking_and_target_reading",
-      "tests/test_hooks.py::test_bash_allows_excluding_a_directory_from_an_archive",
-      "tests/test_hooks.py::test_bash_blocks_archive_then_delete_whatever_the_option_order",
-      "tests/test_hooks.py::test_bash_looks_inside_eval",
-      "tests/test_hooks.py::test_bash_reads_metacharacters_inside_quotes_as_text",
-      "tests/test_hooks.py::test_bash_resolves_a_relative_redirect_against_the_cd_beside_it",
-      "tests/test_hooks.py::test_bash_still_blocks_extraction_named_the_long_way",
-      "tests/test_hooks.py::test_bash_still_sees_a_redirect_inside_a_nested_shell",
-      "tests/test_hooks.py::test_every_guard_writes_its_reason_as_utf8[enforce_bash_scope.py]",
-      "tests/test_hooks.py::test_every_guard_writes_its_reason_as_utf8[enforce_run_contract.py]",
-      "tests/test_hooks.py::test_every_guard_writes_its_reason_as_utf8[enforce_write_scope.py]",
-      "tests/test_hooks.py::test_nested_commands_parse_under_windows_tokenization[bash -c \"echo hi > {repo}/src/pwned.py\"-output redirection]",
-      "tests/test_hooks.py::test_nested_commands_parse_under_windows_tokenization[bash -c \"rm -rf {repo}/src\"-rm]",
-      "tests/test_hooks.py::test_nested_commands_parse_under_windows_tokenization[eval \"echo hi > {repo}/src/pwned.py\"-output redirection]",
-      "tests/test_hooks.py::test_nested_commands_parse_under_windows_tokenization[eval \"rm -rf {repo}/src\"-rm]",
-      "tests/test_score.py::test_report_contains_row_with_alternatives",
-      "tests/test_score.py::test_report_contains_row_without_alternatives_is_unchanged"
+      "tests/test_hooks.py::test_bash_blocks_a_deletion_list_it_cannot_read",
+      "tests/test_hooks.py::test_bash_blocks_archive_then_delete_reached_through_a_change_of_directory",
+      "tests/test_interpreter_floor.py::test_new_style_unions_are_lazy[__init__.py]",
+      "tests/test_interpreter_floor.py::test_new_style_unions_are_lazy[census.py]",
+      "tests/test_interpreter_floor.py::test_new_style_unions_are_lazy[enforce_bash_scope.py]",
+      "tests/test_interpreter_floor.py::test_new_style_unions_are_lazy[enforce_run_contract.py]",
+      "tests/test_interpreter_floor.py::test_new_style_unions_are_lazy[enforce_write_scope.py]",
+      "tests/test_interpreter_floor.py::test_new_style_unions_are_lazy[gate.py]",
+      "tests/test_interpreter_floor.py::test_new_style_unions_are_lazy[harness.py]",
+      "tests/test_interpreter_floor.py::test_new_style_unions_are_lazy[issues.py]",
+      "tests/test_interpreter_floor.py::test_new_style_unions_are_lazy[profile.py]",
+      "tests/test_interpreter_floor.py::test_new_style_unions_are_lazy[project_key.py]",
+      "tests/test_interpreter_floor.py::test_new_style_unions_are_lazy[qa_paths.py]",
+      "tests/test_interpreter_floor.py::test_new_style_unions_are_lazy[report_open_findings.py]",
+      "tests/test_interpreter_floor.py::test_new_style_unions_are_lazy[runner.py]",
+      "tests/test_interpreter_floor.py::test_new_style_unions_are_lazy[server.py]",
+      "tests/test_interpreter_floor.py::test_new_style_unions_are_lazy[state.py]",
+      "tests/test_interpreter_floor.py::test_new_style_unions_are_lazy[validate.py]",
+      "tests/test_interpreter_floor.py::test_no_syntax_the_floor_cannot_parse[__init__.py]",
+      "tests/test_interpreter_floor.py::test_no_syntax_the_floor_cannot_parse[census.py]",
+      "tests/test_interpreter_floor.py::test_no_syntax_the_floor_cannot_parse[enforce_bash_scope.py]",
+      "tests/test_interpreter_floor.py::test_no_syntax_the_floor_cannot_parse[enforce_run_contract.py]",
+      "tests/test_interpreter_floor.py::test_no_syntax_the_floor_cannot_parse[enforce_write_scope.py]",
+      "tests/test_interpreter_floor.py::test_no_syntax_the_floor_cannot_parse[gate.py]",
+      "tests/test_interpreter_floor.py::test_no_syntax_the_floor_cannot_parse[harness.py]",
+      "tests/test_interpreter_floor.py::test_no_syntax_the_floor_cannot_parse[issues.py]",
+      "tests/test_interpreter_floor.py::test_no_syntax_the_floor_cannot_parse[profile.py]",
+      "tests/test_interpreter_floor.py::test_no_syntax_the_floor_cannot_parse[project_key.py]",
+      "tests/test_interpreter_floor.py::test_no_syntax_the_floor_cannot_parse[qa_paths.py]",
+      "tests/test_interpreter_floor.py::test_no_syntax_the_floor_cannot_parse[report_open_findings.py]",
+      "tests/test_interpreter_floor.py::test_no_syntax_the_floor_cannot_parse[runner.py]",
+      "tests/test_interpreter_floor.py::test_no_syntax_the_floor_cannot_parse[server.py]",
+      "tests/test_interpreter_floor.py::test_no_syntax_the_floor_cannot_parse[state.py]",
+      "tests/test_interpreter_floor.py::test_no_syntax_the_floor_cannot_parse[validate.py]",
+      "tests/test_interpreter_floor.py::test_the_floor_is_written_down",
+      "tests/test_interpreter_floor.py::test_the_test_can_fail",
+      "tests/test_verification.py::test_a_stale_cache_planted_in_the_scratch_does_not_survive_the_run"
     ],
     "removed": [],
     "truncated": false,

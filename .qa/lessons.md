@@ -200,3 +200,32 @@ Discriminator: control the instrument by running the unmutated tree through the
 identical command first and asserting it PASSES with a countable summary — not
 just that the tree is healthy. `rc != 0` also means "usage error", "no such
 file", "collection error"; only a parsed summary tells those apart from a kill.
+
+## 2026-09-03 (run 12) — a parser fix verified against its mechanism, while the symptom stayed live
+
+VERDICT-F-42 was "every token containing `f` is treated as taking an argument, so
+`--remove-files` is swallowed and the deletion goes unseen". 0.74.0 replaced the
+substring match with a per-letter walk, three tests were written, run 11 marked it
+RESOLVED and fix-verified by re-injection, and the re-injection was honest: the
+substring mechanism really is gone. The symptom is not. `tar -cf<archive>
+--remove-files hooks` — the value attached to the letter rather than in the next
+token — makes `f` swallow `--remove-files` again, and the guard allows a command
+that real GNU tar 1.35 executes with exit 0 while deleting the checkout's directory.
+Discriminator: when the fix is to a PARSER, re-injecting the named mechanism proves
+that mechanism is gone and nothing more. A parser has more than one way to mis-read
+the same token, so the acceptance evidence has to be the token's forms — attached,
+separated, bundled, abbreviated, old-style — not the one form the finding quoted.
+Filed as VERDICT-F-62; F-42 stays resolved, because its mechanism genuinely is.
+
+## 2026-09-03 (run 12) — a 100% kill rate over a rule that is wrong
+
+`eval/pin_check.py` reported 32 of 32 killed, and the number reproduces from a clean
+tree. Entry 30 is "F-56: tar operands stop being read relative to -C" — KILLED, so a
+test does watch that line. The same afternoon proved the line is bypassable five
+ways. Mutation testing answers "would a test notice if this changed"; it cannot
+answer "is this right", and a headline kill rate published beside a release's fix
+list invites the reader to take the second meaning.
+Discriminator: before reading a kill rate as evidence a fix holds, ask what the
+mutant would have to break for a test to fail — if the answer is "the line as
+written", the rate measures the test's grip on the author's model, not the model.
+Filed as VERDICT-F-65.
