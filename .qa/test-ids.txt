@@ -1,3 +1,22 @@
+tests/test_accept.py::test_a_revoked_acceptance_reopens_the_finding_at_the_next_run
+tests/test_accept.py::test_accept_refuses_a_duplicate_and_revoke_reverses_it
+tests/test_accept.py::test_accept_refuses_an_unknown_or_closed_finding
+tests/test_accept.py::test_accept_refuses_without_a_real_citation_or_reason
+tests/test_accept.py::test_accept_writes_the_ledger_and_the_finding_leaves_the_open_counts
+tests/test_accept.py::test_accepted_findings_do_not_count_toward_the_silence_guardrail
+tests/test_accept.py::test_an_accepted_critical_does_not_block_a_pass
+tests/test_accept.py::test_finalize_folds_the_ledger_whatever_the_tester_says
+tests/test_accept.py::test_list_prints_the_ledger
+tests/test_accept.py::test_no_state_is_exit_4
+tests/test_accept.py::test_state_requires_a_citation_on_an_accepted_finding
+tests/test_accept.py::test_the_banner_counts_accepted_risks_apart
+tests/test_accept.py::test_the_gate_keeps_an_accepted_finding_out_of_the_open_list
+tests/test_accept.py::test_the_guards_refuse_the_ledger_to_the_tester
+tests/test_accept.py::test_the_mcp_server_serves_accepted_apart
+tests/test_accept.py::test_the_report_lists_accepted_risks_apart
+tests/test_accept.py::test_the_tester_cannot_write_the_status
+tests/test_accept.py::test_the_track_record_counts_an_acceptance_apart
+tests/test_accept.py::test_verdict_issues_does_not_file_an_accepted_finding
 tests/test_agent_contract.py::test_every_command_it_names_is_shipped
 tests/test_agent_contract.py::test_every_console_script_it_names_is_declared
 tests/test_agent_contract.py::test_every_delta_the_harness_computes_is_explained
@@ -462,12 +481,53 @@ tests/test_hooks.py::test_bash_still_sees_a_redirect_inside_a_nested_shell
 tests/test_hooks.py::test_every_guard_writes_its_reason_as_utf8[enforce_bash_scope.py]
 tests/test_hooks.py::test_every_guard_writes_its_reason_as_utf8[enforce_run_contract.py]
 tests/test_hooks.py::test_every_guard_writes_its_reason_as_utf8[enforce_write_scope.py]
+tests/test_hooks.py::test_extraction_into_scratch_is_allowed_from_inside_the_checkout
 tests/test_hooks.py::test_nested_commands_parse_under_windows_tokenization[bash -c "echo hi > {repo}/src/pwned.py"-output redirection]
 tests/test_hooks.py::test_nested_commands_parse_under_windows_tokenization[bash -c "rm -rf {repo}/src"-rm]
 tests/test_hooks.py::test_nested_commands_parse_under_windows_tokenization[eval "echo hi > {repo}/src/pwned.py"-output redirection]
 tests/test_hooks.py::test_nested_commands_parse_under_windows_tokenization[eval "rm -rf {repo}/src"-rm]
 tests/test_hooks.py::test_nested_shell_parses_a_quote_wrapped_command
 tests/test_hooks.py::test_nested_shell_recursion_is_bounded
+tests/test_hooks.py::test_real_tar_still_behaves_the_way_this_matrix_claims[-c --remove-files -f {scratch}/x.tar {repo}/hooks]
+tests/test_hooks.py::test_real_tar_still_behaves_the_way_this_matrix_claims[-cf {scratch}/x.tar --remove-files -- -C {repo}/hooks]
+tests/test_hooks.py::test_real_tar_still_behaves_the_way_this_matrix_claims[-cf {scratch}/x.tar --remove-files -- {repo}/hooks]
+tests/test_hooks.py::test_real_tar_still_behaves_the_way_this_matrix_claims[-cf {scratch}/x.tar --remove-files --directory={repo} hooks]
+tests/test_hooks.py::test_real_tar_still_behaves_the_way_this_matrix_claims[-cf {scratch}/x.tar --remove-files --exclude {repo}/src {scratch}/junk]
+tests/test_hooks.py::test_real_tar_still_behaves_the_way_this_matrix_claims[-cf {scratch}/x.tar --remove-files -C {repo} hooks -C {scratch} junk]
+tests/test_hooks.py::test_real_tar_still_behaves_the_way_this_matrix_claims[-cf {scratch}/x.tar --remove-files -C {repo} hooks]
+tests/test_hooks.py::test_real_tar_still_behaves_the_way_this_matrix_claims[-cf {scratch}/x.tar --remove-files -C {root} -C repo hooks]
+tests/test_hooks.py::test_real_tar_still_behaves_the_way_this_matrix_claims[-cf {scratch}/x.tar --remove-files -C {root}/repo -C ../scratch junk]
+tests/test_hooks.py::test_real_tar_still_behaves_the_way_this_matrix_claims[-cf {scratch}/x.tar --remove-files -C {scratch} junk -C {repo} hooks]
+tests/test_hooks.py::test_real_tar_still_behaves_the_way_this_matrix_claims[-cf {scratch}/x.tar --remove-files -C {scratch} junk]
+tests/test_hooks.py::test_real_tar_still_behaves_the_way_this_matrix_claims[-cf {scratch}/x.tar --remove-files -C{repo} hooks]
+tests/test_hooks.py::test_real_tar_still_behaves_the_way_this_matrix_claims[-cf {scratch}/x.tar --remove-files {repo}/hooks]
+tests/test_hooks.py::test_real_tar_still_behaves_the_way_this_matrix_claims[-cf {scratch}/x.tar {repo}/src]
+tests/test_hooks.py::test_real_tar_still_behaves_the_way_this_matrix_claims[-cf{scratch}/x.tar --remove-files -C {repo} hooks]
+tests/test_hooks.py::test_real_tar_still_behaves_the_way_this_matrix_claims[-cf{scratch}/x.tar --remove-files -C{scratch} junk]
+tests/test_hooks.py::test_real_tar_still_behaves_the_way_this_matrix_claims[-cf{scratch}/x.tar --remove-files {repo}/hooks]
+tests/test_hooks.py::test_real_tar_still_behaves_the_way_this_matrix_claims[-czf {scratch}/x.tgz {repo}/src]
+tests/test_hooks.py::test_the_guard_agrees_with_the_tar_that_would_run[-c --remove-files -f {scratch}/x.tar {repo}/hooks]
+tests/test_hooks.py::test_the_guard_agrees_with_the_tar_that_would_run[-cf {scratch}/x.tar --remove-files -- -C {repo}/hooks]
+tests/test_hooks.py::test_the_guard_agrees_with_the_tar_that_would_run[-cf {scratch}/x.tar --remove-files -- {repo}/hooks]
+tests/test_hooks.py::test_the_guard_agrees_with_the_tar_that_would_run[-cf {scratch}/x.tar --remove-files --directory={repo} hooks]
+tests/test_hooks.py::test_the_guard_agrees_with_the_tar_that_would_run[-cf {scratch}/x.tar --remove-files --exclude {repo}/src {scratch}/junk]
+tests/test_hooks.py::test_the_guard_agrees_with_the_tar_that_would_run[-cf {scratch}/x.tar --remove-files -C {repo} hooks -C {scratch} junk]
+tests/test_hooks.py::test_the_guard_agrees_with_the_tar_that_would_run[-cf {scratch}/x.tar --remove-files -C {repo} hooks]
+tests/test_hooks.py::test_the_guard_agrees_with_the_tar_that_would_run[-cf {scratch}/x.tar --remove-files -C {root} -C repo hooks]
+tests/test_hooks.py::test_the_guard_agrees_with_the_tar_that_would_run[-cf {scratch}/x.tar --remove-files -C {root}/repo -C ../scratch junk]
+tests/test_hooks.py::test_the_guard_agrees_with_the_tar_that_would_run[-cf {scratch}/x.tar --remove-files -C {scratch} junk -C {repo} hooks]
+tests/test_hooks.py::test_the_guard_agrees_with_the_tar_that_would_run[-cf {scratch}/x.tar --remove-files -C {scratch} junk]
+tests/test_hooks.py::test_the_guard_agrees_with_the_tar_that_would_run[-cf {scratch}/x.tar --remove-files -C{repo} hooks]
+tests/test_hooks.py::test_the_guard_agrees_with_the_tar_that_would_run[-cf {scratch}/x.tar --remove-files {repo}/hooks]
+tests/test_hooks.py::test_the_guard_agrees_with_the_tar_that_would_run[-cf {scratch}/x.tar {repo}/src]
+tests/test_hooks.py::test_the_guard_agrees_with_the_tar_that_would_run[-cf{scratch}/x.tar --remove-files -C {repo} hooks]
+tests/test_hooks.py::test_the_guard_agrees_with_the_tar_that_would_run[-cf{scratch}/x.tar --remove-files -C{scratch} junk]
+tests/test_hooks.py::test_the_guard_agrees_with_the_tar_that_would_run[-cf{scratch}/x.tar --remove-files {repo}/hooks]
+tests/test_hooks.py::test_the_guard_agrees_with_the_tar_that_would_run[-czf {scratch}/x.tgz {repo}/src]
+tests/test_hooks.py::test_the_tar_rules_reach_every_spelling_of_tar[/opt/homebrew/bin/gtar]
+tests/test_hooks.py::test_the_tar_rules_reach_every_spelling_of_tar[/usr/bin/tar]
+tests/test_hooks.py::test_the_tar_rules_reach_every_spelling_of_tar[bsdtar]
+tests/test_hooks.py::test_the_tar_rules_reach_every_spelling_of_tar[gtar]
 tests/test_hooks.py::test_write_allows_default_solo_root_in_strict
 tests/test_hooks.py::test_write_allows_outside_when_not_strict_and_caller_unknown
 tests/test_hooks.py::test_write_allows_team_qa_in_strict
@@ -479,38 +539,53 @@ tests/test_hooks.py::test_write_blocks_symlink_escape_from_inside_qa
 tests/test_hooks.py::test_write_fails_open_on_malformed_input
 tests/test_hooks.py::test_write_honors_verdict_home
 tests/test_interpreter_floor.py::test_new_style_unions_are_lazy[__init__.py]
+tests/test_interpreter_floor.py::test_new_style_unions_are_lazy[accept.py]
 tests/test_interpreter_floor.py::test_new_style_unions_are_lazy[census.py]
 tests/test_interpreter_floor.py::test_new_style_unions_are_lazy[enforce_bash_scope.py]
 tests/test_interpreter_floor.py::test_new_style_unions_are_lazy[enforce_run_contract.py]
 tests/test_interpreter_floor.py::test_new_style_unions_are_lazy[enforce_write_scope.py]
+tests/test_interpreter_floor.py::test_new_style_unions_are_lazy[fixture_freshness.py]
 tests/test_interpreter_floor.py::test_new_style_unions_are_lazy[gate.py]
 tests/test_interpreter_floor.py::test_new_style_unions_are_lazy[harness.py]
 tests/test_interpreter_floor.py::test_new_style_unions_are_lazy[issues.py]
+tests/test_interpreter_floor.py::test_new_style_unions_are_lazy[mutate.py]
+tests/test_interpreter_floor.py::test_new_style_unions_are_lazy[pin_check.py]
 tests/test_interpreter_floor.py::test_new_style_unions_are_lazy[profile.py]
 tests/test_interpreter_floor.py::test_new_style_unions_are_lazy[project_key.py]
 tests/test_interpreter_floor.py::test_new_style_unions_are_lazy[qa_paths.py]
 tests/test_interpreter_floor.py::test_new_style_unions_are_lazy[report_open_findings.py]
+tests/test_interpreter_floor.py::test_new_style_unions_are_lazy[run_eval.py]
+tests/test_interpreter_floor.py::test_new_style_unions_are_lazy[run_mutation.py]
 tests/test_interpreter_floor.py::test_new_style_unions_are_lazy[runner.py]
+tests/test_interpreter_floor.py::test_new_style_unions_are_lazy[score.py]
 tests/test_interpreter_floor.py::test_new_style_unions_are_lazy[server.py]
 tests/test_interpreter_floor.py::test_new_style_unions_are_lazy[state.py]
 tests/test_interpreter_floor.py::test_new_style_unions_are_lazy[validate.py]
 tests/test_interpreter_floor.py::test_no_syntax_the_floor_cannot_parse[__init__.py]
+tests/test_interpreter_floor.py::test_no_syntax_the_floor_cannot_parse[accept.py]
 tests/test_interpreter_floor.py::test_no_syntax_the_floor_cannot_parse[census.py]
 tests/test_interpreter_floor.py::test_no_syntax_the_floor_cannot_parse[enforce_bash_scope.py]
 tests/test_interpreter_floor.py::test_no_syntax_the_floor_cannot_parse[enforce_run_contract.py]
 tests/test_interpreter_floor.py::test_no_syntax_the_floor_cannot_parse[enforce_write_scope.py]
+tests/test_interpreter_floor.py::test_no_syntax_the_floor_cannot_parse[fixture_freshness.py]
 tests/test_interpreter_floor.py::test_no_syntax_the_floor_cannot_parse[gate.py]
 tests/test_interpreter_floor.py::test_no_syntax_the_floor_cannot_parse[harness.py]
 tests/test_interpreter_floor.py::test_no_syntax_the_floor_cannot_parse[issues.py]
+tests/test_interpreter_floor.py::test_no_syntax_the_floor_cannot_parse[mutate.py]
+tests/test_interpreter_floor.py::test_no_syntax_the_floor_cannot_parse[pin_check.py]
 tests/test_interpreter_floor.py::test_no_syntax_the_floor_cannot_parse[profile.py]
 tests/test_interpreter_floor.py::test_no_syntax_the_floor_cannot_parse[project_key.py]
 tests/test_interpreter_floor.py::test_no_syntax_the_floor_cannot_parse[qa_paths.py]
 tests/test_interpreter_floor.py::test_no_syntax_the_floor_cannot_parse[report_open_findings.py]
+tests/test_interpreter_floor.py::test_no_syntax_the_floor_cannot_parse[run_eval.py]
+tests/test_interpreter_floor.py::test_no_syntax_the_floor_cannot_parse[run_mutation.py]
 tests/test_interpreter_floor.py::test_no_syntax_the_floor_cannot_parse[runner.py]
+tests/test_interpreter_floor.py::test_no_syntax_the_floor_cannot_parse[score.py]
 tests/test_interpreter_floor.py::test_no_syntax_the_floor_cannot_parse[server.py]
 tests/test_interpreter_floor.py::test_no_syntax_the_floor_cannot_parse[state.py]
 tests/test_interpreter_floor.py::test_no_syntax_the_floor_cannot_parse[validate.py]
 tests/test_interpreter_floor.py::test_the_floor_is_written_down
+tests/test_interpreter_floor.py::test_the_future_import_detector_reads_the_statement_not_the_text
 tests/test_interpreter_floor.py::test_the_test_can_fail
 tests/test_issues.py::test_a_finding_that_came_back_is_filed_again
 tests/test_issues.py::test_a_finding_that_merely_stayed_open_is_not_refiled
@@ -567,6 +642,15 @@ tests/test_mutate.py::test_mutants_keep_the_file_parseable
 tests/test_mutate.py::test_the_base_must_be_green_before_anything_is_broken
 tests/test_mutate.py::test_the_oracle_reports_its_own_blind_spots
 tests/test_mutate.py::test_the_probe_fingerprints_the_module_not_its_source
+tests/test_pin_check.py::test_a_collection_error_is_not_a_kill
+tests/test_pin_check.py::test_a_failed_test_is_a_kill
+tests/test_pin_check.py::test_a_failing_exit_without_a_summary_is_not_a_kill
+tests/test_pin_check.py::test_a_green_suite_is_a_survivor
+tests/test_pin_check.py::test_a_usage_error_is_not_a_kill
+tests/test_pin_check.py::test_an_errored_test_is_a_kill
+tests/test_pin_check.py::test_no_tests_ran_is_not_a_kill
+tests/test_pin_check.py::test_only_the_final_summary_line_counts
+tests/test_pin_check.py::test_the_readme_badge_states_the_catalogue_size
 tests/test_profile.py::test_a_broken_profile_stops_the_run_instead_of_measuring_nothing
 tests/test_profile.py::test_a_file_with_no_block_is_not_an_error
 tests/test_profile.py::test_a_missing_profile_is_reported_and_is_not_fatal
@@ -589,6 +673,11 @@ tests/test_project_key.py::test_non_git_directory_falls_back_to_basename
 tests/test_project_key.py::test_normal_repo_uses_lowercased_basename
 tests/test_project_key.py::test_sanitize
 tests/test_project_key.py::test_subdirectory_of_repo_resolves_to_repo_key
+tests/test_release_notes.py::test_a_version_without_a_section_is_refused
+tests/test_release_notes.py::test_every_tag_shaped_heading_parses
+tests/test_release_notes.py::test_the_body_stops_at_the_next_heading
+tests/test_release_notes.py::test_the_cli_prints_body_or_title
+tests/test_release_notes.py::test_the_newest_changelog_entry_is_readable
 tests/test_runner.py::test_a_bare_checkout_is_provisioned_and_launched_headless
 tests/test_runner.py::test_a_completed_run_gates_green_with_the_model_measured
 tests/test_runner.py::test_a_session_that_writes_no_state_exits_5_not_yesterdays_verdict
@@ -732,7 +821,7 @@ tests/test_verification.py::test_a_fix_is_verified_when_the_cited_test_fails_bef
 tests/test_verification.py::test_a_measured_fix_still_reads_as_verified
 tests/test_verification.py::test_a_missing_previous_commit_still_measures_head
 tests/test_verification.py::test_a_node_id_scraped_from_prose_is_never_run
-tests/test_verification.py::test_a_prose_pick_among_several_may_not_refuse_a_resolution
+tests/test_verification.py::test_a_prose_pick_among_several_is_not_run_at_all
 tests/test_verification.py::test_a_regression_test_appended_to_an_existing_file_verifies
 tests/test_verification.py::test_a_regression_test_that_lands_with_its_fixture_verifies
 tests/test_verification.py::test_a_resolution_is_refused_while_the_cited_test_still_fails
@@ -756,3 +845,6 @@ tests/test_verification.py::test_the_report_counts_the_measurement_not_the_claim
 tests/test_verification.py::test_verification_is_bounded
 tests/test_verification.py::test_without_a_ledger_a_citation_is_still_tried
 tests/test_verification.py::test_without_test_one_cmd_nothing_runs_and_the_note_says_how
+tests/test_versions.py::test_the_check_can_fail
+tests/test_versions.py::test_the_three_manifests_carry_one_version
+tests/test_versions.py::test_the_version_is_a_release_number

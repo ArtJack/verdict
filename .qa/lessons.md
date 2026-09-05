@@ -229,3 +229,24 @@ Discriminator: before reading a kill rate as evidence a fix holds, ask what the
 mutant would have to break for a test to fail — if the answer is "the line as
 written", the rate measures the test's grip on the author's model, not the model.
 Filed as VERDICT-F-65.
+
+## 2026-09-05 (run 13) — a matrix of spellings cannot find a rule that was never written
+
+Run 12 asked for the tar guard to be proved by matrix: {-C before/after/twice/
+attached/abbreviated} x {-f separated/attached} x {DENY owed, ALLOW that must
+survive}. 0.76.0 built exactly that — nineteen shapes, half of them run against
+real GNU tar — and it worked: all five of run 12's orderings are closed and
+fix-verified. Two more bypasses were sitting inside the matrix's own blind spot.
+Every cell varied WHERE THE DELETION LANDS, because that was the effect the last
+five findings had in common. Neither new one has a deletion target: `tar -cf
+<checkout>/hooks/a.py` overwrites a tracked file through the archive
+destination the handler explicitly declines to check, and `--direc <checkout>`
+loses its value in a parser that matches long options exactly while the handler
+beside it matches them by prefix.
+Discriminator: a matrix is indexed by the axes of the defects you already have,
+so it can only re-find their family. Before accepting one as coverage, enumerate
+the command's EFFECTS from its own manual — what does it write, what does it
+delete, where does each path come from, including the paths that arrive as
+option values — and check that every effect has at least one row. An axis with
+no row is not a gap in the matrix; it is a rule nobody wrote.
+Filed as VERDICT-F-70 and VERDICT-F-71.
