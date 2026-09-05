@@ -354,6 +354,21 @@ def cited_tests(finding: dict, known=None, preferred=None) -> list[str]:
     return first + rest
 
 
+def _chosen(rec) -> bool:
+    """Was the test somebody's choice, or a mention?
+
+    `explicit` is the tester's own citation and `added_this_run` is the
+    collector seeing the test for the first time — what a fix's regression
+    test looks like. A `first_cited` pick is a pytest id that happened to be
+    quoted in the finding's prose, which can be another finding's test
+    entirely: run 12 verified F-26 against an id quoted from F-50's evidence.
+    Refusing a resolution may rest on such a pick, because a finding held open
+    costs a re-read; confirming one may not, because a confirmed row is a
+    permanent grade (VERDICT-F-72).
+    """
+    return isinstance(rec, dict) and rec.get("selected_by") in ("explicit", "added_this_run")
+
+
 def select_test(finding: dict, tests: list, preferred=None) -> tuple:
     """(test id, how it was chosen). `explicit` and `added_this_run` are
     reasons to believe this test guards this finding; `first_cited` is only a
@@ -611,6 +626,11 @@ def verify_findings(repo: Path, previous: dict | None, test_one_cmd: str | None,
     finally:
         if scratch is not None:
             _remove_scratch(repo, scratch)
+    prose = [fid for fid, rec in results.items() if rec.get("selected_by") == "first_cited"]
+    if prose:
+        notes.append(f"{len(prose)} finding(s) verified on a test cited only in prose "
+                     f"({', '.join(prose[:5])}): a fail→pass there is recorded, not "
+                     "confirmed — declare `verification_test` to make a confirmation count")
     return results, notes
 
 
@@ -629,17 +649,12 @@ def _apply_verification(entry: dict, prior: dict | None, verification: dict) -> 
         return
     entry["verification"] = rec
     resolving = entry.get("delta") == "RESOLVED"
-    # Refusing a resolution is the strongest thing a measurement does here, and
-    # it may only rest on a test somebody chose. `first_cited` among several
-    # candidates is prose order, not a citation: on run 7 the harness picked a
-    # non-guarding test for every finding it verified (VERDICT-F-26). The
-    # measurement is still recorded; it just does not overrule the tester.
-    arbitrary = rec.get("selected_by") == "first_cited" and (rec.get("candidates") or 1) > 1
-    if rec.get("at_head") == "fail" and arbitrary:
-        rec["not_weighed"] = ("chosen by prose order from "
-                              f"{rec['candidates']} cited tests — too weak to refuse a "
-                              "resolution; cite `verification_test` to make it count")
-        return
+    # Two directions, two bars. A pick among several prose citations no longer
+    # reaches here at all — `verify_findings` reports it `unselectable` and
+    # runs nothing (VERDICT-F-26) — so the record below rests on one cited
+    # test or on a chosen one. Refusing is the conservative direction: a
+    # finding held open costs a re-read, so a single cited test that fails on
+    # the code under judgment may refuse, whatever chose it.
     if rec.get("at_head") == "fail":
         if resolving:
             entry["status"] = "open"
@@ -653,6 +668,17 @@ def _apply_verification(entry: dict, prior: dict | None, verification: dict) -> 
                                             "fails at HEAD — held open by measurement")
         return
     if resolving and rec.get("at_previous") == "fail" and rec.get("at_head") == "pass":
+        if not _chosen(rec):
+            # The flattering direction needs a chosen test. A pytest id merely
+            # quoted in a finding's prose wrote `fix_verified: true`, a
+            # "verification (measured)" evidence line and a confirmed row into
+            # the track record that grades the tester — the same pick that was
+            # already too weak to refuse with (VERDICT-F-72). Recorded, not
+            # weighed; `_stamp_outcome` reads the same mark.
+            rec["not_weighed"] = ("measured fail→pass on a test cited only in prose — a "
+                                  "confirmation must rest on a test somebody chose; declare "
+                                  "`verification_test` to make it count")
+            return
         entry["fix_verified"] = True
         sha7 = str(rec.get("previous_sha") or "")[:7]
         entry["evidence"] = [*(str(e) for e in (entry.get("evidence") or [])),
@@ -1243,7 +1269,10 @@ def _stamp_outcome(finding: dict, prior: dict | None = None) -> dict:
     # rather than adding them up as one integer (VERDICT-F-36).
     v = finding.get("verification")
     attempted = isinstance(v, dict)
-    shows_fix = attempted and v.get("at_previous") == "fail" and v.get("at_head") == "pass"
+    # …on a test somebody chose. A fail→pass on a test merely quoted in prose
+    # is recorded and settles nothing (VERDICT-F-72).
+    shows_fix = (attempted and v.get("at_previous") == "fail" and v.get("at_head") == "pass"
+                 and _chosen(v))
     # …but not one the harness itself declined to weigh. `_apply_verification`
     # stamps `not_weighed` on a test chosen by prose order from several
     # candidates and refuses to reopen the finding with it; reading the same
@@ -1332,6 +1361,12 @@ def _fold_accepted(entry: dict, ledger: dict | None) -> None:
         entry["delta"] = "ACCEPTED"
         entry["accepted"] = accepted_block(row)
         entry.pop("accepted_revoked", None)
+    elif status == "open":
+        # A judgment may not carry the maintainer's block, and one that does
+        # is stripped rather than folded: a tester could otherwise decorate
+        # its own finding with an acceptance nobody made, and the block would
+        # sit in the trust artifact verbatim (run 13, reported not filed).
+        entry.pop("accepted", None)
     elif status == "accepted":
         if in_force(row):
             entry["delta"] = "ACCEPTED"
@@ -2098,16 +2133,19 @@ def render_report(state: dict, prose: dict | None = None) -> str:
         # from the re-run, `delta` from merge.
         def _shows_fix(f):
             v = f["verification"]
-            return v.get("at_previous") == "fail" and v.get("at_head") == "pass"
+            return v.get("at_previous") == "fail" and v.get("at_head") == "pass" and _chosen(v)
         verified = sum(1 for f in measured if _shows_fix(f) and f.get("delta") == "RESOLVED")
         refused = sum(1 for f in measured if f.get("resolution_refused"))
         not_run = sum(1 for f in measured
                       if f["verification"].get("selected_by") == "unselectable")
+        prose_only = sum(1 for f in measured if f["verification"].get("not_weighed"))
         out.append(f"Fix verification: {verified} verified · {refused} refused (cited test "
                    f"still fails at HEAD) · {len(measured) - verified - refused - not_run} "
                    "measured but not verifiable"
                    + (f" · {not_run} not run (several tests cited in prose, none declared "
-                      "as `verification_test`)" if not_run else ""))
+                      "as `verification_test`)" if not_run else "")
+                   + (f" · {prose_only} measured on a prose citation only — recorded, not "
+                      "confirmed; declare `verification_test`" if prose_only else ""))
         unconfirmed = [str(f.get("id")) for f in measured
                        if f.get("fix_verified") is True and not _shows_fix(f)]
         if unconfirmed:

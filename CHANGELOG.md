@@ -3,6 +3,87 @@
 Plugin and `verdict-mcp` share one version line; `.claude-plugin/plugin.json` and
 `pyproject.toml` are bumped together.
 
+## 0.79.0 — 2026-09-05 · "measured before modelled, in both directions"
+
+Run 13 — the first run to render an accepted risk — judged three releases in
+one pass and filed four Majors. All four are closed here; the prompt is
+byte-identical.
+
+**VERDICT-F-70 — the archive tar writes is a write.** `_check_tar`'s own
+comment said the archive named by `-f` "is written, not removed" and never
+yielded it, so `tar -cf <checkout>/hooks/a.py -C <scratch> junk` turned a
+tracked source file into a tar archive with the guard's blessing — and did the
+same to the maintainer's `accepted.json`, which the same guard refuses to
+`cp`, `mv`, `tee`, `sed -i`, `>` and `>>`. Measured against GNU tar 1.35
+before a line was written: the archive path resolves against the shell's cwd
+wherever `-C` sits, the attached `-cf<path>` and `--file=` forms overwrite
+just the same, `-f -` is stdout and not a file. Every mode that is not
+extract, list or compare — create, append, update, concatenate, delete — now
+yields the archive as a target.
+
+**VERDICT-F-71 — an abbreviated option that takes a value takes it.** The
+parser matched `_TAR_LONG_WITH_ARG` exactly while the handler matched the same
+options by abbreviation, so `--direc <checkout>` was yielded valueless, the
+directory fell through as an operand, and an extraction into the checkout was
+reported against the shell's cwd. Every rung from `--dir` to `--director`
+allowed, only the two full spellings denied. `_tar_takes_value` reads any
+prefix of a value-taking option of three characters or more; a prefix tar
+itself calls ambiguous (`--fil`: `--file`, `--files-from`) makes tar refuse the
+whole command, so reading it as value-taking costs nothing. Both findings sit
+in `TAR_WRITE_SHAPES` twice: once asserting the guard, once running real tar
+and diffing the checkout.
+
+**VERDICT-F-72 — a confirmation needs a chosen test.** 0.77.0 stopped the
+harness *refusing* a resolution on a test picked by prose order, and stopped
+running such a pick at all. The flattering direction was untouched: a pytest
+id merely quoted in a finding's evidence — with one candidate, so no lottery —
+could still write `fix_verified: true`, a "verification (measured)" evidence
+line, and a `confirmed` / `measured` row into the track record that grades the
+tester. Run 12 had shown a quoted id can be another finding's test entirely.
+`fix_verified` and a measured confirmation now follow a fail→pass only when
+`selected_by` is `explicit` (the tester's own citation) or `added_this_run`
+(the collector saw the test for the first time: a fix's regression test). A
+single prose-cited test may still refuse — a finding held open costs a
+re-read; a confirmed row is permanent — and its fail→pass is recorded under
+`not_weighed`, counted apart in the report, and named in
+`verification_notes` with the field to declare. The dead `arbitrary` branch
+run 13 found is gone. Three tests that modelled the loop closing did so on a
+prose citation; they now declare the test, and a twin asserts the prose-only
+case measures and confirms nothing.
+
+**VERDICT-F-73 — the publisher is pinned and checksummed.** The registry job
+downloaded a third-party binary from a `releases/latest` URL with no checksum
+and ran it holding an OIDC identity, under `continue-on-error`. It is pinned
+to v1.8.1 and to the sha256 the registry publishes beside it
+(`registry_1.8.1_checksums.txt`, verified to match an independent download),
+`sha256sum -c` runs before the binary does, the job no longer swallows its own
+failure, and the PyPI wait fails instead of warning. `tests/test_release_workflow.py`
+reads the commands (not the comments) and refuses a `latest` URL, a missing or
+unchecked checksum, or a binary that runs before it is verified.
+
+**Also.** A judgment may no longer carry an `accepted` block — run 13 showed
+one passing `validate_judgment` and surviving `merge` verbatim, inert but a
+stray in the trust artifact — and `_fold_accepted` strips one from any open
+finding the ledger does not accept.
+
+**Measured.** Every rule above has its defect put back in
+`eval/pinned_mutants.json` (`0.79.0 S1`–`S9`, `--filter 0.79.0`): **9 of 9 killed
+by the whole suite**. The four entries whose anchors the parser change moved
+were re-anchored rather than left to read `STALE`, and the pinned-rules badge
+moved with the catalogue — its test refused the first pin check outright,
+because the suite must be green before a mutant means anything. One control
+survived its first version: a matrix row with sibling directories made "resolve
+against `-C`" and "resolve against the cwd" land on the same file, so the row
+was deepened until the two models disagreed.
+
+**Not in this release, on purpose.** F-74 (the `trigger-separated-from-cause`
+eval row scores a bare word) is scorer work owed to the eval; F-58 and the
+one-sentence `accepted` teaching remain the queued, eval-paid prompt release;
+F-60/F-65/F-66 remain the catalogue-honesty release. The three escalations run
+13 raised — the README's "never patches your code" framing against a guard
+that is a heuristic, acceptance as a write anyone with commit access can make,
+and the §0/§4/§5 fixture gap — are the maintainer's.
+
 ## 0.78.0 — 2026-09-04 · "the maintainer's pen"
 
 A fourth finding status, and the tester cannot write it.

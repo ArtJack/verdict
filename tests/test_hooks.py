@@ -479,7 +479,7 @@ def test_bash_blocks_second_sweep_bypasses(repo, command):
     "git bisect log", "git stash list", "git reflog", "git notes",
     "git worktree list", "git config --list", "git config --get user.name",
     # tar creating an archive reads; only extraction overwrites.
-    "tar -cf archive.tar src",
+    "tar -cf - src",           # to stdout; an archive *in* the checkout is a write (F-70)
     'awk "{print}" f.txt',
 ])
 def test_bash_second_sweep_has_no_false_positives(repo, command):
@@ -938,7 +938,10 @@ TAR_SHAPES = [
 
 
 def _tar_world(tmp_path):
-    """A checkout, a scratch directory, and a cwd that is neither."""
+    """A checkout, a scratch directory, and a cwd that is neither — plus an
+    archive in scratch to extract from, built without tar so the world does
+    not depend on the binary under test."""
+    import tarfile
     root = tmp_path / "world"
     repo, scratch, cwd = root / "repo", root / "scratch", root / "cwd"
     for d in (repo / "hooks", repo / "src", scratch / "junk", cwd):
@@ -946,7 +949,94 @@ def _tar_world(tmp_path):
     subprocess.run(["git", "init", "-q", str(repo)], check=True)
     for f in (repo / "hooks" / "a.py", repo / "src" / "b.py", scratch / "junk" / "c.py"):
         f.write_text("x\n", encoding="utf-8")
+    (scratch / "payload.txt").write_text("payload\n", encoding="utf-8")
+    with tarfile.open(scratch / "a.tar", "w") as tf:
+        tf.add(scratch / "payload.txt", arcname="payload.txt")
     return root, repo, scratch, cwd
+
+
+def _checkout_snapshot(repo):
+    return {str(p.relative_to(repo)): p.read_bytes()
+            for p in repo.rglob("*") if p.is_file() and ".git" not in p.parts}
+
+
+TAR_WRITE_SHAPES = [
+    # (argv template, does real tar create or change a file inside the checkout?)
+    # the archive itself — every create/append form, resolved against the shell's cwd
+    (["-cf", "{repo}/hooks/a.py", "-C", "{scratch}", "junk"], True),
+    (["-cf{repo}/hooks/a.py", "-C", "{scratch}", "junk"], True),
+    (["--file={repo}/hooks/a.py", "-c", "-C", "{scratch}", "junk"], True),
+    (["-c", "-f", "{repo}/hooks/a.py", "-C", "{scratch}", "junk"], True),
+    # relative archive after -C: it lands where the SHELL is, not where -C went —
+    # the two models disagree only when -C is not a sibling of the cwd
+    (["-C", "{scratch}/junk", "-cf", "../repo/hooks/loot.tar", "c.py"], True),
+    (["-cf", "{repo}/hooks/loot.tar", "{scratch}/junk"], True),
+    # abbreviated --directory on extract (VERDICT-F-71), every rung
+    (["-xf", "{scratch}/a.tar", "--dir", "{repo}"], True),
+    (["-xf", "{scratch}/a.tar", "--direc", "{repo}"], True),
+    (["-xf", "{scratch}/a.tar", "--directory", "{repo}"], True),
+    (["--extract", "--file", "{scratch}/a.tar", "--dir", "{repo}"], True),
+    # …and what must stay allowed
+    (["-cf", "-", "-C", "{repo}", "src"], False),              # stdout is not a file
+    (["-cf", "{scratch}/x.tar", "{repo}/src"], False),         # archive lands in scratch
+    (["-xf", "{scratch}/a.tar", "--direc", "{scratch}"], False),
+    (["-tf", "{scratch}/a.tar"], False),                        # list reads the archive
+    (["-C", "{repo}/src", "-cf", "../scratch/y.tar", "b.py"], False),  # -C does not move -f
+]
+
+
+@pytest.mark.parametrize("shape, writes_in_checkout", TAR_WRITE_SHAPES,
+                         ids=[" ".join(s) for s, _ in TAR_WRITE_SHAPES])
+def test_the_guard_agrees_with_where_tar_writes(tmp_path, shape, writes_in_checkout):
+    """VERDICT-F-70: the handler's own comment said the archive named by `-f`
+    "is written, not removed" and never yielded it, so `tar -cf
+    <checkout>/hooks/a.py …` turned a tracked source file into an archive with
+    the guard's blessing — and did the same to the maintainer's accepted.json.
+    VERDICT-F-71: `--direc <checkout>` extracted into the checkout while the
+    guard read the shell's cwd. Both measured against GNU tar before the model
+    was written; both directions, as always."""
+    root, repo, scratch, cwd = _tar_world(tmp_path)
+    argv = [a.format(repo=repo, scratch=scratch, root=root) for a in shape]
+    rc, err = run_hook("enforce_bash_scope.py",
+                       bash_event("tar " + " ".join(argv), cwd), strict="1")
+    if writes_in_checkout:
+        assert rc == 2, f"real tar writes inside the checkout here; guard allowed it: {argv}"
+    else:
+        assert rc == 0, f"nothing in the checkout is written, and the guard refused: {err}"
+
+
+@pytest.mark.parametrize("shape, writes_in_checkout", TAR_WRITE_SHAPES,
+                         ids=[" ".join(s) for s, _ in TAR_WRITE_SHAPES])
+def test_real_tar_writes_where_this_matrix_claims(tmp_path, shape, writes_in_checkout):
+    """The other half: run GNU tar and diff the checkout. Any file created or
+    changed under the repository is a write, whatever the manual says."""
+    exe = _gnu_tar()
+    if exe is None:
+        pytest.skip("no GNU tar here (macOS ships bsdtar)")
+    root, repo, scratch, cwd = _tar_world(tmp_path)
+    argv = [a.format(repo=repo, scratch=scratch, root=root) for a in shape]
+    before = _checkout_snapshot(repo)
+    subprocess.run([exe, *argv], cwd=cwd, capture_output=True)
+    changed = _checkout_snapshot(repo) != before
+    assert changed == writes_in_checkout, (
+        f"the matrix says writes_in_checkout={writes_in_checkout}; real tar disagrees "
+        f"for: {' '.join(argv)}")
+
+
+def test_append_update_and_delete_write_the_archive_too(tmp_path):
+    """Modes that modify an existing archive in place are writes to it; GNU tar
+    refuses them on a file that is not an archive, which is why they are
+    asserted against the guard alone."""
+    root, repo, scratch, cwd = _tar_world(tmp_path)
+    for argv in (f"tar -rf {repo}/hooks/a.py -C {scratch} junk",
+                 f"tar --update -f {repo}/hooks/a.py -C {scratch} junk",
+                 f"tar --delete -f {repo}/hooks/a.py junk",
+                 f"tar -Af {repo}/hooks/a.py {scratch}/a.tar"):
+        rc, err = run_hook("enforce_bash_scope.py", bash_event(argv, cwd), strict="1")
+        assert rc == 2, f"{argv} writes the archive inside the checkout and was allowed"
+    rc, err = run_hook("enforce_bash_scope.py",
+                       bash_event(f"tar --diff -f {scratch}/a.tar -C {repo}", cwd), strict="1")
+    assert rc == 0, f"comparing an archive against the checkout reads it: {err}"
 
 
 @pytest.mark.parametrize("shape, deletes_in_checkout", TAR_SHAPES,
