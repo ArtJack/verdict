@@ -14,6 +14,7 @@ tests/test_accept.py::test_the_gate_keeps_an_accepted_finding_out_of_the_open_li
 tests/test_accept.py::test_the_guards_refuse_the_ledger_to_the_tester
 tests/test_accept.py::test_the_mcp_server_serves_accepted_apart
 tests/test_accept.py::test_the_report_lists_accepted_risks_apart
+tests/test_accept.py::test_the_tester_cannot_decorate_a_finding_with_an_acceptance
 tests/test_accept.py::test_the_tester_cannot_write_the_status
 tests/test_accept.py::test_the_track_record_counts_an_acceptance_apart
 tests/test_accept.py::test_verdict_issues_does_not_file_an_accepted_finding
@@ -48,6 +49,7 @@ tests/test_calibration.py::test_a_decided_outcome_sticks_when_the_finding_change
 tests/test_calibration.py::test_a_decided_row_is_not_downgraded_by_a_later_unknown
 tests/test_calibration.py::test_a_finding_that_never_came_back_carries_no_marker
 tests/test_calibration.py::test_a_measured_re_injection_confirms
+tests/test_calibration.py::test_a_measurement_on_a_prose_quoted_test_settles_nothing
 tests/test_calibration.py::test_a_measurement_that_contradicts_the_claim_still_settles_nothing
 tests/test_calibration.py::test_a_measurement_the_harness_declined_to_weigh_does_not_deny_the_row
 tests/test_calibration.py::test_a_measurement_the_harness_did_weigh_still_denies_it
@@ -330,6 +332,7 @@ tests/test_harness.py::test_write_state_refuses_an_invalid_state_and_writes_a_va
 tests/test_harness.py::test_write_state_snapshots_the_previous_state_for_the_run_number_check
 tests/test_harness.py::test_zero_test_ids_is_reported_as_unavailable_not_as_an_empty_suite
 tests/test_hooks.py::test_a_windows_path_survives_masking_and_target_reading
+tests/test_hooks.py::test_append_update_and_delete_write_the_archive_too
 tests/test_hooks.py::test_bash_allows_copying_the_checkout_out_to_scratch
 tests/test_hooks.py::test_bash_allows_default_solo_root
 tests/test_hooks.py::test_bash_allows_excluding_a_directory_from_an_archive
@@ -459,7 +462,7 @@ tests/test_hooks.py::test_bash_second_sweep_has_no_false_positives[git tag]
 tests/test_hooks.py::test_bash_second_sweep_has_no_false_positives[git worktree list]
 tests/test_hooks.py::test_bash_second_sweep_has_no_false_positives[nice -n 5 pytest]
 tests/test_hooks.py::test_bash_second_sweep_has_no_false_positives[sh -c "git diff --stat"]
-tests/test_hooks.py::test_bash_second_sweep_has_no_false_positives[tar -cf archive.tar src]
+tests/test_hooks.py::test_bash_second_sweep_has_no_false_positives[tar -cf - src]
 tests/test_hooks.py::test_bash_second_sweep_has_no_false_positives[timeout 300 pytest -q]
 tests/test_hooks.py::test_bash_still_allows_a_move_that_touches_neither_end_of_the_checkout
 tests/test_hooks.py::test_bash_still_allows_archiving_the_checkout_without_deleting_it
@@ -506,6 +509,21 @@ tests/test_hooks.py::test_real_tar_still_behaves_the_way_this_matrix_claims[-cf{
 tests/test_hooks.py::test_real_tar_still_behaves_the_way_this_matrix_claims[-cf{scratch}/x.tar --remove-files -C{scratch} junk]
 tests/test_hooks.py::test_real_tar_still_behaves_the_way_this_matrix_claims[-cf{scratch}/x.tar --remove-files {repo}/hooks]
 tests/test_hooks.py::test_real_tar_still_behaves_the_way_this_matrix_claims[-czf {scratch}/x.tgz {repo}/src]
+tests/test_hooks.py::test_real_tar_writes_where_this_matrix_claims[--extract --file {scratch}/a.tar --dir {repo}]
+tests/test_hooks.py::test_real_tar_writes_where_this_matrix_claims[--file={repo}/hooks/a.py -c -C {scratch} junk]
+tests/test_hooks.py::test_real_tar_writes_where_this_matrix_claims[-C {repo}/src -cf ../scratch/y.tar b.py]
+tests/test_hooks.py::test_real_tar_writes_where_this_matrix_claims[-C {scratch}/junk -cf ../repo/hooks/loot.tar c.py]
+tests/test_hooks.py::test_real_tar_writes_where_this_matrix_claims[-c -f {repo}/hooks/a.py -C {scratch} junk]
+tests/test_hooks.py::test_real_tar_writes_where_this_matrix_claims[-cf - -C {repo} src]
+tests/test_hooks.py::test_real_tar_writes_where_this_matrix_claims[-cf {repo}/hooks/a.py -C {scratch} junk]
+tests/test_hooks.py::test_real_tar_writes_where_this_matrix_claims[-cf {repo}/hooks/loot.tar {scratch}/junk]
+tests/test_hooks.py::test_real_tar_writes_where_this_matrix_claims[-cf {scratch}/x.tar {repo}/src]
+tests/test_hooks.py::test_real_tar_writes_where_this_matrix_claims[-cf{repo}/hooks/a.py -C {scratch} junk]
+tests/test_hooks.py::test_real_tar_writes_where_this_matrix_claims[-tf {scratch}/a.tar]
+tests/test_hooks.py::test_real_tar_writes_where_this_matrix_claims[-xf {scratch}/a.tar --dir {repo}]
+tests/test_hooks.py::test_real_tar_writes_where_this_matrix_claims[-xf {scratch}/a.tar --direc {repo}]
+tests/test_hooks.py::test_real_tar_writes_where_this_matrix_claims[-xf {scratch}/a.tar --direc {scratch}]
+tests/test_hooks.py::test_real_tar_writes_where_this_matrix_claims[-xf {scratch}/a.tar --directory {repo}]
 tests/test_hooks.py::test_the_guard_agrees_with_the_tar_that_would_run[-c --remove-files -f {scratch}/x.tar {repo}/hooks]
 tests/test_hooks.py::test_the_guard_agrees_with_the_tar_that_would_run[-cf {scratch}/x.tar --remove-files -- -C {repo}/hooks]
 tests/test_hooks.py::test_the_guard_agrees_with_the_tar_that_would_run[-cf {scratch}/x.tar --remove-files -- {repo}/hooks]
@@ -524,6 +542,21 @@ tests/test_hooks.py::test_the_guard_agrees_with_the_tar_that_would_run[-cf{scrat
 tests/test_hooks.py::test_the_guard_agrees_with_the_tar_that_would_run[-cf{scratch}/x.tar --remove-files -C{scratch} junk]
 tests/test_hooks.py::test_the_guard_agrees_with_the_tar_that_would_run[-cf{scratch}/x.tar --remove-files {repo}/hooks]
 tests/test_hooks.py::test_the_guard_agrees_with_the_tar_that_would_run[-czf {scratch}/x.tgz {repo}/src]
+tests/test_hooks.py::test_the_guard_agrees_with_where_tar_writes[--extract --file {scratch}/a.tar --dir {repo}]
+tests/test_hooks.py::test_the_guard_agrees_with_where_tar_writes[--file={repo}/hooks/a.py -c -C {scratch} junk]
+tests/test_hooks.py::test_the_guard_agrees_with_where_tar_writes[-C {repo}/src -cf ../scratch/y.tar b.py]
+tests/test_hooks.py::test_the_guard_agrees_with_where_tar_writes[-C {scratch}/junk -cf ../repo/hooks/loot.tar c.py]
+tests/test_hooks.py::test_the_guard_agrees_with_where_tar_writes[-c -f {repo}/hooks/a.py -C {scratch} junk]
+tests/test_hooks.py::test_the_guard_agrees_with_where_tar_writes[-cf - -C {repo} src]
+tests/test_hooks.py::test_the_guard_agrees_with_where_tar_writes[-cf {repo}/hooks/a.py -C {scratch} junk]
+tests/test_hooks.py::test_the_guard_agrees_with_where_tar_writes[-cf {repo}/hooks/loot.tar {scratch}/junk]
+tests/test_hooks.py::test_the_guard_agrees_with_where_tar_writes[-cf {scratch}/x.tar {repo}/src]
+tests/test_hooks.py::test_the_guard_agrees_with_where_tar_writes[-cf{repo}/hooks/a.py -C {scratch} junk]
+tests/test_hooks.py::test_the_guard_agrees_with_where_tar_writes[-tf {scratch}/a.tar]
+tests/test_hooks.py::test_the_guard_agrees_with_where_tar_writes[-xf {scratch}/a.tar --dir {repo}]
+tests/test_hooks.py::test_the_guard_agrees_with_where_tar_writes[-xf {scratch}/a.tar --direc {repo}]
+tests/test_hooks.py::test_the_guard_agrees_with_where_tar_writes[-xf {scratch}/a.tar --direc {scratch}]
+tests/test_hooks.py::test_the_guard_agrees_with_where_tar_writes[-xf {scratch}/a.tar --directory {repo}]
 tests/test_hooks.py::test_the_tar_rules_reach_every_spelling_of_tar[/opt/homebrew/bin/gtar]
 tests/test_hooks.py::test_the_tar_rules_reach_every_spelling_of_tar[/usr/bin/tar]
 tests/test_hooks.py::test_the_tar_rules_reach_every_spelling_of_tar[bsdtar]
@@ -678,6 +711,10 @@ tests/test_release_notes.py::test_every_tag_shaped_heading_parses
 tests/test_release_notes.py::test_the_body_stops_at_the_next_heading
 tests/test_release_notes.py::test_the_cli_prints_body_or_title
 tests/test_release_notes.py::test_the_newest_changelog_entry_is_readable
+tests/test_release_workflow.py::test_a_registry_failure_is_visible
+tests/test_release_workflow.py::test_the_download_is_checksummed_before_it_runs
+tests/test_release_workflow.py::test_the_job_holds_no_more_than_it_needs
+tests/test_release_workflow.py::test_the_publisher_is_pinned_to_a_release_not_to_latest
 tests/test_runner.py::test_a_bare_checkout_is_provisioned_and_launched_headless
 tests/test_runner.py::test_a_completed_run_gates_green_with_the_model_measured
 tests/test_runner.py::test_a_session_that_writes_no_state_exits_5_not_yesterdays_verdict
@@ -817,6 +854,7 @@ tests/test_validate.py::test_two_findings_under_one_id_are_named_as_such
 tests/test_validate.py::test_verified_intact_must_be_a_list
 tests/test_validate.py::test_well_formed_evidence_stays_clean
 tests/test_verification.py::test_a_conftest_the_commit_did_not_touch_is_not_reported_as_copied
+tests/test_verification.py::test_a_fail_to_pass_on_a_prose_citation_is_recorded_not_confirmed
 tests/test_verification.py::test_a_fix_is_verified_when_the_cited_test_fails_before_and_passes_after
 tests/test_verification.py::test_a_measured_fix_still_reads_as_verified
 tests/test_verification.py::test_a_missing_previous_commit_still_measures_head
