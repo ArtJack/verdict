@@ -39,6 +39,15 @@ def section(version: str) -> tuple[str, str] | None:
 
 
 def main(argv=None) -> int:
+    for stream in (sys.stdout, sys.stderr):
+        # The notes are full of em-dashes. On Windows the streams default to
+        # the console codepage, the reader decodes UTF-8, and the notes die in
+        # a reader thread that reports nothing — the same trap every CLI here
+        # has hit once (gate.py, runner.py, accept.py).
+        try:
+            stream.reconfigure(encoding="utf-8")
+        except (AttributeError, ValueError):
+            pass
     args = list(sys.argv[1:] if argv is None else argv)
     want_title = "--title" in args
     args = [a for a in args if a != "--title"]
