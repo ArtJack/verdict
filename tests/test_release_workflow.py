@@ -21,7 +21,12 @@ def _registry_job() -> str:
 
 
 def _commands(job: str) -> str:
-    """The lines that run — comments explaining what NOT to do are not evidence."""
+    """The lines that run — comments explaining what NOT to do are not evidence.
+
+    Written for the `latest` test and then used by only two of the four, so the
+    sha256 check could be deleted and replaced by a comment naming it, and all
+    four tests stayed green (VERDICT-F-78). Every test here reads this now.
+    """
     return "\n".join(line for line in job.splitlines() if not line.lstrip().startswith("#"))
 
 
@@ -32,7 +37,7 @@ def test_the_publisher_is_pinned_to_a_release_not_to_latest():
 
 
 def test_the_download_is_checksummed_before_it_runs():
-    job = _registry_job()
+    job = _commands(_registry_job())
     m = re.search(r"MCP_PUBLISHER_SHA256:\s*([0-9a-f]{64})\b", job)
     assert m, "no sha256 pinned beside the version"
     assert "sha256sum -c" in job, "the checksum is declared but never checked"
@@ -44,13 +49,22 @@ def test_the_download_is_checksummed_before_it_runs():
 def test_a_registry_failure_is_visible():
     """A job that hands an OIDC identity to a downloaded binary must not also
     swallow what the binary did."""
-    job = _registry_job()
+    job = _commands(_registry_job())
     assert "continue-on-error" not in job
     assert "::error::" in job and "exit 1" in job, "the PyPI wait no longer fails when PyPI never answers"
 
 
+def test_the_comment_filter_is_what_every_test_reads():
+    """The instrument, controlled: a commented-out check must not satisfy any
+    of these tests. Run 14 proved it did for two of them."""
+    commented = _commands("  # sha256sum -c - and ::error:: and exit 1 and MCP_PUBLISHER_SHA256: "
+                          + "0" * 64 + "\n  run: echo hi\n")
+    for token in ("sha256sum -c", "::error::", "exit 1", "MCP_PUBLISHER_SHA256"):
+        assert token not in commented, f"{token!r} survived the comment filter"
+
+
 def test_the_job_holds_no_more_than_it_needs():
-    job = _registry_job()
+    job = _commands(_registry_job())
     perms = job[job.index("permissions:"):job.index("steps:")]
     assert "id-token: write" in perms and "contents: read" in perms
     assert "contents: write" not in perms and "packages" not in perms

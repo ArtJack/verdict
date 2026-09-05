@@ -8,6 +8,8 @@ truth nothing ran (VERDICT-F-68) — the reading run 11 had already recorded a
 lesson about, one release earlier.
 """
 
+import json
+import pathlib
 import sys
 from pathlib import Path
 
@@ -86,3 +88,112 @@ def test_the_readme_badge_states_the_catalogue_size():
     assert m, "the README has no pinned-rules badge"
     assert (int(m.group(1)), int(m.group(2))) == (scored, scored), (
         f"badge says {m.group(1)}/{m.group(2)}, the catalogue scores {scored}")
+
+
+def test_a_mutation_is_written_atomically(tmp_path):
+    """A kill between the truncate and the flush left a source file EMPTY —
+    measured on this repository when a whole-catalogue run was interrupted:
+    `harness.py` came back 2286 lines shorter, and the lock had already been
+    released, so nothing said the tree was broken.
+
+    Two properties: the swap never truncates the original in place, and the
+    file that lands is the whole new content.
+    """
+    target = tmp_path / "module.py"
+    target.write_text("original\n" * 100, encoding="utf-8")
+    inode_before = target.stat().st_ino
+    pin_check.write_atomic(target, "mutated\n" * 100)
+    assert target.read_text(encoding="utf-8") == "mutated\n" * 100
+    assert target.stat().st_ino != inode_before, (
+        "the file was rewritten in place, so a kill mid-write can still empty it")
+    assert not list(tmp_path.glob("*.pin_check.tmp")), "the temp file outlived the swap"
+
+
+def test_the_restorer_puts_a_file_back_whole(tmp_path):
+    """The other end of the same guarantee: what `hold` captured is what
+    `restore` writes, atomically.
+
+    Constructing one installs signal handlers and an atexit hook in whatever
+    process it runs in, so this test puts both back — a test that leaves the
+    runner holding a foreign SIGINT handler is a test that changes what
+    Ctrl-C does to the suite.
+    """
+    import atexit
+    import signal
+
+    target = tmp_path / "module.py"
+    original = "def rule():\n    return True\n"
+    target.write_text(original, encoding="utf-8")
+    handlers = {name: signal.getsignal(getattr(signal, name))
+                for name in ("SIGINT", "SIGTERM") if hasattr(signal, name)}
+    keeper = pin_check.Restorer()
+    try:
+        keeper.hold(target, original)
+        pin_check.write_atomic(target, "def rule():\n    return False\n")
+        assert target.read_text(encoding="utf-8") != original
+        keeper.restore()
+        assert target.read_text(encoding="utf-8") == original
+    finally:
+        atexit.unregister(keeper.restore)
+        for name, handler in handlers.items():
+            signal.signal(getattr(signal, name), handler)
+
+
+def test_the_restorer_is_constructible_where_a_signal_is_missing(monkeypatch):
+    """Windows has no SIGHUP, and the tuple that named it raised before the
+    `try` that was written to forgive it — so the whole class could not be
+    built there, and the except clause naming AttributeError was dead code.
+    Simulated rather than skipped, because CI's Windows legs are the only
+    place this fires and they must not be the only place it is checked.
+    """
+    import atexit
+    import signal
+
+    monkeypatch.delattr(signal, "SIGHUP", raising=False)
+    handlers = {name: signal.getsignal(getattr(signal, name))
+                for name in ("SIGINT", "SIGTERM") if hasattr(signal, name)}
+    keeper = pin_check.Restorer()          # must not raise
+    atexit.unregister(keeper.restore)
+    for name, handler in handlers.items():
+        signal.signal(getattr(signal, name), handler)
+
+
+def test_the_campaign_swaps_and_restores_the_file_it_mutates(tmp_path, monkeypatch):
+    """The driver, not the helper. `write_atomic` is covered directly above,
+    and both of its call sites live in a loop nothing exercised — running the
+    real one means running the whole suite once per mutant, so the campaign
+    itself was the untested part, and the whole-suite check said so by leaving
+    both call sites alive.
+
+    So the loop is run for real against a trivial "suite" and a one-entry
+    catalogue in a temp root: the file must be swapped rather than rewritten in
+    place, and put back byte for byte afterwards.
+    """
+    root = tmp_path / "repo"
+    (root / "pkg").mkdir(parents=True)
+    target = root / "pkg" / "rule.py"
+    original = "def rule():\n    return True\n"
+    target.write_text(original, encoding="utf-8")
+    catalogue = root / "catalogue.json"
+    catalogue.write_text(json.dumps([{
+        "label": "T1 the rule stops holding", "path": "pkg/rule.py",
+        "old": "    return True\n", "new": "    return False\n"}]), encoding="utf-8")
+
+    swapped = {}
+    real_write = pin_check.write_atomic
+
+    def spy(path, text):
+        swapped.setdefault(str(path), []).append(pathlib.Path(path).stat().st_ino)
+        return real_write(path, text)
+
+    monkeypatch.setattr(pin_check, "ROOT", root)
+    monkeypatch.setattr(pin_check, "CATALOGUE", catalogue)
+    monkeypatch.setattr(pin_check, "SUITE", [sys.executable, "-c", "pass"])   # a green "suite"
+    monkeypatch.setattr(pin_check, "write_atomic", spy)
+
+    rc = pin_check.main([])
+    assert rc == 1, "a green suite means the mutant survived, which is a failing run"
+    assert target.read_text(encoding="utf-8") == original, "the tree was left mutated"
+    inodes = swapped.get(str(target), [])
+    assert len(inodes) == 2, f"expected an atomic apply and an atomic restore, saw {inodes}"
+    assert not list(root.rglob("*.pin_check.tmp")), "a temp file outlived the swap"
