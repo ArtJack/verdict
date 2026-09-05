@@ -41,6 +41,10 @@ RUN_TYPES = {"baseline", "delta", "re-baseline"}
 # needed the concept and invented the word — and a tester that quietly deletes
 # its wrong findings is hiding its own error rate.
 DELTAS = {"NEW", "STILL_OPEN", "RESOLVED", "REGRESSED", "WITHDRAWN"}
+# What a state may carry: the deltas above, which the prompt teaches and a
+# judgment may write, plus the one only `verdict-finalize` computes from the
+# maintainer's ledger.
+STATE_DELTAS = DELTAS | {"ACCEPTED"}
 SEVERITIES = {"Blocker", "Critical", "Major", "Minor", "Trivial"}
 PRIORITIES = {"P0", "P1", "P2", "P3"}
 CLASSIFICATIONS = {"REAL_DEFECT", "STALE_EXPECTATION", "BRITTLE_TEST", "ENVIRONMENT", "FLAKY"}
@@ -49,7 +53,11 @@ CLASSIFICATIONS = {"REAL_DEFECT", "STALE_EXPECTATION", "BRITTLE_TEST", "ENVIRONM
 # contract, it is a rewrite.
 CONFIDENCES = {"proven", "probable", "hypothesis"}
 OUTCOMES = {"confirmed", "refuted", "unknown"}
-STATUSES = {"open", "resolved", "withdrawn"}
+# What a judgment may say. `accepted` is the maintainer's word, written by
+# `verdict-accept` into its own ledger and folded in by the harness — a finding
+# cannot accept its own risk, so a judgment carrying the status is refused.
+JUDGMENT_STATUSES = {"open", "resolved", "withdrawn"}
+STATUSES = {"open", "resolved", "withdrawn", "accepted"}
 REQUIRED_TOP = ("project", "schema_version", "run_type", "run_number", "last_run",
                 "isolation_check", "verdict", "release_blockers", "not_tested")
 _ISO_Z = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$")
@@ -74,7 +82,7 @@ def _is_open(finding) -> bool:
     `pass` verdict stood over it. An unrecognised status is not evidence that a
     defect was fixed; it is evidence that nobody knows.
     """
-    return _status(finding) not in ("resolved", "withdrawn")
+    return _status(finding) not in ("resolved", "withdrawn", "accepted")
 
 
 def _parse_z(value: str):
@@ -211,8 +219,14 @@ def validate_judgment(judgment, previous=None):
         if f.get("priority") not in PRIORITIES:
             bad.append(f"{where} ({fid}) priority {f.get('priority')!r} not in {sorted(PRIORITIES)}")
         status = _status(f)
-        if status and status not in STATUSES:
-            bad.append(f"{where} ({fid}) status {f.get('status')!r} not in {sorted(STATUSES)}")
+        if status == "accepted":
+            bad.append(f"{where} ({fid}) status 'accepted' is the maintainer's word, not the "
+                       "tester's — a finding cannot accept its own risk. Leave it open; the "
+                       "maintainer records the decision with `verdict-accept` and the "
+                       "harness folds it in")
+        elif status and status not in JUDGMENT_STATUSES:
+            bad.append(f"{where} ({fid}) status {f.get('status')!r} not in "
+                       f"{sorted(JUDGMENT_STATUSES)}")
         fc = f.get("failure_classification")
         if fc is not None and fc not in CLASSIFICATIONS:
             bad.append(f"{where} ({fid}) failure_classification {fc!r} not in "
@@ -336,6 +350,28 @@ def _unmeasured_suite(state) -> list:
             "summary, or say `pass with risks` and name the gap in not_tested"]
 
 
+def _accepted_shape(f, where: str, fid: str, status: str) -> list:
+    """An accepted finding carries the maintainer's record, and only an
+    accepted finding carries the delta that says so."""
+    bad = []
+    acc = f.get("accepted")
+    if status == "accepted":
+        if not isinstance(acc, dict) or not all(
+                isinstance(acc.get(k), str) and acc.get(k).strip()
+                for k in ("by", "on", "citation")):
+            bad.append(f"{where} ({fid}) is accepted without a citation — an accepted risk "
+                       "records who accepted it, when, and where the decision is written "
+                       "down (`accepted.by`, `.on`, `.citation`); `verdict-accept` writes "
+                       "all three")
+        if f.get("delta") not in (None, "ACCEPTED"):
+            bad.append(f"{where} ({fid}) is accepted but its delta is {f.get('delta')!r} — "
+                       "an accepted finding's delta is ACCEPTED")
+    elif f.get("delta") == "ACCEPTED":
+        bad.append(f"{where} ({fid}) has delta ACCEPTED but status {f.get('status')!r} — "
+                   "only an accepted finding carries that delta")
+    return bad
+
+
 def validate(state, root: Path, previous=None, now=None, at_rest=False):
     """Return a list of violation strings. Empty means the state is admissible.
 
@@ -453,8 +489,9 @@ def validate(state, root: Path, previous=None, now=None, at_rest=False):
                 bad.append(f"{where} ({fid}) severity {f.get('severity')!r} not in {sorted(SEVERITIES)}")
             if f.get("priority") not in PRIORITIES:
                 bad.append(f"{where} ({fid}) priority {f.get('priority')!r} not in {sorted(PRIORITIES)}")
-            if f.get("delta") is not None and f.get("delta") not in DELTAS:
-                bad.append(f"{where} ({fid}) delta {f.get('delta')!r} not in {sorted(DELTAS)}")
+            if f.get("delta") is not None and f.get("delta") not in STATE_DELTAS:
+                bad.append(f"{where} ({fid}) delta {f.get('delta')!r} not in "
+                           f"{sorted(STATE_DELTAS)}")
             status = _status(f)
             if not status:
                 bad.append(f"{where} ({fid}) has no status — every finding is "
@@ -465,6 +502,7 @@ def validate(state, root: Path, previous=None, now=None, at_rest=False):
                     f"{where} ({fid}) status {f.get('status')!r} not in {sorted(STATUSES)} "
                     "— an unrecognised status hides the finding from the release blockers, "
                     "the gate and the hotspot ranking")
+            bad.extend(_accepted_shape(f, where, fid, status))
             conf = f.get("confidence")
             if conf is not None and conf not in CONFIDENCES:
                 bad.append(f"{where} ({fid}) confidence {conf!r} not in {sorted(CONFIDENCES)}")

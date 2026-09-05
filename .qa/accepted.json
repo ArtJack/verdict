@@ -1,0 +1,14 @@
+{
+ "schema_version": 1,
+ "accepted": {
+  "VERDICT-F-21": {
+   "hash": "1009c259",
+   "severity": "Major",
+   "title": "The run-history chain's anti-fabrication signal can still be shed by deleting data, and the gate then exits 0: 0.66.0 moved the ratchet into outcomes.json, but the anchor is itself unauthenticated, so removing one JSON key restores `unchained` with the whole track record intact",
+   "by": "ArtJack",
+   "on": "2026-09-05",
+   "citation": "DECISIONS.md 2026-09-02 — Verdict: the chain ratchet moves to the outcome ledger (v0.66.0)",
+   "reason": "Deleting outcomes.json as well as runs.jsonl still sheds the chain signal. Accepted rather than solved: the cost is the project's entire permanent track record, and the next report states how many findings it is tracking, so the loss is visible. Fabrication is made expensive and loud, not impossible — the same standard the chain was built to."
+  }
+ }
+}

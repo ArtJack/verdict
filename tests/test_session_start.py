@@ -28,7 +28,10 @@ def fire(cwd, home=None):
         env["VERDICT_HOME"] = str(home)
     return subprocess.run([sys.executable, str(HOOK)],
                           input=json.dumps({"cwd": str(cwd)}),
-                          capture_output=True, text=True, env=env)
+                          # The hook writes UTF-8 by contract; decoding with the
+                          # locale codepage would turn its dashes into mojibake
+                          # on Windows only, and an assertion on them would lie.
+                          capture_output=True, text=True, encoding="utf-8", env=env)
 
 
 @pytest.fixture()

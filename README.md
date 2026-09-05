@@ -410,6 +410,28 @@ tracked, how many are settled, and the counts per confidence level and per proof
 A percentage appears only once a bucket has 30 settled outcomes. Below that you get "2 of
 3", which is a fact, instead of "67%", which is decoration.
 
+### Accepting a risk — the maintainer's pen
+
+Some findings are right and will not be fixed: a residual risk weighed and written into a
+decision log, a defect behind a feature that is being retired. Left `open`, such a finding
+is re-reported as an open Major in every banner for the life of the project — the "same
+twenty findings until you stop reading" failure this tool exists to prevent — and
+`withdrawn` would score a correct finding as the tester's error. So there is a fourth
+status, and the tester cannot write it:
+
+```
+verdict-accept myapp MYAPP-F-021 --cite "DECISIONS.md 2026-09-02" \
+    --reason "deleting the ledger too defeats the anchor; the cost is the whole track record"
+```
+
+That writes `accepted.json` beside `outcomes.json` in the QA root — a file the scope guards
+refuse to the agent and a status the validator refuses in a judgment. The finding leaves
+the open counts at once (the banner, `verdict-gate`, the MCP server), leaves the verdict at
+the next run, appears under **Accepted risks** in every report with its citation, and
+settles in the track record as `confirmed` on the maintainer's word — kept apart from the
+measured and the claimed confirmations, because it is neither. `--revoke` reverses it, with
+a reason; `--list` shows the ledger. A decision changes the next verdict, never the last one.
+
 ## The tester has memory. The implementer did not.
 
 That asymmetry had a measured cost. Verdict filed eleven evidenced findings on a live site,

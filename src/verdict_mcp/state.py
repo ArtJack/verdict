@@ -29,7 +29,7 @@ from datetime import date, datetime, timezone
 from pathlib import Path
 
 SEVERITY_RANK = {"Blocker": 0, "Critical": 1, "Major": 2, "Minor": 3, "Trivial": 4}
-DELTA_VALUES = {"NEW", "STILL_OPEN", "RESOLVED", "REGRESSED"}
+DELTA_VALUES = {"NEW", "STILL_OPEN", "RESOLVED", "REGRESSED", "ACCEPTED"}
 _DRIVE_PREFIX = re.compile(r"^[A-Za-z]:[\\/]")
 # How far back to look for a rewritten commit's content before calling it
 # diverged. Bounded so the session banner never pays for a deep history.
@@ -63,8 +63,12 @@ def is_open(finding: dict) -> bool:
     """Open unless explicitly closed. The enum lives in `validate`, which
     refuses to write anything outside it; here the job is to fail safe on a
     state that got written anyway, because reading it the other way let a
-    mistyped `"closed"` hide an open Critical from the gate."""
-    return norm_status(finding.get("status")) not in ("resolved", "withdrawn")
+    mistyped `"closed"` hide an open Critical from the gate.
+
+    `accepted` closes too: the maintainer confirmed the defect and declined the
+    fix (`verdict-accept`), and a finding that is somebody's decision is not a
+    finding that is anybody's backlog."""
+    return norm_status(finding.get("status")) not in ("resolved", "withdrawn", "accepted")
 
 
 def sev_rank(value) -> int:
@@ -216,6 +220,7 @@ CONFIDENCE_LEVELS = ("proven", "probable", "hypothesis", "unstated")
 CALIBRATION_MIN_SAMPLE = 30
 OUTCOMES_FILE = "outcomes.json"
 RUNS_FILE = "runs.jsonl"
+ACCEPTED_FILE = "accepted.json"
 
 
 def finding_key(finding: dict) -> str:
@@ -285,6 +290,63 @@ def load_outcomes(qa_root) -> dict:
     return {k: v for k, v in rows.items() if isinstance(v, dict)}
 
 
+def load_accepted(qa_root) -> dict:
+    """The maintainer's ledger of accepted risks, keyed by finding id — every
+    entry, revoked ones included, so a reader can tell "never accepted" from
+    "accepted, then reversed". Written only by `verdict-accept`; the scope
+    guards refuse the file to the tester. Missing or corrupt reads as empty: a
+    lost ledger must never fail a run, and it reopens nothing that the state
+    does not already say is open."""
+    try:
+        data = json.loads((Path(qa_root) / ACCEPTED_FILE).read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError, TypeError):
+        return {}
+    rows = data.get("accepted") if isinstance(data, dict) else None
+    if not isinstance(rows, dict):
+        return {}
+    return {str(k): v for k, v in rows.items() if isinstance(v, dict)}
+
+
+def in_force(entry) -> bool:
+    """An acceptance that has not been revoked."""
+    return isinstance(entry, dict) and not entry.get("revoked")
+
+
+def accepted_block(entry: dict) -> dict:
+    """What travels onto the finding: who, when, where it is written down, why."""
+    return {k: entry[k] for k in ("by", "on", "citation", "reason") if entry.get(k) is not None}
+
+
+def fold_accepted(findings: list, ledger: dict) -> list:
+    """Copies of `findings` with the maintainer's ledger applied.
+
+    An open finding whose id the ledger accepts reads `accepted` and carries
+    the entry; an `accepted` finding whose entry is gone or revoked reads open
+    again. Resolved and withdrawn findings are untouched — a defect that is
+    gone has nothing left to accept. Copies, never in place: the gate
+    re-derives the signed history row from the state it loaded, and folding
+    the state itself would break the chain it is about to verify. This is the
+    between-runs view; `verdict-finalize` writes the same fold into the next
+    state, where it is signed.
+    """
+    out = []
+    for f in findings or []:
+        entry = (ledger or {}).get(str(f.get("id") or ""))
+        status = norm_status(f.get("status"))
+        g = dict(f)
+        if status == "open" and in_force(entry):
+            g["status"] = "accepted"
+            g["accepted"] = accepted_block(entry)
+            g.pop("accepted_revoked", None)
+        elif status == "accepted" and not in_force(entry):
+            g["status"] = "open"
+            g.pop("accepted", None)
+            if entry and isinstance(entry.get("revoked"), dict):
+                g["accepted_revoked"] = dict(entry["revoked"])
+        out.append(g)
+    return out
+
+
 def merge_outcomes(ledger: dict, findings: list, decided_on: str | None = None) -> dict:
     """Fold this run's findings into the ledger — the only reason calibration
     can exist at all.
@@ -346,7 +408,7 @@ def calibration(state: dict, min_sample: int = CALIBRATION_MIN_SAMPLE,
     def bucket(store, key):
         return store.setdefault(
             key, {"confirmed": 0, "confirmed_measured": 0, "confirmed_claimed": 0,
-                  "refuted": 0, "unknown": 0})
+                  "confirmed_accepted": 0, "refuted": 0, "unknown": 0})
 
     for f in findings:
         outcome = f.get("outcome") or "unknown"
@@ -364,7 +426,7 @@ def calibration(state: dict, min_sample: int = CALIBRATION_MIN_SAMPLE,
             # Only what carries a basis is split. A row written before the
             # field existed has neither, and defaulting it to `claimed` would
             # relabel history as the tester's word.
-            if outcome == "confirmed" and basis in ("measured", "claimed"):
+            if outcome == "confirmed" and basis in ("measured", "claimed", "accepted"):
                 counts["confirmed_" + basis] += 1
 
     def finish(store):
@@ -377,9 +439,13 @@ def calibration(state: dict, min_sample: int = CALIBRATION_MIN_SAMPLE,
                 # basis, and calling them the tester's word would be a claim of
                 # its own. The split is stated only for what carries one.
                 split = ""
-                if counts["confirmed_measured"] or counts["confirmed_claimed"]:
-                    split = (f" ({counts['confirmed_measured']} measured, "
-                             f"{counts['confirmed_claimed']} on the tester's word)")
+                if (counts["confirmed_measured"] or counts["confirmed_claimed"]
+                        or counts["confirmed_accepted"]):
+                    parts = [f"{counts['confirmed_measured']} measured",
+                             f"{counts['confirmed_claimed']} on the tester's word"]
+                    if counts["confirmed_accepted"]:
+                        parts.append(f"{counts['confirmed_accepted']} accepted by the maintainer")
+                    split = " (" + ", ".join(parts) + ")"
                 counts["reading"] = f"{counts['confirmed']} of {decided} held up{split}"
             else:
                 counts["precision"] = None
@@ -405,6 +471,8 @@ def calibration(state: dict, min_sample: int = CALIBRATION_MIN_SAMPLE,
             "`confirmed` is split by `outcome_basis`: `measured` is the harness's own "
             "re-injection, `claimed` is the tester's, weighed only by the absence of a "
             "measurement that contradicts it — read the two numbers separately",
+            "`accepted` is a third basis: the maintainer confirmed the defect and declined "
+            "the fix (`verdict-accept`) — the finding held up on their word, not under a check",
         ],
     }
 

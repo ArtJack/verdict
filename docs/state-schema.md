@@ -95,8 +95,9 @@ here.
 | `findings[]` | yes | `{id, hash, first_seen, status, delta, age_days, title, severity, priority, failure_classification, confidence, evidence[]}` — `failure_classification` holds the §3 value for any finding about a failing/erroring/skipped/nondeterministic test, `null` for pure design findings; machine consumers (the eval scorer, the gate) read the field, not the prose |
 | `findings[].confidence` | on `NEW` | The tester's claim about the finding when filed: `proven` (demonstrated it happen) · `probable` (traced, not executed) · `hypothesis` (suspected). Required on findings filed this run, and **frozen** afterwards — the harness restores the filed value if a later run tries to revise it, because a confidence edited after the outcome is known measures nothing |
 | `findings[].fix_verified` | no | Boolean, meaningful on a `RESOLVED` finding: `true` only when the defect was re-injected in a scratch copy and a guard failed. It is what separates "fixed" from "absent", and it is the only judgment field that feeds the track record — so it requires cited evidence |
-| `findings[].outcome` | computed | `confirmed` · `refuted` · `unknown`, written by `verdict-finalize`, never by the agent. Confirmed = regressed, or resolved-and-fix-verified. Refuted = withdrawn. Everything else is unknown, and stays out of every rate. Once decided it sticks, so a track record cannot erode as findings change state; only a withdrawal overrides an earlier decision |
+| `findings[].outcome` | computed | `confirmed` · `refuted` · `unknown`, written by `verdict-finalize`, never by the agent. Confirmed = regressed, resolved-and-fix-verified, or accepted by the maintainer (`outcome_basis: accepted`). Refuted = withdrawn. Everything else is unknown, and stays out of every rate. Once decided it sticks, so a track record cannot erode as findings change state; only a withdrawal overrides an earlier decision |
 | `findings[].outcome_reason` | computed | The sentence explaining the outcome, so a reader can audit the tally without re-deriving it |
+| `findings[].accepted` | on `accepted` | `{by, on, citation, reason}` — the maintainer's decision to accept the risk, copied from `accepted.json` by `verdict-finalize`. `status: accepted` (delta `ACCEPTED`) is the one status a judgment may not write: it closes the finding for the open counts and the release blockers, lists it under **Accepted risks** in the report, and settles it `confirmed` on the maintainer's word. A revoked acceptance reopens the finding at the next run with `accepted_revoked` on it |
 | `calibration` | computed | The track record block: `by_confidence` and `by_proof_method` counts over every finding the project ever filed, with `precision` present only once a bucket reaches `min_sample` (30) settled outcomes. Rendered into the report as **Track record** |
 | `findings[].root_cause` | no | The §3.5 chain when one was established: `{mechanism, origin, class{pattern, sites[]}, trigger, latent_condition, fix_location, proof{method, evidence}, confidence}`. `proof.method` is `counterfactual` · `differential` · `archaeology` · `reading`; `fix_location` is `code` · `test` · `spec` · `environment` · `process`; `confidence` is `proven` · `hypothesis`. Carrying it forward means the next run inherits the diagnosis instead of re-deriving it |
 | `verdict` | yes | `pass` · `pass with risks` · `blocked` · `fail` |
@@ -448,6 +449,35 @@ then reads three cases rather than two:
 This does not make fabrication impossible, and it is not meant to. Shedding the signal now
 means destroying the permanent track record as well — every decided outcome this project
 ever recorded — and the next report says how many findings it is tracking.
+
+## The accepted-risk ledger — `<qa-root>/accepted.json`
+
+The maintainer's, not the tester's. Written only by `verdict-accept`; the scope guards
+refuse the file to the verdict agent even inside the QA root, and `validate_judgment`
+refuses `status: accepted` in a judgment — a finding cannot accept its own risk.
+
+```json
+{
+  "schema_version": 1,
+  "accepted": {
+    "VERDICT-F-21": {
+      "hash": "…", "severity": "Major", "title": "…",
+      "by": "ArtJack", "on": "2026-09-04",
+      "citation": "DECISIONS.md 2026-09-02 — the chain ratchet moves to the outcome ledger",
+      "reason": "deleting outcomes.json too defeats the anchor; the cost is the whole track record",
+      "revoked": {"by": "…", "on": "…", "reason": "…"}
+    }
+  }
+}
+```
+
+Keyed by finding id; `revoked` is present once an acceptance has been reversed, and the
+entry stays so the record shows both decisions. Readers between runs (`verdict-gate`, the
+session banner, the MCP server, `verdict-issues`) apply it to a *copy* of the findings —
+the signed history row must still re-derive from `state.json` as written. `verdict-finalize`
+applies it to the next state, where the finding reads `accepted` / `ACCEPTED` and the
+acceptance is inside the signed row. A missing or corrupt ledger reads as empty: it can
+reopen nothing the state does not already say is open.
 
 ## The outcome ledger — `<qa-root>/outcomes.json`
 

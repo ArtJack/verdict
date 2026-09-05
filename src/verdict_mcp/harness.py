@@ -60,8 +60,8 @@ try:
     from .profile import ProfileError, gates_from
     from .profile import load as load_profile
     from .project_key import derive_key
-    from .state import (OUTCOMES_FILE, calibration, is_open, load_chain_anchor,
-                        load_outcomes,
+    from .state import (OUTCOMES_FILE, accepted_block, calibration, in_force, is_open,
+                        load_accepted, load_chain_anchor, load_outcomes,
                         merge_outcomes, norm_status, order_findings,
                         project_key_for_root)
     from .state import (RUNS_FILE, chain_link, history_row, load_runs,
@@ -74,8 +74,8 @@ except ImportError:  # bare-script execution
     from profile import ProfileError, gates_from
     from profile import load as load_profile
     from project_key import derive_key
-    from state import (OUTCOMES_FILE, calibration, is_open, load_chain_anchor,
-                       load_outcomes,
+    from state import (OUTCOMES_FILE, accepted_block, calibration, in_force, is_open,
+                       load_accepted, load_chain_anchor, load_outcomes,
                        merge_outcomes, norm_status, order_findings,
                        project_key_for_root)
     from state import (RUNS_FILE, chain_link, history_row, load_runs,
@@ -1208,6 +1208,16 @@ def _stamp_outcome(finding: dict, prior: dict | None = None) -> dict:
         return {"outcome": prior_outcome,
                 "outcome_reason": (prior or {}).get("outcome_reason")
                 or "settled by an earlier run"}
+    if status == "accepted":
+        # The maintainer's word, recorded through `verdict-accept` and folded
+        # in by `_fold_accepted`: the defect is real and the fix is declined.
+        # Confirmed, on a basis of its own — neither a measurement nor the
+        # tester's claim — and the tally keeps the three apart.
+        acc = finding.get("accepted") or {}
+        return {"outcome": "confirmed", "outcome_basis": "accepted",
+                "outcome_reason": (f"risk accepted by {acc.get('by')} on {acc.get('on')}: "
+                                   "the maintainer confirmed the defect and declined the "
+                                   f"fix ({acc.get('citation')})")}
     if delta == "REGRESSED":
         return {"outcome": "confirmed",
                 "outcome_reason": "regressed: it was fixed and came back, so it was real"}
@@ -1303,13 +1313,47 @@ def run_date(facts: dict | None) -> date:
     return when.date()
 
 
+def _fold_accepted(entry: dict, ledger: dict | None) -> None:
+    """Apply the maintainer's ledger to one finding, in place, before its
+    outcome is derived.
+
+    The tester writes `open`; the ledger says whether the maintainer has
+    accepted that finding's risk. In force: the finding reads `accepted`,
+    delta `ACCEPTED`, and carries who, when, the citation and the reason.
+    Gone or revoked while the state still says `accepted`: the finding is open
+    again, `STILL_OPEN`, with the revocation on it. Resolved and withdrawn
+    findings are never touched — a defect that is gone has nothing left to
+    accept, and a resolution can still be fix-verified as usual.
+    """
+    row = (ledger or {}).get(str(entry.get("id") or ""))
+    status = norm_status(entry.get("status"))
+    if status == "open" and in_force(row):
+        entry["status"] = "accepted"
+        entry["delta"] = "ACCEPTED"
+        entry["accepted"] = accepted_block(row)
+        entry.pop("accepted_revoked", None)
+    elif status == "accepted":
+        if in_force(row):
+            entry["delta"] = "ACCEPTED"
+            entry["accepted"] = accepted_block(row)
+        else:
+            entry["status"] = "open"
+            entry["delta"] = "STILL_OPEN"
+            entry.pop("accepted", None)
+            if row and isinstance(row.get("revoked"), dict):
+                entry["accepted_revoked"] = dict(row["revoked"])
+
+
 def merge(facts: dict, judgment: dict, previous: dict | None, today: date | None = None,
-          ledger: dict | None = None) -> dict:
+          ledger: dict | None = None, accepted: dict | None = None) -> dict:
     """Facts + judgment → a state file, with identity and deltas computed.
 
     `ledger` is the permanent outcome ledger (`outcomes.json`); passing it in
     keeps this function pure while letting the calibration block count every
     finding this project ever filed, not just the ones still in state.
+    `accepted` is the maintainer's ledger (`accepted.json`), applied after the
+    tester's statuses and before outcomes: the one status a judgment cannot
+    write.
     """
     today = today or run_date(facts)
     prev_by_hash, prev_by_id = {}, {}
@@ -1381,6 +1425,7 @@ def merge(facts: dict, judgment: dict, previous: dict | None, today: date | None
         # prediction's clothes.
         if prior and prior.get("confidence"):
             entry["confidence"] = prior["confidence"]
+        _fold_accepted(entry, accepted)
         _apply_verification(entry, prior, facts.get("verification") or {})
         entry.update(_stamp_outcome(entry, prior))
         findings.append(entry)
@@ -1389,18 +1434,32 @@ def merge(facts: dict, judgment: dict, previous: dict | None, today: date | None
     # silence is not the same as an assertion, so it is carried, not dropped.
     unmentioned, prior_open = [], 0
     for h, prior in prev_by_hash.items():
-        if norm_status(prior.get("status")) == "open":
+        st = norm_status(prior.get("status"))
+        # The maintainer's decision outlives the tester's attention: a finding
+        # that is accepted — in the previous state, or in the ledger since —
+        # is not part of the open backlog whose silence the guardrail below
+        # weighs, and it is never resolved by silence. It stays accepted, or
+        # comes back open if the ledger says the acceptance was revoked.
+        maintainers = st == "accepted" or (
+            st == "open" and in_force((accepted or {}).get(str(prior.get("id") or ""))))
+        if st == "open" and not maintainers:
             prior_open += 1
         if h in seen:
             continue
-        if norm_status(prior.get("status")) == "withdrawn":
+        if st == "withdrawn":
             # A withdrawal is the tester's own error record. Resolutions age out
             # of state into the reports and the ledger; this one stays visible,
             # because a tester that files a false positive and lets it fall off
             # the page next run is hiding the number that weighs all the others.
             findings.append(dict(prior))
             continue
-        if norm_status(prior.get("status")) == "resolved":
+        if maintainers:
+            carried = dict(prior)
+            _fold_accepted(carried, accepted)
+            carried.update(_stamp_outcome(carried, prior))
+            findings.append(carried)
+            continue
+        if st == "resolved":
             continue
         unmentioned.append(prior)
 
@@ -1838,7 +1897,8 @@ def finalize_main(argv=None) -> int:
               file=sys.stderr)
         return 1
 
-    state = merge(facts, judgment, previous, ledger=load_outcomes(qa_root))
+    state = merge(facts, judgment, previous, ledger=load_outcomes(qa_root),
+                  accepted=load_accepted(qa_root))
 
     # Render the report before validating: the validator requires the file to
     # exist, and writing it here is what makes "the report went missing"
@@ -1916,13 +1976,17 @@ def _render_calibration(cal: dict) -> list[str]:
         # the only place most readers ever see the number — kept printing one
         # column under a footnote saying a resolution nobody measured settles
         # nothing, which since that release is false (VERDICT-F-36).
-        split = any(v.get("confirmed_claimed") for _, v in rows)
-        header = ("| Held up | of those, measured | Withdrawn | Rate |" if split
-                  else "| Held up | Withdrawn | Rate |")
-        lines += [f"| {label} {header}", "|---|" + "---|" * (4 if split else 3)]
+        split = any(v.get("confirmed_claimed") or v.get("confirmed_accepted") for _, v in rows)
+        acc_col = any(v.get("confirmed_accepted") for _, v in rows)
+        header = ("| Held up | of those, measured |"
+                  + (" accepted by the maintainer |" if acc_col else "")
+                  + " Withdrawn | Rate |" if split else "| Held up | Withdrawn | Rate |")
+        lines += [f"| {label} {header}", "|---|" + "---|" * ((4 + acc_col) if split else 3)]
         for key, v in sorted(rows, key=lambda kv: -kv[1]["decided"]):
             rate = f"{v['precision']:.0%}" if v.get("precision") is not None else "_not yet_"
             measured = f" {v.get('confirmed_measured', 0)} |" if split else ""
+            if acc_col:
+                measured += f" {v.get('confirmed_accepted', 0)} |"
             lines.append(f"| {key} | {v['confirmed']} |{measured} {v['refuted']} | {rate} |")
         lines.append("")
     buckets = [v for store in (cal.get("by_confidence") or {},
@@ -1946,7 +2010,8 @@ def _render_calibration(cal: dict) -> list[str]:
     # one of them carrying fewer rows than the other.
     def _unrecorded(store):
         return sum(max(0, v.get("confirmed", 0) - v.get("confirmed_measured", 0)
-                       - v.get("confirmed_claimed", 0)) for v in store.values())
+                       - v.get("confirmed_claimed", 0) - v.get("confirmed_accepted", 0))
+                   for v in store.values())
     unrecorded = max((_unrecorded(store) for store in
                       (cal.get("by_confidence") or {}, cal.get("by_proof_method") or {})
                       if store), default=0)
@@ -1958,6 +2023,10 @@ def _render_calibration(cal: dict) -> list[str]:
                   "the harness measured, and one the tester asserted where no measurement "
                   "contradicts it. The `measured` column is the first kind. Read them "
                   "apart.*"]
+    if any(v.get("confirmed_accepted") for v in buckets):
+        lines += ["", "*`accepted by the maintainer` is a third kind: the defect was confirmed "
+                  "by the person who owns the code and the fix was declined (`verdict-accept`). "
+                  "It held up on their word, not under a check.*"]
     if unrecorded:
         lines += ["", f"*{unrecorded} of those confirmations were settled before "
                   "`outcome_basis` was recorded and are neither kind. They are counted in "
@@ -2090,7 +2159,9 @@ def render_report(state: dict, prose: dict | None = None) -> str:
     # and a severity with a stray space already sorted differently in the two.
     findings = order_findings(state.get("findings") or [])
     open_f = [f for f in findings if is_open(f)]
-    out += ["", f"## Findings — REGRESSED first ({len(open_f)} open of {len(findings)} tracked)", ""]
+    accepted_f = [f for f in findings if norm_status(f.get("status")) == "accepted"]
+    out += ["", f"## Findings — REGRESSED first ({len(open_f)} open of {len(findings)} tracked"
+            + (f" · {len(accepted_f)} accepted" if accepted_f else "") + ")", ""]
     if not findings:
         out.append("_None recorded this run._")
     for f in findings:
@@ -2112,9 +2183,31 @@ def render_report(state: dict, prose: dict | None = None) -> str:
                 out.append(f"- Class: {json.dumps(rc['class'])[:200]}")
         if f.get("carried_forward"):
             out.append(f"- _{f['carried_forward']}_")
+        acc = f.get("accepted") if norm_status(f.get("status")) == "accepted" else None
+        if acc:
+            out.append(f"- _Accepted risk — {acc.get('on')} by {acc.get('by')}, citing "
+                       f"{acc.get('citation')}: {acc.get('reason')}_")
+        if isinstance(f.get("accepted_revoked"), dict):
+            r = f["accepted_revoked"]
+            out.append(f"- _Acceptance revoked {r.get('on')} by {r.get('by')}: {r.get('reason')}_")
         narrative = prose.get("findings")
         if isinstance(narrative, dict) and narrative.get(str(f.get("id"))):
             out += ["", narrative[str(f.get("id"))]]
+        out.append("")
+
+    if accepted_f:
+        # Apart from the open list and after it, never instead of it: a risk
+        # somebody accepted is out of the counts, not out of sight.
+        out += ["", f"## Accepted risks ({len(accepted_f)})", "",
+                "_The maintainer's decision, recorded with `verdict-accept`, never the "
+                "tester's: each is a real defect whose fix was declined, with the reason and "
+                "where the decision is written down. Out of the open counts and the release "
+                "blockers; not out of sight._", ""]
+        for f in accepted_f:
+            a = f.get("accepted") or {}
+            out.append(f"- **{f.get('id')}** ({f.get('severity')}/{f.get('priority')}, age "
+                       f"{f.get('age_days', 0)}d) — accepted {a.get('on')} by {a.get('by')}, "
+                       f"citing {a.get('citation')}: {a.get('reason')}")
         out.append("")
 
     out += _render_calibration(state.get("calibration") or {})

@@ -55,6 +55,7 @@ or a repo path in team mode, which resolves `<repo>/.qa/`.
 | `verdict-gate` | exit-code release gate for CI — keeps "never ran" distinct from "said no" |
 | `verdict-validate` | checks a state file is well-formed (`--at-rest` for a committed one) |
 | `verdict-run` | runs a pass through the harness |
+| `verdict-accept` | the maintainer's pen: record that a finding's risk is accepted, with a citation and a reason — the one status the tester cannot write |
 | `verdict-facts` / `verdict-finalize` | measure-then-judge harness halves |
 
 ## Documentation

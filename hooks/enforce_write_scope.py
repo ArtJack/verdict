@@ -27,7 +27,9 @@ import json
 import os
 import sys
 
-from qa_paths import is_allowed_path as _is_allowed, utf8_stderr
+from qa_paths import is_allowed_path as _is_allowed
+from qa_paths import is_maintainer_file as _is_maintainer
+from qa_paths import utf8_stderr
 
 
 def _caller_is_verdict(data: dict) -> bool:
@@ -52,10 +54,19 @@ def main() -> int:
         or ""
     )
 
+    strict = os.environ.get("VERDICT_STRICT", "") not in ("", "0", "false")
+    if _is_maintainer(target) and (strict or _caller_is_verdict(data)):
+        # Inside the QA root, and still not the tester's: the accepted-risk
+        # ledger is the maintainer's decision about the tester's findings.
+        sys.stderr.write(
+            f"verdict write-scope guard: {target!r} is the maintainer's accepted-risk "
+            "ledger — written by `verdict-accept`, never by the tester. A tester that "
+            "could accept its own findings' risks could empty its own open list.\n"
+        )
+        return 2
     if _is_allowed(target):
         return 0
 
-    strict = os.environ.get("VERDICT_STRICT", "") not in ("", "0", "false")
     if strict or _caller_is_verdict(data):
         sys.stderr.write(
             "verdict write-scope guard: writing to "
