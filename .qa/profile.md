@@ -47,6 +47,28 @@ Pass when all three hold:
    `eval/fixtures/` must never be collected by the project suite.
 3. The suite writes only to pytest `tmp_path` and to hook-guarded QA roots.
 
+## Standing decision — the Bash guard is a cost-raiser, not a sandbox (2026-09-05)
+
+Read this before rating a finding against `hooks/enforce_bash_scope.py`. The README
+already states it, DECISIONS.md records it, and runs 8 through 14 spent most of seven
+releases on it: the guard is a deny-heuristic over a command string. A determined
+invocation can get past it, and the OS is the real boundary. So:
+
+- A **new spelling or argument order** of an already-modelled command family (`tar`,
+  `git`, `find`, `sed`, wrappers) that the guard mis-reads is **Minor** by policy, not a
+  release blocker, unless it also defeats one of the *structural* controls (the file tools
+  having no `Edit`, the write-scope hook, the maintainer's ledger being refused to the
+  tester). File it; do not block a release on it; do not put it first in
+  `next_run_focus`.
+- A **whole command family** the guard does not model at all, or a way to disarm the
+  guard's decision as such (a token in the wrong role standing the whole check down, as
+  VERDICT-F-75 did), is still rated on its merits.
+- The releases that model each family "measured before modelled" are the right way to
+  close such a finding when one is taken up. They are not owed one per run.
+
+This is the maintainer's call, recorded so the tester stops re-litigating it and the
+project stops shipping a release per spelling.
+
 ## Forbidden commands
 
 - No `git commit`, `git push`, `git checkout`, `git stash`, or any checkout mutation.
