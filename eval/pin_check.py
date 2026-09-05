@@ -68,6 +68,31 @@ SUITE = ["uv", "run", "--group", "dev", "pytest", "-q", "-p", "no:cacheprovider"
          "-o", "addopts="]
 
 
+def write_atomic(path, text):
+    """Replace a file's contents without ever leaving it half-written.
+
+    `open(path, "w").write(...)` truncates first, so a kill between the
+    truncate and the flush leaves an EMPTY SOURCE FILE — measured, on this
+    repository, when a whole-catalogue run was interrupted: `harness.py` came
+    back 2286 lines shorter and the lock had already been released, so nothing
+    said the tree was broken. The rest of this project writes state through a
+    temp file and `os.replace` for exactly this reason (`harness._atomic_write`);
+    the tool that rewrites every source file in the repository was the one
+    place that did not.
+
+    With the swap atomic, an interrupted run leaves either the original or the
+    complete mutant, and a kill that outruns the restore leaves the lock behind
+    as the signpost it is meant to be.
+    """
+    path = pathlib.Path(path)
+    tmp = path.with_name(path.name + ".pin_check.tmp")
+    with io.open(tmp, "w", encoding="utf-8", newline="") as fh:
+        fh.write(text)
+        fh.flush()
+        os.fsync(fh.fileno())
+    os.replace(tmp, path)
+
+
 def sweep():
     """CPython validates bytecode on mtime-in-whole-seconds plus size, so two
     same-size mutants inside one second run the first one's code. This is the
@@ -152,11 +177,19 @@ class Restorer:
     def __init__(self):
         self._saved = {}
         atexit.register(self.restore)
-        for sig in (signal.SIGINT, signal.SIGTERM, signal.SIGHUP):
+        # Looked up by name, because Windows has no SIGHUP and building the
+        # tuple raised AttributeError before the `try` could catch it — an
+        # except clause that names AttributeError "the platform lacks it" and
+        # sits one level too deep to ever see it. The whole class was
+        # unconstructible there, which nothing noticed until a test made one.
+        for name in ("SIGINT", "SIGTERM", "SIGHUP"):
+            sig = getattr(signal, name, None)
+            if sig is None:
+                continue
             try:
                 signal.signal(sig, self._on_signal)
-            except (ValueError, OSError, AttributeError):
-                pass    # not the main thread, or the platform lacks it
+            except (ValueError, OSError):
+                pass    # not the main thread
 
     def hold(self, path, text):
         self._saved[path] = text
@@ -165,7 +198,7 @@ class Restorer:
         while self._saved:
             path, text = self._saved.popitem()
             try:
-                io.open(path, "w", encoding="utf-8").write(text)
+                write_atomic(path, text)
             except OSError as exc:
                 print(f"COULD NOT RESTORE {path}: {exc}", file=sys.stderr)
         sweep()
@@ -176,11 +209,11 @@ class Restorer:
         raise SystemExit(130)   # atexit still runs, so the lock is released
 
 
-def main() -> int:
+def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--filter", default="", help="substring match on the label")
     ap.add_argument("--list", action="store_true", help="print the catalogue and stop")
-    args = ap.parse_args()
+    args = ap.parse_args(argv)
 
     mutants = json.loads(CATALOGUE.read_text(encoding="utf-8"))
     if args.filter:
@@ -216,7 +249,7 @@ def main() -> int:
             survivors.append(m["label"] + "  [stale anchor]")
             continue
         keeper.hold(path, src)
-        io.open(path, "w", encoding="utf-8").write(src.replace(m["old"], m["new"]))
+        write_atomic(path, src.replace(m["old"], m["new"]))
         sweep()
         try:
             result = run_suite(env)

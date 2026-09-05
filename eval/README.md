@@ -217,6 +217,30 @@ number that quietly counted it would be the wrong number.
 | — re-run against the whole suite | 29 | **27** |
 | the fix list (v0.75.0) | 32 | **32** |
 | **the code (v0.76.0)** | **46** | **45 of 45, 1 equivalent** |
+| the fix list (v0.77.0–v0.79.0) | +31 | all killed |
+| **the code (v0.80.0)** | **+18** | see below |
+
+**What the number is a rate over.** A kill rate means nothing without its
+denominator, and this one's denominator is a list somebody wrote. Enumerating
+from the fix list — which is what every release between the code-enumerated
+passes did — can only pin rules somebody already thought about, so the
+catalogue says which files have had a line-by-line pass and which have not:
+
+| Enumerated from the code | Files |
+|---|---|
+| yes | `hooks/enforce_bash_scope.py`'s tar handler (v0.76.0) · `hooks/qa_paths.py` and the run clock, `run_date` / `_ago` (v0.80.0) |
+| no — fix list only | `src/verdict_mcp/harness.py` outside the clock · `state.py` · `validate.py` · `gate.py` · `server.py` · `issues.py` · `accept.py` · the rest of the bash guard |
+
+The v0.80.0 pass is what a code-enumerated sweep is for: five rules run 13 had
+re-measured as unwatched, none of them in the catalogue, all reachable by
+reading `qa_paths.py` and the clock line by line. Two of the five turned out to
+be **equivalent mutants** and are marked as such rather than scored — the
+`errors="replace"` argument cannot change what these guards emit, because every
+character in their messages is UTF-8-encodable, and translating a trailing `Z`
+to `""` instead of `"+00:00"` produced an identical date on every stamp tried.
+The finding that named them (VERDICT-F-60) had asserted the second one changed
+behaviour; it does not, and saying so is cheaper than carrying a test that
+cannot fail.
 
 **Where the mutants come from decides what the number means.** Run 12 made the
 point with one fact: the v0.75.0 catalogue scored **killed** on the entry *"tar

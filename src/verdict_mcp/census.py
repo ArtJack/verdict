@@ -44,7 +44,15 @@ _SKIP_DIRS = {".git", ".venv", "venv", "node_modules", "__pycache__", ".qa",
               "dist", "build", ".mypy_cache", ".ruff_cache", ".pytest_cache"}
 _TREE_CAP = 300  # a baseline census is a sample, and says so, not a crawl
 
-_PY_IMPORT = re.compile(r"^\s*(?:from|import)\s+([A-Za-z_][A-Za-z0-9_]*)")
+# Anchored at the start of the line with at most a little indentation, and the
+# module root must be followed by end-of-line, a dot, a comma, or the words
+# that finish a real import. Matched as loose text it read the prose of a
+# docstring — "from a `releases/latest` URL" — and reported the English word
+# "a" as an undeclared dependency, which was this range's only lead
+# (VERDICT-F-79).
+_PY_IMPORT = re.compile(
+    r"^[ \t]{0,8}(?:from|import)[ \t]+([A-Za-z_][A-Za-z0-9_]*)"
+    r"(?=[ \t]*(?:$|[.,;]|\bimport\b|\bas\b|#))")
 _JS_IMPORT = re.compile(r"""(?:from\s+|require\(\s*)['"]([^'"./][^'"/]*)""")
 
 # The famous import-name / package-name mismatches. Anything not listed is

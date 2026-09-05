@@ -62,6 +62,10 @@ _COPIERS = {"cp", "install", "rsync", "ln"}
 # through — the agent moving the guard itself out of the way — one commit after
 # that exact command was denied (VERDICT-F-39). Both ends are targets here.
 _MOVERS = {"mv"}
+# Mutators whose FIRST operand is a mode, owner or size rather than a path.
+# `chmod +x` was denied because `+x` resolved against the cwd (VERDICT-F-77);
+# the files after it are the real targets and are still checked.
+_MODE_FIRST = {"chmod", "chown", "chgrp", "install"}
 _TARGET_FLAGS = ("-t", "--target-directory")
 # tar's option grammar, only as far as this guard needs it. Short options that
 # consume the token after them: under-listing here costs at worst a spurious
@@ -88,7 +92,10 @@ _GIT_MUTATORS = {
     "pull", "submodule", "bisect", "update-ref", "update-index", "gc",
     "prune", "filter-branch", "sparse-checkout", "notes", "replace", "reflog",
 }
-# Sub-verbs that only read. Denying `git submodule status` would be the kind
+# Read-only spellings that are a SUB-VERB: the word has to be the first
+# operand after the verb. `git stash list` reads; `git branch list` CREATES A
+# BRANCH CALLED list — measured, and the reason these two kinds had to be
+# split (VERDICT-F-75). Denying `git submodule status` would still be the kind
 # of false positive that gets strict mode switched off.
 _GIT_READONLY_SUBVERBS = {
     "submodule": {"status", "summary"},
@@ -98,12 +105,49 @@ _GIT_READONLY_SUBVERBS = {
     "stash": {"list", "show"},
     "reflog": {"show"},
     "worktree": {"list"},
-    "tag": {"list"},
-    "branch": {"list"},
-    "config": {"get", "list", "--get", "--list", "--get-all", "-l"},
 }
 # Verbs whose bare form only reports: `git branch` lists, it does not create.
 # `stash`, `gc` and `prune` are deliberately absent — bare, they all act.
+# Read-only spellings that are a FLAG. For these verbs a bare operand is a
+# name to create, so the word can never earn the exemption: `git branch --list`
+# reads, `git branch list` does not. Measured against git 2.x before the model
+# was written — the previous table gave `branch` and `tag` the word `list`,
+# which is exactly backwards.
+_GIT_READONLY_FLAGS = {
+    "branch": {"--list", "-l", "--show-current", "-v", "-vv", "--verbose", "-a",
+               "--all", "-r", "--remotes", "--contains", "--no-contains",
+               "--merged", "--no-merged", "--points-at", "--format", "--sort",
+               "--column", "-i", "--ignore-case"},
+    "tag": {"--list", "-l", "-n", "--contains", "--no-contains", "--merged",
+            "--no-merged", "--points-at", "--format", "--sort", "-i",
+            "--ignore-case", "--column"},
+    "config": {"--get", "--get-all", "--get-regexp", "--get-urlmatch", "--list",
+               "-l", "--show-origin", "--show-scope"},
+}
+# Flags that mutate whatever else is on the line. Present, the exemptions above
+# do not apply: `git branch --list -D x` is a deletion with a listing flag on it.
+_GIT_MUTATING_FLAGS = {
+    "branch": {"-d", "-D", "--delete", "-m", "-M", "--move", "-c", "-C", "--copy",
+               "-f", "--force", "-u", "--set-upstream-to", "--unset-upstream",
+               "--edit-description"},
+    "tag": {"-d", "--delete", "-f", "--force", "-a", "--annotate", "-s",
+            "--sign", "-m", "--message", "-F", "--file"},
+    "config": {"--unset", "--unset-all", "--replace-all", "--add", "--rename-section",
+               "--remove-section", "--edit", "-e"},
+}
+# Options whose value is a separate token. Their value is a value, whatever it
+# looks like: `git commit -m "--dry-run"` really commits, and the guard read
+# that message as a dry-run flag and stood aside (VERDICT-F-75). Deliberately
+# short and certain — an option left out is read as boolean, which can only add
+# a denial, while one wrongly listed swallows the token behind it.
+_GIT_VALUE_OPTS = {"-m", "--message", "-F", "--file", "-C", "--reuse-message",
+                   "--reedit-message", "--author", "--date", "--cleanup",
+                   "--fixup", "--squash", "-t", "--track", "--onto",
+                   "--contains", "--no-contains", "--merged", "--no-merged",
+                   "--points-at", "--sort", "--format", "--set-upstream-to",
+                   "-b", "-B", "--exec", "--strategy", "-s", "--strategy-option"}
+# The same, as short letters that can be bundled: `-am wip` is `-a -m wip`.
+_GIT_VALUE_SHORTS = set("mFCtbBu")
 _GIT_READONLY_BARE = {"branch", "tag", "reflog", "notes", "worktree",
                       "submodule", "bisect", "sparse-checkout", "config"}
 # git global flags that consume the following token as their value. -C and
@@ -483,9 +527,41 @@ def _check_stream_editor(head, args):
             yield f"{head} in-place", t
 
 
+def _git_operands(rest):
+    """(flags, operands) after the verb, with option values consumed.
+
+    A token is only a flag if it arrives in a flag's position. Scanning for a
+    name in ANY role is what let `git commit -m "--dry-run"` through: the
+    message was read as a dry-run flag and the whole authorization decision
+    stood aside (VERDICT-F-75). Short options bundle and may carry their value
+    attached, exactly as tar's do.
+    """
+    flags, operands = [], []
+    it = iter(rest)
+    for t in it:
+        if t == "--":
+            operands.extend(it)
+            break
+        if t.startswith("--"):
+            name, sep, _ = t.partition("=")
+            flags.append(name)
+            if not sep and name in _GIT_VALUE_OPTS:
+                next(it, None)
+        elif t.startswith("-") and len(t) > 1:
+            letters = t[1:]
+            while letters:
+                ch, letters = letters[0], letters[1:]
+                flags.append("-" + ch)
+                if ch in _GIT_VALUE_SHORTS:
+                    if not letters:
+                        next(it, None)      # the value is the next token
+                    letters = ""            # …or the rest of this one
+        else:
+            operands.append(t)
+    return flags, operands
+
+
 def _check_git(args, cwd):
-    if any(t in ("--dry-run", "--check") for t in args):
-        return
     repo, verb, it = cwd, None, iter(args)
     for t in it:
         # A global flag that takes a value must have that value eaten, or the
@@ -505,13 +581,26 @@ def _check_git(args, cwd):
             break
     if verb not in _GIT_MUTATORS:
         return
-    rest = list(it)
-    # `--get` and `--list` are flags, so a first-non-flag scan walked straight
-    # past them and denied `git config --get user.name`.
-    if any(t in _GIT_READONLY_SUBVERBS.get(verb, set()) for t in rest):
+    flags, operands = _git_operands(list(it))
+    # A dry run is a flag in a flag's position, and only for the verbs that
+    # have one. `--check` belongs to `apply`/`am`; elsewhere git rejects it,
+    # and reading it as an exemption made `git push origin main --check` an
+    # allowed push-shaped command (VERDICT-F-75).
+    if "--dry-run" in flags or ("--check" in flags and verb in ("apply", "am")):
         return
-    if not rest and verb in _GIT_READONLY_BARE:
-        return                    # `git branch`, `git tag`: listings
+    mutating = _GIT_MUTATING_FLAGS.get(verb, set())
+    if not any(f in mutating for f in flags):
+        # A sub-verb exemption must be the FIRST operand: `git stash list`
+        # reads, and `git stash push list` does not.
+        if operands and operands[0] in _GIT_READONLY_SUBVERBS.get(verb, set()):
+            return
+        readonly = _GIT_READONLY_FLAGS.get(verb, set())
+        if readonly and any(f in readonly for f in flags):
+            return                # `git branch --show-current`, `git tag -n`
+        if not operands and verb in _GIT_READONLY_BARE:
+            return                # `git branch`, `git tag`: listings
+        if verb == "config" and len(operands) <= 1:
+            return                # `git config user.name` reads; a value writes
     yield f"git {verb} (mutates the checkout)", repo
 
 
@@ -725,9 +814,15 @@ def _check_segment(toks, cwd, depth=0):
         moves = head in _MOVERS or "--remove-source-files" in args
         yield from _check_copier(head, args, moves=moves)
     elif head in _MUTATORS:
-        for t in args:
-            if not t.startswith("-"):
-                yield head, t
+        # The first operand of some mutators is not a path: `chmod +x f` names
+        # a mode, `chown user f` an owner, `truncate -s 0 f` a size. Resolved
+        # as a path it became `<checkout>/+x` and the guard refused a chmod
+        # inside the QA root it exists to permit (VERDICT-F-77).
+        operands = [t for t in args if not t.startswith("-")]
+        if head in _MODE_FIRST and operands:
+            operands = operands[1:]
+        for t in operands:
+            yield head, t
 
 
 def _check_copier(head: str, args: list, moves: bool = False):

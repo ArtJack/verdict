@@ -86,6 +86,55 @@ def test_write_blocks_a_qa_directory_nested_in_the_code(repo):
     assert rc == 2
 
 
+def test_a_sibling_of_the_solo_root_is_not_the_solo_root(tmp_path):
+    """`startswith(root)` without the separator makes every sibling whose name
+    merely begins with the root's a QA root: `…/verdict-notes`, `…/verdict.bak`,
+    and a directory an attacker can create beside it. Found by enumerating
+    `qa_paths.py` from the code rather than from the fix list — no finding had
+    ever named this line (VERDICT-F-65)."""
+    home = tmp_path / "home" / "verdict"
+    (home / "proj").mkdir(parents=True)
+    for sibling in ("verdict-notes", "verdict.bak", "verdictevil"):
+        (tmp_path / "home" / sibling).mkdir()
+        rc, err = run_hook("enforce_write_scope.py",
+                           write_event(str(tmp_path / "home" / sibling / "x.json")),
+                           strict="1", env_extra={"VERDICT_HOME": str(home)})
+        assert rc == 2, f"{sibling} is not inside {home.name}, and the guard allowed it: {err}"
+    rc, err = run_hook("enforce_write_scope.py",
+                       write_event(str(home / "proj" / "state.json")),
+                       strict="1", env_extra={"VERDICT_HOME": str(home)})
+    assert rc == 0, f"the solo root itself must stay writable: {err}"
+
+
+def test_the_first_qa_component_decides_and_a_deeper_one_cannot_rescue_it(tmp_path):
+    """"Only the first `.qa` component is considered" is what stops a directory
+    inside the code under test from wearing the scope's name. A walk that kept
+    scanning would let a nested repository rescue a path whose real parent is
+    not one."""
+    outer = tmp_path / "code"
+    inner = outer / ".qa" / "sub"
+    inner.mkdir(parents=True)
+    (inner / ".git").mkdir()             # a real checkout, but too deep to count
+    (inner / ".qa").mkdir()
+    rc, err = run_hook("enforce_write_scope.py",
+                       write_event(str(inner / ".qa" / "x.md")), strict="1")
+    assert rc == 2, f"the first `.qa` sits beside no .git; a deeper one rescued it: {err}"
+
+
+def test_a_scratch_file_that_happens_to_be_named_accepted_json_is_not_the_ledger(tmp_path):
+    """The maintainer's ledger is refused *inside the QA root*, which is the
+    one place the tester may otherwise write. Refusing the name everywhere
+    would take the agent's own scratch directory away from it — and the check
+    runs before the scratch allowance, so the mistake is invisible until you
+    try to write one."""
+    scratch = tmp_path / "scratch"
+    scratch.mkdir()
+    rc, err = run_hook("enforce_bash_scope.py",
+                       bash_event(f"cp /etc/hosts {scratch}/accepted.json", tmp_path),
+                       strict="1")
+    assert rc == 0, f"scratch is scratch, whatever the file is called: {err}"
+
+
 def test_write_allows_default_solo_root_in_strict():
     rc, _ = run_hook("enforce_write_scope.py",
                      write_event(f"{HOME_SOLO}/pricer/state.json"), strict="1")
@@ -808,6 +857,63 @@ def test_a_windows_path_survives_masking_and_target_reading(monkeypatch):
         == ["a b.txt"]
 
 
+def _deny_bytes(script, payload, **env_extra):
+    """Run a guard and return its stderr as RAW BYTES.
+
+    `text=True` would decode here and hide the thing under test: the question
+    is which bytes the guard put on the wire, not whether this process can be
+    persuaded to read them.
+    """
+    env = {k: v for k, v in os.environ.items()
+           if k not in ("VERDICT_STRICT", "VERDICT_HOME", "PYTHONIOENCODING")}
+    env["VERDICT_STRICT"] = "1"
+    env.update(env_extra)
+    proc = subprocess.run([sys.executable, str(HOOKS / script)],
+                          input=json.dumps(payload).encode("utf-8"),
+                          capture_output=True, env=env)
+    return proc.returncode, proc.stderr
+
+
+@pytest.mark.parametrize("script", ["enforce_bash_scope.py", "enforce_write_scope.py"])
+def test_a_guard_writes_utf8_even_when_the_console_says_otherwise(script, repo):
+    """`utf8_stderr()` has to *do* something, and until now nothing measured it.
+
+    Run 12 listed the whole UTF-8 stderr fix among the rules the suite does not
+    defend (VERDICT-F-60), and 0.77.0 closed only half of it: an AST check that
+    `main()` calls the function. The body could still be gutted to `pass` and
+    all 850 tests stayed green, because on this platform the stream is UTF-8
+    already, so the call changed nothing anyone could observe.
+
+    So the console is told it is cp1252, which is what Windows does by default,
+    and the bytes are read rather than decoded. Measured both ways: with the
+    reconfigure in place the em-dash goes out as `e2 80 94`; with the body
+    gutted it goes out as cp1252's `0x97`, the caller decodes UTF-8, and the
+    reason dies in a subprocess reader thread — looking like an empty message
+    rather than a lost one.
+
+    Two guards, not three: the run-contract hook needs a whole hand-written-state
+    setup to say anything, and it shares this very function with these two.
+    """
+    qa = Path(repo) / ".qa"
+    qa.mkdir(exist_ok=True)          # the fixture may already have one
+    if script == "enforce_bash_scope.py":
+        payload = {"tool_name": "Bash", "tool_input": {"command": f"rm -rf {repo}/src"},
+                   "cwd": str(repo)}
+    else:
+        # In scope and still refused, which is the message that carries prose.
+        payload = {"tool_name": "Write", "tool_input": {"file_path": str(qa / "accepted.json")},
+                   "agent_name": "verdict"}
+    rc, raw = _deny_bytes(script, payload, PYTHONIOENCODING="cp1252")
+    assert rc == 2, f"{script} did not deny, so there is no reason to read: {raw[:200]!r}"
+    # The instrument, controlled: a reason that is pure ASCII cannot show the
+    # difference, so the test says so rather than passing for the wrong reason.
+    assert "—".encode("utf-8") in raw or bytes([0x97]) in raw, (
+        f"{script}'s reason carries no em-dash any more — this test can no longer "
+        f"tell UTF-8 from cp1252: {raw[:200]!r}")
+    raw.decode("utf-8")            # raises if the guard wrote the console's codepage
+    assert bytes([0x97]) not in raw, "the reason went out as cp1252, not UTF-8"
+
+
 @pytest.mark.parametrize("script", ["enforce_bash_scope.py", "enforce_write_scope.py",
                                     "enforce_run_contract.py"])
 def test_every_guard_writes_its_reason_as_utf8(script):
@@ -883,6 +989,131 @@ def test_bash_blocks_a_deletion_list_it_cannot_read(repo, tmp_path):
                        bash_event(f"tar -cf {scratch}/x.tar -T {repo}/list.txt", repo),
                        strict="1")
     assert rc == 0, f"reading a file list without --remove-files is not a write: {err}"
+
+
+# ── git, checked against the git that would actually run ───────────────────
+
+GIT_SHAPES = [
+    # (argv after `git`, must the guard deny it, does real git change the checkout?)
+    # The two are not the same question: `git checkout -b --dry-run` is refused
+    # by git itself, so denying it costs nothing and allowing it would rest on
+    # git's error handling rather than on the guard.
+    # VERDICT-F-75: a name read in any role disarmed the whole decision.
+    (["commit", "--allow-empty", "-m", "--dry-run"], True, True),
+    (["commit", "-am", "--dry-run"], True, True),
+    (["commit", "-m", "--dry-run", "-a"], True, True),
+    (["stash", "push", "-m", "--dry-run"], True, True),
+    (["tag", "-a", "v9", "-m", "--dry-run"], True, True),
+    (["branch", "list"], True, True),                 # creates a branch called list
+    (["branch", "-D", "keepme", "list"], True, True),
+    (["branch", "-m", "keepme", "renamed"], True, True),
+    (["checkout", "-b", "--dry-run"], True, False),   # git refuses the name itself
+    (["commit", "-a", "--message", "--dry-run"], True, True),   # the long spelling too
+    # A read-only word is only read-only in its own position, and a mutating
+    # flag outranks a listing one. Both refused by git as spelled, so denying
+    # them costs nothing and allowing them would rest on git's error handling.
+    (["worktree", "remove", "list"], True, False),
+    (["stash", "push", "list"], True, False),
+    (["branch", "--list", "-D", "keepme"], True, False),
+    # …and a read-only flag WITH an operand, which the bare-listing rule cannot
+    # rescue — the row that tells the flag tables apart from nothing at all.
+    (["branch", "--list", "keepme"], False, False),
+    (["tag", "--list", "v*"], False, False),
+    # …and the read-only spellings the same blindness refused (VERDICT-F-76).
+    (["branch", "--show-current"], False, False),
+    (["branch", "-v"], False, False),
+    (["branch", "--list"], False, False),
+    (["branch"], False, False),
+    (["tag", "--list"], False, False),
+    (["tag", "-n"], False, False),
+    (["config", "--get-regexp", "user"], False, False),
+    (["config", "--get", "user.name"], False, False),
+    (["config", "user.name"], False, False),
+    (["stash", "list"], False, False),
+    (["status", "--porcelain"], False, False),
+    # A real dry run is still a dry run.
+    (["commit", "--allow-empty", "--dry-run", "-m", "x"], False, False),
+]
+
+
+def _git_world(tmp_path):
+    """A checkout with a branch, a tag and an uncommitted change, so every
+    shape above has something it could act on."""
+    repo = tmp_path / "victim"
+    repo.mkdir()
+    run = lambda *a: subprocess.run(["git", "-C", str(repo), *a], check=True,
+                                    capture_output=True, text=True)
+    subprocess.run(["git", "init", "-q", "-b", "main", str(repo)], check=True, capture_output=True)
+    run("config", "user.email", "t@t")
+    run("config", "user.name", "t")
+    (repo / "a.txt").write_text("one\n", encoding="utf-8")
+    run("add", "-A")
+    run("commit", "-qm", "first")
+    run("branch", "keepme")
+    run("tag", "v1")
+    (repo / "a.txt").write_text("two\n", encoding="utf-8")      # a change to commit or stash
+    return repo
+
+
+def _git_state(repo):
+    def out(*a):
+        return subprocess.run(["git", "-C", str(repo), *a],
+                              capture_output=True, text=True).stdout
+    return (out("rev-parse", "HEAD"), out("for-each-ref", "refs/heads"), out("tag"),
+            out("stash", "list"), out("status", "--porcelain"), out("config", "--local", "-l"))
+
+
+@pytest.mark.parametrize("shape, denied, mutates", GIT_SHAPES,
+                         ids=[" ".join(s) for s, _, _ in GIT_SHAPES])
+def test_the_guard_agrees_with_the_git_that_would_run(tmp_path, shape, denied, mutates):
+    """VERDICT-F-75, the Critical: `--dry-run` and the read-only sub-verb names
+    were matched in ANY position, so one ordinary token stood the guard down.
+    `git commit -m "--dry-run"` really commits and `git branch -D keepme list`
+    really deletes both branches — measured against real git, then modelled.
+
+    Both directions in one table, because a guard that denies everything passes
+    the first half and fails the second — and the second half is the half that
+    gets strict mode switched off (VERDICT-F-76).
+    """
+    repo = _git_world(tmp_path)
+    rc, err = run_hook("enforce_bash_scope.py",
+                       bash_event("git " + " ".join(shape), repo), strict="1")
+    if denied:
+        assert rc == 2, f"this must not be allowed: git {' '.join(shape)}"
+    else:
+        assert rc == 0, f"nothing changes, and the guard refused: {err}"
+
+
+@pytest.mark.parametrize("shape, denied, mutates", GIT_SHAPES,
+                         ids=[" ".join(s) for s, _, _ in GIT_SHAPES])
+def test_real_git_changes_what_this_matrix_claims(tmp_path, shape, denied, mutates):
+    """The other half: run the command in a throwaway checkout and look at what
+    moved. Without this the table is a set of assertions about a program nobody
+    executed, which is how `list` came to be modelled as a read-only word for
+    `git branch` when it is the name of the branch it creates."""
+    repo = _git_world(tmp_path)
+    before = _git_state(repo)
+    subprocess.run(["git", "-C", str(repo), *shape], capture_output=True, text=True)
+    assert (_git_state(repo) != before) == mutates, (
+        f"the matrix says mutates={mutates}; real git disagrees for: git {' '.join(shape)}")
+
+
+def test_a_mode_operand_is_not_a_path(repo, tmp_path):
+    """VERDICT-F-77: every non-dash argument of a generic mutator was resolved
+    as a path, so `chmod +x f` was refused because `+x` became
+    `<checkout>/+x` — including inside `.qa/`, the one directory the tester may
+    write. The files after the mode are still checked."""
+    scratch = tmp_path / "scratch"
+    scratch.mkdir()
+    (scratch / "x.sh").write_text("#!/bin/sh\n", encoding="utf-8")
+    for command in (f"chmod +x {scratch}/x.sh", f"chmod 755 {scratch}/x.sh",
+                    f"chmod +x {repo}/.qa/x.sh", f"chown nobody {scratch}/x.sh"):
+        rc, err = run_hook("enforce_bash_scope.py", bash_event(command, repo), strict="1")
+        assert rc == 0, f"the mode operand is not a path: {command} · {err}"
+    # …and the file behind the mode still is one.
+    rc, err = run_hook("enforce_bash_scope.py",
+                       bash_event(f"chmod 777 {repo}/src/a.py", repo), strict="1")
+    assert rc == 2, "a chmod of the code under test is still a write to it"
 
 
 # ── tar, checked against the tar that would actually run ────────────────────

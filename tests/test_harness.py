@@ -8,7 +8,7 @@ import json
 import os
 import subprocess
 import sys
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
 import pytest
@@ -881,10 +881,49 @@ def test_without_a_recorded_key_the_directory_name_stands(repo, qa_root):
     assert facts["project_key_source"] == "git" and facts["project"] == repo.name.lower()
 
 
+
+def test_the_run_date_is_the_runs_own_utc_calendar_day():
+    """VERDICT-F-54 moved every `first_seen`, `age_days` and report filename
+    onto this one function, and run 12 listed it among the rules nothing
+    watches (VERDICT-F-60).
+
+    Three properties, each with an input that can tell it apart from a wrong
+    one. The stamp is *translated* before parsing, because `fromisoformat`
+    only learned to read a trailing `Z` in 3.11 and this project's floor is
+    3.9 — on the 3.10 CI leg, dropping the translation makes every run fall
+    back to today's date. The offset it is translated to is UTC, not some
+    other hour. And an offset already in the stamp is converted rather than
+    read off the wall clock.
+    """
+    from verdict_mcp.harness import run_date
+
+    def at(stamp):
+        return run_date({"last_run": {"timestamp_utc": stamp}})
+
+    # Early morning UTC: a translation to any other offset moves the day.
+    assert at("2026-09-06T00:30:00Z") == date(2026, 9, 6)
+    # Late evening UTC, the other side of the same boundary.
+    assert at("2026-09-05T23:30:00Z") == date(2026, 9, 5)
+    # A non-UTC offset is converted, not taken at face value: 23:30 at -07:00
+    # is already the next day in UTC.
+    assert at("2026-09-05T23:30:00-07:00") == date(2026, 9, 6)
+    # Unreadable stamps fall back rather than raising — the fallback is the
+    # behaviour a missing translation would produce for EVERY stamp on 3.10.
+    assert at("not a timestamp") == datetime.now(timezone.utc).date()
+    assert at("") == datetime.now(timezone.utc).date()
+
+
 @pytest.mark.parametrize("age_h, expected, forbidden", [
     (0.0, "seconds ago", "minute"),
     (0.05, "3 minutes ago", "hour"),
     (0.75, "45 minutes ago", "hour"),
+    # The two boundaries, as literals rather than as arithmetic on the
+    # constants under test: a probe derived from the constant moves with a
+    # mutation of it and can only ever pass (the lesson of the 0.67.0
+    # tolerance tests). Exactly 60 minutes is an hour, not "60 minutes ago",
+    # and exactly 1.05 hours is where the phrase starts carrying a decimal.
+    (1.0, "1 hour ago", "60 minutes"),
+    (1.05, "1.1 hours ago", "1 hour ago"),
     (2.01, "2.0 hours ago", "minute"),
     (5.9, "5.9 hours ago", "minute"),
 ])

@@ -86,3 +86,28 @@ def test_the_cli_says_it_out_loud_and_still_records_the_run(repo, qa_root, tmp_p
                            "--judgment", str(jp)], capture_output=True, text=True)
     assert proc.returncode == 0, proc.stderr
     assert "WARNING" not in proc.stderr, "a clean finalize must not cry wolf"
+
+
+def test_finalize_actually_runs_the_check_it_documents(repo, qa_root, monkeypatch, capsys):
+    """The call site, not the body. `check_artifacts` is covered eight ways
+    above and nothing asserted that `verdict-finalize` calls it, so deleting
+    the one call left every test green — the class VERDICT-F-57 named, and the
+    one the catalogue claimed to pin with an entry that was really a duplicate
+    of another (VERDICT-F-66).
+
+    A spy, because the question is whether the call happens: a corrupted
+    artifact cannot be used to ask it, since finalize rewrites the artifacts it
+    then reads.
+    """
+    import verdict_mcp.harness as h
+
+    seen = []
+    real = h.check_artifacts
+    monkeypatch.setattr(h, "check_artifacts",
+                        lambda root, state: seen.append(str(root)) or real(root, state))
+    (qa_root / "facts.json").write_text(json.dumps(collect(repo, qa_root, [])), encoding="utf-8")
+    (qa_root / "judgment.json").write_text(json.dumps(judgment()), encoding="utf-8")
+    rc = h.finalize_main(["--qa-root", str(qa_root),
+                          "--judgment", str(qa_root / "judgment.json")])
+    assert rc == 0, capsys.readouterr().err
+    assert seen == [str(qa_root)], "finalize wrote its artifacts and never read them back"
