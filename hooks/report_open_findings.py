@@ -157,6 +157,15 @@ def main() -> int:
     except Exception:
         return _silent()
 
+    # UTF-8, whatever the console codepage: the banner is full of em-dashes and
+    # middle dots, Claude Code reads hook output as UTF-8, and on Windows the
+    # default stream wrote cp1252's 0x97 instead — the trap every guard's
+    # stderr had already been pinned against (VERDICT-F-60). Wrapped, because
+    # a session opener that cannot configure a stream must still stay silent.
+    try:
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    except (AttributeError, ValueError, OSError):
+        pass
     sys.stdout.write("\n".join(lines) + "\n")
     return 0
 

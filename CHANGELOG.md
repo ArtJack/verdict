@@ -43,6 +43,11 @@ A decision changes the next verdict, never the last one — the gate keeps
 returning `fail` on a run that measured an open Critical, whatever was
 decided about it afterwards.
 
+**Also.** The session banner writes UTF-8 now. On Windows its em-dashes and
+middle dots reached Claude Code as cp1252 bytes — the trap every guard's
+stderr had already been pinned against, on the one hook that writes stdout.
+Found by this release's own banner test on the Windows legs.
+
 **Used on this repository first.** VERDICT-F-21 is accepted in
 `.qa/accepted.json`, citing the DECISIONS.md entry of 2026-09-02. Run 13 will
 be the first to render it apart.
