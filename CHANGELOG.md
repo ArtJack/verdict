@@ -3,6 +3,74 @@
 Plugin and `verdict-mcp` share one version line; `.claude-plugin/plugin.json` and
 `pyproject.toml` are bumped together.
 
+## 0.77.0 — 2026-09-04 · "the harness stops guessing"
+
+Run 12's remaining code findings, closed together — and the one that had been
+mis-selecting for four runs.
+
+**VERDICT-F-26 — fix verification no longer runs a test nobody chose.** Since
+run 7 the harness picked, among several pytest ids scraped from a finding's
+prose, whichever came first. 0.6x stopped *weighing* that pick; run 12 showed
+the other half of the defect: the pick was still run, and this time the id came
+out of the sentence that documents the mis-scrape itself — a pass/pass record
+about a third party's test, written into the state as a measurement. A finding
+that cites several tests in prose and declares none is now `unselectable`:
+nothing runs, the record names the `candidate_tests`, the report counts it under
+"not run", and `verification_notes` says what to declare. One cited test still
+verifies, and still refuses a resolution when it fails at HEAD. The judgment
+side needs no change — `verification_test` has been the tester's own citation
+field since the loop closed — so this release is prompt-free.
+
+**VERDICT-F-64 — the floor test reads the statement, not the text.** `FUTURE not
+in src` was satisfied by a comment. `_future_annotations` walks the module body
+and accepts only a real `from __future__ import annotations` placed where the
+compiler accepts one; demoting the import to a comment fails the suite now,
+measured. The same substring shape one file over — `assert "utf8_stderr()" in
+src`, which run 12 listed among the unwatched rules (VERDICT-F-60) — is an AST
+check that `main()` calls it.
+
+**VERDICT-F-63 — the floor reaches `eval/`.** `python3 eval/run_eval.py` is a
+README command, and three eval scripts died on 3.9 with F-55's exact TypeError
+while the floor test globbed elsewhere. They carry the future import and
+`eval/*.py` is in the floor set: verified on `/usr/bin/python3` 3.9.6, `--help`
+exits 0 for all three.
+
+**VERDICT-F-67 — every spelling of tar.** The dispatcher matched the exact
+basename `tar`. On macOS that is bsdtar, which cannot `--remove-files` at all,
+and the GNU tar that can is Homebrew's `gtar`: four findings' worth of rules
+were unreachable on the one binary able to do the thing. `gtar` and `bsdtar`
+reach the same handler, tested in both directions under four spellings.
+
+**VERDICT-F-68 — `pin_check` reads pytest's summary.** Any non-zero exit was a
+kill, so a mutant that broke collection would have scored as a defended rule.
+`classify` needs a failed or errored test on the final summary line; every
+other non-zero exit is ERROR — listed apart, out of the denominator, and failing
+the run. Eight unit tests, including the nested case where a test that itself
+runs pytest prints its own `1 failed` into captured output.
+
+**VERDICT-F-69** — the comment pasted twice in the bash guard is one comment.
+
+**Also:** `server.json` was three releases behind the other two manifests (the
+MCP Server Registry still showed 0.49.0). `tests/test_versions.py` refuses a
+commit in which the three disagree, with a control that plants that exact
+drift and watches the check see it.
+
+**Measured.** Every rule above has its defect put back in
+`eval/pinned_mutants.json` (`0.77.0 Q1`–`Q7`, `--filter 0.77.0`): 7 of 7 killed
+by the whole suite. The controls found two faults in the instrument before
+they found any in the code: this project's `addopts = -q` doubled the check's
+own `-q` and suppressed the summary line it read, and the first hook picked for
+the commented-import mutant had no union annotation, so there was nothing to
+comment out. Both are the shape F-68 is about.
+
+**Not in this release, on purpose.** VERDICT-F-58 (the §3 instrument control
+that cannot fire in F-50's ordering) is a prompt change and stays eval-paid.
+VERDICT-F-21 is a maintainer decision (DECISIONS.md, 2026-09-02) — and the
+reason the next release adds a way to record one, since the only way to stop
+counting a correct finding today is to withdraw it, which counts against the
+tester. VERDICT-F-60/F-65/F-66 — the nine uncatalogued survivors and the
+mislabelled call-site entry — are the catalogue-honesty release after that.
+
 ## 0.76.0 — 2026-09-04 · "measure the tool, then encode it"
 
 Run 12 found the tar handler bypassed five ways and my mutation catalogue

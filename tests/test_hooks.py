@@ -5,6 +5,7 @@ with the hook-event JSON on stdin and the policy carried by environment
 variables. Exit 0 = allow, 2 = deny.
 """
 
+import ast
 import json
 import os
 import shutil
@@ -825,8 +826,15 @@ def test_every_guard_writes_its_reason_as_utf8(script):
     assert proc.returncode == 0, "malformed input must still fail open"
     proc.stderr.decode("utf-8")  # raises if the stream is not UTF-8
 
-    src = (HOOKS / script).read_text(encoding="utf-8")
-    assert "utf8_stderr()" in src, f"{script} does not pin its stderr encoding"
+    # As a statement inside main(), not as text: a substring survives in a
+    # comment or a docstring exactly as the future import did (VERDICT-F-64),
+    # and run 12 measured this line as unwatched for that reason (VERDICT-F-60).
+    tree = ast.parse((HOOKS / script).read_text(encoding="utf-8"))
+    mains = [n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name == "main"]
+    assert mains, f"{script} has no main()"
+    calls = [n for n in ast.walk(mains[0]) if isinstance(n, ast.Call)
+             and getattr(n.func, "id", getattr(n.func, "attr", None)) == "utf8_stderr"]
+    assert calls, f"{script} never calls utf8_stderr() from main() — its reason is lost on Windows"
 
 
 def test_bash_blocks_archive_then_delete_reached_through_a_change_of_directory(repo, tmp_path):
@@ -998,6 +1006,24 @@ def test_extraction_into_scratch_is_allowed_from_inside_the_checkout(repo, tmp_p
     rc, err = run_hook("enforce_bash_scope.py",
                        bash_event(f"tar -xf {scratch}/x.tar -C {scratch}", repo), strict="1")
     assert rc == 0, f"extraction into scratch must not depend on where you stand: {err}"
+
+
+@pytest.mark.parametrize("spelling", ["gtar", "bsdtar", "/opt/homebrew/bin/gtar", "/usr/bin/tar"])
+def test_the_tar_rules_reach_every_spelling_of_tar(tmp_path, spelling):
+    """VERDICT-F-67: on macOS `/usr/bin/tar` is bsdtar, which cannot
+    `--remove-files` at all, and the GNU tar that can is installed as `gtar` —
+    a name the dispatcher matched by exact basename and so never read. Four
+    findings' worth of rules were unreachable on the one binary able to do the
+    thing. Both directions, as in the matrix above: the deleting shape denied
+    under every name, the plain archive allowed under every name.
+    """
+    root, repo, scratch, cwd = _tar_world(tmp_path)
+    deleting = f"{spelling} -cf {scratch}/x.tar --remove-files {repo}/hooks"
+    rc, err = run_hook("enforce_bash_scope.py", bash_event(deleting, cwd), strict="1")
+    assert rc == 2, f"`{spelling}` deletes inside the checkout and the guard allowed it"
+    benign = f"{spelling} -cf {scratch}/x.tar {repo}/src"
+    rc, err = run_hook("enforce_bash_scope.py", bash_event(benign, cwd), strict="1")
+    assert rc == 0, f"a plain archive of the checkout is a read, whatever tar is called: {err}"
 
     rc, err = run_hook("enforce_bash_scope.py",
                        bash_event(f"tar -xf {scratch}/x.tar -C {repo}/src", repo), strict="1")

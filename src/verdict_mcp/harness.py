@@ -287,6 +287,7 @@ def _parse_marker_time(value):
 _TEST_ID = re.compile(r"([\w./\\-]+\.py::[\w.:]+(?:\[[^\]\n]*\])?)")
 VERIFY_MAX_FINDINGS = 25
 VERIFY_TIMEOUT_S = 120
+VERIFY_CANDIDATES_SHOWN = 5
 
 
 def resolve_test_id(candidate: str, known) -> str | None:
@@ -523,6 +524,36 @@ def verify_findings(repo: Path, previous: dict | None, test_one_cmd: str | None,
     if not cited:
         return {}, notes
 
+    # Which test, decided before anything runs. Several ids in prose with none
+    # declared is not a choice the harness can make: run 12 verified
+    # VERDICT-F-26 against an id quoted inside another finding's evidence — the
+    # fourth mis-selection in a row — and the pass/pass record it wrote read as
+    # a measurement of a test nobody chose. Such a finding gets a record that
+    # says so, and no run at all.
+    results: dict = {}
+    runnable, unselectable = [], []
+    for finding, tests in cited:
+        test_id, how = select_test(finding, tests, preferred)
+        if how == "first_cited" and len(tests) > 1:
+            results[str(finding.get("id"))] = {
+                "test": None, "selected_by": "unselectable", "candidates": len(tests),
+                "candidate_tests": tests[:VERIFY_CANDIDATES_SHOWN],
+                "previous_sha": previous_sha,
+                "at_previous": "unavailable", "at_head": "unavailable",
+                "summary": (f"not run: {len(tests)} tests cited in prose, none declared "
+                            "as verification_test")}
+            unselectable.append(str(finding.get("id") or "?"))
+        else:
+            runnable.append((finding, tests, test_id, how))
+    if unselectable:
+        shown = ", ".join(unselectable[:5])
+        more = f" and {len(unselectable) - 5} more" if len(unselectable) > 5 else ""
+        notes.append(f"nothing was run for {shown}{more}: each cites several tests in prose "
+                     "and declares none as `verification_test` — the harness does not guess "
+                     "which one guards a finding; declare it to make the measurement count")
+    if not runnable:
+        return results, notes
+
     scratch = None
     if previous_sha:
         scratch = _scratch_checkout(repo, str(previous_sha))
@@ -532,10 +563,8 @@ def verify_findings(repo: Path, previous: dict | None, test_one_cmd: str | None,
     else:
         notes.append("no previous commit recorded — verification ran at HEAD only")
 
-    results: dict = {}
     try:
-        for finding, tests in cited:
-            test_id, how = select_test(finding, tests, preferred)
+        for finding, tests, test_id, how in runnable:
             rec = {"test": test_id, "selected_by": how, "candidates": len(tests),
                    "previous_sha": previous_sha,
                    "at_previous": "unavailable", "at_head": None}
@@ -2003,9 +2032,13 @@ def render_report(state: dict, prose: dict | None = None) -> str:
             return v.get("at_previous") == "fail" and v.get("at_head") == "pass"
         verified = sum(1 for f in measured if _shows_fix(f) and f.get("delta") == "RESOLVED")
         refused = sum(1 for f in measured if f.get("resolution_refused"))
+        not_run = sum(1 for f in measured
+                      if f["verification"].get("selected_by") == "unselectable")
         out.append(f"Fix verification: {verified} verified · {refused} refused (cited test "
-                   f"still fails at HEAD) · {len(measured) - verified - refused} measured but "
-                   "not verifiable")
+                   f"still fails at HEAD) · {len(measured) - verified - refused - not_run} "
+                   "measured but not verifiable"
+                   + (f" · {not_run} not run (several tests cited in prose, none declared "
+                      "as `verification_test`)" if not_run else ""))
         unconfirmed = [str(f.get("id")) for f in measured
                        if f.get("fix_verified") is True and not _shows_fix(f)]
         if unconfirmed:

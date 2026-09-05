@@ -23,8 +23,33 @@ ROOT = Path(__file__).resolve().parent.parent
 # plus the modules they import. Discovered, not listed: a new file must not be
 # able to join the invoked set without meeting the floor.
 MODULES = sorted([*(ROOT / "hooks").glob("*.py"),
-                  *(ROOT / "src" / "verdict_mcp").glob("*.py")])
+                  *(ROOT / "src" / "verdict_mcp").glob("*.py"),
+                  # `python3 eval/run_eval.py` is a README command and
+                  # `eval/fixture_freshness.py` a declared gate, and three of
+                  # these died on 3.9 while this set looked elsewhere (VERDICT-F-63)
+                  *(ROOT / "eval").glob("*.py")])
 FUTURE = "from __future__ import annotations"
+
+
+def _future_annotations(tree) -> bool:
+    """A real `from __future__ import annotations`, where the compiler accepts
+    one: before any statement other than the docstring and other future
+    imports. The first version asked whether the string appeared anywhere in
+    the file, so a commented-out copy kept the suite green while the import it
+    stood for was gone and F-55 was back on 3.9 (VERDICT-F-64) — the shape
+    `test_the_floor_is_written_down` had already been fixed for, one function
+    down."""
+    for i, node in enumerate(tree.body):
+        if (i == 0 and isinstance(node, ast.Expr)
+                and isinstance(getattr(node, "value", None), ast.Constant)
+                and isinstance(node.value.value, str)):
+            continue                                   # the module docstring
+        if isinstance(node, ast.ImportFrom) and node.module == "__future__":
+            if any(a.name == "annotations" for a in node.names):
+                return True
+            continue                                   # another future import
+        return False                                   # anything else closes the window
+    return False
 
 
 def _annotations(tree):
@@ -55,7 +80,7 @@ def test_new_style_unions_are_lazy(path):
     src = path.read_text(encoding="utf-8")
     tree = ast.parse(src)
     offenders = [ast.unparse(a) for a in _annotations(tree) if _has_union(a)]
-    if offenders and FUTURE not in src:
+    if offenders and not _future_annotations(tree):
         pytest.fail(f"{path.name} evaluates {offenders[0]!r} at import and lacks "
                     f"`{FUTURE}`; on a 3.9 `python3` that is a TypeError, not a "
                     f"type error")
@@ -90,6 +115,21 @@ def test_the_test_can_fail():
         "the union detector matches nothing — it would pass every file"
     clean = ast.parse("def f(x: str) -> int: ...")
     assert not [a for a in _annotations(clean) if _has_union(a)]
+
+
+def test_the_future_import_detector_reads_the_statement_not_the_text():
+    """VERDICT-F-64, controlled: the detector must be blind to a comment, and
+    to an import placed where every interpreter would refuse it."""
+    present = ast.parse('"""doc"""\nfrom __future__ import annotations\nimport os\n')
+    assert _future_annotations(present)
+    two = ast.parse('from __future__ import division\nfrom __future__ import annotations\n')
+    assert _future_annotations(two), "a second future import is still at the top"
+    commented = ast.parse('"""doc"""\n# from __future__ import annotations\nimport os\n')
+    assert not _future_annotations(commented), "a comment is not an import"
+    late = ast.parse('import os\nfrom __future__ import annotations\n')
+    assert not _future_annotations(late), "a late future import is a SyntaxError everywhere"
+    other = ast.parse('from __future__ import division\n')
+    assert not _future_annotations(other)
 
 
 def test_the_floor_is_written_down():

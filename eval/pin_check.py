@@ -26,6 +26,13 @@ And a third thing, which is why the catalogue grew: every mutant chosen for
 catalogue as their own class, because "the code is right" and "the code runs"
 are different claims.
 
+Three outcomes per mutant, read from pytest's summary line rather than its exit
+code: KILLED (a test failed), SURVIVED (the suite stayed green), and ERROR —
+pytest exited without a failed test, which is a broken collection or a usage
+error, not a defended rule (VERDICT-F-68). An ERROR is reported apart, kept
+out of the denominator, and fails the run, because a number that silently
+counted it as a kill would be the wrong number.
+
 Not a CI job. One suite run per mutant, roughly two seconds of thinking and a
 lot of waiting — a periodic exam, like the mutmut campaign in eval/README.md.
 
@@ -49,6 +56,7 @@ import io
 import json
 import os
 import pathlib
+import re
 import shutil
 import signal
 import subprocess
@@ -70,6 +78,38 @@ def sweep():
 
 def run_suite(env):
     return subprocess.run(SUITE, cwd=ROOT, capture_output=True, text=True, env=env)
+
+
+_COUNT = re.compile(r"(\d+) (passed|failed|errors?|skipped|xfailed|xpassed|deselected)\b")
+_SUMMARY_TAIL = re.compile(r" in \d+(?:\.\d+)?s\b")
+
+
+def classify(returncode: int, stdout: str) -> str:
+    """`killed`, `survived` or `error` — read off pytest's own summary line,
+    never off the exit code alone.
+
+    pytest exits non-zero for a usage error (4), an internal error (3), a
+    failed collection (2) and "no tests ran" (5) exactly as it does for a
+    failing test (1). Read as `rc != 0`, a mutant that leaves a module
+    unimportable scores as *defended* when nothing ran at all (VERDICT-F-68) —
+    the misreading run 11 had already written a lesson about. So a kill needs
+    pytest's count of failed or errored tests on its final line; any other
+    non-zero exit is the instrument breaking, and is reported as that.
+    """
+    if returncode == 0:
+        return "survived"
+    summary = ""
+    for line in reversed(stdout.splitlines()):
+        if _SUMMARY_TAIL.search(line) and _COUNT.search(line):
+            summary = line
+            break
+    counts: dict = {}
+    for n, kind in _COUNT.findall(summary):
+        kind = "error" if kind.startswith("error") else kind
+        counts[kind] = counts.get(kind, 0) + int(n)
+    if returncode == 1 and (counts.get("failed") or counts.get("error")):
+        return "killed"
+    return "error"
 
 
 class OnlyOne:
@@ -166,7 +206,7 @@ def main() -> int:
         return 1
     print(f"control: suite green · {len(mutants)} mutants to apply\n")
 
-    survivors, equivalents = [], []
+    survivors, equivalents, broken = [], [], []
     for i, m in enumerate(mutants, 1):
         path = ROOT / m["path"]
         src = path.read_text(encoding="utf-8")
@@ -182,8 +222,16 @@ def main() -> int:
             result = run_suite(env)
         finally:
             keeper.restore()
-        if result.returncode != 0:
+        outcome = classify(result.returncode, result.stdout)
+        if outcome == "killed":
             print(f"[{i:2}/{len(mutants)}] KILLED   {m['label']}")
+        elif outcome == "error":
+            # Not a kill and not a survivor: pytest exited without a failed
+            # test, so the mutant was never measured. Counted apart, or a
+            # mutant that breaks collection reads as a defended rule.
+            print(f"[{i:2}/{len(mutants)}] ERROR    {m['label']}  "
+                  f"(pytest exited {result.returncode} with no failed test — not a kill)")
+            broken.append(m["label"])
         elif m.get("equivalent"):
             # Documented, not hidden: a mutant that provably cannot change a
             # verdict is a question with no answer, and scoring it as a miss
@@ -194,15 +242,21 @@ def main() -> int:
             print(f"[{i:2}/{len(mutants)}] SURVIVED {m['label']}")
             survivors.append(m["label"])
 
-    killed = len(mutants) - len(survivors) - len(equivalents)
-    scored = len(mutants) - len(equivalents)
+    killed = len(mutants) - len(survivors) - len(equivalents) - len(broken)
+    scored = len(mutants) - len(equivalents) - len(broken)
     print(f"\n{killed} of {scored} killed by the whole suite"
-          + (f" ({len(equivalents)} equivalent, excluded)" if equivalents else ""))
+          + (f" ({len(equivalents)} equivalent, excluded)" if equivalents else "")
+          + (f" ({len(broken)} not measured: pytest broke instead of failing)" if broken else ""))
     if survivors:
         print("\nsurvivors — each is a rule the suite does not defend:")
         for s in survivors:
             print(f"  · {s}")
-    return 1 if survivors else 0
+    if broken:
+        print("\nnot measured — the suite could not run against these mutants, which is a "
+              "fact about the mutant or the tool, never a kill:")
+        for s in broken:
+            print(f"  · {s}")
+    return 1 if survivors or broken else 0
 
 
 if __name__ == "__main__":

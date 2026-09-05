@@ -274,12 +274,16 @@ for a cited test — an explicit `verification_test` on the finding, or a pytest
 (`path/test_x.py::test_y[...]`) in its evidence. **Order is the choice**: the explicit
 citation leads, then any id the collector saw for the first time this run — what a fix's
 own regression test looks like — and prose order last. The record says which, in
-`selected_by` (`explicit`, `added_this_run`, `first_cited`) and `candidates`. Taking
-whichever match came first meant the harness ran a non-guarding test for every finding it
-verified on run 7 (VERDICT-F-26), and a `first_cited` pick among several may not refuse a
-resolution: the measurement is recorded with a `not_weighed` note instead, because
-overruling the tester is the strongest thing a measurement does here and it may only rest
-on a test somebody chose. **A citation is checked against the
+`selected_by` (`explicit`, `added_this_run`, `first_cited`, `unselectable`) and
+`candidates`. Taking whichever match came first meant the harness ran a non-guarding test
+for every finding it verified on run 7 (VERDICT-F-26), and a `first_cited` pick among
+several may not refuse a resolution: the measurement is recorded with a `not_weighed` note
+instead, because overruling the tester is the strongest thing a measurement does here and
+it may only rest on a test somebody chose. Since v0.77.0 such a pick is not run at all —
+run 12 verified F-26 itself against an id quoted inside another finding's evidence, the
+fourth mis-selection in a row, and a pass/pass record about a test nobody chose reads as
+a measurement. The record says `unselectable`, lists the `candidate_tests`, carries no
+`test`, and `verification_notes` asks for a declared `verification_test`. **A citation is checked against the
 collected test-id ledger before anything runs**: evidence is prose, and the node-id regex
 matches one anywhere in it, including inside a quoted source snippet. Run 5 of this
 repository ran `t.py::new`, a test that exists in no file here, and published the

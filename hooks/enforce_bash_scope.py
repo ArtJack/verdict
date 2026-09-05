@@ -35,14 +35,6 @@ mode is strict; use literal paths inside the QA root.
 # installed by pip.
 from __future__ import annotations
 
-# Lazy annotations, so this module IMPORTS on the interpreter it is actually
-# invoked with. `hooks.json` and the agent contract both spell it `python3`, and on
-# a stock Mac that is /usr/bin/python3 = 3.9, where `str | None` is evaluated at
-# function-definition time and raises TypeError. The Bash guard died that way while
-# the write guard beside it kept denying, so a strict session looked armed with half
-# its controls missing (VERDICT-F-55). `requires-python` binds pip; a plugin is not
-# installed by pip.
-
 
 import json
 import os
@@ -677,7 +669,11 @@ def _check_segment(toks, cwd, depth=0):
         yield from _check_git(args, cwd)
     elif head in ("awk", "gawk"):
         yield from _check_awk(args)
-    elif head == "tar":
+    elif head in ("tar", "gtar", "bsdtar"):
+        # By every name it is installed under. On macOS `/usr/bin/tar` is
+        # bsdtar, which cannot `--remove-files` at all, and the GNU tar that
+        # can is Homebrew's `gtar` — a name the exact match never read, so on
+        # the one binary able to do the thing no tar rule fired (VERDICT-F-67).
         yield from _check_tar(args, cwd)
     elif head == "find":
         yield from _check_find(args, cwd)

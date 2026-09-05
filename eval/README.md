@@ -204,6 +204,13 @@ matched a digit inside a parenthetical rather than the claim, and the only call 
 `_drop_bytecode`, whose deletion left every test passing because the mutant that "killed"
 it had changed the function's *body*.
 
+Each mutant lands in one of three columns, read off pytest's own summary line rather
+than its exit code: **KILLED** (a test failed), **SURVIVED** (the suite stayed green), or
+**ERROR** — pytest exited without a failed test, which is a broken collection or a usage
+error, not a defended rule. Run 12 found the tool reading any non-zero exit as a kill
+(VERDICT-F-68); an ERROR now sits outside the denominator and fails the run, because a
+number that quietly counted it would be the wrong number.
+
 | enumerated from | mutants | killed |
 |---|---|---|
 | the tests (v0.74.0, as published) | 21 | 21, each against one named test |

@@ -275,5 +275,47 @@
   "path": "hooks/enforce_bash_scope.py",
   "old": "    if any(kind == \"opt\" and (name == \"T\" or _tar_abbrev(name, \"files-from\"))\n           for kind, name, _ in parsed):",
   "new": "    if False:"
+ },
+ {
+  "label": "0.77.0 Q1 F-63: eval/score.py's future import becomes a comment",
+  "path": "eval/score.py",
+  "old": "from __future__ import annotations\n",
+  "new": "# from __future__ import annotations\n"
+ },
+ {
+  "label": "0.77.0 Q2 F-64: the bash guard's future import becomes a comment (the string survives)",
+  "path": "hooks/enforce_bash_scope.py",
+  "old": "from __future__ import annotations\n",
+  "new": "# from __future__ import annotations\n"
+ },
+ {
+  "label": "0.77.0 Q3 F-67: the dispatcher matches only the exact name tar",
+  "path": "hooks/enforce_bash_scope.py",
+  "old": "    elif head in (\"tar\", \"gtar\", \"bsdtar\"):\n",
+  "new": "    elif head == \"tar\":\n"
+ },
+ {
+  "label": "0.77.0 Q4 F-68: pin_check reads any non-zero exit as a kill",
+  "path": "eval/pin_check.py",
+  "old": "    if returncode == 1 and (counts.get(\"failed\") or counts.get(\"error\")):\n        return \"killed\"\n    return \"error\"\n",
+  "new": "    return \"killed\"\n"
+ },
+ {
+  "label": "0.77.0 Q5 F-26: the unselectable branch is never taken (the first cited test runs)",
+  "path": "src/verdict_mcp/harness.py",
+  "old": "        if how == \"first_cited\" and len(tests) > 1:\n",
+  "new": "        if False and how == \"first_cited\" and len(tests) > 1:\n"
+ },
+ {
+  "label": "0.77.0 Q6 F-26: the report stops counting what was not run",
+  "path": "src/verdict_mcp/harness.py",
+  "old": "                   \"measured but not verifiable\"\n                   + (f\" · {not_run} not run (several tests cited in prose, none declared \"\n                      \"as `verification_test`)\" if not_run else \"\"))\n",
+  "new": "                   \"measured but not verifiable\")\n"
+ },
+ {
+  "label": "0.77.0 Q7 F-60: the bash guard's stderr pin is never called (the text survives)",
+  "path": "hooks/enforce_bash_scope.py",
+  "old": "def main() -> int:\n    utf8_stderr()\n",
+  "new": "def main() -> int:\n    pass  # utf8_stderr()\n"
  }
 ]
