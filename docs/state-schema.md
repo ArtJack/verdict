@@ -284,7 +284,13 @@ it may only rest on a test somebody chose. Since v0.77.0 such a pick is not run 
 run 12 verified F-26 itself against an id quoted inside another finding's evidence, the
 fourth mis-selection in a row, and a pass/pass record about a test nobody chose reads as
 a measurement. The record says `unselectable`, lists the `candidate_tests`, carries no
-`test`, and `verification_notes` asks for a declared `verification_test`. **A citation is checked against the
+`test`, and `verification_notes` asks for a declared `verification_test`. **A confirmation
+needs a chosen test** (v0.79.0): `fix_verified` and a `confirmed` / `measured` outcome follow a
+fail→pass only when `selected_by` is `explicit` or `added_this_run`. A single `first_cited`
+test may still refuse a resolution — the conservative direction, a finding held open costs a
+re-read — but its fail→pass is recorded under `not_weighed` and settles nothing, because a
+confirmed row is a permanent grade and run 12 showed a prose-quoted id can be another
+finding's test entirely (VERDICT-F-72). **A citation is checked against the
 collected test-id ledger before anything runs**: evidence is prose, and the node-id regex
 matches one anywhere in it, including inside a quoted source snippet. Run 5 of this
 repository ran `t.py::new`, a test that exists in no file here, and published the

@@ -534,6 +534,24 @@ def _tar_abbrev(name: str, canonical: str) -> bool:
     return len(name) >= 3 and canonical.startswith(name)
 
 
+def _tar_takes_value(name: str) -> bool:
+    """Does this long option, possibly abbreviated, consume the next token?
+
+    GNU tar accepts any unambiguous prefix of a long option. The parser matched
+    the table exactly while the handler matched the same options by
+    abbreviation, so `--direc <checkout>` was yielded valueless, the directory
+    fell through as an operand, and an extraction into the checkout was
+    reported against the shell's cwd — every rung of the ladder from `--dir`
+    to `--director` allowed, only the two full spellings denied
+    (VERDICT-F-71). Measured: `--dir`, `--direc` and `--directory` all extract
+    into the named directory. A prefix tar itself calls ambiguous (`--fil`:
+    --file, --files-from) makes tar refuse the whole command, so reading it as
+    value-taking here costs nothing.
+    """
+    return name in _TAR_LONG_WITH_ARG or (
+        len(name) >= 3 and any(o.startswith(name) for o in _TAR_LONG_WITH_ARG))
+
+
 def _tar_parse(args):
     """Walk tar's arguments, yielding ("opt", name, value) and ("arg", operand, None).
 
@@ -561,7 +579,7 @@ def _tar_parse(args):
             name, sep, inline = t[2:].partition("=")
             if sep:
                 yield "opt", name, inline
-            elif name in _TAR_LONG_WITH_ARG:
+            elif _tar_takes_value(name):
                 yield "opt", name, next(it, None)
             else:
                 yield "opt", name, None
@@ -597,19 +615,38 @@ def _check_tar(args, cwd):
     both `<checkout>/hooks` and `<scratch>/junk` (VERDICT-F-56).
     """
     parsed = list(_tar_parse(args))
-    here, operands = cwd, []
+    here, operands, archive = cwd, [], None
     for kind, name, value in parsed:
         if kind == "opt" and (name == "C" or _tar_abbrev(name, "directory")) and value:
             here = value if os.path.isabs(value) else os.path.join(here, value)
+        elif kind == "opt" and (name == "f" or _tar_abbrev(name, "file")) and value:
+            # The archive is a path too. Measured against GNU tar 1.35: it
+            # resolves against the shell's cwd wherever `-C` sits on the line,
+            # and `-f -` is stdout, not a file.
+            archive = None if value == "-" else (
+                value if os.path.isabs(value) else os.path.join(cwd, value))
         elif kind == "arg":
             operands.append(name if os.path.isabs(name) else os.path.join(here, name))
-    if any(kind == "opt" and (name == "x" or _tar_abbrev(name, "extract")
-                              or _tar_abbrev(name, "get"))
-           for kind, name, _ in parsed):
+
+    def _mode(*names):
+        return any(kind == "opt" and any((name == n) if len(n) == 1 else _tar_abbrev(name, n)
+                                         for n in names)
+                   for kind, name, _ in parsed)
+
+    if _mode("x", "extract", "get"):
         # Extraction writes into the directory in effect when it runs, which is
         # the last one the walk reached.
         yield "tar extract (overwrites in place)", here
         return
+    if archive and not _mode("t", "list", "d", "diff", "compare"):
+        # Every mode that is not extract, list or compare — create, append,
+        # update, concatenate, delete — writes the archive named by `-f`. The
+        # handler's own comment said the archive "is written, not removed"
+        # and never yielded it, so `tar -cf <checkout>/hooks/a.py …` turned a
+        # tracked source file into a tar archive with the guard's blessing,
+        # and did the same to the maintainer's accepted.json that this guard
+        # refuses to `cp` (VERDICT-F-70). Measured before it was modelled.
+        yield "tar -f (writes the archive)", archive
     # Creating an archive only reads — unless it is told to delete what it read.
     # `tar --remove-files -cf <scratch>/loot.tar <checkout>/hooks` is the
     # archive-then-delete form of the `mv` shape that VERDICT-F-39 was about,

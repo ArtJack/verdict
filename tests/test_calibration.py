@@ -378,8 +378,21 @@ def _resolved(**over):
 def test_a_measured_re_injection_confirms():
     out = _stamp_outcome(_resolved(fix_verified=True,
                                    verification={"test": "t.py::a", "at_previous": "fail",
-                                                 "at_head": "pass"}))
+                                                 "at_head": "pass", "selected_by": "explicit"}))
     assert out["outcome"] == "confirmed" and "re-injection" in out["outcome_reason"]
+
+
+def test_a_measurement_on_a_prose_quoted_test_settles_nothing():
+    """VERDICT-F-72: fail→pass on a `first_cited` test is not a measurement of
+    THIS finding — the id was quoted, not chosen — so the ledger row it would
+    write is withheld. With a claim beside it the claim stands on its own
+    basis, as it does when nothing was measured at all."""
+    prose = {"test": "t.py::a", "at_previous": "fail", "at_head": "pass",
+             "selected_by": "first_cited", "candidates": 1}
+    out = _stamp_outcome(_resolved(verification=prose))
+    assert out["outcome"] == "unknown", out
+    out = _stamp_outcome(_resolved(fix_verified=True, verification=prose))
+    assert out["outcome"] == "confirmed" and out["outcome_basis"] == "claimed", out
 
 
 def test_a_claim_the_harness_could_not_weigh_still_stands():
@@ -418,7 +431,7 @@ def test_a_measurement_that_contradicts_the_claim_still_settles_nothing():
 def test_the_basis_says_which_of_the_two_it_was():
     measured = _stamp_outcome(_resolved(fix_verified=True,
                                         verification={"test": "t.py::a", "at_previous": "fail",
-                                                      "at_head": "pass"}))
+                                                      "at_head": "pass", "selected_by": "explicit"}))
     assert measured["outcome_basis"] == "measured"
     assert _stamp_outcome(_resolved(fix_verified=True))["outcome_basis"] == "claimed"
 

@@ -173,6 +173,20 @@ def test_the_tester_cannot_write_the_status():
     assert validate_judgment(judgment([filed()])) == []
 
 
+def test_the_tester_cannot_decorate_a_finding_with_an_acceptance():
+    """Run 13, reported not filed: an `accepted: {…}` block on an `open` finding
+    passed `validate_judgment` and survived `merge` verbatim — inert, and a
+    stray in the trust artifact. Refused at the boundary, and stripped by the
+    fold if it ever gets past it."""
+    block = {"by": "the tester", "on": "2026-09-05", "citation": CITE, "reason": WHY}
+    bad = validate_judgment(judgment([filed(accepted=block)]))
+    assert any("accepted" in b and "verdict-accept" in b for b in bad), bad
+    state = merge(facts(), judgment([finding(1, accepted=block)]), state_with(finding(1)),
+                  today=date.today(), accepted={})
+    f = state["findings"][0]
+    assert f["status"] == "open" and "accepted" not in f, f
+
+
 def test_the_guards_refuse_the_ledger_to_the_tester(repo):
     """The write guard blocks the verdict agent from the file even inside the QA
     root, and the strict bash guard blocks a shell write of it; the tester's own

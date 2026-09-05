@@ -227,6 +227,10 @@ def validate_judgment(judgment, previous=None):
         elif status and status not in JUDGMENT_STATUSES:
             bad.append(f"{where} ({fid}) status {f.get('status')!r} not in "
                        f"{sorted(JUDGMENT_STATUSES)}")
+        if "accepted" in f:
+            bad.append(f"{where} ({fid}) carries an `accepted` block — that is the "
+                       "maintainer's record, written by `verdict-accept`; a judgment may not "
+                       "decorate a finding with an acceptance nobody made")
         fc = f.get("failure_classification")
         if fc is not None and fc not in CLASSIFICATIONS:
             bad.append(f"{where} ({fid}) failure_classification {fc!r} not in "

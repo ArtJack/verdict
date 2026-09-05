@@ -1,6 +1,6 @@
 {
   "name": "verdict",
-  "version": "0.78.0",
+  "version": "0.79.0",
   "description": "A skeptical QA agent with memory: baseline \u2192 delta runs (NEW/REGRESSED/RESOLVED), flaky quarantine with expiry, and evidence-cited release verdicts you can defend.",
   "author": {
     "name": "ArtJack",

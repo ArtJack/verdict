@@ -2,14 +2,14 @@
  {
   "label": "M1 F-42: consume an argument after any token containing f",
   "path": "hooks/enforce_bash_scope.py",
-  "old": "            elif name in _TAR_LONG_WITH_ARG:\n                yield \"opt\", name, next(it, None)",
-  "new": "            elif \"f\" in name:\n                yield \"opt\", name, next(it, None)"
+  "old": "            elif _tar_takes_value(name):\n                yield \"opt\", name, next(it, None)\n",
+  "new": "            elif \"f\" in name:\n                yield \"opt\", name, next(it, None)\n"
  },
  {
   "label": "M2 F-49: any option containing x is an extraction",
   "path": "hooks/enforce_bash_scope.py",
-  "old": "    if any(kind == \"opt\" and (name == \"x\" or _tar_abbrev(name, \"extract\")\n                              or _tar_abbrev(name, \"get\"))\n           for kind, name, _ in parsed):",
-  "new": "    if any(kind == \"opt\" and \"x\" in name for kind, name, _ in parsed):"
+  "old": "    if _mode(\"x\", \"extract\", \"get\"):\n",
+  "new": "    if any(kind == \"opt\" and \"x\" in name for kind, name, _ in parsed):\n"
  },
  {
   "label": "M3 F-22: stop masking quoted text and heredoc bodies",
@@ -194,8 +194,8 @@
  {
   "label": "T04 a long option never takes a separate value",
   "path": "hooks/enforce_bash_scope.py",
-  "old": "            elif name in _TAR_LONG_WITH_ARG:\n                yield \"opt\", name, next(it, None)",
-  "new": "            elif False:\n                yield \"opt\", name, next(it, None)"
+  "old": "            elif _tar_takes_value(name):\n                yield \"opt\", name, next(it, None)\n",
+  "new": "            elif False:\n                yield \"opt\", name, next(it, None)\n"
  },
  {
   "label": "T05 F-62: the attached value is ignored, the next token taken",
@@ -309,8 +309,8 @@
  {
   "label": "0.77.0 Q6 F-26: the report stops counting what was not run",
   "path": "src/verdict_mcp/harness.py",
-  "old": "                   \"measured but not verifiable\"\n                   + (f\" · {not_run} not run (several tests cited in prose, none declared \"\n                      \"as `verification_test`)\" if not_run else \"\"))\n",
-  "new": "                   \"measured but not verifiable\")\n"
+  "old": "                   \"measured but not verifiable\"\n                   + (f\" · {not_run} not run (several tests cited in prose, none declared \"\n                      \"as `verification_test`)\" if not_run else \"\")\n                   + (f\" · {prose_only} measured on a prose citation only — recorded, not \"\n                      \"confirmed; declare `verification_test`\" if prose_only else \"\"))\n",
+  "new": "                   \"measured but not verifiable\"\n                   + (f\" · {prose_only} measured on a prose citation only — recorded, not \"\n                      \"confirmed; declare `verification_test`\" if prose_only else \"\"))\n"
  },
  {
   "label": "0.77.0 Q7 F-60: the bash guard's stderr pin is never called (the text survives)",
@@ -407,5 +407,59 @@
   "path": "src/verdict_mcp/state.py",
   "old": "        if status == \"open\" and in_force(entry):\n            g[\"status\"] = \"accepted\"\n",
   "new": "        if False and status == \"open\" and in_force(entry):\n            g[\"status\"] = \"accepted\"\n"
+ },
+ {
+  "label": "0.79.0 S1 F-71: an abbreviated long option never takes a value",
+  "path": "hooks/enforce_bash_scope.py",
+  "old": "    return name in _TAR_LONG_WITH_ARG or (\n        len(name) >= 3 and any(o.startswith(name) for o in _TAR_LONG_WITH_ARG))\n",
+  "new": "    return name in _TAR_LONG_WITH_ARG\n"
+ },
+ {
+  "label": "0.79.0 S2 F-70: the archive is never yielded as a target",
+  "path": "hooks/enforce_bash_scope.py",
+  "old": "    if archive and not _mode(\"t\", \"list\", \"d\", \"diff\", \"compare\"):\n",
+  "new": "    if False and archive and not _mode(\"t\", \"list\", \"d\", \"diff\", \"compare\"):\n"
+ },
+ {
+  "label": "0.79.0 S3 F-70: the archive is resolved against -C instead of the shell's cwd",
+  "path": "hooks/enforce_bash_scope.py",
+  "old": "            archive = None if value == \"-\" else (\n                value if os.path.isabs(value) else os.path.join(cwd, value))\n",
+  "new": "            archive = None if value == \"-\" else (\n                value if os.path.isabs(value) else os.path.join(here, value))\n"
+ },
+ {
+  "label": "0.79.0 S4 F-72: every pick counts as chosen",
+  "path": "src/verdict_mcp/harness.py",
+  "old": "    return isinstance(rec, dict) and rec.get(\"selected_by\") in (\"explicit\", \"added_this_run\")\n",
+  "new": "    return isinstance(rec, dict)\n"
+ },
+ {
+  "label": "0.79.0 S5 F-72: the ledger confirms on a prose-quoted test",
+  "path": "src/verdict_mcp/harness.py",
+  "old": "    shows_fix = (attempted and v.get(\"at_previous\") == \"fail\" and v.get(\"at_head\") == \"pass\"\n                 and _chosen(v))\n",
+  "new": "    shows_fix = (attempted and v.get(\"at_previous\") == \"fail\" and v.get(\"at_head\") == \"pass\"\n                 and True)\n"
+ },
+ {
+  "label": "0.79.0 S6 a tester-authored accepted block survives the fold",
+  "path": "src/verdict_mcp/harness.py",
+  "old": "    elif status == \"open\":\n        # A judgment may not carry the maintainer's block",
+  "new": "    elif False and status == \"open\":\n        # A judgment may not carry the maintainer's block"
+ },
+ {
+  "label": "0.79.0 S7 a judgment may carry an accepted block",
+  "path": "src/verdict_mcp/validate.py",
+  "old": "        if \"accepted\" in f:\n            bad.append(f\"{where} ({fid}) carries an `accepted` block",
+  "new": "        if False and \"accepted\" in f:\n            bad.append(f\"{where} ({fid}) carries an `accepted` block"
+ },
+ {
+  "label": "0.79.0 S8 F-73: the publisher download goes back to releases/latest",
+  "path": ".github/workflows/release.yml",
+  "old": "releases/download/${MCP_PUBLISHER_VERSION}/mcp-publisher_linux_amd64.tar.gz",
+  "new": "releases/latest/download/mcp-publisher_linux_amd64.tar.gz"
+ },
+ {
+  "label": "0.79.0 S9 F-73: the checksum is declared and never checked",
+  "path": ".github/workflows/release.yml",
+  "old": "          echo \"${MCP_PUBLISHER_SHA256}  mcp-publisher.tar.gz\" | sha256sum -c -\n",
+  "new": ""
  }
 ]

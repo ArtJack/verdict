@@ -47,17 +47,27 @@ def bugged_repo(tmp_path, *, with_test=True):
     return r, commit(r, "bug")
 
 
+CITED = "test_pkg.py::test_pending"
+
+
 def previous_state(qa_root, sha, evidence=("pkg.py:2 return q - i",
-                                           "test_pkg.py::test_pending fails: assert 1 == 5")):
+                                           "test_pkg.py::test_pending fails: assert 1 == 5"),
+                   verification_test=None):
+    """`verification_test` is the tester's own citation. Where a test below
+    models the loop closing, it is set: a fail→pass confirms only on a chosen
+    test, never on an id that happened to be quoted (VERDICT-F-72)."""
     qa_root.mkdir(parents=True, exist_ok=True)
+    finding = {"id": "P-F-1", "hash": "h1", "status": "open", "severity": "Major",
+               "priority": "P1", "title": "pending subtracts", "confidence": "proven",
+               "first_seen": datetime.now(timezone.utc).date().isoformat(),
+               "evidence": list(evidence)}
+    if verification_test:
+        finding["verification_test"] = verification_test
     (qa_root / "state.json").write_text(json.dumps({
         "project": "proj", "run_number": 1, "run_type": "baseline",
         "last_run": {"git_sha": sha,
                      "timestamp_utc": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")},
-        "findings": [{"id": "P-F-1", "hash": "h1", "status": "open", "severity": "Major",
-                      "priority": "P1", "title": "pending subtracts", "confidence": "proven",
-                      "first_seen": datetime.now(timezone.utc).date().isoformat(),
-                      "evidence": list(evidence)}],
+        "findings": [finding],
     }), encoding="utf-8")
     return json.loads((qa_root / "state.json").read_text(encoding="utf-8"))
 
@@ -76,7 +86,7 @@ def test_a_fix_is_verified_when_the_cited_test_fails_before_and_passes_after(tmp
     (repo / "pkg.py").write_text(FIXED, encoding="utf-8")
     commit(repo, "fix")
     qa = tmp_path / "qa"
-    prev = previous_state(qa, sha_a)
+    prev = previous_state(qa, sha_a, verification_test=CITED)
     facts = collect(repo, qa, [], test_one_cmd=CMD)
     rec = facts["verification"]["P-F-1"]
     assert (rec["at_previous"], rec["at_head"]) == ("fail", "pass"), rec
@@ -90,6 +100,36 @@ def test_a_fix_is_verified_when_the_cited_test_fails_before_and_passes_after(tmp
     assert "Fix verification: 1 verified" in render_report(state)
 
 
+def test_a_fail_to_pass_on_a_prose_citation_is_recorded_not_confirmed(tmp_path):
+    """VERDICT-F-72: the same setup as the test above, minus the tester's
+    citation — the id is merely quoted in the evidence. The harness measures
+    it, says so, and confirms nothing: a prose-quoted id can be another
+    finding's test entirely, and a confirmed row is a permanent grade."""
+    repo, sha_a = bugged_repo(tmp_path)
+    (repo / "pkg.py").write_text(FIXED, encoding="utf-8")
+    commit(repo, "fix")
+    qa = tmp_path / "qa"
+    prev = previous_state(qa, sha_a)                       # no verification_test
+    facts = collect(repo, qa, [], test_one_cmd=CMD)
+    rec = facts["verification"]["P-F-1"]
+    assert rec["selected_by"] == "first_cited" and rec["candidates"] == 1
+    assert (rec["at_previous"], rec["at_head"]) == ("fail", "pass"), rec
+    assert any("cited only in prose" in n for n in facts["verification_notes"]), facts
+    state = merge(facts, resolved(), prev)
+    f = state["findings"][0]
+    assert f["delta"] == "RESOLVED" and f.get("fix_verified") is not True
+    assert "not_weighed" in f["verification"] and "verification_test" in f["verification"]["not_weighed"]
+    assert f["outcome"] != "confirmed", f
+    assert not any("verification (measured)" in e for e in f["evidence"])
+    report = render_report(state)
+    assert "Fix verification: 0 verified" in report and "prose citation only" in report
+    # …and the same record with the tester's citation confirms (the control)
+    prev = previous_state(qa, sha_a, verification_test=CITED)
+    facts = collect(repo, qa, [], test_one_cmd=CMD)
+    assert facts["verification"]["P-F-1"]["selected_by"] == "explicit"
+    assert merge(facts, resolved(), prev)["findings"][0]["fix_verified"] is True
+
+
 def test_silence_is_verified_too(tmp_path):
     """A finding nobody re-reported used to stay `unknown` forever. The cited
     test does not care whether anyone mentioned it."""
@@ -97,7 +137,7 @@ def test_silence_is_verified_too(tmp_path):
     (repo / "pkg.py").write_text(FIXED, encoding="utf-8")
     commit(repo, "fix")
     qa = tmp_path / "qa"
-    prev = previous_state(qa, sha_a)
+    prev = previous_state(qa, sha_a, verification_test=CITED)
     facts = collect(repo, qa, [], test_one_cmd=CMD)
     j = judgment()
     j["findings"] = []
@@ -136,7 +176,7 @@ def test_a_test_the_fix_added_is_carried_back_to_the_old_commit(tmp_path):
     (repo / "test_pkg.py").write_text(TEST, encoding="utf-8")
     commit(repo, "fix + test")
     qa = tmp_path / "qa"
-    prev = previous_state(qa, sha_a)
+    prev = previous_state(qa, sha_a, verification_test=CITED)
     facts = collect(repo, qa, [], test_one_cmd=CMD)
     rec = facts["verification"]["P-F-1"]
     assert rec["test_copied_from_head"] is True
@@ -408,8 +448,8 @@ def test_the_report_counts_the_measurement_not_the_claim():
 
 
 def test_a_measured_fix_still_reads_as_verified():
-    measured = _resolved_state({"test": "t.py::a", "at_previous": "fail", "at_head": "pass"},
-                               fix_verified=True)
+    measured = _resolved_state({"test": "t.py::a", "at_previous": "fail", "at_head": "pass",
+                                "selected_by": "explicit"}, fix_verified=True)
     text = render_report(measured)
     assert "Fix verification: 1 verified" in text
     assert "0 measured but not verifiable" in text
