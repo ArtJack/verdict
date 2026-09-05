@@ -29,6 +29,12 @@ Usage:
 Model runs cost real tokens: one per mutant. This is never a per-PR CI job.
 """
 
+# Lazy annotations: `python3 eval/run_mutation.py` is a documented command, and on a stock
+# Mac `python3` is 3.9, where `str | None` in a signature is evaluated at
+# definition time and raises TypeError (VERDICT-F-63 — F-55 again, in the
+# scripts the floor test did not glob).
+from __future__ import annotations
+
 import argparse
 import json
 import os

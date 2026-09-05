@@ -506,10 +506,15 @@ def test_select_test_labels_how_it_chose():
     assert select_test({}, [], set()) == (None, None)
 
 
-def test_a_prose_pick_among_several_may_not_refuse_a_resolution(tmp_path):
-    """The strongest thing a measurement does is overrule the tester. A test
-    chosen by prose order from several is not a citation, and run 7 showed the
-    harness choosing exactly that way."""
+def test_a_prose_pick_among_several_is_not_run_at_all(tmp_path):
+    """The strongest thing a measurement does is overrule the tester, and a
+    test chosen by prose order from several is not a citation. Run 7 showed the
+    harness choosing that way, and the pick stopped being weighed. Run 12
+    showed the other half: the pick was still RUN, and its pass/pass record sat
+    in the state reading as a measurement of a test nobody chose — the id had
+    come out of another finding's quoted evidence. So the harness now says it
+    could not choose: nothing runs, the candidates are named, and the note asks
+    for `verification_test`."""
     repo, sha_a = bugged_repo(tmp_path)          # the defect is NOT fixed at HEAD
     (repo / "test_pkg.py").write_text(
         TEST + "\n\ndef test_other():\n    assert True\n", encoding="utf-8")
@@ -525,12 +530,17 @@ def test_a_prose_pick_among_several_may_not_refuse_a_resolution(tmp_path):
                     test_ids_cmd=_emit(["test_pkg.py::test_pending", "test_pkg.py::test_other"]),
                     test_one_cmd=CMD)
     rec = facts["verification"]["P-F-1"]
-    assert rec["selected_by"] == "first_cited" and rec["candidates"] == 2
-    assert rec["at_head"] == "fail"
-    f = merge(facts, resolved(), prev)["findings"][0]
-    assert f["delta"] == "RESOLVED", "an arbitrary pick may not reopen a finding"
-    assert "not_weighed" in f["verification"]
-    assert "verification_test" in f["verification"]["not_weighed"]
+    assert rec["selected_by"] == "unselectable" and rec["candidates"] == 2, rec
+    assert rec["test"] is None and rec["at_head"] == "unavailable", rec
+    assert set(rec["candidate_tests"]) == {"test_pkg.py::test_pending",
+                                           "test_pkg.py::test_other"}
+    assert any("verification_test" in n for n in facts["verification_notes"]), facts
+    state = merge(facts, resolved(), prev)
+    f = state["findings"][0]
+    assert f["delta"] == "RESOLVED", "a pick nobody made may not reopen a finding"
+    assert f.get("fix_verified") is not True and f.get("outcome") != "confirmed", f
+    report = render_report(state)
+    assert "1 not run" in report and "none declared" in report, report
 
 
 def test_a_single_cited_test_that_fails_at_head_still_refuses(tmp_path):
