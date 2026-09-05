@@ -1,5 +1,5 @@
 name: Bug report
-description: Something in Verdict itself misbehaves (the agent, the hooks, the MCP server, verdict-gate, or the Action).
+description: Something in Verdict itself misbehaves (the agent, the hooks, the harness, the MCP server, verdict-gate, or the Action).
 labels: ["bug"]
 body:
   - type: markdown
@@ -7,14 +7,14 @@ body:
       value: |
         This template mirrors Verdict's own bug-report standard: expected and actual
         stated separately, evidence cited, reproduction from a clean start. If you are
-        reporting a *QA finding Verdict produced*, that belongs in your project — not
-        here; this tracker is for defects in the tool.
+        reporting a *QA finding Verdict produced about your project*, that belongs in
+        your project — not here; this tracker is for defects in the tool.
   - type: input
     id: version
     attributes:
       label: Verdict version
-      description: "`/plugin list` shows it, or the `version` field in .claude-plugin/plugin.json"
-      placeholder: "0.10.1"
+      description: "`/plugin list` shows it, or the `version` field in `.claude-plugin/plugin.json`; `verdict-gate --help` for the PyPI half"
+      placeholder: "0.77.0"
     validations:
       required: true
   - type: dropdown
@@ -23,12 +23,15 @@ body:
       label: Component
       options:
         - agent prompt / verdict behavior
-        - command (/qa-*)
-        - scope-guard hooks
+        - a /verdict:* command
+        - scope-guard hooks (write / bash / stop / session banner)
+        - harness (verdict-facts / verdict-finalize / verdict-run)
+        - state validator (verdict-validate)
         - verdict-mcp server
         - verdict-gate CLI
+        - verdict-issues / verdict-accept
         - GitHub Action
-        - eval suite / fixtures
+        - eval suite / fixtures / pin_check
         - docs
     validations:
       required: true
@@ -67,7 +70,7 @@ body:
     id: env
     attributes:
       label: Environment
-      placeholder: "macOS 15.5 · Claude Code 2.1.245 · model: sonnet · python 3.13"
+      placeholder: "macOS 15.5 · Claude Code 2.1.245 · model: opus · python3 --version"
   - type: dropdown
     id: reproducibility
     attributes:

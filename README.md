@@ -3,12 +3,19 @@
 [![ci](https://github.com/ArtJack/verdict/actions/workflows/ci.yml/badge.svg)](https://github.com/ArtJack/verdict/actions/workflows/ci.yml)
 [![verdict on itself](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fraw.githubusercontent.com%2FArtJack%2Fverdict%2Fmain%2F.qa%2Fstate.json&query=%24.verdict&label=verdict%20on%20itself&color=blue)](.qa/reports/INDEX.md)
 [![eval 8/8 seeded defects](https://img.shields.io/badge/eval-8%2F8_seeded_defects-brightgreen)](eval/README.md#published-results)
-[![mutation kill 66.4%](https://img.shields.io/badge/mutation_kill-66.4%25-yellow)](eval/README.md#suite-fault-detection-power--mutation-testing-on-ourselves)
+[![pinned rules 52/52 killed](https://img.shields.io/badge/pinned_rules-52%2F52_killed-brightgreen)](eval/README.md#suite-fault-detection-power--mutation-testing-on-ourselves)
+[![PyPI](https://img.shields.io/pypi/v/verdict-qa-mcp?label=verdict-qa-mcp&color=blue)](https://pypi.org/project/verdict-qa-mcp/)
 [![Claude Code plugin](https://img.shields.io/badge/Claude_Code-plugin-6E56CF)](#install)
 [![license MIT](https://img.shields.io/github/license/ArtJack/verdict)](LICENSE)
 
 **A skeptical QA agent with memory — it remembers your baseline and tells you what broke
 since yesterday.**
+
+```
+/plugin marketplace add ArtJack/verdict
+/plugin install verdict@verdict
+/verdict:run
+```
 
 Most AI "QA agents" are a paragraph of enthusiasm with a checklist. They audit your repo
 from scratch every time, re-report the same 20 findings until you stop reading, call flaky
@@ -16,29 +23,38 @@ tests "failures", call stale tests "failures", and end with "LGTM! 🎉".
 
 Verdict is a Claude Code plugin built the way QA is actually practiced:
 
-- **Delta runs, not fresh audits.** A state file carries the baseline. Every finding gets a
-  stable ID and an age; every run reports `NEW / STILL_OPEN / RESOLVED / REGRESSED` —
-  regressions ranked first, always.
-- **A failure means something.** Every red test is classified — `REAL_DEFECT`,
-  `STALE_EXPECTATION` (requires a citation proving the change was intended),
+- **It remembers.** A state file carries the baseline. Every finding gets a stable ID and
+  an age; every run reports `NEW / STILL_OPEN / RESOLVED / REGRESSED` — regressions ranked
+  first, always.
+- **A red test means something.** Every failure is classified — `REAL_DEFECT`,
+  `STALE_EXPECTATION` (which needs a citation proving the change was intended),
   `BRITTLE_TEST`, `ENVIRONMENT`, or `FLAKY` (confirmed by re-runs, quarantined **with an
   expiry**). The classification most likely to excuse a regression carries the highest
   evidence bar.
-- **A verdict you can defend.** Every substantial task ends in exactly one of
+- **A verdict you can defend.** Every run ends in exactly one of
   `pass | pass with risks | blocked | fail` — an open Blocker forces `fail`, `blocked` is a
   legitimate outcome, and a `pass` always names what was *not* tested.
-- **Read-only on your code.** Verdict reports defects; it never patches them — a tester
-  who edits the code they judge isn't independent. Two different strengths hold that
-  line, and they are worth separating. The file tools are structural: there is no `Edit`
-  tool at all, and a PreToolUse hook confines writes to the QA root. **Bash is a
-  heuristic** — a deny-list over mutating commands and redirections, which a determined
-  invocation can still get past, and which an external audit did get past six ways in
-  2026-08. Those are closed and regression-tested, but the honest claim is a guard that
-  raises the cost, not a sandbox. The OS remains the real boundary.
-- **It never says "no bugs found."** Testing shows the presence of defects, not their
-  absence. Verdict reports what it covered, what it didn't, and the residual risk.
+- **It never fixes your code.** There is no `Edit` tool, a hook confines its writes to the
+  QA root, and a strict-mode Bash guard closes the shell's write channels — a tester that
+  patches what it judges isn't independent. The guard is a heuristic, not a sandbox, and
+  [the README says so](#the-read-only-guarantee-honestly-stated).
+- **It is tested, and it tests itself.** A scored eval suite with the misses published, a
+  signed run history the model cannot forge, a track record the tester cannot edit — and a
+  nightly audit of its own releases: 69 findings filed against itself so far, every one
+  fixed in a tagged release with the defect pinned as a mutant the suite must kill.
 
 ![A Verdict delta run: verdict first, REGRESSED findings ranked on top, a flake quarantined with an expiry, and the gate's exit codes keeping "never ran" apart from "said no"](docs/demo.svg)
+
+**Who pays for the model?** You do, with the Claude subscription you already have: the
+plugin runs inside your own session, nothing routes through anyone else, and everything
+below the model — the state, the gate, the MCP server, the eval scorer — is stdlib Python
+that runs for free. Works on Python, TypeScript, Go, or anything with a test runner; the
+[eval fixtures](eval/) cover Python and TypeScript.
+
+**Read next:** [Install](#install) · [What installs, and when it runs](#what-installs-and-when-it-runs) ·
+[Quickstart](#quickstart) · [Why another QA agent](#why-another-qa-agent) ·
+[The tested tester](#the-tested-tester) · [CI gate](#ci-gate-prs-on-the-testers-memory) ·
+[Accepting a risk](#accepting-a-risk--the-maintainers-pen) · [FAQ](#faq)
 
 ## Install
 
@@ -140,7 +156,7 @@ Artifact: .qa/reports/2026-08-24-pricer-review.md
 
 A QA agent that was never tested is exactly the kind of claim it should reject.
 [`eval/`](eval/) is a scored eval suite with a **deterministic scorer** —
-[`score.py`](eval/score.py) reads the state file, not the prose — and seven fixtures:
+[`score.py`](eval/score.py) reads the state file, not the prose — and eight fixtures, the four that carry the headline claims:
 
 - **Baseline** ([fixtures/pricer](eval/fixtures/pricer)): 8 seeded issues covering all
   five failure classifications, including a boundary defect hidden behind a "temporarily"
@@ -525,13 +541,10 @@ not oversell its own controls.
 
 ## FAQ
 
-**Who pays for the model?** You do — with the Claude subscription you already have.
-Verdict is a plugin that runs inside *your* Claude Code session: nothing routes through
-the author, no API key is required, and nobody else is ever billed for your runs. The one
-place an API key can appear is the optional GitHub Action's run mode — and that is your
-key, in your repo, for your CI. Everything below the model — the state memory, the MCP
-server, `verdict-gate`, the eval scorer — is plain files and stdlib Python: free on any
-machine, no model involved at all.
+**Who pays for the model?** You do — with the Claude subscription you already have;
+nothing routes through the author and no API key is required. The one place a key can
+appear is the optional GitHub Action's run mode, and that is your key, in your repo, for
+your CI. Everything below the model is plain files and stdlib Python.
 
 **Can it run on a local LLM?** The wiring exists today (`ANTHROPIC_BASE_URL` passes
 through to any Anthropic-compatible gateway, e.g. LiteLLM in front of Ollama), and every
