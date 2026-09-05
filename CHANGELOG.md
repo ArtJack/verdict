@@ -3,6 +3,44 @@
 Plugin and `verdict-mcp` share one version line; `.claude-plugin/plugin.json` and
 `pyproject.toml` are bumped together.
 
+## 0.80.1 — 2026-09-05 · "a path is not a key"
+
+The one thing a stranger hit. The release cadence stopped at 0.80.0 and the
+next engineering was to be whatever a newcomer stumbles on, so the published
+0.80.0 wheel was pointed at a repository nobody here had ever run it on —
+`pallets/itsdangerous`, in solo mode, the way someone who just installed it
+would: `uvx --from verdict-qa-mcp verdict-run .`
+
+**It ran for 18 minutes, filed nine findings, and then said "wrote no state".**
+`verdict-run .` took `.` as a solo *key*: it read `run_number` from
+`~/.claude/verdict/./state.json`, which does not exist, while the agent had
+derived the key `itsdangerous` from the checkout (§0) and written a complete,
+valid state and a 44 KB report under it. The runner declared the run lost,
+retried — eleven more minutes of the model on a byte-identical tree, which the
+agent itself called "cheap to be right about and easy to be useless about" —
+and then gated the key `.` and exited 4: *no Verdict state found*. Two valid
+runs on disk, and the tool's own last word was that there were none. The gate
+has the same shape: `verdict-gate .` in solo mode answered 4 over the state
+sitting one directory over.
+
+A path with no `.qa/` under it names the checkout, not a key, and both the
+runner and the gate now derive the key from it exactly as the agent does. The
+nightly never hit this because it passes an explicit key; this repository never
+hit it because it is in team mode. Only a stranger could.
+
+**What it found, for the record.** Nine findings on a cryptographic library,
+all `proven`: signature verification accepts non-canonical base64, so four
+distinct token strings unsign to one payload; the `max_age` boundary is
+unpinned — `>` to `>=` leaves 297 of 297 green; the constant-time compare can
+be replaced by `==` and the suite stays green; an unbounded `zlib.decompress`
+on unverified input measured at 38 KB → 30 MB; a substring test where a set
+test was meant. It built the test environment *outside* the repository because
+`.venv` is not in that project's `.gitignore`, and left the checkout untouched.
+That is the tool working. The runner's last line was the part that did not.
+
+**Measured.** `0.80.1 E1`–`E2` pin both resolvers; each was put back and its
+test failed.
+
 ## 0.80.0 — 2026-09-05 · "a name is not a role"
 
 Run 14's five findings, and the catalogue-honesty trio that had been deferred

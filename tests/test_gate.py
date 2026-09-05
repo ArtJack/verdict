@@ -525,3 +525,20 @@ def test_an_absent_commit_is_reported_and_gated_like_divergence(tmp_path):
     proc = gate(tmp_path, "pricer", "--max-commits-behind", "99", home=home)
     assert proc.returncode == 5, proc.stdout
     assert "does not contain the commit at all" in proc.stdout
+
+
+def test_a_path_argument_in_solo_mode_resolves_to_the_derived_key(tmp_path):
+    """`verdict-gate .` with no `.qa/` in the checkout named a solo key called
+    `.` and answered exit 4 — no state — while the state sat under the key the
+    agent derives from the checkout. Same trap as the runner's, same fix."""
+    repo = tmp_path / "pricer"
+    repo.mkdir()
+    subprocess.run(["git", "init", "-q", str(repo)], check=True, capture_output=True)
+    home = make_home(tmp_path)                       # state under home/pricer/
+    env = {k: v for k, v in os.environ.items() if not k.startswith("VERDICT_")}
+    env["VERDICT_HOME"] = str(home)
+    proc = subprocess.run([sys.executable, str(GATE), ".", "--format", "json"],
+                          cwd=repo, capture_output=True, text=True, env=env, encoding="utf-8")
+    out = json.loads(proc.stdout)
+    assert out.get("exit_code") != 4, out
+    assert out.get("project") == "pricer" and out.get("verdict") == "fail", out

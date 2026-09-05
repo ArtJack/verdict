@@ -366,3 +366,26 @@ def test_no_provision_writes_nothing(tmp_path, repo):
     assert argv is not None, proc.stderr
     assert not (repo / ".claude").exists()
     assert "--dangerously-skip-permissions" in argv, "permissions are separate from provisioning"
+
+
+def test_a_path_argument_in_solo_mode_names_the_checkout_not_a_key(tmp_path, repo):
+    """The first thing a stranger hit. `verdict-run .` in a checkout with no
+    `.qa/` took `.` as a solo key: run_number was read from
+    `~/.claude/verdict/./`, a completed 18-minute run was declared "wrote no
+    state", the agent ran again, and the gate exited 4 over two valid runs on
+    disk. Measured on pallets/itsdangerous with the published 0.80.0 wheel.
+
+    The agent derives the key from the checkout (§0); so must the runner.
+    """
+    home = tmp_path / "home"
+    stub = write_stub(tmp_path, GOOD_RUN, name="good")
+    env = {k: v for k, v in os.environ.items() if not k.startswith("VERDICT_")}
+    env["VERDICT_HOME"] = str(home)
+    proc = subprocess.run([sys.executable, str(RUNNER), ".", "--claude-cmd", str(stub),
+                           "--model", "opus"],
+                          cwd=repo, capture_output=True, text=True, env=env)
+    assert proc.returncode == 0, proc.stderr + proc.stdout
+    assert "project 'widget'" in proc.stderr, proc.stderr
+    assert "retrying once" not in proc.stderr, "a completed run was read as no run"
+    assert (home / "widget" / "state.json").is_file()
+    assert not (home / "." / "state.json").exists() and not (home / "state.json").exists()
