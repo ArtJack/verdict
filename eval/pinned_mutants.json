@@ -637,5 +637,17 @@
   "path": "eval/pin_check.py",
   "old": "        for name in (\"SIGINT\", \"SIGTERM\", \"SIGHUP\"):\n            sig = getattr(signal, name, None)\n            if sig is None:\n                continue\n",
   "new": "        for sig in (signal.SIGINT, signal.SIGTERM, signal.SIGHUP):\n"
+ },
+ {
+  "label": "0.80.1 E1 runner: a path argument is taken as a literal solo key (the stranger's double run)",
+  "path": "src/verdict_mcp/runner.py",
+  "old": "        if is_path_like(args.project) and resolve_root(args.project) is None:\n",
+  "new": "        if False:\n"
+ },
+ {
+  "label": "0.80.1 E2 gate: a path argument is taken as a literal solo key (exit 4 over valid state)",
+  "path": "src/verdict_mcp/gate.py",
+  "old": "        if is_path_like(arg) and resolve_root(arg) is None:\n",
+  "new": "        if False:\n"
  }
 ]

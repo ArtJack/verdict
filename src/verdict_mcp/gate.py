@@ -43,7 +43,8 @@ from pathlib import Path
 
 try:
     from .project_key import derive_key
-    from .state import (code_drift, fold_accepted, harness_signals, is_open, load_accepted,
+    from .state import (code_drift, fold_accepted, harness_signals, is_open, is_path_like,
+                    load_accepted,
                     load_chain_anchor, load_runs, load_state, missing_durable,
                     norm_status, order_findings,
                     parse_timestamp, repo_for_root, resolve_root,
@@ -51,7 +52,8 @@ try:
 except ImportError:  # executed as a bare script (GitHub Action gate mode)
     sys.path.insert(0, str(Path(__file__).resolve().parent))
     from project_key import derive_key
-    from state import (code_drift, fold_accepted, harness_signals, is_open, load_accepted,
+    from state import (code_drift, fold_accepted, harness_signals, is_open, is_path_like,
+                   load_accepted,
                    load_chain_anchor, load_runs, load_state, missing_durable,
                    norm_status, order_findings,
                    parse_timestamp, repo_for_root, resolve_root,
@@ -62,6 +64,11 @@ MARKER = "<!-- verdict-gate -->"
 
 def _resolve_project(arg):
     if arg:
+        if is_path_like(arg) and resolve_root(arg) is None:
+            # `verdict-gate .` in solo mode: a path with no state under it
+            # names the checkout, not a key — the same trap the runner had.
+            key, source = derive_key(arg)
+            return key, f"solo key {key!r} (from {source}, for path {arg!r})"
         return arg, arg
     if resolve_root(".") is not None:
         return ".", "team-mode .qa/ in the working directory"

@@ -57,13 +57,13 @@ try:
     from .gate import evaluate
     from .project_key import derive_key
     from .state import home as state_home
-    from .state import resolve_root
+    from .state import is_path_like, resolve_root
 except ImportError:  # bare-script execution
     sys.path.insert(0, str(Path(__file__).resolve().parent))
     from gate import evaluate
     from project_key import derive_key
     from state import home as state_home
-    from state import resolve_root
+    from state import is_path_like, resolve_root
 
 def _heartbeat_s() -> int:
     try:
@@ -209,6 +209,18 @@ def _read_run_number(qa_root: Path) -> int:
 def _resolve(args):
     repo = Path(args.repo).expanduser().resolve() if args.repo else Path.cwd()
     if args.project:
+        if is_path_like(args.project) and resolve_root(args.project) is None:
+            # `verdict-run .` in a checkout with no `.qa/`: the argument names
+            # the repository, not a solo key. Taken literally it became the key
+            # `.`, so the runner read run_number from `~/.claude/verdict/./`,
+            # declared an 18-minute completed run "wrote no state", ran it
+            # again, and exited 4 over two valid runs on disk — the first thing
+            # a stranger hit. Derive the key the agent will derive (§0).
+            target = Path(args.project).expanduser().resolve()
+            if not args.repo and target.is_dir():
+                repo = target
+            key, _ = derive_key(target)
+            return repo, key
         return repo, args.project
     if resolve_root(str(repo)) is not None:
         return repo, str(repo)          # team mode: .qa/ inside the repo
