@@ -86,3 +86,36 @@ def test_the_readme_badge_states_the_catalogue_size():
     assert m, "the README has no pinned-rules badge"
     assert (int(m.group(1)), int(m.group(2))) == (scored, scored), (
         f"badge says {m.group(1)}/{m.group(2)}, the catalogue scores {scored}")
+
+
+def test_a_mutation_is_written_atomically(tmp_path):
+    """A kill between the truncate and the flush left a source file EMPTY —
+    measured on this repository when a whole-catalogue run was interrupted:
+    `harness.py` came back 2286 lines shorter, and the lock had already been
+    released, so nothing said the tree was broken.
+
+    Two properties: the swap never truncates the original in place, and the
+    file that lands is the whole new content.
+    """
+    target = tmp_path / "module.py"
+    target.write_text("original\n" * 100, encoding="utf-8")
+    inode_before = target.stat().st_ino
+    pin_check.write_atomic(target, "mutated\n" * 100)
+    assert target.read_text(encoding="utf-8") == "mutated\n" * 100
+    assert target.stat().st_ino != inode_before, (
+        "the file was rewritten in place, so a kill mid-write can still empty it")
+    assert not list(tmp_path.glob("*.pin_check.tmp")), "the temp file outlived the swap"
+
+
+def test_the_restorer_puts_a_file_back_whole(tmp_path):
+    """The other end of the same guarantee: what `hold` captured is what
+    `restore` writes, atomically."""
+    target = tmp_path / "module.py"
+    original = "def rule():\n    return True\n"
+    target.write_text(original, encoding="utf-8")
+    keeper = pin_check.Restorer()
+    keeper.hold(target, original)
+    pin_check.write_atomic(target, "def rule():\n    return False\n")
+    assert target.read_text(encoding="utf-8") != original
+    keeper.restore()
+    assert target.read_text(encoding="utf-8") == original
