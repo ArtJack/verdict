@@ -43,15 +43,17 @@ from pathlib import Path
 
 try:
     from .project_key import derive_key
-    from .state import (code_drift, harness_signals, is_open, load_chain_anchor,
-                    load_runs, load_state, missing_durable, order_findings,
+    from .state import (code_drift, fold_accepted, harness_signals, is_open, load_accepted,
+                    load_chain_anchor, load_runs, load_state, missing_durable,
+                    norm_status, order_findings,
                     parse_timestamp, repo_for_root, resolve_root,
                     verify_chain)
 except ImportError:  # executed as a bare script (GitHub Action gate mode)
     sys.path.insert(0, str(Path(__file__).resolve().parent))
     from project_key import derive_key
-    from state import (code_drift, harness_signals, is_open, load_chain_anchor,
-                   load_runs, load_state, missing_durable, order_findings,
+    from state import (code_drift, fold_accepted, harness_signals, is_open, load_accepted,
+                   load_chain_anchor, load_runs, load_state, missing_durable,
+                   norm_status, order_findings,
                    parse_timestamp, repo_for_root, resolve_root,
                    verify_chain)
 
@@ -76,6 +78,10 @@ def evaluate(project, fail_on, max_age_hours, min_run_number, now=None,
                 "known_projects": err.get("known_projects", []), "project": project}
     verdict = state.get("verdict")
     last = state.get("last_run") or {}
+    # The maintainer's ledger, applied to a copy: the signed history row is
+    # re-derived from `state` itself further down, and folding in place would
+    # break the chain this gate is about to verify.
+    folded = fold_accepted(state.get("findings", []), load_accepted(state.get("_qa_root") or "."))
     out = {
         "project": state.get("project", project),
         "verdict": verdict,
@@ -86,8 +92,8 @@ def evaluate(project, fail_on, max_age_hours, min_run_number, now=None,
         "report": last.get("report"),
         "release_blockers": state.get("release_blockers", []),
         "not_tested": state.get("not_tested", []),
-        "findings_open": order_findings(
-            [f for f in state.get("findings", []) if is_open(f)]),
+        "findings_open": order_findings([f for f in folded if is_open(f)]),
+        "accepted_risks": sum(1 for f in folded if norm_status(f.get("status")) == "accepted"),
     }
     if verdict not in ("pass", "pass with risks", "blocked", "fail"):
         out.update(exit_code=4, reason=f"state has no usable verdict: {verdict!r}")
@@ -224,6 +230,10 @@ def _fmt_text(r, n):
         lines.append(note)
     if r.get("release_blockers"):
         lines.append("release blockers: " + ", ".join(r["release_blockers"]))
+    if r.get("accepted_risks"):
+        lines.append(f"accepted risks: {r['accepted_risks']} (the maintainer's decision, "
+                     "recorded with verdict-accept — out of the open list; out of the verdict "
+                     "from the next run)")
     for f in (r.get("findings_open") or [])[:n]:
         lines.append(f"  {f.get('delta', '?'):<10} {f.get('id')} "
                      f"{f.get('severity')}/{f.get('priority')} {f.get('title', '')}")
@@ -252,6 +262,10 @@ def _fmt_comment(r, n):
         head += ["> [!WARNING]", f"> Stale: {note}.", ""]
     if r.get("release_blockers"):
         head.append("**Release blockers:** " + ", ".join(r["release_blockers"]))
+        head.append("")
+    if r.get("accepted_risks"):
+        head.append(f"**Accepted risks:** {r['accepted_risks']} — the maintainer's decision, "
+                    "listed in the report")
         head.append("")
     rows = (r.get("findings_open") or [])[:n]
     if rows:

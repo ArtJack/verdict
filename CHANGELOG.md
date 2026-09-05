@@ -3,6 +3,71 @@
 Plugin and `verdict-mcp` share one version line; `.claude-plugin/plugin.json` and
 `pyproject.toml` are bumped together.
 
+## 0.78.0 — 2026-09-04 · "the maintainer's pen"
+
+A fourth finding status, and the tester cannot write it.
+
+**`accepted` — a risk the maintainer has weighed and declined to fix.** The
+state knew three statuses, and VERDICT-F-21 showed they were one short. Its
+residual risk was weighed on 2026-09-02, accepted, and written into a decision
+journal — and for eight runs after that every banner, report and gate went on
+counting it as an open Major, because `open` was the only honest word the
+state had for it. `withdrawn` would have scored a correct finding as the
+tester's error. That is the "same twenty findings until you stop reading"
+failure this tool was built against, produced by the tool.
+
+`verdict-accept <project> <id> --cite <ref> --reason <text>` writes
+`accepted.json` beside `outcomes.json`. A citation and a reason are required —
+an acceptance without one is a mute button. `--revoke` reverses it, with a
+reason, and the reversal stays on the record; `--list` prints the ledger.
+
+**Who holds the pen is the point.** The verdict agent is refused the file by
+both scope guards, inside the QA root where everything else of its own is
+writable; `validate_judgment` refuses `status: accepted` in a judgment with a
+message naming the command instead; and the state validator refuses an
+`accepted` finding without `accepted.by`, `.on` and `.citation`. Between runs
+the gate, the session banner, the MCP server and `verdict-issues` apply the
+ledger to a copy of the findings — the signed history row must still
+re-derive from `state.json` as written — and `verdict-finalize` folds it into
+the next state, signed. There the finding reads `accepted` with delta
+`ACCEPTED`, leaves the open counts and the release blockers, is listed under
+**Accepted risks** in every report with its citation, is never resolved by
+silence, and settles in the outcome ledger as `confirmed` on a basis of its
+own, `accepted` — kept apart from `measured` and `claimed` in the track
+record, because the maintainer's word is neither a measurement nor the
+tester's claim. A resolution still wins: a defect that is gone has nothing
+left to accept, and fix verification runs as before.
+
+An acceptance leaves the open counts at once and the verdict at the next run.
+A decision changes the next verdict, never the last one — the gate keeps
+returning `fail` on a run that measured an open Critical, whatever was
+decided about it afterwards.
+
+**Used on this repository first.** VERDICT-F-21 is accepted in
+`.qa/accepted.json`, citing the DECISIONS.md entry of 2026-09-02. Run 13 will
+be the first to render it apart.
+
+**Prompt-free, and one line is owed to the prompt.** The agent writes `open`
+as it always has; the harness does the rest. But the model will now meet
+`status: accepted` and delta `ACCEPTED` in its own state file without having
+been told what they mean — exactly the gap `test_every_delta_the_harness_
+computes_is_explained` exists to catch, which is why `ACCEPTED` sits in
+`STATE_DELTAS` (what a state may carry) and not in `DELTAS` (what the prompt
+teaches and a judgment may write). A re-report is folded back to `accepted`
+whatever the model infers, so the cost of the gap is confusion, not a wrong
+state. The sentence that closes it is a prompt change, and a prompt change is
+eval-paid here; it goes into the next prompt release with its measurement.
+Nineteen tests cover the pen, the refusals, the fold, the guardrail
+interaction, the report, the track record, the gate, the banner, the MCP
+server and the issue filer.
+
+**Measured.** Fifteen mutants in `eval/pinned_mutants.json` (`0.78.0 R1`–`R15`,
+`--filter 0.78.0`) put each rule's defect back — `is_open`, the fold in both
+of `merge`'s loops, the outcome basis, the judgment refusal, the citation
+rule, both scope guards, the gate, the banner, the MCP server, the issue
+filer, the report section, the track-record split and the between-runs fold:
+**15 of 15 killed by the whole suite**.
+
 ## 0.77.0 — 2026-09-04 · "the harness stops guessing"
 
 Run 12's remaining code findings, closed together — and the one that had been

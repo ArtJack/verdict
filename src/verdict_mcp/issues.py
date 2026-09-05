@@ -41,10 +41,10 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 try:
-    from .state import is_open, load_state, order_findings, repo_for_root
+    from .state import fold_accepted, is_open, load_accepted, load_state, order_findings, repo_for_root
 except ImportError:  # bare-script execution
     sys.path.insert(0, str(Path(__file__).resolve().parent))
-    from state import is_open, load_state, order_findings, repo_for_root
+    from state import fold_accepted, is_open, load_accepted, load_state, order_findings, repo_for_root
 
 ISSUES_FILE = "issues.json"
 MARKER = "<!-- verdict-finding:{id} -->"
@@ -207,6 +207,8 @@ def main(argv=None) -> int:
         print(f"verdict-issues: {err['error']}", file=sys.stderr)
         return 4
     root = Path(state.get("_qa_root") or ".")
+    # An accepted risk is the maintainer's decision, not an issue to open on them.
+    state["findings"] = fold_accepted(state.get("findings", []), load_accepted(root))
     ledger = load_ledger(root)
     todo = plan(state, ledger, args.limit)
     creates = [(f, a) for f, a in todo if a in ("create", "refile")]

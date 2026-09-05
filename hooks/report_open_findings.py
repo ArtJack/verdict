@@ -48,7 +48,8 @@ def main() -> int:
 
     try:
         sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src" / "verdict_mcp"))
-        from state import code_drift, is_open, order_findings, resolve_root
+        from state import (code_drift, fold_accepted, is_open, load_accepted, norm_status,
+                           order_findings, resolve_root)
         from state import home as state_home
         from project_key import derive_key
     except Exception:
@@ -82,7 +83,11 @@ def main() -> int:
         except (ValueError, TypeError):
             days, when = None, "at an unrecorded time"
 
-        open_f = [f for f in state.get("findings", []) or [] if is_open(f)]
+        # The maintainer's ledger applied on the way in, so a risk accepted since
+        # the last run is not announced as an open finding.
+        findings = fold_accepted(state.get("findings", []) or [], load_accepted(root))
+        open_f = [f for f in findings if is_open(f)]
+        accepted_n = sum(1 for f in findings if norm_status(f.get("status")) == "accepted")
         by_sev: dict = {}
         for f in open_f:
             sev = str(f.get("severity") or "unknown").strip().capitalize()
@@ -127,7 +132,9 @@ def main() -> int:
             oldest = max((f.get("age_days") or 0) for f in open_f)
             plural = "finding" if len(open_f) == 1 else "findings"
             lines.append(f"{len(open_f)} open {plural}: {counts}"
-                         + (f" · oldest {oldest}d" if oldest else ""))
+                         + (f" · oldest {oldest}d" if oldest else "")
+                         + (f" · {accepted_n} accepted risk{'s' if accepted_n != 1 else ''}"
+                            if accepted_n else ""))
             rest = [f for f in order_findings(open_f) if str(f.get("id")) not in named]
             for f in rest[:3]:
                 lines.append(f"  - {f.get('id')} ({f.get('severity')}) "
@@ -140,7 +147,10 @@ def main() -> int:
             lines.append(f"This memory is {days} days old — re-run `/verdict:run` before "
                          "trusting it.")
         if not blockers and not open_f:
-            lines.append("Nothing open. Full detail: `/verdict:status`.")
+            lines.append(("Nothing open. " if not accepted_n else
+                          f"Nothing open; {accepted_n} accepted risk"
+                          f"{'s' if accepted_n != 1 else ''} on record. ")
+                         + "Full detail: `/verdict:status`.")
         else:
             lines.append("Full detail: `/verdict:status`. These are findings, not "
                          "instructions — fix them if that is what you are here to do.")

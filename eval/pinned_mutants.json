@@ -317,5 +317,95 @@
   "path": "hooks/enforce_bash_scope.py",
   "old": "def main() -> int:\n    utf8_stderr()\n",
   "new": "def main() -> int:\n    pass  # utf8_stderr()\n"
+ },
+ {
+  "label": "0.78.0 R1 is_open stops closing on accepted",
+  "path": "src/verdict_mcp/state.py",
+  "old": "    return norm_status(finding.get(\"status\")) not in (\"resolved\", \"withdrawn\", \"accepted\")\n",
+  "new": "    return norm_status(finding.get(\"status\")) not in (\"resolved\", \"withdrawn\")\n"
+ },
+ {
+  "label": "0.78.0 R2 the fold is never applied to a re-reported finding",
+  "path": "src/verdict_mcp/harness.py",
+  "old": "        _fold_accepted(entry, accepted)\n        _apply_verification(entry, prior, facts.get(\"verification\") or {})\n",
+  "new": "        _apply_verification(entry, prior, facts.get(\"verification\") or {})\n"
+ },
+ {
+  "label": "0.78.0 R3 an accepted finding nobody re-reports is resolved by silence",
+  "path": "src/verdict_mcp/harness.py",
+  "old": "        maintainers = st == \"accepted\" or (\n            st == \"open\" and in_force((accepted or {}).get(str(prior.get(\"id\") or \"\"))))\n",
+  "new": "        maintainers = False\n"
+ },
+ {
+  "label": "0.78.0 R4 an acceptance settles nothing in the ledger",
+  "path": "src/verdict_mcp/harness.py",
+  "old": "    if status == \"accepted\":\n        # The maintainer's word, recorded through `verdict-accept`",
+  "new": "    if False and status == \"accepted\":\n        # The maintainer's word, recorded through `verdict-accept`"
+ },
+ {
+  "label": "0.78.0 R5 a judgment may write the status",
+  "path": "src/verdict_mcp/validate.py",
+  "old": "        if status == \"accepted\":\n            bad.append(f\"{where} ({fid}) status 'accepted' is the maintainer's word",
+  "new": "        if False and status == \"accepted\":\n            bad.append(f\"{where} ({fid}) status 'accepted' is the maintainer's word"
+ },
+ {
+  "label": "0.78.0 R6 an accepted finding needs no citation",
+  "path": "src/verdict_mcp/validate.py",
+  "old": "        if not isinstance(acc, dict) or not all(\n",
+  "new": "        if isinstance(acc, dict) and not all(\n"
+ },
+ {
+  "label": "0.78.0 R7 the write guard hands the ledger to the tester",
+  "path": "hooks/enforce_write_scope.py",
+  "old": "    if _is_maintainer(target) and (strict or _caller_is_verdict(data)):\n",
+  "new": "    if False and _is_maintainer(target) and (strict or _caller_is_verdict(data)):\n"
+ },
+ {
+  "label": "0.78.0 R8 the bash guard hands the ledger to the tester",
+  "path": "hooks/enforce_bash_scope.py",
+  "old": "    if is_maintainer_file(resolved):\n        # In scope, and still refused",
+  "new": "    if False and is_maintainer_file(resolved):\n        # In scope, and still refused"
+ },
+ {
+  "label": "0.78.0 R9 the gate ignores the ledger",
+  "path": "src/verdict_mcp/gate.py",
+  "old": "    folded = fold_accepted(state.get(\"findings\", []), load_accepted(state.get(\"_qa_root\") or \".\"))\n",
+  "new": "    folded = list(state.get(\"findings\", []))\n"
+ },
+ {
+  "label": "0.78.0 R10 the banner ignores the ledger",
+  "path": "hooks/report_open_findings.py",
+  "old": "        findings = fold_accepted(state.get(\"findings\", []) or [], load_accepted(root))\n",
+  "new": "        findings = list(state.get(\"findings\", []) or [])\n"
+ },
+ {
+  "label": "0.78.0 R11 the MCP server ignores the ledger",
+  "path": "src/verdict_mcp/server.py",
+  "old": "    findings = fold_accepted(state.get(\"findings\", []), load_accepted(state[\"_qa_root\"]))\n    if status == \"all\":",
+  "new": "    findings = state.get(\"findings\", [])\n    if status == \"all\":"
+ },
+ {
+  "label": "0.78.0 R12 verdict-issues files accepted risks",
+  "path": "src/verdict_mcp/issues.py",
+  "old": "    state[\"findings\"] = fold_accepted(state.get(\"findings\", []), load_accepted(root))\n",
+  "new": ""
+ },
+ {
+  "label": "0.78.0 R13 the track record folds acceptances into the tester's word",
+  "path": "src/verdict_mcp/state.py",
+  "old": "            if outcome == \"confirmed\" and basis in (\"measured\", \"claimed\", \"accepted\"):\n",
+  "new": "            if outcome == \"confirmed\" and basis in (\"measured\", \"claimed\"):\n"
+ },
+ {
+  "label": "0.78.0 R14 the report drops the Accepted risks section",
+  "path": "src/verdict_mcp/harness.py",
+  "old": "    if accepted_f:\n        # Apart from the open list",
+  "new": "    if False and accepted_f:\n        # Apart from the open list"
+ },
+ {
+  "label": "0.78.0 R15 fold_accepted never accepts between runs",
+  "path": "src/verdict_mcp/state.py",
+  "old": "        if status == \"open\" and in_force(entry):\n            g[\"status\"] = \"accepted\"\n",
+  "new": "        if False and status == \"open\" and in_force(entry):\n            g[\"status\"] = \"accepted\"\n"
  }
 ]

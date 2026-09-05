@@ -36,8 +36,11 @@ from .state import (
     code_drift,
     home,
     hotspots,
+    fold_accepted,
     is_open,
+    load_accepted,
     load_runs,
+    norm_status,
     known_projects,
     load_state,
     order_findings,
@@ -89,6 +92,12 @@ def get_verdict(project: str) -> dict:
         "sha_range": last.get("sha_range"),
         "report": last.get("report"),
         "not_tested": state.get("not_tested", []),
+        # The maintainer's accepted risks, counted apart: out of the open
+        # findings, not out of sight — and out of the verdict only from the
+        # next run, so this number can be non-zero beside a `fail`.
+        "accepted_risks": sum(
+            1 for f in fold_accepted(state.get("findings", []), load_accepted(state["_qa_root"]))
+            if norm_status(f.get("status")) == "accepted"),
         # The documented CI loop calls this to decide a merge. A verdict ages in
         # commits as well as hours, so the caller is told the distance rather
         # than left to assume the answer still describes the code in hand.
@@ -99,23 +108,28 @@ def get_verdict(project: str) -> dict:
 
 @mcp.tool(annotations=_RO)
 def get_findings(project: str, status: str = "open") -> dict:
-    """Findings for a project. status: 'open' (default), 'all', or one of
-    NEW / STILL_OPEN / RESOLVED / REGRESSED. REGRESSED sort first, then by
-    severity, then by age (oldest first shown last run's pressure)."""
+    """Findings for a project. status: 'open' (default), 'all', 'accepted' (the
+    maintainer's accepted risks), or one of NEW / STILL_OPEN / RESOLVED /
+    REGRESSED / ACCEPTED. REGRESSED sort first, then by severity, then by age
+    (oldest first shown last run's pressure)."""
     state, err = load_state(project)
     if err:
         return err
-    findings = state.get("findings", [])
+    # The maintainer's ledger applied between runs, so an acceptance made
+    # yesterday is not served as an open finding today.
+    findings = fold_accepted(state.get("findings", []), load_accepted(state["_qa_root"]))
     if status == "all":
         selected = findings
     elif status == "open":
         selected = [f for f in findings if is_open(f)]
+    elif status == "accepted":
+        selected = [f for f in findings if norm_status(f.get("status")) == "accepted"]
     elif status in DELTA_VALUES:
         selected = [f for f in findings if f.get("delta") == status]
     else:
         return {
             "error": f"unknown status {status!r}",
-            "allowed": ["open", "all", *sorted(DELTA_VALUES)],
+            "allowed": ["open", "all", "accepted", *sorted(DELTA_VALUES)],
         }
     ordered = order_findings(selected)
     return {"project": state.get("project", project), "status": status, "count": len(ordered), "findings": ordered}

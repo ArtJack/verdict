@@ -66,3 +66,19 @@ def _in_team_qa_root(p: str) -> bool:
         # worktree or submodule; both are real checkouts.
         return os.path.exists(os.path.join(repo, ".git"))
     return False
+
+
+# Files inside a QA root that only the maintainer may write. The accepted-risk
+# ledger is the maintainer's decision about the tester's findings; a tester
+# that could write it could accept its own findings' risks and empty its own
+# open list. `verdict-accept` writes it from outside any session.
+MAINTAINER_FILES = ("accepted.json",)
+
+
+def is_maintainer_file(path: str) -> bool:
+    """True for the maintainer's ledger inside a QA root — the one path in
+    scope that the tester is still refused."""
+    if not path:
+        return False
+    p = os.path.realpath(os.path.expanduser(path))
+    return os.path.basename(p) in MAINTAINER_FILES and is_allowed_path(p)
