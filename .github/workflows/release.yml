@@ -36,13 +36,21 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/v')
         run: |
           want="${GITHUB_REF_NAME#v}"
-          read -r pyproject plugin <<EOF
-          $(python3 -c 'import json, tomllib; print(tomllib.load(open("pyproject.toml","rb"))["project"]["version"], json.load(open(".claude-plugin/plugin.json"))["version"])')
+          read -r pyproject plugin server package <<EOF
+          $(python3 -c 'import json, tomllib; s = json.load(open("server.json")); print(tomllib.load(open("pyproject.toml","rb"))["project"]["version"], json.load(open(".claude-plugin/plugin.json"))["version"], s["version"], s["packages"][0]["version"])')
           EOF
           ok=1
           [ "$want" = "$pyproject" ] || { echo "::error::tag v$want but pyproject.toml says $pyproject — bump before tagging"; ok=0; }
           [ "$want" = "$plugin" ]    || { echo "::error::tag v$want but .claude-plugin/plugin.json says $plugin — the two are bumped together"; ok=0; }
+          # server.json is the MCP registry's copy of the same number. It sat three
+          # releases behind the other two while the registry showed a version six
+          # months of work older than the code; the three move together now.
+          [ "$want" = "$server" ] && [ "$want" = "$package" ] || { echo "::error::tag v$want but server.json says $server / packages[0] $package — all three manifests carry one version"; ok=0; }
           [ "$ok" = 1 ]
+          # And the notes must exist before anything is published: a release
+          # without notes is a claim, and the Releases page is where a visitor
+          # looks first.
+          python3 .github/release_notes.py "$want" > /dev/null
 
       - name: Run the suite before building anything
         run: uv run --group dev python -m pytest tests/
@@ -78,3 +86,62 @@ jobs:
           name: dist
           path: dist/
       - uses: pypa/gh-action-pypi-publish@release/v1
+
+  # The Releases page, from the CHANGELOG. Every version has had notes since
+  # the beginning — written before the tag, in the project's voice — and the
+  # page still stopped at v0.21.0 while the tags ran to v0.76.0, because
+  # nothing copied them there. A repository whose latest release is fifty
+  # tags behind its code reads as abandoned, whatever the commit log says.
+  github-release:
+    needs: publish
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Create the release from the CHANGELOG section
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          v="${GITHUB_REF_NAME#v}"
+          python3 .github/release_notes.py "$v" > notes.md
+          title="$(python3 .github/release_notes.py "$v" --title)"
+          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            gh release edit "$GITHUB_REF_NAME" --title "$title" --notes-file notes.md
+          else
+            gh release create "$GITHUB_REF_NAME" --title "$title" --notes-file notes.md --verify-tag
+          fi
+
+  # The MCP Server Registry entry for `io.github.ArtJack/verdict`, kept at the
+  # version PyPI has. It was published once by hand at 0.49.0 and never again.
+  # Authenticated by the workflow's OIDC identity — the namespace is the
+  # repository owner's, so no token exists to leak. Best-effort: the registry
+  # is a listing, not the release, and a listing hiccup must not fail a
+  # release that PyPI already carries.
+  mcp-registry:
+    needs: publish
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install mcp-publisher
+        run: |
+          curl -sL "https://github.com/modelcontextprotocol/registry/releases/latest/download/mcp-publisher_$(uname -s | tr '[:upper:]' '[:lower:]')_$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/').tar.gz" | tar xz mcp-publisher
+          ./mcp-publisher --version
+      - name: Wait for PyPI to serve the version the registry will verify
+        run: |
+          v="${GITHUB_REF_NAME#v}"
+          for i in $(seq 1 20); do
+            curl -sf "https://pypi.org/pypi/verdict-qa-mcp/$v/json" > /dev/null && exit 0
+            sleep 15
+          done
+          echo "::warning::PyPI has not served $v after five minutes; publishing anyway"
+      - name: Publish server.json
+        run: |
+          ./mcp-publisher login github-oidc
+          ./mcp-publisher publish
