@@ -1,6 +1,6 @@
 {
   "chain": {
-    "last_link": "35ea2628d25a3967810909d22a47adba11a6a852338e7e2175f81e9bc24a3503",
+    "last_link": "1b96e435014542285c032c1f771522a52e633c9405331534689ec57aab7e27ff",
     "since_run": 8
   },
   "findings": {
@@ -16,11 +16,13 @@
     },
     "0a22d563": {
       "confidence": "proven",
+      "decided_on": "2026-09-05",
       "first_seen": "2026-09-03",
       "hash": "0a22d563",
       "id": "VERDICT-F-62",
-      "outcome": "unknown",
-      "outcome_reason": "still open; nothing has settled it",
+      "outcome": "confirmed",
+      "outcome_basis": "claimed",
+      "outcome_reason": "fix-verified: claimed by the tester, and no harness measurement contradicts it",
       "proof_method": "counterfactual",
       "severity": "Major"
     },
@@ -45,11 +47,13 @@
     },
     "1009c259": {
       "confidence": "proven",
+      "decided_on": "2026-09-05",
       "first_seen": "2026-09-01",
       "hash": "1009c259",
       "id": "VERDICT-F-21",
-      "outcome": "unknown",
-      "outcome_reason": "still open; nothing has settled it",
+      "outcome": "confirmed",
+      "outcome_basis": "accepted",
+      "outcome_reason": "risk accepted by ArtJack on 2026-09-05: the maintainer confirmed the defect and declined the fix (DECISIONS.md 2026-09-02 \u2014 Verdict: the chain ratchet moves to the outcome ledger (v0.66.0))",
       "severity": "Major",
       "verification": {
         "at_head": "pass",
@@ -78,13 +82,24 @@
       "outcome_reason": "still open; nothing has settled it",
       "severity": "Minor"
     },
+    "1a40c23c": {
+      "confidence": "probable",
+      "first_seen": "2026-09-05",
+      "hash": "1a40c23c",
+      "id": "VERDICT-F-73",
+      "outcome": "unknown",
+      "outcome_reason": "still open; nothing has settled it",
+      "severity": "Major"
+    },
     "1ec7dba9": {
       "confidence": "proven",
+      "decided_on": "2026-09-05",
       "first_seen": "2026-09-03",
       "hash": "1ec7dba9",
       "id": "VERDICT-F-67",
-      "outcome": "unknown",
-      "outcome_reason": "still open; nothing has settled it",
+      "outcome": "confirmed",
+      "outcome_basis": "claimed",
+      "outcome_reason": "fix-verified: claimed by the tester, and no harness measurement contradicts it",
       "severity": "Minor"
     },
     "1f06e26a": {
@@ -109,15 +124,33 @@
       "proof_method": "counterfactual",
       "severity": "Major"
     },
+    "234ca8cd": {
+      "confidence": "proven",
+      "first_seen": "2026-09-05",
+      "hash": "234ca8cd",
+      "id": "VERDICT-F-71",
+      "outcome": "unknown",
+      "outcome_reason": "still open; nothing has settled it",
+      "severity": "Major"
+    },
     "23fe4815": {
       "confidence": "proven",
+      "decided_on": "2026-09-05",
       "first_seen": "2026-09-03",
       "hash": "23fe4815",
       "id": "VERDICT-F-56",
-      "outcome": "unknown",
-      "outcome_reason": "still open; nothing has settled it",
+      "outcome": "confirmed",
+      "outcome_basis": "claimed",
+      "outcome_reason": "fix-verified: claimed by the tester, and no harness measurement contradicts it",
       "proof_method": "counterfactual",
-      "severity": "Major"
+      "severity": "Major",
+      "verification": {
+        "at_head": "pass",
+        "at_previous": "pass",
+        "candidates": 1,
+        "selected_by": "first_cited",
+        "test": "tests/test_hooks.py::test_bash_blocks_archive_then_delete_reached_through_a_change_of_directory"
+      }
     },
     "240d7a02": {
       "confidence": "proven",
@@ -332,6 +365,15 @@
       "outcome_reason": "fix-verified: the guarding test failed on re-injection",
       "severity": "Major"
     },
+    "84489daa": {
+      "confidence": "proven",
+      "first_seen": "2026-09-05",
+      "hash": "84489daa",
+      "id": "VERDICT-F-70",
+      "outcome": "unknown",
+      "outcome_reason": "still open; nothing has settled it",
+      "severity": "Major"
+    },
     "854ec287": {
       "confidence": "proven",
       "first_seen": "2026-08-30",
@@ -416,11 +458,13 @@
     },
     "9e987b71": {
       "confidence": "probable",
+      "decided_on": "2026-09-05",
       "first_seen": "2026-09-03",
       "hash": "9e987b71",
       "id": "VERDICT-F-68",
-      "outcome": "unknown",
-      "outcome_reason": "still open; nothing has settled it",
+      "outcome": "confirmed",
+      "outcome_basis": "claimed",
+      "outcome_reason": "fix-verified: claimed by the tester, and no harness measurement contradicts it",
       "severity": "Minor"
     },
     "a1f3c9d2": {
@@ -473,6 +517,15 @@
       "outcome_reason": "fix-verified: claimed by the tester, and no harness measurement contradicts it",
       "severity": "Minor"
     },
+    "af135905": {
+      "confidence": "proven",
+      "first_seen": "2026-09-05",
+      "hash": "af135905",
+      "id": "VERDICT-F-74",
+      "outcome": "unknown",
+      "outcome_reason": "still open; nothing has settled it",
+      "severity": "Minor"
+    },
     "b7e04a15": {
       "decided_on": "2026-08-30",
       "first_seen": "2026-08-28T20:33:24Z",
@@ -484,11 +537,13 @@
     },
     "b80e05bf": {
       "confidence": "proven",
+      "decided_on": "2026-09-05",
       "first_seen": "2026-09-03",
       "hash": "b80e05bf",
       "id": "VERDICT-F-64",
-      "outcome": "unknown",
-      "outcome_reason": "still open; nothing has settled it",
+      "outcome": "confirmed",
+      "outcome_basis": "claimed",
+      "outcome_reason": "fix-verified: claimed by the tester, and no harness measurement contradicts it",
       "proof_method": "counterfactual",
       "severity": "Major"
     },
@@ -563,6 +618,15 @@
       "outcome_reason": "fix-verified: claimed by the tester, and no harness measurement contradicts it",
       "severity": "Minor"
     },
+    "c9d44c7b": {
+      "confidence": "proven",
+      "first_seen": "2026-09-05",
+      "hash": "c9d44c7b",
+      "id": "VERDICT-F-72",
+      "outcome": "unknown",
+      "outcome_reason": "still open; nothing has settled it",
+      "severity": "Major"
+    },
     "cfca172e": {
       "confidence": "proven",
       "first_seen": "2026-08-30",
@@ -601,7 +665,7 @@
       "hash": "d4e4376b",
       "id": "VERDICT-F-69",
       "outcome": "unknown",
-      "outcome_reason": "still open; nothing has settled it",
+      "outcome_reason": "resolved but not fix-verified \u2014 absence is not proof",
       "severity": "Trivial"
     },
     "d9a52f70": {
@@ -682,11 +746,13 @@
     },
     "f1a7cf6c": {
       "confidence": "proven",
+      "decided_on": "2026-09-05",
       "first_seen": "2026-09-03",
       "hash": "f1a7cf6c",
       "id": "VERDICT-F-63",
-      "outcome": "unknown",
-      "outcome_reason": "still open; nothing has settled it",
+      "outcome": "confirmed",
+      "outcome_basis": "claimed",
+      "outcome_reason": "fix-verified: claimed by the tester, and no harness measurement contradicts it",
       "proof_method": "counterfactual",
       "severity": "Minor"
     },
@@ -712,7 +778,7 @@
       "verification": {
         "at_head": "pass",
         "at_previous": "pass",
-        "candidates": 2,
+        "candidates": 1,
         "selected_by": "first_cited",
         "test": "tests/test_validate.py::test_the_state_validator_keeps_checking_after_a_malformed_entry"
       }
