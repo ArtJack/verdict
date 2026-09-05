@@ -250,3 +250,44 @@ delete, where does each path come from, including the paths that arrive as
 option values — and check that every effect has at least one row. An axis with
 no row is not a gap in the matrix; it is a rule nobody wrote.
 Filed as VERDICT-F-70 and VERDICT-F-71.
+
+## 2026-09-05 (run 14) — a lesson about one handler is a lesson about the dispatcher
+
+Run 13 wrote the right lesson and filed it against the wrong scope: "a matrix is
+indexed by the axes of the defects you already have, so it can only re-find their
+family." That was recorded about `_check_tar`, and 0.79.0 applied it there
+faithfully — 15 shapes, one row per EFFECT, half of them run against real GNU tar.
+Twelve lines above it in the same file, `_check_git` had the identical blind spot:
+its read-only escape hatches were enumerated from the false positives that prompted
+them (`git config --get user.name`) and never by ROLE, so a token's presence
+anywhere in the argument list proves read-only intent. `git commit -m "--dry-run"`
+commits with the guard's blessing; the identical command with the message `wip` is
+denied. Six more verbs go the same way.
+Discriminator: when a lesson names a class of REASONING error rather than a bug in
+one rule, the next run's first act is to sweep every sibling in the same dispatcher
+for the same reasoning — not to check that the one handler that produced it was
+fixed. Verifying the fix is confirmation; sweeping the siblings is the test.
+Filed as VERDICT-F-75 (Critical), with VERDICT-F-76 and VERDICT-F-77 as the same
+role-blindness pointing the other way.
+
+## 2026-09-05 (run 14) — a survivor is not a gap until you have shown the two versions differ
+
+Run 13 re-measured five of VERDICT-F-60's eleven survivors, found all five alive
+against 850 tests, and ranked one of them first in the next-run focus: `run_date`'s
+`stamp.replace("Z", "+00:00")`, on the reasoning that "dropping the offset makes a
+timestamped-with-offset run fall back to `datetime.now(timezone.utc).date()`
+silently, and nothing in 850 tests notices". Driven directly this run over nine
+stamps, the two versions return the same date for every well-formed input:
+`datetime.fromisoformat` parses a naive timestamp happily, so the ValueError branch
+the reasoning depends on is never reached, and a `-07:00` stamp contains no `Z` to
+drop. It is an equivalent mutant. It survives because no test CAN distinguish it.
+A maintainer following that focus item would have spent a sitting writing a test for
+a difference that does not exist.
+Discriminator: "the suite did not notice" and "there is nothing to notice" produce
+the identical SURVIVED line. Before promoting a survivor to work, run the original
+and the mutant side by side over the input space and show one input where they
+disagree. The mutation tool cannot do this for you, and a catalogue enumerated from
+findings — VERDICT-F-65 — can never notice that one of its own entries is not a
+defect.
+Recorded against VERDICT-F-60; two of its five sampled survivors ((8) and (9), the
+`_ago` boundaries) do survive a real gap and are the ones worth a test.
