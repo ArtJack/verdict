@@ -1,5 +1,8 @@
 blank_issues_enabled: true
 contact_links:
-  - name: Feature idea or QA-practice discussion
-    url: https://github.com/ArtJack/verdict/discussions
-    about: Techniques, workflow ideas, and "should Verdict judge X this way?" questions.
+  - name: Feature idea, QA-practice question, or "should Verdict judge X this way?"
+    url: https://github.com/ArtJack/verdict/issues/new?labels=idea&title=Idea%3A+
+    about: Open a plain issue with the `idea` label. Techniques, workflow questions, and disagreements about a judgment call are all welcome.
+  - name: Security — a way past the scope guards or the validator
+    url: https://github.com/ArtJack/verdict/security/advisories/new
+    about: Report privately first; see SECURITY.md.

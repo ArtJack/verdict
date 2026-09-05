@@ -69,3 +69,20 @@ def test_only_the_final_summary_line_counts():
     # exit 1 whose last summary shows nothing failed is the tool disagreeing
     # with itself — not a kill.
     assert classify(1, "1 failed in 0.10s\n795 passed in 70.00s\n") == "error"
+
+
+def test_the_readme_badge_states_the_catalogue_size():
+    """A badge that goes stale is a claim that quietly stops being true: the
+    README carried "mutation kill 66.4%" from an early campaign long after the
+    suite had tripled. The pinned-rules badge states the catalogue's scored
+    size, and any change to the catalogue must move it."""
+    import json
+    import re
+    root = Path(__file__).resolve().parent.parent
+    catalogue = json.loads((root / "eval" / "pinned_mutants.json").read_text(encoding="utf-8"))
+    scored = sum(1 for m in catalogue if not m.get("equivalent"))
+    readme = (root / "README.md").read_text(encoding="utf-8")
+    m = re.search(r"pinned_rules-(\d+)%2F(\d+)_killed", readme)
+    assert m, "the README has no pinned-rules badge"
+    assert (int(m.group(1)), int(m.group(2))) == (scored, scored), (
+        f"badge says {m.group(1)}/{m.group(2)}, the catalogue scores {scored}")
