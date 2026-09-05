@@ -144,3 +144,40 @@ def test_code_census_on_a_baseline_scans_the_tree_and_says_so(repo):
     out = code_census(repo, None)
     assert out["scope"].startswith("tree scan of")
     assert "leads, not findings" in out["reading"]
+
+
+def test_prose_that_looks_like_an_import_is_not_a_dependency(tmp_path):
+    """VERDICT-F-79: the import pattern was matched as loose text over added
+    lines, so a docstring sentence — "from a `releases/latest` URL, with no
+    checksum" — was reported as an undeclared dependency on the English word
+    "a". That was the only import lead the range produced, which makes the
+    channel one a reader learns to skip.
+
+    Both directions: prose is not an import, and the imports beside it still
+    are.
+    """
+    from verdict_mcp.census import _PY_IMPORT
+    prose = [
+        "from a `releases/latest` URL, with no checksum, in a job holding an OIDC",
+        "    from the fix list, which is the enumeration this finding names",
+        "# import the whole thing later",
+        "    Read import order off the manifest, not off memory.",
+        "print('from nowhere import nothing')",
+    ]
+    for line in prose:
+        assert not _PY_IMPORT.match(line), f"prose read as an import: {line!r}"
+    real = {
+        "import os": "os",
+        "import os.path": "os",
+        "from pathlib import Path": "pathlib",
+        "    import pytest": "pytest",
+        "from . import thing": None,          # relative: no root to report
+        "import numpy as np": "numpy",
+        "from verdict_mcp.state import is_open": "verdict_mcp",
+        "import json, sys": "json",
+    }
+    for line, root in real.items():
+        m = _PY_IMPORT.match(line)
+        if root is None:
+            continue
+        assert m and m.group(1) == root, f"real import missed or misread: {line!r} -> {m}"

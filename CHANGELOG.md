@@ -3,6 +3,110 @@
 Plugin and `verdict-mcp` share one version line; `.claude-plugin/plugin.json` and
 `pyproject.toml` are bumped together.
 
+## 0.80.0 — 2026-09-05 · "a name is not a role"
+
+Run 14's five findings, and the catalogue-honesty trio that had been deferred
+three releases. Prompt byte-identical.
+
+**VERDICT-F-75 (Critical) — one ordinary token disarmed the git guard.** Both
+of the handler's exemptions matched a *name* wherever it appeared, in any
+role. `--dry-run` was searched for across the whole argument list before the
+verb was even identified, so `git commit -m "--dry-run"` — where the token is
+the commit message — returned early and yielded no target at all. Measured
+against real git: it commits. `git branch -D keepme list` deletes both
+branches, because for `branch` the read-only word `list` is not a sub-verb at
+all; `git branch list` **creates a branch called list**. The table had it
+exactly backwards.
+
+The handler now walks the arguments the way git reads them. An option's value
+is a value, whatever it looks like, including through a bundled short option
+(`-am wip`); a dry run is a flag in a flag's position, and `--check` belongs
+only to the verbs that have it. Read-only spellings are split into the two
+kinds they always were: a **sub-verb**, which must be the first operand
+(`git stash list`), and a **flag** (`git branch --show-current`,
+`git tag -n`, `git config --get-regexp`). A mutating flag outranks a listing
+one, so `git branch --list -D keepme` is refused.
+
+**VERDICT-F-76 — the same blindness refused what the tables were written to
+allow.** `git branch --show-current`, `git branch -v`, `git tag --list` and
+`git config --get-regexp` were all denied as checkout mutations; the run that
+found it had to work around one. The guard's own comment says the stake:
+denying `git config --get user.name` is the kind of false positive that gets
+strict mode switched off. Twenty-eight shapes now sit in the suite twice —
+once asserting the guard, once running real git and diffing the checkout —
+and the two halves are separate columns, because a guard that denies what git
+itself refuses is over-refusal rather than disagreement.
+
+**VERDICT-F-77 — a mode is not a path.** `chmod +x f` resolved `+x` against
+the cwd and refused the command, including inside `.qa/`, the one directory
+the tester may write. The first operand of `chmod`, `chown`, `chgrp` and
+`install` is skipped; the files behind it are still checked.
+
+**VERDICT-F-78 — two of yesterday's four workflow tests read the comments.**
+The sha256 verification that VERDICT-F-73's fix rests on could be deleted and
+replaced by a comment naming it, and all four tests stayed green. The
+catalogue's own mutant deletes the line outright and was killed, which is why
+the gap was invisible: the kill measured *the string is absent*, not *the
+check runs*. Every test in that file reads the commands now, and one more
+asserts the filter itself.
+
+**VERDICT-F-79 — the import census read prose.** `from`/`import` was matched
+as loose text over a diff's added lines, so a docstring sentence — "from a
+`releases/latest` URL" — was reported as an undeclared dependency on the
+English word "a". That was the range's only import lead. The pattern is
+anchored and the module root must be followed by what a real import has.
+
+**The catalogue, enumerated from the code (VERDICT-F-60, F-65, F-66).** Run 13
+listed eleven rules the suite does not defend and re-measured five of them.
+Reading `hooks/qa_paths.py` and the run's clock line by line produced
+seventeen mutants, and the whole suite killed thirteen. **Three survivors no
+fix list could have reached**: the solo root's prefix test dropping its
+separator, so every sibling directory whose name merely begins with the
+root's would count as QA scope; the team-mode walk being allowed to keep
+scanning, so a deeper `.qa` could rescue a path whose real parent is not a
+checkout; and the maintainer's ledger being refused by *name* rather than by
+name-in-scope, which takes the agent's own scratch directory away from it.
+Each has a test, and each test was controlled by putting the defect back.
+
+**Two of the five were equivalent mutants, and saying so is the point.**
+`errors="replace"` cannot change what these guards emit, because every
+character in their messages is UTF-8-encodable — paths reach the message
+through `!r`, which escapes lone surrogates. And translating a trailing `Z`
+to `""` instead of `"+00:00"` produced an identical date on **every stamp
+tried**, which contradicts the finding that named it: run 13 asserted that one
+changed behaviour, and it does not. Run 14 reached the same conclusion
+independently over nine stamps. What *is* load-bearing there was measured
+instead: the offset's value, the conversion to UTC, and — on the 3.9/3.10
+floor, where `fromisoformat` cannot read a bare `Z` — the translation itself.
+
+**VERDICT-F-66 — the mislabelled call-site entry is gone.** Of the three
+catalogue entries presented as "a class that did not exist before", one was
+another entry's behaviour with a discarded call bolted on. It is replaced by a
+real one: `verdict-finalize`'s only call to `check_artifacts`, whose deletion
+left all eight of that check's tests green. The call site now has a test of
+its own.
+
+**What the number is a rate over** is published beside it: `eval/README.md`
+names which files have had a line-by-line pass and which are pinned from the
+fix list only. That is the answer VERDICT-F-65 asked for — not a bigger
+number, but a legible denominator.
+
+**And the mutation tool stopped being able to break the repository.** A
+whole-catalogue run interrupted during this release left `harness.py` **empty**
+— 2286 lines gone — because `pin_check` applied and restored mutations with
+`open(path, "w").write(...)`, which truncates before it writes. The lock had
+already been released, so nothing said the tree was broken. It writes through a
+temp file and `os.replace` now, the way `harness._atomic_write` has since
+0.52.0: an interrupted run leaves either the original or the complete mutant,
+and a kill that outruns the restore leaves the lock behind as the signpost it
+is meant to be. Found by killing a run, not by reading one.
+
+**Not in this release, on purpose.** F-26, F-58 and the `accepted` teaching
+sentence remain the eval-paid prompt release. Run 14's four escalations are
+the maintainer's: the duration gate's percentage band, whether the
+scratch-copy mutation runner is adopted into `eval/`, F-26 fixed or accepted,
+and the §0/§4/§5 fixture gap.
+
 ## 0.79.0 — 2026-09-05 · "measured before modelled, in both directions"
 
 Run 13 — the first run to render an accepted risk — judged three releases in

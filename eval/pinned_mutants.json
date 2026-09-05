@@ -168,12 +168,6 @@
   "new": "def main() -> int:\n"
  },
  {
-  "label": "F-57: the run's UTC date is computed and then not used",
-  "path": "src/verdict_mcp/harness.py",
-  "old": "    today = today or run_date(facts)",
-  "new": "    run_date(facts)\n    today = today or date.today()"
- },
- {
   "label": "T01 old-style bundle: the leading dash is not supplied",
   "path": "hooks/enforce_bash_scope.py",
   "old": "        args[0] = \"-\" + args[0]",
@@ -461,5 +455,181 @@
   "path": ".github/workflows/release.yml",
   "old": "          echo \"${MCP_PUBLISHER_SHA256}  mcp-publisher.tar.gz\" | sha256sum -c -\n",
   "new": ""
+ },
+ {
+  "label": "0.80.0 C1 qa_paths: the stderr pin becomes a no-op (body, not call site)",
+  "path": "hooks/qa_paths.py",
+  "old": "    try:\n        sys.stderr.reconfigure(encoding=\"utf-8\", errors=\"replace\")\n    except (AttributeError, ValueError, OSError):\n        pass\n",
+  "new": "    pass\n"
+ },
+ {
+  "label": "0.80.0 C2 qa_paths: the stderr pin stops replacing unencodable characters",
+  "path": "hooks/qa_paths.py",
+  "old": "errors=\"replace\"",
+  "new": "errors=\"strict\"",
+  "equivalent": true,
+  "note": "Measured, not assumed: with encoding='utf-8' every character these guards emit is encodable — paths reach the message through !r, which escapes lone surrogates — so no input distinguishes the two. Scoring it would only pressure someone into a test that cannot fail."
+ },
+ {
+  "label": "0.80.0 C3 qa_paths: VERDICT_HOME loses its default",
+  "path": "hooks/qa_paths.py",
+  "old": "    root = os.environ.get(\"VERDICT_HOME\") or \"~/.claude/verdict\"\n",
+  "new": "    root = os.environ.get(\"VERDICT_HOME\", \"\")\n"
+ },
+ {
+  "label": "0.80.0 C4 qa_paths: the solo root stops being expanded",
+  "path": "hooks/qa_paths.py",
+  "old": "    return os.path.realpath(os.path.expanduser(root))\n",
+  "new": "    return os.path.realpath(root)\n"
+ },
+ {
+  "label": "0.80.0 C5 qa_paths: an empty path is judged instead of waved through",
+  "path": "hooks/qa_paths.py",
+  "old": "    if not path:\n        return True\n",
+  "new": "    if path:\n        return True\n"
+ },
+ {
+  "label": "0.80.0 C6 qa_paths: the symlink resolution goes back to abspath (F-1)",
+  "path": "hooks/qa_paths.py",
+  "old": "    p = os.path.realpath(os.path.expanduser(path))\n    root = solo_root()\n",
+  "new": "    p = os.path.abspath(os.path.expanduser(path))\n    root = solo_root()\n"
+ },
+ {
+  "label": "0.80.0 C7 qa_paths: the root prefix test drops its separator",
+  "path": "hooks/qa_paths.py",
+  "old": "    if p == root or p.startswith(root + os.sep):\n",
+  "new": "    if p == root or p.startswith(root):\n"
+ },
+ {
+  "label": "0.80.0 C8 qa_paths: a team .qa no longer has to sit beside a .git",
+  "path": "hooks/qa_paths.py",
+  "old": "        return os.path.exists(os.path.join(repo, \".git\"))\n",
+  "new": "        return True\n"
+ },
+ {
+  "label": "0.80.0 C9 qa_paths: the repo is taken to include the .qa component itself",
+  "path": "hooks/qa_paths.py",
+  "old": "        repo = os.sep.join(parts[:i]) or os.sep\n",
+  "new": "        repo = os.sep.join(parts[:i + 1]) or os.sep\n"
+ },
+ {
+  "label": "0.80.0 C10 qa_paths: the walk keeps scanning, so a deeper .qa can rescue the path",
+  "path": "hooks/qa_paths.py",
+  "old": "        return os.path.exists(os.path.join(repo, \".git\"))\n",
+  "new": "        if os.path.exists(os.path.join(repo, \".git\")):\n            return True\n"
+ },
+ {
+  "label": "0.80.0 C11 qa_paths: the maintainer's ledger is refused everywhere, in scope or not",
+  "path": "hooks/qa_paths.py",
+  "old": "    return os.path.basename(p) in MAINTAINER_FILES and is_allowed_path(p)\n",
+  "new": "    return os.path.basename(p) in MAINTAINER_FILES\n"
+ },
+ {
+  "label": "0.80.0 C12 qa_paths: any file in the QA root is the maintainer's",
+  "path": "hooks/qa_paths.py",
+  "old": "    return os.path.basename(p) in MAINTAINER_FILES and is_allowed_path(p)\n",
+  "new": "    return is_allowed_path(p)\n"
+ },
+ {
+  "label": "0.80.0 C13 run_date: the Z suffix is translated to the wrong offset",
+  "path": "src/verdict_mcp/harness.py",
+  "old": "stamp.replace(\"Z\", \"+00:00\")",
+  "new": "stamp.replace(\"Z\", \"+01:00\")"
+ },
+ {
+  "label": "0.80.0 C14 run_date: an offset in the stamp is read off the wall clock, not converted",
+  "path": "src/verdict_mcp/harness.py",
+  "old": "    if when.tzinfo is not None:\n        when = when.astimezone(timezone.utc)\n",
+  "new": "    if False:\n        when = when.astimezone(timezone.utc)\n"
+ },
+ {
+  "label": "0.80.0 C15 _ago: sixty minutes is reported as minutes",
+  "path": "src/verdict_mcp/harness.py",
+  "old": "    if minutes < 60:\n",
+  "new": "    if minutes <= 60:\n"
+ },
+ {
+  "label": "0.80.0 C16 _ago: the decimal-hours boundary moves off 1.05",
+  "path": "src/verdict_mcp/harness.py",
+  "old": "return f\"{age_h:.1f} hours ago\" if age_h >= 1.05 else \"1 hour ago\"",
+  "new": "return f\"{age_h:.1f} hours ago\" if age_h > 1.05 else \"1 hour ago\""
+ },
+ {
+  "label": "0.80.0 C17 _ago: under a minute is reported as a minute",
+  "path": "src/verdict_mcp/harness.py",
+  "old": "    if minutes < 1:\n",
+  "new": "    if minutes < 0:\n"
+ },
+ {
+  "label": "0.80.0 C18 F-66: the post-finalize artifact check is never called (its body stays correct)",
+  "path": "src/verdict_mcp/harness.py",
+  "old": "    disagreements = check_artifacts(qa_root, state)\n",
+  "new": "    disagreements = []\n"
+ },
+ {
+  "label": "0.80.0 D1 F-75: --dry-run is matched in any role again",
+  "path": "hooks/enforce_bash_scope.py",
+  "old": "    if \"--dry-run\" in flags or (\"--check\" in flags and verb in (\"apply\", \"am\")):\n",
+  "new": "    if any(t in (\"--dry-run\", \"--check\") for t in args):\n"
+ },
+ {
+  "label": "0.80.0 D2 F-75: a value-taking option stops eating its value",
+  "path": "hooks/enforce_bash_scope.py",
+  "old": "            if not sep and name in _GIT_VALUE_OPTS:\n                next(it, None)\n",
+  "new": "            if False:\n                next(it, None)\n"
+ },
+ {
+  "label": "0.80.0 D3 F-75: a bundled short option stops eating its value (-am wip)",
+  "path": "hooks/enforce_bash_scope.py",
+  "old": "                if ch in _GIT_VALUE_SHORTS:\n",
+  "new": "                if False:\n"
+ },
+ {
+  "label": "0.80.0 D4 F-75: a read-only sub-verb is honoured anywhere, not just first",
+  "path": "hooks/enforce_bash_scope.py",
+  "old": "        if operands and operands[0] in _GIT_READONLY_SUBVERBS.get(verb, set()):\n",
+  "new": "        if any(o in _GIT_READONLY_SUBVERBS.get(verb, set()) for o in operands):\n"
+ },
+ {
+  "label": "0.80.0 D5 F-75: a mutating flag no longer overrides a read-only one",
+  "path": "hooks/enforce_bash_scope.py",
+  "old": "    mutating = _GIT_MUTATING_FLAGS.get(verb, set())\n    if not any(f in mutating for f in flags):\n",
+  "new": "    mutating = _GIT_MUTATING_FLAGS.get(verb, set())\n    if True:\n"
+ },
+ {
+  "label": "0.80.0 D6 F-76: the read-only flag tables go away",
+  "path": "hooks/enforce_bash_scope.py",
+  "old": "        readonly = _GIT_READONLY_FLAGS.get(verb, set())\n",
+  "new": "        readonly = set()\n"
+ },
+ {
+  "label": "0.80.0 D7 F-76: git config with one operand is read as a write",
+  "path": "hooks/enforce_bash_scope.py",
+  "old": "        if verb == \"config\" and len(operands) <= 1:\n",
+  "new": "        if verb == \"config\" and len(operands) <= 0:\n"
+ },
+ {
+  "label": "0.80.0 D8 F-77: the mode operand is a path again",
+  "path": "hooks/enforce_bash_scope.py",
+  "old": "        if head in _MODE_FIRST and operands:\n            operands = operands[1:]\n",
+  "new": ""
+ },
+ {
+  "label": "0.80.0 D9 F-79: the import census reads prose again",
+  "path": "src/verdict_mcp/census.py",
+  "old": "    r\"^[ \\t]{0,8}(?:from|import)[ \\t]+([A-Za-z_][A-Za-z0-9_]*)\"\n    r\"(?=[ \\t]*(?:$|[.,;]|\\bimport\\b|\\bas\\b|#))\"",
+  "new": "r\"^\\s*(?:from|import)\\s+([A-Za-z_][A-Za-z0-9_]*)\""
+ },
+ {
+  "label": "0.80.0 D10 pin_check: a mutation is written in place again (truncate, then write)",
+  "path": "eval/pin_check.py",
+  "old": "        write_atomic(path, src.replace(m[\"old\"], m[\"new\"]))\n",
+  "new": "        io.open(path, \"w\", encoding=\"utf-8\").write(src.replace(m[\"old\"], m[\"new\"]))\n"
+ },
+ {
+  "label": "0.80.0 D11 pin_check: the restore writes in place again",
+  "path": "eval/pin_check.py",
+  "old": "                write_atomic(path, text)\n",
+  "new": "                io.open(path, \"w\", encoding=\"utf-8\").write(text)\n"
  }
 ]
