@@ -127,12 +127,24 @@ _DIALECTS = (
     (r"test result:", "cargo", {                        # test result: ok. 5 passed; 1 ignored
         "passed": r"(\d+) passed", "failed": r"(\d+) failed",
         "skipped": r"(\d+) ignored"}),
-    (r"passed \(\d+\)", "vitest", {                       # Tests  2 failed | 5 passed (7)
-        "collected": r"passed \((\d+)\)", "passed": r"(\d+) passed",
-        "failed": r"(\d+) failed", "skipped": r"(\d+) skipped"}),
-    (r"\d+ (?:total|todo)\b", "jest", {                   # Tests: 1 failed, 4 passed, 5 total
-        "collected": r"(\d+) total", "passed": r"(\d+) passed",
-        "failed": r"(\d+) failed", "skipped": r"(\d+) (?:skipped|todo)"}),
+    # vitest and jest print the FILE tally on the line above the test tally, in
+    # the same vocabulary: ` Test Files  1 passed (1)` then ` Tests  28 passed
+    # (28)`. Unanchored, every field matched the file line first and a 28-test
+    # suite measured `collected: 1` — the first thing the published wheel did
+    # on a stranger's TypeScript repository (unjs/ofetch), and it would have
+    # been written to state as a measurement. Every field is anchored to the
+    # `Tests` line, and the signature no longer needs a `passed` on it: a suite
+    # with nothing passing is still a vitest suite.
+    (r"(?m)^\s*Tests\s+.*\(\d+\)\s*$", "vitest", {         # Tests  2 failed | 5 passed (7)
+        "collected": r"(?m)^\s*Tests\s+.*\((\d+)\)",
+        "passed": r"(?m)^\s*Tests\s+.*?(\d+) passed",
+        "failed": r"(?m)^\s*Tests\s+.*?(\d+) failed",
+        "skipped": r"(?m)^\s*Tests\s+.*?(\d+) skipped"}),
+    (r"(?m)^Tests:\s.*\b\d+ total\b", "jest", {           # Tests: 1 failed, 4 passed, 5 total
+        "collected": r"(?m)^Tests:.*?(\d+) total",
+        "passed": r"(?m)^Tests:.*?(\d+) passed",
+        "failed": r"(?m)^Tests:.*?(\d+) failed",
+        "skipped": r"(?m)^Tests:.*?(\d+) (?:skipped|todo)"}),
     (r"\d+ (?:passed|failed|skipped|xfailed|error)", "pytest", {
         "passed": r"(\d+) passed", "failed": r"(\d+) failed",
         "skipped": r"(\d+) skipped", "errors": r"(\d+) errors?\b",
@@ -143,6 +155,13 @@ _DIALECTS = tuple((re.compile(sig), name,
                   for sig, name, fields in _DIALECTS)
 # `go test` proper prints no totals at all — only per-test lines under -v. It
 # gets counted by tallying those, which is the only signal it offers.
+#
+# Colour first. A runner that believes it has a terminal wraps every number in
+# escape codes, and vitest puts one between `passed` and ` (28)`: the vitest
+# signature then fails, the pytest dialect catches `1 passed` off the file
+# line, and the wrong runner reports the wrong count with nothing to say it
+# happened. The codes carry no information the counts need.
+_ANSI = re.compile(r"\x1b\[[0-9;?]*[ -/]*[@-~]")
 _GO_VERBOSE = (re.compile(r"^--- PASS: ", re.M), re.compile(r"^--- FAIL: ", re.M),
                re.compile(r"^--- SKIP: ", re.M))
 _COUNT_PATTERNS = tuple(
@@ -234,6 +253,7 @@ def _counts(output: str) -> tuple[dict, str | None]:
     to know whether the suite reported nothing or whether we failed to
     understand it, and those are different problems with different fixes.
     """
+    output = _ANSI.sub("", output)
     for signature, name, fields in _DIALECTS:
         if not signature.search(output):
             continue
@@ -362,9 +382,10 @@ def _chosen(rec) -> bool:
     test looks like. A `first_cited` pick is a pytest id that happened to be
     quoted in the finding's prose, which can be another finding's test
     entirely: run 12 verified F-26 against an id quoted from F-50's evidence.
-    Refusing a resolution may rest on such a pick, because a finding held open
-    costs a re-read; confirming one may not, because a confirmed row is a
-    permanent grade (VERDICT-F-72).
+    `verify_findings` no longer runs such a pick at all (VERDICT-F-26), so its
+    own records never carry one; this guard remains for a record that arrives
+    another way — a facts.json edited by hand is still read as facts — and a
+    confirmed row is a permanent grade (VERDICT-F-72).
     """
     return isinstance(rec, dict) and rec.get("selected_by") in ("explicit", "added_this_run")
 
@@ -539,33 +560,37 @@ def verify_findings(repo: Path, previous: dict | None, test_one_cmd: str | None,
     if not cited:
         return {}, notes
 
-    # Which test, decided before anything runs. Several ids in prose with none
-    # declared is not a choice the harness can make: run 12 verified
-    # VERDICT-F-26 against an id quoted inside another finding's evidence — the
-    # fourth mis-selection in a row — and the pass/pass record it wrote read as
-    # a measurement of a test nobody chose. Such a finding gets a record that
-    # says so, and no run at all.
+    # Which test, decided before anything runs. A node id in prose is text,
+    # not a citation, however many there are. Several with none declared was
+    # refused first (run 12 verified VERDICT-F-26 against an id quoted inside
+    # another finding's evidence); a single one was kept as "the conservative
+    # direction" in 0.79.0 — it could only hold a finding open — and then
+    # mis-selected on six consecutive runs, never once refusing anything, while
+    # stamping a measurement of an unrelated test on the finding every time.
+    # So a prose citation, one or several, gets a record that says so and no
+    # run at all. `verification_test` is how a test becomes somebody's choice.
     results: dict = {}
     runnable, unselectable = [], []
     for finding, tests in cited:
         test_id, how = select_test(finding, tests, preferred)
-        if how == "first_cited" and len(tests) > 1:
+        if how == "first_cited":
+            n = len(tests)
             results[str(finding.get("id"))] = {
-                "test": None, "selected_by": "unselectable", "candidates": len(tests),
+                "test": None, "selected_by": "unselectable", "candidates": n,
                 "candidate_tests": tests[:VERIFY_CANDIDATES_SHOWN],
                 "previous_sha": previous_sha,
                 "at_previous": "unavailable", "at_head": "unavailable",
-                "summary": (f"not run: {len(tests)} tests cited in prose, none declared "
-                            "as verification_test")}
+                "summary": (f"not run: {n} test{'s' if n != 1 else ''} cited in prose, "
+                            "none declared as verification_test")}
             unselectable.append(str(finding.get("id") or "?"))
         else:
             runnable.append((finding, tests, test_id, how))
     if unselectable:
         shown = ", ".join(unselectable[:5])
         more = f" and {len(unselectable) - 5} more" if len(unselectable) > 5 else ""
-        notes.append(f"nothing was run for {shown}{more}: each cites several tests in prose "
-                     "and declares none as `verification_test` — the harness does not guess "
-                     "which one guards a finding; declare it to make the measurement count")
+        notes.append(f"nothing was run for {shown}{more}: each cites tests only in prose "
+                     "and declares none as `verification_test` — a node id in prose is "
+                     "text, not a citation; declare it to make the measurement count")
     if not runnable:
         return results, notes
 
@@ -626,11 +651,6 @@ def verify_findings(repo: Path, previous: dict | None, test_one_cmd: str | None,
     finally:
         if scratch is not None:
             _remove_scratch(repo, scratch)
-    prose = [fid for fid, rec in results.items() if rec.get("selected_by") == "first_cited"]
-    if prose:
-        notes.append(f"{len(prose)} finding(s) verified on a test cited only in prose "
-                     f"({', '.join(prose[:5])}): a fail→pass there is recorded, not "
-                     "confirmed — declare `verification_test` to make a confirmation count")
     return results, notes
 
 
@@ -649,11 +669,11 @@ def _apply_verification(entry: dict, prior: dict | None, verification: dict) -> 
         return
     entry["verification"] = rec
     resolving = entry.get("delta") == "RESOLVED"
-    # Two directions, two bars. A pick among several prose citations no longer
-    # reaches here at all — `verify_findings` reports it `unselectable` and
-    # runs nothing (VERDICT-F-26) — so the record below rests on one cited
-    # test or on a chosen one. Refusing is the conservative direction: a
-    # finding held open costs a re-read, so a single cited test that fails on
+    # Two directions, two bars. A prose citation, one or several, no longer
+    # reaches here from `verify_findings` at all — it is reported
+    # `unselectable` and nothing runs (VERDICT-F-26) — so a record here rests
+    # on a chosen test, or arrived by hand. Refusing is the conservative
+    # direction: a finding held open costs a re-read, so a test that fails on
     # the code under judgment may refuse, whatever chose it.
     if rec.get("at_head") == "fail":
         if resolving:
@@ -787,7 +807,9 @@ def measure_diff_coverage(repo: Path, sha_range: str | None, cmd: str | None) ->
         return {"status": "unavailable",
                 "reason": "no coverage_suite_cmd in the profile — set one that runs the suite "
                           "under coverage.py (e.g. `.venv/bin/python -m coverage run -m pytest`) "
-                          "to measure which changed lines any test executed"}
+                          "to measure which changed lines any test executed; the diff-coverage "
+                          "gate reads coverage.py's database only, so on another runner it "
+                          "stays unmeasurable and says so"}
     if not sha_range:
         return {"status": "unavailable",
                 "reason": "no commit range this run (baseline or re-baseline) — diff coverage "
@@ -2142,7 +2164,7 @@ def render_report(state: dict, prose: dict | None = None) -> str:
         out.append(f"Fix verification: {verified} verified · {refused} refused (cited test "
                    f"still fails at HEAD) · {len(measured) - verified - refused - not_run} "
                    "measured but not verifiable"
-                   + (f" · {not_run} not run (several tests cited in prose, none declared "
+                   + (f" · {not_run} not run (tests cited in prose only, none declared "
                       "as `verification_test`)" if not_run else "")
                    + (f" · {prose_only} measured on a prose citation only — recorded, not "
                       "confirmed; declare `verification_test`" if prose_only else ""))

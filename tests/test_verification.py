@@ -100,11 +100,14 @@ def test_a_fix_is_verified_when_the_cited_test_fails_before_and_passes_after(tmp
     assert "Fix verification: 1 verified" in render_report(state)
 
 
-def test_a_fail_to_pass_on_a_prose_citation_is_recorded_not_confirmed(tmp_path):
-    """VERDICT-F-72: the same setup as the test above, minus the tester's
-    citation — the id is merely quoted in the evidence. The harness measures
-    it, says so, and confirms nothing: a prose-quoted id can be another
-    finding's test entirely, and a confirmed row is a permanent grade."""
+def test_a_single_prose_citation_is_not_run_either(tmp_path):
+    """VERDICT-F-26, the other half. The same setup as the test above, minus
+    the tester's citation — the id is merely quoted in the evidence, and it is
+    the only one. 0.79.0 still ran that pick, "the conservative direction": it
+    could only hold a finding open. It then mis-selected on six consecutive
+    runs and refused nothing, while attaching a measurement of an unrelated
+    test to the finding every time. A node id in prose is text: nothing runs,
+    the record says so, and the resolution stands on the tester's word."""
     repo, sha_a = bugged_repo(tmp_path)
     (repo / "pkg.py").write_text(FIXED, encoding="utf-8")
     commit(repo, "fix")
@@ -112,22 +115,44 @@ def test_a_fail_to_pass_on_a_prose_citation_is_recorded_not_confirmed(tmp_path):
     prev = previous_state(qa, sha_a)                       # no verification_test
     facts = collect(repo, qa, [], test_one_cmd=CMD)
     rec = facts["verification"]["P-F-1"]
-    assert rec["selected_by"] == "first_cited" and rec["candidates"] == 1
-    assert (rec["at_previous"], rec["at_head"]) == ("fail", "pass"), rec
-    assert any("cited only in prose" in n for n in facts["verification_notes"]), facts
+    assert rec["selected_by"] == "unselectable" and rec["candidates"] == 1, rec
+    assert rec["test"] is None and rec["at_head"] == "unavailable", rec
+    assert rec["candidate_tests"] == [CITED] and "1 test cited" in rec["summary"], rec
+    assert any("verification_test" in n and "text, not a citation" in n
+               for n in facts["verification_notes"]), facts
     state = merge(facts, resolved(), prev)
     f = state["findings"][0]
     assert f["delta"] == "RESOLVED" and f.get("fix_verified") is not True
-    assert "not_weighed" in f["verification"] and "verification_test" in f["verification"]["not_weighed"]
     assert f["outcome"] != "confirmed", f
     assert not any("verification (measured)" in e for e in f["evidence"])
     report = render_report(state)
-    assert "Fix verification: 0 verified" in report and "prose citation only" in report
-    # …and the same record with the tester's citation confirms (the control)
+    assert "Fix verification: 0 verified" in report and "1 not run" in report, report
+    # …and the same repository with the tester's citation confirms (the control)
     prev = previous_state(qa, sha_a, verification_test=CITED)
     facts = collect(repo, qa, [], test_one_cmd=CMD)
     assert facts["verification"]["P-F-1"]["selected_by"] == "explicit"
     assert merge(facts, resolved(), prev)["findings"][0]["fix_verified"] is True
+
+
+def test_a_prose_pick_that_arrives_by_hand_still_confirms_nothing(tmp_path):
+    """The guard behind the selector, kept and controlled. `verify_findings`
+    never writes a `first_cited` record now, but facts.json is read as facts
+    whoever wrote it, and a confirmed row is a permanent grade (VERDICT-F-72).
+    A fail→pass on a record that says it was chosen by prose order is recorded,
+    named `not_weighed`, and confirms nothing."""
+    repo, sha_a = bugged_repo(tmp_path)
+    (repo / "pkg.py").write_text(FIXED, encoding="utf-8")
+    commit(repo, "fix")
+    qa = tmp_path / "qa"
+    prev = previous_state(qa, sha_a, verification_test=CITED)
+    facts = collect(repo, qa, [], test_one_cmd=CMD)
+    rec = facts["verification"]["P-F-1"]
+    assert (rec["selected_by"], rec["at_previous"], rec["at_head"]) == ("explicit", "fail", "pass")
+    rec["selected_by"] = "first_cited"                     # the hand on the file
+    f = merge(facts, resolved(), prev)["findings"][0]
+    assert f["delta"] == "RESOLVED" and f.get("fix_verified") is not True, f
+    assert "verification_test" in f["verification"].get("not_weighed", ""), f
+    assert f["outcome"] != "confirmed", f
 
 
 def test_silence_is_verified_too(tmp_path):
@@ -153,7 +178,7 @@ def test_a_resolution_is_refused_while_the_cited_test_still_fails(tmp_path):
     (repo / "README").write_text("unrelated\n", encoding="utf-8")
     commit(repo, "unrelated")
     qa = tmp_path / "qa"
-    prev = previous_state(qa, sha_a)
+    prev = previous_state(qa, sha_a, verification_test=CITED)
     facts = collect(repo, qa, [], test_one_cmd=CMD)
     assert facts["verification"]["P-F-1"]["at_head"] == "fail"
 
@@ -198,7 +223,7 @@ def test_pass_at_both_commits_verifies_nothing(tmp_path):
     (r / "README").write_text("x\n", encoding="utf-8")
     commit(r, "later")
     qa = tmp_path / "qa"
-    prev = previous_state(qa, sha_a)
+    prev = previous_state(qa, sha_a, verification_test=CITED)
     facts = collect(r, qa, [], test_one_cmd=CMD)
     assert facts["verification"]["P-F-1"]["at_previous"] == "pass"
     f = merge(facts, resolved(), prev)["findings"][0]
@@ -219,7 +244,7 @@ def test_a_setup_error_at_the_old_commit_never_reads_as_fail(tmp_path):
     (repo / "pkg.py").write_text(FIXED, encoding="utf-8")
     commit(repo, "fix + test + helper")
     qa = tmp_path / "qa"
-    prev = previous_state(qa, sha_a)
+    prev = previous_state(qa, sha_a, verification_test=CITED)
     facts = collect(repo, qa, [], test_one_cmd=CMD)
     rec = facts["verification"]["P-F-1"]
     assert rec["at_head"] == "pass" and rec["at_previous"] == "error", rec
@@ -246,7 +271,7 @@ def test_an_error_beside_a_failure_is_still_an_error(tmp_path):
         "\n\ndef test_with_fixture(helper):\n    assert helper == 1\n", encoding="utf-8")
     commit(repo, "fix + a helper the fixture needs + tests")
     qa = tmp_path / "qa"
-    prev = previous_state(qa, sha_a)
+    prev = previous_state(qa, sha_a, verification_test=CITED)
     facts = collect(repo, qa, [], test_one_cmd=CMD.replace("{id}", "test_pkg.py"))
     rec = facts["verification"]["P-F-1"]
     assert rec["at_head"] == "pass"
@@ -269,7 +294,7 @@ def test_a_missing_previous_commit_still_measures_head(tmp_path):
     still refuses a resolution."""
     repo, _ = bugged_repo(tmp_path)
     qa = tmp_path / "qa"
-    prev = previous_state(qa, "deadbeef" * 5)
+    prev = previous_state(qa, "deadbeef" * 5, verification_test=CITED)
     facts = collect(repo, qa, [], test_one_cmd=CMD)
     rec = facts["verification"]["P-F-1"]
     assert rec["at_previous"] == "unavailable" and rec["at_head"] == "fail"
@@ -295,7 +320,7 @@ def test_the_old_source_is_put_ahead_of_any_installed_copy(tmp_path):
     (repo / "pkg.py").write_text(FIXED, encoding="utf-8")
     commit(repo, "fix")
     qa = tmp_path / "qa"
-    previous_state(qa, sha_a)
+    previous_state(qa, sha_a, verification_test=CITED)
     rec = collect(repo, qa, [], test_one_cmd=CMD)["verification"]["P-F-1"]
     assert rec["pythonpath"] and all("verdict-verify-" in p for p in rec["pythonpath"])
 
@@ -364,15 +389,18 @@ def test_the_collected_citation_wins_over_the_scraped_one(tmp_path):
     assert merge(facts, resolved(), prev)["findings"][0]["fix_verified"] is True
 
 
-def test_without_a_ledger_a_citation_is_still_tried(tmp_path):
+def test_without_a_ledger_a_declared_citation_is_still_tried(tmp_path):
     """The filter is only as good as the ledger. A project with no
     `test_ids_cmd` has nothing to check against, and refusing to run there
-    would turn a working verification off to fix a scraping bug."""
+    would turn a working verification off to fix a scraping bug. The citation
+    has to be the tester's own: a prose mention is not tried anywhere."""
     repo, sha_a = fixed_repo(tmp_path)
     qa = tmp_path / "qa"
-    previous_state(qa, sha_a, evidence=("the old code called t.py::new",))
+    previous_state(qa, sha_a, evidence=("the old code called t.py::new",),
+                   verification_test="t.py::new")
     facts = collect(repo, qa, [], test_one_cmd=CMD)
-    assert facts["verification"]["P-F-1"]["test"] == "t.py::new"
+    rec = facts["verification"]["P-F-1"]
+    assert rec["test"] == "t.py::new" and rec["selected_by"] == "explicit", rec
 
 
 def test_resolve_test_id_matches_the_collected_form_not_the_prose():
@@ -584,14 +612,14 @@ def test_a_prose_pick_among_several_is_not_run_at_all(tmp_path):
 
 
 def test_a_single_cited_test_that_fails_at_head_still_refuses(tmp_path):
-    """The false-positive guard: weakening the arbitrary case must not weaken
-    the real one. One cited test, still failing, still holds the finding open."""
+    """The false-positive guard: refusing to run a prose pick must not weaken
+    the real one. One chosen test, still failing, still holds the finding open."""
     repo, sha_a = bugged_repo(tmp_path)
     (repo / "pkg.py").write_text(BUGGY + "\n# touched, but the defect is untouched\n",
                                  encoding="utf-8")
     commit(repo, "a commit that fixes nothing")
     qa = tmp_path / "qa"
-    prev = previous_state(qa, sha_a)
+    prev = previous_state(qa, sha_a, verification_test=CITED)
     (qa / "test-ids.txt").write_text("test_pkg.py::test_pending\n", encoding="utf-8")
     facts = collect(repo, qa, [], test_ids_cmd=_emit(["test_pkg.py::test_pending"]),
                     test_one_cmd=CMD)
@@ -618,7 +646,7 @@ def test_a_stale_cache_planted_in_the_scratch_does_not_survive_the_run(tmp_path,
     (repo / "pkg.py").write_text(FIXED, encoding="utf-8")
     commit(repo, "fix")
     qa = tmp_path / "qa"
-    previous_state(qa, sha_a)
+    previous_state(qa, sha_a, verification_test=CITED)
 
     real_scratch = h._scratch_checkout
     planted = {}
