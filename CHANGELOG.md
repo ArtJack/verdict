@@ -52,6 +52,40 @@ first had caused, and an interrupted run emptied `harness.py` — and survives
 only as `--in-tree`. The "never edit while pin_check runs" rule is retired
 with it. The isolation check is pinned as a mutant.
 
+**The stranger's third run, and which code measured it.** The published
+runner was pointed at `changesets/changesets` — a 21-package pnpm monorepo,
+vitest 5, on a Node the project's `engines` refuses, with no dependencies
+installed — and returned `fail` in 36 minutes on a proven Critical: a
+non-semver `version` field makes `changeset version` delete the changeset,
+leave the version untouched and exit 0. The harness lesson was quieter. The
+runner had been started from main, but the agent runs `verdict-facts` from
+the plugin root, so the facts came from the plugin cache's 0.80.1 and the
+vitest file-line misread that main had already fixed was back in the state —
+and nothing in `facts.json` said which code had produced the numbers.
+`last_run.harness` now names the file that ran and the version it claims
+(`verdict_mcp.__version__` reads the plugin manifest when no distribution is
+installed, which is the stranger's case), and the report's Scope block prints
+both. `verdict-run --plugin-root <checkout>` is how unreleased harness code
+gets a stranger run.
+
+**The denominator is the code (VERDICT-F-65, deferred four releases).**
+`eval/sweep.py` enumerates every single-site mutant inside *named functions*
+— `eval/mutate.py`'s operators over the lines `ast` says the function owns —
+and runs each against the whole suite in a scratch copy that has proved it
+runs its own code. The default scope is what the finding was owed on:
+harness.py's dialect table and its judgment-adjacent functions
+(`duration_regressed`, `_counts`, `_ago`, `_chosen`, `select_test`,
+`verify_findings`, `_apply_verification`, `_stamp_outcome`, `run_date`) and
+`state.outcome_row` — 155 mutants over 417 lines, none of them chosen by
+anyone. mutmut was tried first over the same scope: 3,638 mutants
+enumerated, 37 run, then its worker died on a cache assertion with the main
+process waiting on a queue forever. The 37 it did run found one thing —
+gotestsum's skip count was the only dialect field no test row exercised —
+which is exercised now and pinned. Survivors of the full sweep are reported
+in eval/README.md as candidates, each to be driven side by side with the
+original before it becomes a test, because a survivor and an equivalent
+mutant print the same line.
+
 ## 0.80.1 — 2026-09-05 · "a path is not a key"
 
 The one thing a stranger hit. The release cadence stopped at 0.80.0 and the
