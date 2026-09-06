@@ -679,5 +679,17 @@
   "path": "eval/pin_check.py",
   "old": "        if elsewhere:\n",
   "new": "        if False:\n"
+ },
+ {
+  "label": "0.80.2 G6 changesets: the facts stop naming the harness that measured them",
+  "path": "src/verdict_mcp/harness.py",
+  "old": "            \"harness\": _harness_identity(),\n",
+  "new": "            \"harness_\": _harness_identity(),\n"
+ },
+ {
+  "label": "0.80.2 G7 F-65 campaign: gotestsum's skip count is read from a broken pattern (mutmut #27)",
+  "path": "src/verdict_mcp/harness.py",
+  "old": "        \"skipped\": r\"(\\d+)\\s+skipped\"}),\n    (r\"Total:\\s*\\d+\", \"dotnet\", {",
+  "new": "        \"skipped\": r\"XX(\\d+)\\s+skippedXX\"}),\n    (r\"Total:\\s*\\d+\", \"dotnet\", {"
  }
 ]

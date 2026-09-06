@@ -246,6 +246,25 @@ def executed_nothing(counts: dict) -> str | None:
     return None
 
 
+def _harness_identity() -> dict:
+    """Which code measured this — the file that ran, and the version it says
+    it is.
+
+    The runner and the harness can come from different places: `verdict-run`
+    from a wheel or a git ref, `verdict-facts` from whatever the agent finds
+    first — the plugin cache, an installed copy, a checkout. On the third
+    stranger run (changesets) the runner came from main and the facts from the
+    published 0.80.1 in the plugin cache, and the only way to tell was to
+    recognise a parser bug that main had already fixed. The path is the fact;
+    the version is the file's own claim about itself.
+    """
+    try:
+        from verdict_mcp import __version__ as declared
+    except Exception:                                    # pragma: no cover
+        declared = "0+unknown"
+    return {"version": declared, "path": str(Path(__file__).resolve())}
+
+
 def _counts(output: str) -> tuple[dict, str | None]:
     """Parse a runner's summary into counts, and say which dialect was read.
 
@@ -1092,6 +1111,7 @@ def collect(repo: Path, qa_root: Path, gates: list[tuple[str, str]],
             "timestamp_utc": now.strftime("%Y-%m-%dT%H:%M:%SZ"),
             "git_sha": sha, "git_branch": branch, "sha_range": sha_range,
             "diff_stat": diff_stat,
+            "harness": _harness_identity(),
             # A verdict is only as good as its judge, and which model signed it
             # used to live only in the operator's memory. The runner that
             # launched the session knows; it exports VERDICT_MODEL and the
@@ -2116,6 +2136,9 @@ def render_report(state: dict, prose: dict | None = None) -> str:
             f"- Range: `{last.get('sha_range') or last.get('git_sha') or 'n/a'}`"
             + (f" · {last['diff_stat']}" if last.get("diff_stat") else ""),
             f"- Branch: `{last.get('git_branch') or 'n/a'}` · measured {last.get('timestamp_utc')}"]
+    harness = last.get("harness") or {}
+    if harness.get("path"):
+        out.append(f"- Harness: verdict-qa-mcp {harness.get('version') or '?'} · `{harness['path']}`")
     iso = state.get("isolation_check") or {}
     if iso:
         detail = iso.get("method") or iso.get("note") or ""

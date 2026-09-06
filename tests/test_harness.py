@@ -525,6 +525,11 @@ SUMMARIES = [
     ("surefire", "Tests run: 12, Failures: 1, Errors: 0, Skipped: 2",
      {"collected": 12, "failed": 1, "errors": 0, "skipped": 2}),
     ("gotestsum", "DONE 12 tests, 1 failure in 0.5s", {"collected": 12, "failed": 1}),
+    # The skip count: the F-65 campaign found `skipped` was the one gotestsum
+    # field no row exercised, so its pattern could be renamed or broken and
+    # the suite stayed green.
+    ("gotestsum", "DONE 12 tests, 2 skipped, 1 failure in 0.5s",
+     {"collected": 12, "failed": 1, "skipped": 2}),
 ]
 
 
@@ -535,6 +540,24 @@ def test_each_runner_dialect_is_parsed_and_named(dialect, line, expected):
     counts, name = _counts(line)
     assert counts == expected
     assert name == dialect, "the dialect is reported so a reader can audit the reading"
+
+
+def test_facts_name_the_harness_that_measured_them(repo, qa_root):
+    """Which code produced these numbers. The runner and the harness can come
+    from different places, and on the third stranger run they did: the runner
+    from main, the facts from the plugin cache's 0.80.1 — recognisable only
+    by a parser bug main had already fixed. The file that ran is the fact;
+    the version is its own claim; both reach the report's Scope block."""
+    from verdict_mcp.harness import collect, merge, render_report
+    facts = collect(repo, qa_root, [])
+    who = facts["last_run"]["harness"]
+    assert who["path"].endswith("harness.py") and Path(who["path"]).is_file(), who
+    assert who["version"] and who["version"] != "0+unknown", who
+    state = merge(facts, {"verdict": "pass", "findings": [], "not_tested": ["x"],
+                          "report": "reports/r.md"}, None)
+    assert state["last_run"]["harness"] == who
+    report = render_report(state)
+    assert f"- Harness: verdict-qa-mcp {who['version']}" in report and who["path"] in report
 
 
 def test_colour_codes_do_not_change_which_runner_is_read():

@@ -12,5 +12,14 @@ try:
     # sends this straight down the PackageNotFoundError path, where a real
     # install would silently report itself as "0+unknown".
     __version__ = version("verdict-qa-mcp")
-except PackageNotFoundError:            # running from a checkout, not installed
-    __version__ = "0+unknown"
+except PackageNotFoundError:            # running from a checkout or the plugin cache
+    # The common stranger path: `python3 <plugin-root>/src/verdict_mcp/harness.py`
+    # with nothing installed. The plugin manifest two levels up IS the
+    # version of this code; "0+unknown" is for when even that is missing.
+    import json as _json
+    from pathlib import Path as _Path
+    try:
+        _manifest = _Path(__file__).resolve().parents[2] / ".claude-plugin" / "plugin.json"
+        __version__ = str(_json.loads(_manifest.read_text(encoding="utf-8"))["version"])
+    except (OSError, ValueError, KeyError, IndexError):
+        __version__ = "0+unknown"
