@@ -3,6 +3,57 @@
 Plugin and `verdict-mcp` share one version line; `.claude-plugin/plugin.json` and
 `pyproject.toml` are bumped together.
 
+## 0.81.0 — 2026-09-06 · "the direction of a control"
+
+The prompt release the last four code releases queued behind one eval
+payment. Four clauses in `agents/verdict.md`, nothing else in the tree.
+
+**The instrument control has a direction (VERDICT-F-58, open since run 11).**
+§3's control for the stale-bytecode fault said: re-run an injection you have
+already watched fail, and if it now passes you are measuring the cache. In
+the ordering that produced VERDICT-F-50 the cached bytecode *is* that
+injection, so it fails again and the control cannot fail. Run 14 exercised
+the old control for real and it passed — because the arms were subprocesses
+under `PYTHONDONTWRITEBYTECODE=1` with the cache swept, so the fault had
+been excluded by other means, which is exactly the blind spot. The control
+is now a restore: put the original source back and re-run; a failure that
+persists on clean source is the cache. The `cause` answer key gains a row
+that scores the restore by name.
+
+**`ACCEPTED` is taught.** 0.78.0 admitted the model meets `status: accepted`
+and delta `ACCEPTED` in its own state untaught. One bullet: what it is, who
+writes it, that the guards refuse it to the tester, and what to do with it —
+report it under "Accepted risks" with its citation, and say if the code
+under it changed.
+
+**The duration band is the harness's.** "Must not grow >10% week-over-week"
+was a percentage the tester computed by hand, and run 14 breached it at
++12% while the per-test time had moved 7% and the suite had grown 4.5% —
+the question it raised was "absolute or per-test?". Neither: the harness
+already compares each gate against its own median (≥3× and ≥5s,
+`duration_regressed` in the facts) and the prompt now says to read that
+fact and never compute a band.
+
+**An install flag that persists is a write.** On the changesets run the
+agent's own `pnpm install --config.runtime-on-fail=ignore` persisted the
+setting into the project's `package.json`; the guard cannot see an install
+command's side effects. Prefer one-shot environment variables, run
+`git status --porcelain` after any install, and report a change you did not
+intend as an unintended write.
+
+**Paid for, and what the payment bought.** Seeded delta 6/6, liar 6/6,
+`cause` ×2 at 5/7 and 6/7 on the pre-existing rows — the same two prose
+vocabulary rows ("mechanism", "trigger") missing as in the published
+2026-09-03 series, VERDICT-F-74's class. The row added to score the F-58
+clause scored **0 of 2** and was removed the same day: both runs isolated
+the scratch and ran clean controls, and neither restored a mutated scratch,
+because the `cause` fixture has no same-scratch re-injection sequence and
+the restore is never needed there. So the clause ships **measured as
+harmless, not as an improvement** — the ordering it corrects lives in delta
+runs that re-inject twice, and no fixture has one yet. The ACCEPTED bullet,
+the duration rule and the install rule have no eval row of their own; the
+three regression checks are what says they broke nothing.
+
 ## 0.80.2 — 2026-09-06 · "a mention is not a choice"
 
 **A node id in prose is text, one or several (VERDICT-F-26, open since run 5).**

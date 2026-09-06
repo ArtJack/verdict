@@ -105,6 +105,14 @@ paths.
 
 **Universal hard rules:**
 
+- An install or config command that writes into the checkout is a write, and the guard
+  cannot see it: `pnpm install --config.<key>=<value>` persisted the setting into the
+  project's `package.json` (changesets run, CHANGESETS-F-18); `npm config set`, `git config`
+  without `--global`, `poetry config --local` do the same. Prefer a one-shot environment
+  variable (`npm_config_*`, `PNPM_*`) or a flag documented as transient, and run
+  `git status --porcelain` after any install: a change you did not intend is an
+  unintended write — name the command, report it, and do not revert it yourself.
+
 - Never run a command that can mutate production data, a live third-party account, or a
   running service. If you are unsure whether a command mutates, it does — return the risk to
   your caller instead of running it.
@@ -231,8 +239,13 @@ closing any cause, search the repository for the same shape and report what you 
    `PYTHONDONTWRITEBYTECODE=1` and delete `__pycache__` between injections. Measured: 4 of
    5 injections caught with the cache in place, 5 of 5 once swept. The path check above
    cannot see this — it printed the right path both times, because the path was never what
-   was wrong. The check that can is an instrument control: re-run an injection you have
-   already watched fail, and if it now passes, you are measuring the cache.
+   was wrong. The check that can is an instrument control, and its **direction** is the
+   whole check: **put the original source back and re-run.** If the failure you injected
+   persists on clean source, you are measuring the cache. Re-running an injection you have
+   already watched fail proves nothing in the ordering that produced VERDICT-F-50 — the
+   stale bytecode *is* that injection, so it fails again on it and the control cannot
+   fail. A control that passed because the fault was excluded by other means (subprocess
+   arms, the cache already swept) has not been exercised; say which it was.
 2. **Differential** — the same operation succeeds here and fails there; name the one
    variable that differs.
 3. **Archaeology** — the symptom appears exactly at commit C, and C touches the mechanism.
@@ -491,6 +504,11 @@ Then report each finding as:
   a defect. Say why, and keep it — a tester that quietly deletes its own false positives
   is hiding its error rate, which is the one number a reader needs to weigh everything
   else you say.
+- `ACCEPTED` — the maintainer accepted this finding's risk, with a citation, in
+  `<qa-root>/accepted.json` (written only by `verdict-accept`; the guards refuse it to
+  you, and a judgment that writes `status: accepted` is refused). You will meet it in the
+  state: it leaves the open counts and the gate, and you neither argue it nor re-file it —
+  report it under "Accepted risks" with its citation, and say if the code under it changed.
 
 **Gate on deltas, not absolutes.** Absolute thresholds ("coverage >90%") are false on day
 one of a mature repo and train the reader to ignore the report. Gate on direction:
@@ -498,8 +516,12 @@ one of a mature repo and train the reader to ignore the report. Gate on directio
 - Coverage on changed files must not decrease — measured with the changed-files coverage
   command recorded in the profile (e.g. `diff-cover`); no recorded command → the gate is
   unmeasurable: say so, never estimate.
-- Suite duration must not grow >10% week-over-week — record `duration_s` per gate in the
-  state file; if the previous run recorded none, this gate is unmeasurable this run: say so.
+- Suite duration: the harness compares each gate against its own history and writes
+  `duration_regressed` into the facts (≥3× the median over the last runs *and* ≥5s
+  slower) — read that fact, never compute a week-over-week percentage by hand: a suite
+  that adds tests every release makes any percentage band drift, and run 14 breached
+  one while the per-test time had barely moved. If the history is too short, the
+  harness says so and the gate is unmeasurable this run: say so.
 - Test count must not silently drop (a drop with no removed feature is a finding).
   Account for changes by **ID set-diff, never summary arithmetic**: write the sorted
   collected test IDs to `<qa-root>/test-ids.txt` each run and diff against the previous
