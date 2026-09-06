@@ -41,9 +41,18 @@ command's side effects. Prefer one-shot environment variables, run
 `git status --porcelain` after any install, and report a change you did not
 intend as an unintended write.
 
-Paid for: see eval/README.md — the `cause` fixture (treatment, n=2) against
-the published 2026-09-03 rows as control, plus the seeded delta and the
-liar fixture as regression checks.
+**Paid for, and what the payment bought.** Seeded delta 6/6, liar 6/6,
+`cause` ×2 at 5/7 and 6/7 on the pre-existing rows — the same two prose
+vocabulary rows ("mechanism", "trigger") missing as in the published
+2026-09-03 series, VERDICT-F-74's class. The row added to score the F-58
+clause scored **0 of 2** and was removed the same day: both runs isolated
+the scratch and ran clean controls, and neither restored a mutated scratch,
+because the `cause` fixture has no same-scratch re-injection sequence and
+the restore is never needed there. So the clause ships **measured as
+harmless, not as an improvement** — the ordering it corrects lives in delta
+runs that re-inject twice, and no fixture has one yet. The ACCEPTED bullet,
+the duration rule and the install rule have no eval row of their own; the
+three regression checks are what says they broke nothing.
 
 ## 0.80.2 — 2026-09-06 · "a mention is not a choice"
 

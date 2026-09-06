@@ -75,20 +75,6 @@
         "instrument control"
       ],
       "note": "Added 2026-09-03 with the v0.74.0 contract clause it scores. Terms are taken from the clause, not from any run's phrasing. First draft also accepted the bare string `__pycache__` and a control run earned the row for the sentence 'clean apart from __pycache__' — naming the directory while reporting the checkout untouched is housekeeping, not isolation. As scored now: 3 of 3 treatment runs earn it, 0 of 4 byte-identical control runs on the v0.73.0 prompt do. The row exists because VERDICT-F-52 established that no fixture could tell one version of this contract from another."
-    },
-    {
-      "key": "instrument-control-restores-the-original",
-      "type": "report_contains",
-      "terms_any": [
-        "original source back",
-        "original back",
-        "clean source",
-        "un-injected",
-        "uninjected",
-        "restored the original",
-        "restoring the original"
-      ],
-      "note": "Added 2026-09-06 with the 0.81.0 clause it scores (VERDICT-F-58): the instrument control for the stale-bytecode fault is a RESTORE — put the original back and watch the failure disappear — because re-running an injection you already watched fail cannot fail in the ordering that produced F-50. Terms name the restore, not the word 'control', which the 0.74.0 clause already teaches and every control run already writes."
     }
   ],
   "prose": {
