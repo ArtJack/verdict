@@ -277,6 +277,15 @@ class Restorer:
 
 
 def main(argv=None) -> int:
+    # Labels carry em dashes and middle dots; a Windows console defaults to
+    # cp1252 and a log reader to UTF-8, and the two disagree about both. Every
+    # CLI in this repository says UTF-8 out loud for the same reason.
+    for stream in (sys.stdout, sys.stderr):
+        if hasattr(stream, "reconfigure"):
+            try:
+                stream.reconfigure(encoding="utf-8", errors="replace")
+            except (ValueError, OSError):
+                pass
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--filter", default="", help="substring match on the label")
     ap.add_argument("--list", action="store_true", help="print the catalogue and stop")
@@ -307,8 +316,10 @@ def main(argv=None) -> int:
         env = scratch_env(tree)
         elsewhere = runs_its_own_code(tree, env)
         if elsewhere:
-            print("ISOLATION FAILED — inside the scratch copy `import verdict_mcp` resolves to "
-                  f"{elsewhere!r}, not to the copy. Every mutant would measure the original "
+            # The path is printed as is, not as a repr: on Windows a repr doubles
+            # every backslash and the message stops naming the file it names.
+            print("ISOLATION FAILED: inside the scratch copy `import verdict_mcp` resolves to "
+                  f"{elsewhere}, not to the copy. Every mutant would measure the original "
                   "checkout.", file=sys.stderr)
             return 1
         print(f"scratch copy: {tree} · runs its own code")
