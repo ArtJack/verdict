@@ -3,6 +3,22 @@
 Plugin and `verdict-mcp` share one version line; `.claude-plugin/plugin.json` and
 `pyproject.toml` are bumped together.
 
+## 0.80.2 — 2026-09-06 · "a mention is not a choice"
+
+**A node id in prose is text, one or several (VERDICT-F-26, open since run 5).**
+0.77.0 stopped running a pick among *several* prose-quoted test ids; 0.79.0
+stopped a *single* one from confirming anything, and kept running it as "the
+conservative direction" — it could only hold a finding open. It then
+mis-selected on six consecutive runs, refused nothing in fourteen, and stamped
+a measurement of an unrelated test on the finding every time: run 14's record
+for F-26 itself named a test about the state validator that was in the
+evidence only as the example of a mis-scrape. A prose citation now gets an
+`unselectable` record whatever its count — the candidates named, nothing run,
+the note saying which field turns a mention into a choice. The guard behind
+the selector stays, controlled by a test that edits facts by hand: a
+`first_cited` record that reaches `merge` from anywhere still confirms
+nothing. Pinned as a mutant; two 0.77.0 anchors follow the line they pin.
+
 ## 0.80.1 — 2026-09-05 · "a path is not a key"
 
 The one thing a stranger hit. The release cadence stopped at 0.80.0 and the

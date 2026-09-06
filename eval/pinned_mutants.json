@@ -297,13 +297,13 @@
  {
   "label": "0.77.0 Q5 F-26: the unselectable branch is never taken (the first cited test runs)",
   "path": "src/verdict_mcp/harness.py",
-  "old": "        if how == \"first_cited\" and len(tests) > 1:\n",
-  "new": "        if False and how == \"first_cited\" and len(tests) > 1:\n"
+  "old": "        if how == \"first_cited\":\n",
+  "new": "        if False and how == \"first_cited\":\n"
  },
  {
   "label": "0.77.0 Q6 F-26: the report stops counting what was not run",
   "path": "src/verdict_mcp/harness.py",
-  "old": "                   \"measured but not verifiable\"\n                   + (f\" · {not_run} not run (several tests cited in prose, none declared \"\n                      \"as `verification_test`)\" if not_run else \"\")\n                   + (f\" · {prose_only} measured on a prose citation only — recorded, not \"\n                      \"confirmed; declare `verification_test`\" if prose_only else \"\"))\n",
+  "old": "                   \"measured but not verifiable\"\n                   + (f\" · {not_run} not run (tests cited in prose only, none declared \"\n                      \"as `verification_test`)\" if not_run else \"\")\n                   + (f\" · {prose_only} measured on a prose citation only — recorded, not \"\n                      \"confirmed; declare `verification_test`\" if prose_only else \"\"))\n",
   "new": "                   \"measured but not verifiable\"\n                   + (f\" · {prose_only} measured on a prose citation only — recorded, not \"\n                      \"confirmed; declare `verification_test`\" if prose_only else \"\"))\n"
  },
  {
@@ -649,5 +649,11 @@
   "path": "src/verdict_mcp/gate.py",
   "old": "        if is_path_like(arg) and resolve_root(arg) is None:\n",
   "new": "        if False:\n"
+ },
+ {
+  "label": "0.80.2 G1 F-26: a single prose-cited test is still run, and may still refuse",
+  "path": "src/verdict_mcp/harness.py",
+  "old": "        if how == \"first_cited\":\n",
+  "new": "        if how == \"first_cited\" and len(tests) > 1:\n"
  }
 ]
