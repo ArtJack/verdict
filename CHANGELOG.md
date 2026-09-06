@@ -40,6 +40,18 @@ it. The diff-coverage hint no longer tells a TypeScript project to run
 pytest: it says the gate is coverage.py-based and stays unmeasurable
 elsewhere.
 
+**`pin_check` never touches the tree (run 14's runner, adopted).** Every
+mutant now lands in a scratch copy of the working tree — tracked and
+untracked-but-not-ignored files, so the edits in hand are what get measured,
+not the last commit — with the copy's `src/` ahead of the editable install.
+The copy must prove it runs its own code first: an `import verdict_mcp` that
+resolves outside it aborts the run, because a re-injection that measured the
+original checkout happened here (run 9) and its number was confident and
+wrong. The in-tree design cost twice — a second instance read a failure the
+first had caused, and an interrupted run emptied `harness.py` — and survives
+only as `--in-tree`. The "never edit while pin_check runs" rule is retired
+with it. The isolation check is pinned as a mutant.
+
 ## 0.80.1 — 2026-09-05 · "a path is not a key"
 
 The one thing a stranger hit. The release cadence stopped at 0.80.0 and the
