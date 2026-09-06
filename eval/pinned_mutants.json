@@ -655,5 +655,23 @@
   "path": "src/verdict_mcp/harness.py",
   "old": "        if how == \"first_cited\":\n",
   "new": "        if how == \"first_cited\" and len(tests) > 1:\n"
+ },
+ {
+  "label": "0.80.2 G2 ofetch: colour codes reach the dialect table (vitest reads as pytest, 1 of 28)",
+  "path": "src/verdict_mcp/harness.py",
+  "old": "    output = _ANSI.sub(\"\", output)\n",
+  "new": "    output = output\n"
+ },
+ {
+  "label": "0.80.2 G3 ofetch: the vitest count is read off the `Test Files` line (collected 1 of 28)",
+  "path": "src/verdict_mcp/harness.py",
+  "old": "        \"collected\": r\"(?m)^\\s*Tests\\s+.*\\((\\d+)\\)\",\n",
+  "new": "        \"collected\": r\"\\((\\d+)\\)\",\n"
+ },
+ {
+  "label": "0.80.2 G4 ofetch: the jest count is read off the `Test Suites` line",
+  "path": "src/verdict_mcp/harness.py",
+  "old": "        \"collected\": r\"(?m)^Tests:.*?(\\d+) total\",\n",
+  "new": "        \"collected\": r\"(\\d+) total\",\n"
  }
 ]

@@ -19,6 +19,27 @@ the selector stays, controlled by a test that edits facts by hand: a
 `first_cited` record that reaches `merge` from anywhere still confirms
 nothing. Pinned as a mutant; two 0.77.0 anchors follow the line they pin.
 
+**The stranger's second stumble: vitest and jest counted the file line.** The
+published 0.80.1 wheel was pointed at a second repository nobody here had
+run it on — `unjs/ofetch`, TypeScript, vitest, 28 tests — and the first
+thing the harness measured was `collected: 1`. Two defects, both silent.
+vitest with a terminal attached puts a colour code between `passed` and
+` (28)`, so the vitest signature missed and the pytest dialect caught
+`1 passed` off the line above; and even without colour, vitest and jest
+print the *file* tally on the line above the *test* tally in the same
+vocabulary — ` Test Files  1 passed (1)` — and every unanchored field matched
+that line first. Driven over the real bytes: 1 of 28 under the wrong runner's
+name, 1 of 28 under the right one, 2 of 29 on a mixed summary, and the same
+2 of 29 from jest's `Test Suites` line. The agent noticed on ofetch only
+because 1 test for a 527-line test file was implausible, and worked around
+it in the profile; a state written from the first reading would have carried
+the number as a measurement. Colour is stripped before any dialect looks,
+every vitest and jest field is anchored to the `Tests` line, and a vitest
+suite with nothing passing is still recognised as vitest. Three mutants pin
+it. The diff-coverage hint no longer tells a TypeScript project to run
+pytest: it says the gate is coverage.py-based and stays unmeasurable
+elsewhere.
+
 ## 0.80.1 — 2026-09-05 · "a path is not a key"
 
 The one thing a stranger hit. The release cadence stopped at 0.80.0 and the

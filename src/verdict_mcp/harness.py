@@ -127,12 +127,24 @@ _DIALECTS = (
     (r"test result:", "cargo", {                        # test result: ok. 5 passed; 1 ignored
         "passed": r"(\d+) passed", "failed": r"(\d+) failed",
         "skipped": r"(\d+) ignored"}),
-    (r"passed \(\d+\)", "vitest", {                       # Tests  2 failed | 5 passed (7)
-        "collected": r"passed \((\d+)\)", "passed": r"(\d+) passed",
-        "failed": r"(\d+) failed", "skipped": r"(\d+) skipped"}),
-    (r"\d+ (?:total|todo)\b", "jest", {                   # Tests: 1 failed, 4 passed, 5 total
-        "collected": r"(\d+) total", "passed": r"(\d+) passed",
-        "failed": r"(\d+) failed", "skipped": r"(\d+) (?:skipped|todo)"}),
+    # vitest and jest print the FILE tally on the line above the test tally, in
+    # the same vocabulary: ` Test Files  1 passed (1)` then ` Tests  28 passed
+    # (28)`. Unanchored, every field matched the file line first and a 28-test
+    # suite measured `collected: 1` — the first thing the published wheel did
+    # on a stranger's TypeScript repository (unjs/ofetch), and it would have
+    # been written to state as a measurement. Every field is anchored to the
+    # `Tests` line, and the signature no longer needs a `passed` on it: a suite
+    # with nothing passing is still a vitest suite.
+    (r"(?m)^\s*Tests\s+.*\(\d+\)\s*$", "vitest", {         # Tests  2 failed | 5 passed (7)
+        "collected": r"(?m)^\s*Tests\s+.*\((\d+)\)",
+        "passed": r"(?m)^\s*Tests\s+.*?(\d+) passed",
+        "failed": r"(?m)^\s*Tests\s+.*?(\d+) failed",
+        "skipped": r"(?m)^\s*Tests\s+.*?(\d+) skipped"}),
+    (r"(?m)^Tests:\s.*\b\d+ total\b", "jest", {           # Tests: 1 failed, 4 passed, 5 total
+        "collected": r"(?m)^Tests:.*?(\d+) total",
+        "passed": r"(?m)^Tests:.*?(\d+) passed",
+        "failed": r"(?m)^Tests:.*?(\d+) failed",
+        "skipped": r"(?m)^Tests:.*?(\d+) (?:skipped|todo)"}),
     (r"\d+ (?:passed|failed|skipped|xfailed|error)", "pytest", {
         "passed": r"(\d+) passed", "failed": r"(\d+) failed",
         "skipped": r"(\d+) skipped", "errors": r"(\d+) errors?\b",
@@ -143,6 +155,13 @@ _DIALECTS = tuple((re.compile(sig), name,
                   for sig, name, fields in _DIALECTS)
 # `go test` proper prints no totals at all — only per-test lines under -v. It
 # gets counted by tallying those, which is the only signal it offers.
+#
+# Colour first. A runner that believes it has a terminal wraps every number in
+# escape codes, and vitest puts one between `passed` and ` (28)`: the vitest
+# signature then fails, the pytest dialect catches `1 passed` off the file
+# line, and the wrong runner reports the wrong count with nothing to say it
+# happened. The codes carry no information the counts need.
+_ANSI = re.compile(r"\x1b\[[0-9;?]*[ -/]*[@-~]")
 _GO_VERBOSE = (re.compile(r"^--- PASS: ", re.M), re.compile(r"^--- FAIL: ", re.M),
                re.compile(r"^--- SKIP: ", re.M))
 _COUNT_PATTERNS = tuple(
@@ -234,6 +253,7 @@ def _counts(output: str) -> tuple[dict, str | None]:
     to know whether the suite reported nothing or whether we failed to
     understand it, and those are different problems with different fixes.
     """
+    output = _ANSI.sub("", output)
     for signature, name, fields in _DIALECTS:
         if not signature.search(output):
             continue
@@ -787,7 +807,9 @@ def measure_diff_coverage(repo: Path, sha_range: str | None, cmd: str | None) ->
         return {"status": "unavailable",
                 "reason": "no coverage_suite_cmd in the profile — set one that runs the suite "
                           "under coverage.py (e.g. `.venv/bin/python -m coverage run -m pytest`) "
-                          "to measure which changed lines any test executed"}
+                          "to measure which changed lines any test executed; the diff-coverage "
+                          "gate reads coverage.py's database only, so on another runner it "
+                          "stays unmeasurable and says so"}
     if not sha_range:
         return {"status": "unavailable",
                 "reason": "no commit range this run (baseline or re-baseline) — diff coverage "

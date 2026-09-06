@@ -500,6 +500,21 @@ SUMMARIES = [
      {"collected": 5, "passed": 4, "failed": 1}),
     ("vitest", " Tests  2 failed | 5 passed (7)",
      {"collected": 7, "passed": 5, "failed": 2}),
+    # The whole summary block, as the runners actually print it: the FILE
+    # tally sits on the line above the test tally in the same words. Read
+    # unanchored, a 28-test suite measured `collected: 1` (unjs/ofetch, the
+    # published 0.80.1 wheel, first stranger run on a TypeScript project).
+    ("vitest", " Test Files  1 passed (1)\n      Tests  28 passed (28)\n   Start at  23:06:27\n",
+     {"collected": 28, "passed": 28}),
+    ("vitest", " Test Files  1 failed | 1 passed (2)\n"
+               "      Tests  2 failed | 26 passed | 1 skipped (29)\n",
+     {"collected": 29, "passed": 26, "failed": 2, "skipped": 1}),
+    ("vitest", " Test Files  1 failed (1)\n      Tests  5 failed (5)\n",
+     {"collected": 5, "failed": 5}),
+    ("jest", "Test Suites: 1 failed, 1 passed, 2 total\n"
+             "Tests:       2 failed, 26 passed, 1 skipped, 29 total\n"
+             "Snapshots:   0 total\nTime:        1.2 s\n",
+     {"collected": 29, "passed": 26, "failed": 2, "skipped": 1}),
     ("rspec", "5 examples, 1 failure, 2 pending",
      {"collected": 5, "failed": 1, "skipped": 2}),
     ("phpunit", "Tests: 5, Assertions: 10, Failures: 1.",
@@ -520,6 +535,25 @@ def test_each_runner_dialect_is_parsed_and_named(dialect, line, expected):
     counts, name = _counts(line)
     assert counts == expected
     assert name == dialect, "the dialect is reported so a reader can audit the reading"
+
+
+def test_colour_codes_do_not_change_which_runner_is_read():
+    """The bytes vitest wrote on unjs/ofetch with a terminal attached. An
+    escape code sits between `passed` and ` (28)`, so the vitest signature
+    missed, the pytest dialect caught `1 passed` off the file line, and the
+    harness measured 1 test of 28 under the wrong runner's name. The codes
+    are stripped before any dialect looks."""
+    from verdict_mcp.harness import _counts
+    coloured = ("\x1b[2m Test Files \x1b[22m \x1b[1m\x1b[32m1 passed\x1b[39m\x1b[22m"
+                "\x1b[90m (1)\x1b[39m\n"
+                "\x1b[2m      Tests \x1b[22m \x1b[1m\x1b[32m28 passed\x1b[39m\x1b[22m"
+                "\x1b[90m (28)\x1b[39m\n"
+                "\x1b[2m   Start at \x1b[22m 23:06:25\n")
+    counts, name = _counts(coloured)
+    assert (counts, name) == ({"collected": 28, "passed": 28}, "vitest"), (counts, name)
+    # …and pytest with colour still reads as pytest, with its own numbers
+    counts, name = _counts("\x1b[32m\x1b[1m4 passed\x1b[0m, \x1b[33m1 skipped\x1b[0m in 0.1s")
+    assert (counts, name) == ({"passed": 4, "skipped": 1}, "pytest"), (counts, name)
 
 
 def test_overlapping_vocabularies_do_not_steal_each_others_output():
