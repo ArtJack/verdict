@@ -236,6 +236,25 @@ convictions: drive the original and the mutant side by side over the input space
 writing a test, because a real gap and an equivalent mutant print the same `SURVIVED`.
 (mutmut over the same scope enumerated 3,638 mutants, ran 37, and hung on its own cache.)
 
+**First sweep, 2026-09-06 (0.80.2, 155 mutants over 417 lines): 121 killed, 34 survived.**
+The full record, one row per mutant with its outcome and seconds, is [`sweeps/2026-09-06-f65.json`](sweeps/2026-09-06-f65.json).
+Judged one at a time by driving the original and the mutant over the input space:
+
+| Survivors | Verdict | What happened |
+|---|---|---|
+| 9 in `duration_regressed` (lines 213–222) | **real** | every boundary of the gate — the minimum history, a zero median, both inclusive bars, the factor's operator, a non-numeric duration (`None >= float` raised and nothing noticed). A parametrized boundary table now names each point; three pinned (S1–S3). |
+| `_ago`: `minutes < 1` → `<= 1` | **real** (VERDICT-F-60's survivor 8) | one minute read as "seconds ago". Pinned (S4). |
+| `select_test`: `==` → `!=` on a resolved citation | **real** | every explicit citation in the suite was spelled exactly as collected, so resolution never decided anything. Pinned (S5). |
+| `verify_findings`: `finally: if scratch is not None` → `if False` | **real** | the counterfactual worktree was never removed and no test looked. Pinned (S6). |
+| 8 note guards in `verify_findings` (`if uncited`, `if unresolved`, `if unselectable`, `if scratch is None`, `if previous_sha`, `uncited = 0`, the cap's `>`) | **real** | six notes could be emitted unconditionally — "0 findings cite no test", "nothing was run for :" — because no test asserted their absence. A clean run now asserts `verification_notes == []`; the cap's exact boundary and the uncited count are asserted. One pinned (S7). |
+| `_apply_verification`: `if resolving` / `if "carried_forward" in entry` → `if True` | **real** | an open, still-failing finding was stamped "resolution refused" and "carried forward". Asserted. |
+| vitest `failed` pattern `.*?` → `./?` | **real** (fixed in #110) | every row had a one-digit count; `Tests  12 failed` read as 2. |
+| `test_copied_from_head` flag set unconditionally | **test was vacuous** | the test that guards it cited its test in prose, so after F-26 nothing ran and the assertion held on nothing. It declares its citation now. |
+| `if counts:` → `if True:` in `_counts` | equivalent | every dialect signature implies at least one field, by construction of the table. |
+| `if not cited` / `if not runnable` early returns; `differs`/`insert` on the summary; "and N more" at exactly 5 | equivalent or cosmetic | no observable difference in results, or a message with " and 0 more" that needs five unresolved citations to see. Not pinned; listed so nobody re-derives them. |
+| `run_date`: `if when.tzinfo is not None` → `if True` | **unpinned** | the mutant reads a naive stamp as local time; on a UTC machine (CI) the two agree, so a test could only fail where nobody runs it. |
+| a line inside `_stamp_outcome`'s docstring | noise | prose does not run; the sweep skips docstrings now. |
+
 Each mutant lands in one of three columns, read off pytest's own summary line rather
 than its exit code: **KILLED** (a test failed), **SURVIVED** (the suite stayed green), or
 **ERROR** — pytest exited without a failed test, which is a broken collection or a usage

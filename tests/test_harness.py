@@ -800,6 +800,36 @@ def test_duration_regression_stays_quiet(current, priors):
     assert duration_regressed(current, priors) is None
 
 
+@pytest.mark.parametrize("current,priors,fires", [
+    # The first code-enumerated sweep (eval/sweep.py, 2026-09-06) left nine
+    # of this function's boundaries standing: every row above sat well inside
+    # a region, so `>=` could become `>`, `*` become `/`, the minimum-history
+    # bar move by one, and a median of zero go undefended. Each row here is a
+    # point where the original and one mutant disagree, driven before it was
+    # written.
+    (9.0, [3.0, 3.0, 3.0], True),           # exactly 3x and exactly +5s: the bars are inclusive
+    (8.99, [3.0, 3.0, 3.0], False),         # a hair under the factor
+    (7.0, [2.0, 2.0, 2.0], True),           # 3.5x and exactly +5.0s: the floor is inclusive too
+    (6.9, [2.0, 2.0, 2.0], False),          # 3.45x, +4.9s: the absolute floor holds
+    (65.0, [3.0, 3.1], True),               # two priors ARE a baseline (the minimum, inclusive)
+    (65.0, [0.0, 0.0, 0.0, 3.0, 3.0], False),   # a zero median is no baseline, never a division
+    (65.0, [0.0, 0.0, 3.0, 3.0, 3.1], True),    # zeros are history too; the median is still 3.0
+    (65.0, [3.0, -1.0, 3.0, 3.0], True),        # a negative prior is discarded, not a baseline
+])
+def test_duration_regression_boundaries(current, priors, fires):
+    from verdict_mcp.harness import duration_regressed
+    assert bool(duration_regressed(current, priors)) is fires, (current, priors)
+
+
+def test_duration_regression_needs_a_number():
+    """A gate that never produced a duration (timed out, or never ran) is not
+    "infinitely slower"; the mutant that dropped this guard raised TypeError
+    on `None >= float` and the suite did not notice."""
+    from verdict_mcp.harness import duration_regressed
+    assert duration_regressed(None, [3.0, 3.0, 3.0]) is None
+    assert duration_regressed("65", [3.0, 3.0, 3.0]) is None
+
+
 def test_collect_reports_duration_regression_from_history(repo, qa_root, monkeypatch):
     """End to end: history in runs.jsonl, comparison in collect, fact in the
     gate result -- the judgment step receives it established."""
@@ -1002,6 +1032,14 @@ def test_the_retry_marker_says_the_age_it_recorded(age_h, expected, forbidden):
     from verdict_mcp.harness import _ago
     assert _ago(age_h) == expected
     assert forbidden not in _ago(age_h)
+
+
+def test_one_minute_is_a_minute_not_seconds():
+    """VERDICT-F-60's survivor (8), confirmed by the sweep: `minutes < 1` could
+    become `<= 1` and nothing noticed. Exactly one minute reads as one minute."""
+    from verdict_mcp.harness import _ago
+    assert _ago(1 / 60) == "1 minute ago"
+    assert _ago(0.4 / 60) == "seconds ago"          # rounds to 0 minutes
 
 
 def test_a_two_hour_old_retry_marker_is_not_described_as_minutes_old(repo, qa_root):
