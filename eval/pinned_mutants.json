@@ -691,5 +691,47 @@
   "path": "src/verdict_mcp/harness.py",
   "old": "        \"skipped\": r\"(\\d+)\\s+skipped\"}),\n    (r\"Total:\\s*\\d+\", \"dotnet\", {",
   "new": "        \"skipped\": r\"XX(\\d+)\\s+skippedXX\"}),\n    (r\"Total:\\s*\\d+\", \"dotnet\", {"
+ },
+ {
+  "label": "0.80.2 S1 sweep: two prior durations stop being a baseline (the minimum moves by one)",
+  "path": "src/verdict_mcp/harness.py",
+  "old": "    if len(priors) < _DURATION_MIN_PRIOR:\n",
+  "new": "    if len(priors) <= _DURATION_MIN_PRIOR:\n"
+ },
+ {
+  "label": "0.80.2 S2 sweep: a zero median is compared against, then divided by",
+  "path": "src/verdict_mcp/harness.py",
+  "old": "    if median <= 0:\n",
+  "new": "    if median < 0:\n"
+ },
+ {
+  "label": "0.80.2 S3 sweep: a duration that is not a number is compared anyway (TypeError on None)",
+  "path": "src/verdict_mcp/harness.py",
+  "old": "    if not isinstance(current_s, (int, float)):\n        return None\n    priors = sorted(",
+  "new": "    if False:\n        return None\n    priors = sorted("
+ },
+ {
+  "label": "0.80.2 S4 sweep, F-60 (8): one minute reads as seconds",
+  "path": "src/verdict_mcp/harness.py",
+  "old": "    if minutes < 1:\n        return \"seconds ago\"\n",
+  "new": "    if minutes <= 1:\n        return \"seconds ago\"\n"
+ },
+ {
+  "label": "0.80.2 S5 sweep: an explicit citation that resolves to the collected id is not explicit",
+  "path": "src/verdict_mcp/harness.py",
+  "old": "    if any(resolve_test_id(str(n), {chosen}) == chosen for n in named) or chosen in named:\n",
+  "new": "    if any(resolve_test_id(str(n), {chosen}) != chosen for n in named) or chosen in named:\n"
+ },
+ {
+  "label": "0.80.2 S6 sweep: the counterfactual worktree is never removed",
+  "path": "src/verdict_mcp/harness.py",
+  "old": "    finally:\n        if scratch is not None:\n            _remove_scratch(repo, scratch)\n",
+  "new": "    finally:\n        if False:\n            _remove_scratch(repo, scratch)\n"
+ },
+ {
+  "label": "0.80.2 S7 sweep: the uncited-findings note starts counting at one",
+  "path": "src/verdict_mcp/harness.py",
+  "old": "    cited, unresolved, uncited = [], [], 0\n",
+  "new": "    cited, unresolved, uncited = [], [], 1\n"
  }
 ]

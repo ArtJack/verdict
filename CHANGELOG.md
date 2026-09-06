@@ -84,7 +84,18 @@ gotestsum's skip count was the only dialect field no test row exercised —
 which is exercised now and pinned. Survivors of the full sweep are reported
 in eval/README.md as candidates, each to be driven side by side with the
 original before it becomes a test, because a survivor and an equivalent
-mutant print the same line.
+mutant print the same line. **The first sweep: 121 of 155 killed, 34
+survivors, judged one by one** (the table is in eval/README.md). Twenty-two
+were real: every boundary of the duration gate, including `None` compared
+against a float; one minute reading as "seconds ago" (VERDICT-F-60's
+survivor 8, at last); an explicit citation that resolves but is not spelled
+as collected; the counterfactual worktree never removed; six verification
+notes that could be emitted unconditionally because nothing asserted their
+absence; an open finding stamped "resolution refused". One test had gone
+vacuous after F-26 — it cited in prose, so nothing ran and its assertion held
+on nothing. Seven survivors are pinned in the catalogue (S1–S7); the
+equivalents and the one platform-dependent case are listed so nobody
+re-derives them.
 
 ## 0.80.1 — 2026-09-05 · "a path is not a key"
 

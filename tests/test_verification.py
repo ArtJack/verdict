@@ -100,6 +100,86 @@ def test_a_fix_is_verified_when_the_cited_test_fails_before_and_passes_after(tmp
     assert "Fix verification: 1 verified" in render_report(state)
 
 
+def test_a_clean_verification_writes_no_notes_and_leaves_no_scratch(tmp_path):
+    """The notes are what the tester reads before the numbers, and the sweep
+    found six of them could be emitted unconditionally — "0 findings cite no
+    test", "nothing was run for :", "previous commit is not in this
+    repository" — with the suite none the wiser, because no test had ever
+    asserted their ABSENCE. And the worktree the counterfactual ran in could be
+    left behind forever. A clean run says nothing and leaves nothing."""
+    repo, sha_a = bugged_repo(tmp_path)
+    (repo / "pkg.py").write_text(FIXED, encoding="utf-8")
+    commit(repo, "fix")
+    qa = tmp_path / "qa"
+    prev = previous_state(qa, sha_a, verification_test=CITED)
+    facts = collect(repo, qa, [], test_one_cmd=CMD)
+    rec = facts["verification"]["P-F-1"]
+    assert (rec["at_previous"], rec["at_head"]) == ("fail", "pass"), rec
+    assert facts.get("verification_notes", []) == [], facts.get("verification_notes")
+    # the summary reads old → new, in that order
+    assert rec["summary"].index("failed") < rec["summary"].index("passed"), rec["summary"]
+    # the scratch worktree is gone, and git no longer lists it
+    from pathlib import Path
+    for p in rec["pythonpath"]:
+        assert not Path(p).exists(), f"scratch left behind: {p}"
+    assert "verdict-verify-" not in git(repo, "worktree", "list")
+    assert merge(facts, resolved(), prev)["findings"][0]["fix_verified"] is True
+
+
+def test_a_finding_that_cites_nothing_is_counted_once_and_said_once(tmp_path):
+    repo, sha_a = bugged_repo(tmp_path)
+    qa = tmp_path / "qa"
+    previous_state(qa, sha_a, evidence=("pkg.py:2 return q - i",))     # no node id anywhere
+    facts = collect(repo, qa, [], test_one_cmd=CMD)
+    assert "P-F-1" not in (facts.get("verification") or {})
+    notes = facts["verification_notes"]
+    assert notes == ["1 open finding(s) cite no test id, so the harness cannot fix-verify them"], notes
+
+
+def test_without_a_previous_commit_the_note_says_so(tmp_path):
+    """No recorded commit and a recorded commit that is gone are two different
+    sentences; the sweep found the first could be replaced by the second."""
+    repo, _ = bugged_repo(tmp_path)
+    qa = tmp_path / "qa"
+    prev = previous_state(qa, "deadbeef" * 5, verification_test=CITED)
+    prev["last_run"].pop("git_sha", None)
+    (qa / "state.json").write_text(json.dumps(prev), encoding="utf-8")
+    facts = collect(repo, qa, [], test_one_cmd=CMD)
+    rec = facts["verification"]["P-F-1"]
+    assert rec["at_previous"] == "unavailable" and rec["at_head"] == "fail", rec
+    assert any(n.startswith("no previous commit recorded") for n in facts["verification_notes"]), facts
+    assert not any("not in this repository" in n for n in facts["verification_notes"])
+
+
+def test_a_failing_test_refuses_only_a_resolution(tmp_path):
+    """`_apply_verification`'s two guards, `if resolving` and `if
+    "carried_forward" in entry`, could both become `if True` unnoticed: an
+    OPEN finding whose test still fails would then be stamped "resolution
+    refused" and told it was carried forward, neither of which happened."""
+    repo, sha_a = bugged_repo(tmp_path)
+    (repo / "README").write_text("unrelated\n", encoding="utf-8")
+    commit(repo, "unrelated")
+    qa = tmp_path / "qa"
+    prev = previous_state(qa, sha_a, verification_test=CITED)
+    facts = collect(repo, qa, [], test_one_cmd=CMD)
+    assert facts["verification"]["P-F-1"]["at_head"] == "fail"
+    j = resolved()
+    j["findings"][0]["status"] = "open"                  # reported again, still open
+    f = [x for x in merge(facts, j, prev)["findings"] if x["id"] == "P-F-1"][0]
+    assert f["status"] == "open" and f["delta"] == "STILL_OPEN"
+    assert "resolution_refused" not in f and "carried_forward" not in f, f
+
+
+def test_an_explicit_citation_counts_when_it_resolves_to_the_collected_form():
+    """A citation spelled with backslashes names the same test as the collected
+    id; the sweep turned the `==` in that check into `!=` and no row noticed,
+    because every explicit citation in the suite was spelled exactly as
+    collected."""
+    from verdict_mcp.harness import select_test
+    finding = {"verification_test": "dir\\test_a.py::t"}
+    assert select_test(finding, ["dir/test_a.py::t"], set()) == ("dir/test_a.py::t", "explicit")
+
+
 def test_a_single_prose_citation_is_not_run_either(tmp_path):
     """VERDICT-F-26, the other half. The same setup as the test above, minus
     the tester's citation — the id is merely quoted in the evidence, and it is
@@ -312,6 +392,12 @@ def test_verification_is_bounded(tmp_path, monkeypatch):
     facts = collect(repo, qa, [], test_one_cmd=CMD)
     assert len(facts["verification"]) == 2
     assert any("capped at 2 of 4" in n for n in facts["verification_notes"])
+    # …and exactly at the cap nothing is capped and nothing says so.
+    prev["findings"] = prev["findings"][:2]
+    (qa / "state.json").write_text(json.dumps(prev), encoding="utf-8")
+    facts = collect(repo, qa, [], test_one_cmd=CMD)
+    assert len(facts["verification"]) == 2
+    assert not any("capped" in n for n in facts["verification_notes"]), facts["verification_notes"]
 
 
 def test_the_old_source_is_put_ahead_of_any_installed_copy(tmp_path):
@@ -447,9 +533,10 @@ def test_a_test_file_the_fix_did_not_touch_is_not_reported_as_copied(tmp_path):
     this test as written". Setting it unconditionally would make it noise."""
     repo, sha_a = fixed_repo(tmp_path)  # test_pkg.py is identical at both commits
     qa = tmp_path / "qa"
-    previous_state(qa, sha_a)
-    facts = collect(repo, qa, [], test_one_cmd=CMD)
-    assert "test_copied_from_head" not in facts["verification"]["P-F-1"]
+    previous_state(qa, sha_a, verification_test=CITED)
+    rec = collect(repo, qa, [], test_one_cmd=CMD)["verification"]["P-F-1"]
+    assert rec["at_head"] == "pass", "the test must actually have run for the flag to mean anything"
+    assert "test_copied_from_head" not in rec
 
 
 # ── the report counts the measurement, not the claim (F-30) ──────────────────

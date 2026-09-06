@@ -62,6 +62,11 @@ def test_a_change_inside_a_trailing_comment_is_not_a_mutant():
     assert not sweep.comment_only("if x > 0:", "if x >= 0:")
 
 
+def test_a_docstring_is_prose_not_a_mutation_site():
+    src = 'def f(x):\n    """x > 0 means *up*."""\n    return x > 0\n'
+    assert sweep.docstring_lines(src) == {2}
+
+
 def test_a_name_nobody_can_find_is_an_error_not_an_empty_sweep():
     with pytest.raises(SystemExit, match="not swept"):
         sweep.line_ranges(SOURCE, ["inside", "nowhere"])

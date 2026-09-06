@@ -1,0 +1,1552 @@
+[
+ {
+  "operator": "arithmetic",
+  "line": 138,
+  "before": "(r\"(?m)^\\s*Tests\\s+.*\\(\\d+\\)\\s*$\", \"vitest\", {         # Tests  2 failed | 5 passed (7)",
+  "after": "(r\"(?m)^\\s*Tests\\s+./\\(\\d+\\)\\s*$\", \"vitest\", {         # Tests  2 failed | 5 passed (7)",
+  "id": "harness.py:138:arithmetic:1",
+  "path": "src/verdict_mcp/harness.py",
+  "outcome": "killed",
+  "seconds": 25.1
+ },
+ {
+  "operator": "arithmetic",
+  "line": 139,
+  "before": "\"collected\": r\"(?m)^\\s*Tests\\s+.*\\((\\d+)\\)\",",
+  "after": "\"collected\": r\"(?m)^\\s*Tests\\s+./\\((\\d+)\\)\",",
+  "id": "harness.py:139:arithmetic:2",
+  "path": "src/verdict_mcp/harness.py",
+  "outcome": "killed",
+  "seconds": 24.9
+ },
+ {
+  "operator": "arithmetic",
+  "line": 140,
+  "before": "\"passed\": r\"(?m)^\\s*Tests\\s+.*?(\\d+) passed\",",
+  "after": "\"passed\": r\"(?m)^\\s*Tests\\s+./?(\\d+) passed\",",
+  "id": "harness.py:140:arithmetic:3",
+  "path": "src/verdict_mcp/harness.py",
+  "outcome": "killed",
+  "seconds": 26.1
+ },
+ {
+  "operator": "arithmetic",
+  "line": 141,
+  "before": "\"failed\": r\"(?m)^\\s*Tests\\s+.*?(\\d+) failed\",",
+  "after": "\"failed\": r\"(?m)^\\s*Tests\\s+./?(\\d+) failed\",",
+  "id": "harness.py:141:arithmetic:4",
+  "path": "src/verdict_mcp/harness.py",
+  "outcome": "survived",
+  "seconds": 90.1
+ },
+ {
+  "operator": "arithmetic",
+  "line": 142,
+  "before": "\"skipped\": r\"(?m)^\\s*Tests\\s+.*?(\\d+) skipped\"}),",
+  "after": "\"skipped\": r\"(?m)^\\s*Tests\\s+./?(\\d+) skipped\"}),",
+  "id": "harness.py:142:arithmetic:5",
+  "path": "src/verdict_mcp/harness.py",
+  "outcome": "killed",
+  "seconds": 25.1
+ },
+ {
+  "operator": "arithmetic",
+  "line": 143,
+  "before": "(r\"(?m)^Tests:\\s.*\\b\\d+ total\\b\", \"jest\", {           # Tests: 1 failed, 4 passed, 5 total",
+  "after": "(r\"(?m)^Tests:\\s./\\b\\d+ total\\b\", \"jest\", {           # Tests: 1 failed, 4 passed, 5 total",
+  "id": "harness.py:143:arithmetic:6",
+  "path": "src/verdict_mcp/harness.py",
+  "outcome": "killed",
+  "seconds": 25.2
+ },
+ {
+  "operator": "arithmetic",
+  "line": 144,
+  "before": "\"collected\": r\"(?m)^Tests:.*?(\\d+) total\",",
+  "after": "\"collected\": r\"(?m)^Tests:./?(\\d+) total\",",
+  "id": "harness.py:144:arithmetic:7",
+  "path": "src/verdict_mcp/harness.py",
+  "outcome": "killed",
+  "seconds": 26.1
+ },
+ {
+  "operator": "arithmetic",
+  "line": 145,
+  "before": "\"passed\": r\"(?m)^Tests:.*?(\\d+) passed\",",
+  "after": "\"passed\": r\"(?m)^Tests:./?(\\d+) passed\",",
+  "id": "harness.py:145:arithmetic:8",
+  "path": "src/verdict_mcp/harness.py",
+  "outcome": "killed",
+  "seconds": 25.2
+ },
+ {
+  "operator": "arithmetic",
+  "line": 146,
+  "before": "\"failed\": r\"(?m)^Tests:.*?(\\d+) failed\",",
+  "after": "\"failed\": r\"(?m)^Tests:./?(\\d+) failed\",",
+  "id": "harness.py:146:arithmetic:9",
+  "path": "src/verdict_mcp/harness.py",
+  "outcome": "killed",
+  "seconds": 26.0
+ },
+ {
+  "operator": "arithmetic",
+  "line": 147,
+  "before": "\"skipped\": r\"(?m)^Tests:.*?(\\d+) (?:skipped|todo)\"}),",
+  "after": "\"skipped\": r\"(?m)^Tests:./?(\\d+) (?:skipped|todo)\"}),",
+  "id": "harness.py:147:arithmetic:10",
+  "path": "src/verdict_mcp/harness.py",
+  "outcome": "killed",
+  "seconds": 25.8
+ },
+ {
+  "operator": "comparison",
+  "line": 200,
+  "before": "def duration_regressed(current_s, prior_durations) -> str | None:",
+  "after": "def duration_regressed(current_s, prior_durations) ->= str | None:",
+  "id": "harness.py:200:comparison:11",
+  "path": "src/verdict_mcp/harness.py",
+  "outcome": "killed",
+  "seconds": 0.7
+ },
+ {
+  "operator": "condition",
+  "line": 213,
+  "before": "if not isinstance(current_s, (int, float)):",
+  "after": "if False:",
+  "id": "harness.py:213:condition:12",
+  "path": "src/verdict_mcp/harness.py",
+  "outcome": "survived",
+  "seconds": 92.2
+ },
+ {
+  "operator": "condition",
+  "line": 213,
+  "before": "if not isinstance(current_s, (int, float)):",
+  "after": "if True:",
+  "id": "harness.py:213:condition:13",
+  "path": "src/verdict_mcp/harness.py",
+  "outcome": "killed",
+  "seconds": 27.2
+ },
+ {
+  "operator": "comparison",
+  "line": 216,
+  "before": "if isinstance(d, (int, float)) and d >= 0)",
+  "after": "if isinstance(d, (int, float)) and d >  0)",
+  "id": "harness.py:216:comparison:14",
+  "path": "src/verdict_mcp/harness.py",
+  "outcome": "survived",
+  "seconds": 92.5
+ },
+ {
+  "operator": "constant",
+  "line": 216,
+  "before": "if isinstance(d, (int, float)) and d >= 0)",
+  "after": "if isinstance(d, (int, float)) and d >= 1)",
+  "id": "harness.py:216:constant:15",
+  "path": "src/verdict_mcp/harness.py",
+  "outcome": "killed",
+  "seconds": 26.4
+ },
+ {
+  "operator": "comparison",
+  "line": 217,
+  "before": "if len(priors) < _DURATION_MIN_PRIOR:",
+  "after": "if len(priors) <= _DURATION_MIN_PRIOR:",
+  "id": "harness.py:217:comparison:16",
+  "path": "src/verdict_mcp/harness.py",
+  "outcome": "survived",
+  "seconds": 91.3
+ },
+ {
+  "operator": "condition",
+  "line": 217,
+  "before": "if len(priors) < _DURATION_MIN_PRIOR:",
+  "after": "if False:",
+  "id": "harness.py:217:condition:17",
+  "path": "src/verdict_mcp/harness.py",
+  "outcome": "killed",
+  "seconds": 22.7
+ },
+ {
+  "operator": "condition",
+  "line": 217,
+  "before": "if len(priors) < _DURATION_MIN_PRIOR:",
+  "after": "if True:",
+  "id": "harness.py:217:condition:18",
+  "path": "src/verdict_mcp/harness.py",
+  "outcome": "killed",
+  "seconds": 26.5
+ },
+ {
+  "operator": "comparison",
+  "line": 220,
+  "before": "if median <= 0:",
+  "after": "if median <  0:",
+  "id": "harness.py:220:comparison:19",
+  "path": "src/verdict_mcp/harness.py",
+  "outcome": "survived",
+  "seconds": 92.5
+ },
+ {
+  "operator": "constant",
+  "line": 220,
+  "before": "if median <= 0:",
+  "after": "if median <= 1:",
+  "id": "harness.py:220:constant:20",
+  "path": "src/verdict_mcp/harness.py",
+  "outcome": "killed",
+  "seconds": 26.2
+ },
+ {
+  "operator": "condition",
+  "line": 220,
+  "before": "if median <= 0:",
+  "after": "if False:",
+  "id": "harness.py:220:condition:21",
+  "path": "src/verdict_mcp/harness.py",
+  "outcome": "survived",
+  "seconds": 89.9
+ },
+ {
+  "operator": "condition",
+  "line": 220,
+  "before": "if median <= 0:",
+  "after": "if True:",
+  "id": "harness.py:220:condition:22",
+  "path": "src/verdict_mcp/harness.py",
+  "outcome": "killed",
+  "seconds": 27.1
+ },
+ {
+  "operator": "comparison",
+  "line": 222,
+  "before": "if current_s >= median * _DURATION_FACTOR and             current_s - median >= _DURATION_ABS_FLOOR_S:",
+  "after": "if current_s >  median * _DURATION_FACTOR and             current_s - median >= _DURATION_ABS_FLOOR_S:",
+  "id": "harness.py:222:comparison:23",
+  "path": "src/verdict_mcp/harness.py",
+  "outcome": "survived",
+  "seconds": 90.2
+ },
+ {
+  "operator": "comparison",
+  "line": 222,
+  "before": "if current_s >= median * _DURATION_FACTOR and             current_s - median >= _DURATION_ABS_FLOOR_S:",
+  "after": "if current_s >= median * _DURATION_FACTOR and             current_s - median >  _DURATION_ABS_FLOOR_S:",
+  "id": "harness.py:222:comparison:24",
+  "path": "src/verdict_mcp/harness.py",
+  "outcome": "survived",
+  "seconds": 92.4
+ },
+ {
+  "operator": "arithmetic",
+  "line": 222,
+  "before": "if current_s >= median * _DURATION_FACTOR and             current_s - median >= _DURATION_ABS_FLOOR_S:",
+  "after": "if current_s >= median / _DURATION_FACTOR and             current_s - median >= _DURATION_ABS_FLOOR_S:",
+  "id": "harness.py:222:arithmetic:25",
+  "path": "src/verdict_mcp/harness.py",
+  "outcome": "survived",
+  "seconds": 90.4
+ },
+ {
+  "operator": "arithmetic",
+  "line": 222,
+  "before": "if current_s >= median * _DURATION_FACTOR and             current_s - median >= _DURATION_ABS_FLOOR_S:",
+  "after": "if current_s >= median * _DURATION_FACTOR and             current_s + median >= _DURATION_ABS_FLOOR_S:",
+  "id": "harness.py:222:arithmetic:26",
+  "path": "src/verdict_mcp/harness.py",
+  "outcome": "survived",
+  "seconds": 91.4
+ },
+ {
+  "operator": "condition",
+  "line": 222,
+  "before": "if current_s >= median * _DURATION_FACTOR and             current_s - median >= _DURATION_ABS_FLOOR_S:",
+  "after": "if False:",
+  "id": "harness.py:222:condition:27",
+  "path": "src/verdict_mcp/harness.py",
+  "outcome": "killed",
+  "seconds": 27.2
+ },
+ {
+  "operator": "condition",
+  "line": 222,
+  "before": "if current_s >= median * _DURATION_FACTOR and             current_s - median >= _DURATION_ABS_FLOOR_S:",
+  "after": "if True:",
+  "id": "harness.py:222:condition:28",
+  "path": "src/verdict_mcp/harness.py",
+  "outcome": "killed",
+  "seconds": 27.2
+ },
+ {
+  "operator": "comparison",
+  "line": 268,
+  "before": "def _counts(output: str) -> tuple[dict, str | None]:",
+  "after": "def _counts(output: str) ->= tuple[dict, str | None]:",
+  "id": "harness.py:268:comparison:29",
+  "path": "src/verdict_mcp/harness.py",
+  "outcome": "killed",
+  "seconds": 0.7
+ },
+ {
+  "operator": "condition",
+  "line": 277,
+  "before": "if not signature.search(output):",
+  "after": "if False:",
+  "id": "harness.py:277:condition:30",
+  "path": "src/verdict_mcp/harness.py",
+  "outcome": "killed",
+  "seconds": 22.9
+ },
+ {
+  "operator": "condition",
+  "line": 277,
+  "before": "if not signature.search(output):",
+  "after": "if True:",
+  "id": "harness.py:277:condition:31",
+  "path": "src/verdict_mcp/harness.py",
+  "outcome": "killed",
+  "seconds": 22.0
+ },
+ {
+  "operator": "condition",
+  "line": 282,
+  "before": "if m:",
+  "after": "if False:",
+  "id": "harness.py:282:condition:32",
+  "path": "src/verdict_mcp/harness.py",
+  "outcome": "killed",
+  "seconds": 21.9
+ },
+ {
+  "operator": "condition",
+  "line": 282,
+  "before": "if m:",
+  "after": "if True:",
+  "id": "harness.py:282:condition:33",
+  "path": "src/verdict_mcp/harness.py",
+  "outcome": "killed",
+  "seconds": 21.7
+ },
+ {
+  "operator": "condition",
+  "line": 284,
+  "before": "if counts:",
+  "after": "if False:",
+  "id": "harness.py:284:condition:34",
+  "path": "src/verdict_mcp/harness.py",
+  "outcome": "killed",
+  "seconds": 21.7
+ },
+ {
+  "operator": "condition",
+  "line": 284,
+  "before": "if counts:",
+  "after": "if True:",
+  "id": "harness.py:284:condition:35",
+  "path": "src/verdict_mcp/harness.py",
+  "outcome": "survived",
+  "seconds": 91.0
+ },
+ {
+  "operator": "condition",
+  "line": 287,
+  "before": "if passed or failed or skipped:",
+  "after": "if False:",
+  "id": "harness.py:287:condition:36",
+  "path": "src/verdict_mcp/harness.py",
+  "outcome": "killed",
+  "seconds": 25.3
+ },
+ {
+  "operator": "condition",
+  "line": 287,
+  "before": "if passed or failed or skipped:",
+  "after": "if True:",
+  "id": "harness.py:287:condition:37",
+  "path": "src/verdict_mcp/harness.py",
+  "outcome": "killed",
+  "seconds": 21.8
+ },
+ {
+  "operator": "comparison",
+  "line": 295,
+  "before": "def _ago(age_h: float) -> str:",
+  "after": "def _ago(age_h: float) ->= str:",
+  "id": "harness.py:295:comparison:38",
+  "path": "src/verdict_mcp/harness.py",
+  "outcome": "killed",
+  "seconds": 0.7
+ },
+ {
+  "operator": "arithmetic",
+  "line": 301,
+  "before": "minutes = int(round(age_h * 60))",
+  "after": "minutes = int(round(age_h / 60))",
+  "id": "harness.py:301:arithmetic:39",
+  "path": "src/verdict_mcp/harness.py",
+  "outcome": "killed",
+  "seconds": 28.3
+ },
+ {
+  "operator": "comparison",
+  "line": 302,
+  "before": "if minutes < 1:",
+  "after": "if minutes <= 1:",
+  "id": "harness.py:302:comparison:40",
+  "path": "src/verdict_mcp/harness.py",
+  "outcome": "survived",
+  "seconds": 90.3
+ },
+ {
+  "operator": "condition",
+  "line": 302,
+  "before": "if minutes < 1:",
+  "after": "if False:",
+  "id": "harness.py:302:condition:41",
+  "path": "src/verdict_mcp/harness.py",
+  "outcome": "killed",
+  "seconds": 27.1
+ },
+ {
+  "operator": "condition",
+  "line": 302,
+  "before": "if minutes < 1:",
+  "after": "if True:",
+  "id": "harness.py:302:condition:42",
+  "path": "src/verdict_mcp/harness.py",
+  "outcome": "killed",
+  "seconds": 27.3
+ },
+ {
+  "operator": "comparison",
+  "line": 304,
+  "before": "if minutes < 60:",
+  "after": "if minutes <= 60:",
+  "id": "harness.py:304:comparison:43",
+  "path": "src/verdict_mcp/harness.py",
+  "outcome": "killed",
+  "seconds": 28.1
+ },
+ {
+  "operator": "condition",
+  "line": 304,
+  "before": "if minutes < 60:",
+  "after": "if False:",
+  "id": "harness.py:304:condition:44",
+  "path": "src/verdict_mcp/harness.py",
+  "outcome": "killed",
+  "seconds": 27.3
+ },
+ {
+  "operator": "condition",
+  "line": 304,
+  "before": "if minutes < 60:",
+  "after": "if True:",
+  "id": "harness.py:304:condition:45",
+  "path": "src/verdict_mcp/harness.py",
+  "outcome": "killed",
+  "seconds": 27.4
+ },
+ {
+  "operator": "comparison",
+  "line": 306,
+  "before": "return f\"{age_h:.1f} hours ago\" if age_h >= 1.05 else \"1 hour ago\"",
+  "after": "return f\"{age_h:.1f} hours ago\" if age_h >  1.05 else \"1 hour ago\"",
+  "id": "harness.py:306:comparison:46",
+  "path": "src/verdict_mcp/harness.py",
+  "outcome": "killed",
+  "seconds": 27.5
+ },
+ {
+  "operator": "comparison",
+  "line": 396,
+  "before": "def _chosen(rec) -> bool:",
+  "after": "def _chosen(rec) ->= bool:",
+  "id": "harness.py:396:comparison:47",
+  "path": "src/verdict_mcp/harness.py",
+  "outcome": "killed",
+  "seconds": 0.7
+ },
+ {
+  "operator": "comparison",
+  "line": 412,
+  "before": "def select_test(finding: dict, tests: list, preferred=None) -> tuple:",
+  "after": "def select_test(finding: dict, tests: list, preferred=None) ->= tuple:",
+  "id": "harness.py:412:comparison:48",
+  "path": "src/verdict_mcp/harness.py",
+  "outcome": "killed",
+  "seconds": 0.6
+ },
+ {
+  "operator": "condition",
+  "line": 417,
+  "before": "if not tests:",
+  "after": "if False:",
+  "id": "harness.py:417:condition:49",
+  "path": "src/verdict_mcp/harness.py",
+  "outcome": "killed",
+  "seconds": 89.9
+ },
+ {
+  "operator": "condition",
+  "line": 417,
+  "before": "if not tests:",
+  "after": "if True:",
+  "id": "harness.py:417:condition:50",
+  "path": "src/verdict_mcp/harness.py",
+  "outcome": "killed",
+  "seconds": 82.0
+ },
+ {
+  "operator": "constant",
+  "line": 422,
+  "before": "chosen = tests[0]",
+  "after": "chosen = tests[1]",
+  "id": "harness.py:422:constant:51",
+  "path": "src/verdict_mcp/harness.py",
+  "outcome": "killed",
+  "seconds": 81.6
+ },
+ {
+  "operator": "comparison",
+  "line": 423,
+  "before": "if any(resolve_test_id(str(n), {chosen}) == chosen for n in named) or chosen in named:",
+  "after": "if any(resolve_test_id(str(n), {chosen}) != chosen for n in named) or chosen in named:",
+  "id": "harness.py:423:comparison:52",
+  "path": "src/verdict_mcp/harness.py",
+  "outcome": "survived",
+  "seconds": 92.0
+ },
+ {
+  "operator": "condition",
+  "line": 423,
+  "before": "if any(resolve_test_id(str(n), {chosen}) == chosen for n in named) or chosen in named:",
+  "after": "if False:",
+  "id": "harness.py:423:condition:53",
+  "path": "src/verdict_mcp/harness.py",
+  "outcome": "killed",
+  "seconds": 82.7
+ },
+ {
+  "operator": "condition",
+  "line": 423,
+  "before": "if any(resolve_test_id(str(n), {chosen}) == chosen for n in named) or chosen in named:",
+  "after": "if True:",
+  "id": "harness.py:423:condition:54",
+  "path": "src/verdict_mcp/harness.py",
+  "outcome": "killed",
+  "seconds": 82.8
+ },
+ {
+  "operator": "condition",
+  "line": 425,
+  "before": "if chosen in pref:",
+  "after": "if False:",
+  "id": "harness.py:425:condition:55",
+  "path": "src/verdict_mcp/harness.py",
+  "outcome": "killed",
+  "seconds": 87.0
+ },
+ {
+  "operator": "condition",
+  "line": 425,
+  "before": "if chosen in pref:",
+  "after": "if True:",
+  "id": "harness.py:425:condition:56",
+  "path": "src/verdict_mcp/harness.py",
+  "outcome": "killed",
+  "seconds": 82.9
+ },
+ {
+  "operator": "comparison",
+  "line": 536,
+  "before": "added_ids=None) -> tuple[dict, list[str]]:",
+  "after": "added_ids=None) ->= tuple[dict, list[str]]:",
+  "id": "harness.py:536:comparison:57",
+  "path": "src/verdict_mcp/harness.py",
+  "outcome": "killed",
+  "seconds": 0.7
+ },
+ {
+  "operator": "condition",
+  "line": 549,
+  "before": "if not open_prior:",
+  "after": "if False:",
+  "id": "harness.py:549:condition:58",
+  "path": "src/verdict_mcp/harness.py",
+  "outcome": "survived",
+  "seconds": 91.0
+ },
+ {
+  "operator": "condition",
+  "line": 549,
+  "before": "if not open_prior:",
+  "after": "if True:",
+  "id": "harness.py:549:condition:59",
+  "path": "src/verdict_mcp/harness.py",
+  "outcome": "killed",
+  "seconds": 81.6
+ },
+ {
+  "operator": "condition",
+  "line": 551,
+  "before": "if not test_one_cmd:",
+  "after": "if False:",
+  "id": "harness.py:551:condition:60",
+  "path": "src/verdict_mcp/harness.py",
+  "outcome": "killed",
+  "seconds": 87.3
+ },
+ {
+  "operator": "condition",
+  "line": 551,
+  "before": "if not test_one_cmd:",
+  "after": "if True:",
+  "id": "harness.py:551:condition:61",
+  "path": "src/verdict_mcp/harness.py",
+  "outcome": "killed",
+  "seconds": 83.8
+ },
+ {
+  "operator": "constant",
+  "line": 558,
+  "before": "cited, unresolved, uncited = [], [], 0",
+  "after": "cited, unresolved, uncited = [], [], 1",
+  "id": "harness.py:558:constant:62",
+  "path": "src/verdict_mcp/harness.py",
+  "outcome": "survived",
+  "seconds": 90.3
+ },
+ {
+  "operator": "condition",
+  "line": 561,
+  "before": "if resolved:",
+  "after": "if False:",
+  "id": "harness.py:561:condition:63",
+  "path": "src/verdict_mcp/harness.py",
+  "outcome": "killed",
+  "seconds": 81.4
+ },
+ {
+  "operator": "condition",
+  "line": 561,
+  "before": "if resolved:",
+  "after": "if True:",
+  "id": "harness.py:561:condition:64",
+  "path": "src/verdict_mcp/harness.py",
+  "outcome": "killed",
+  "seconds": 86.7
+ },
+ {
+  "operator": "constant",
+  "line": 564,
+  "before": "unresolved.append((str(f.get(\"id\") or \"?\"), cited_tests(f)[0]))",
+  "after": "unresolved.append((str(f.get(\"id\") or \"?\"), cited_tests(f)[1]))",
+  "id": "harness.py:564:constant:65",
+  "path": "src/verdict_mcp/harness.py",
+  "outcome": "killed",
+  "seconds": 86.0
+ },
+ {
+  "operator": "condition",
+  "line": 567,
+  "before": "if uncited:",
+  "after": "if False:",
+  "id": "harness.py:567:condition:66",
+  "path": "src/verdict_mcp/harness.py",
+  "outcome": "survived",
+  "seconds": 90.8
+ },
+ {
+  "operator": "condition",
+  "line": 567,
+  "before": "if uncited:",
+  "after": "if True:",
+  "id": "harness.py:567:condition:67",
+  "path": "src/verdict_mcp/harness.py",
+  "outcome": "survived",
+  "seconds": 90.1
+ },
+ {
+  "operator": "condition",
+  "line": 570,
+  "before": "if unresolved:",
+  "after": "if False:",
+  "id": "harness.py:570:condition:68",
+  "path": "src/verdict_mcp/harness.py",
+  "outcome": "killed",
+  "seconds": 86.8
+ },
+ {
+  "operator": "condition",
+  "line": 570,
+  "before": "if unresolved:",
+  "after": "if True:",
+  "id": "harness.py:570:condition:69",
+  "path": "src/verdict_mcp/harness.py",
+  "outcome": "survived",
+  "seconds": 90.3
+ },
+ {
+  "operator": "comparison",
+  "line": 572,
+  "before": "more = f\" and {len(unresolved) - 5} more\" if len(unresolved) > 5 else \"\"",
+  "after": "more = f\" and {len(unresolved) - 5} more\" if len(unresolved) >= 5 else \"\"",
+  "id": "harness.py:572:comparison:70",
+  "path": "src/verdict_mcp/harness.py",
+  "outcome": "survived",
+  "seconds": 90.6
+ },
+ {
+  "operator": "comparison",
+  "line": 575,
+  "before": "if len(cited) > VERIFY_MAX_FINDINGS:",
+  "after": "if len(cited) >= VERIFY_MAX_FINDINGS:",
+  "id": "harness.py:575:comparison:71",
+  "path": "src/verdict_mcp/harness.py",
+  "outcome": "survived",
+  "seconds": 89.9
+ },
+ {
+  "operator": "condition",
+  "line": 575,
+  "before": "if len(cited) > VERIFY_MAX_FINDINGS:",
+  "after": "if False:",
+  "id": "harness.py:575:condition:72",
+  "path": "src/verdict_mcp/harness.py",
+  "outcome": "killed",
+  "seconds": 86.3
+ },
+ {
+  "operator": "condition",
+  "line": 575,
+  "before": "if len(cited) > VERIFY_MAX_FINDINGS:",
+  "after": "if True:",
+  "id": "harness.py:575:condition:73",
+  "path": "src/verdict_mcp/harness.py",
+  "outcome": "survived",
+  "seconds": 89.8
+ },
+ {
+  "operator": "condition",
+  "line": 579,
+  "before": "if not cited:",
+  "after": "if False:",
+  "id": "harness.py:579:condition:74",
+  "path": "src/verdict_mcp/harness.py",
+  "outcome": "survived",
+  "seconds": 90.5
+ },
+ {
+  "operator": "condition",
+  "line": 579,
+  "before": "if not cited:",
+  "after": "if True:",
+  "id": "harness.py:579:condition:75",
+  "path": "src/verdict_mcp/harness.py",
+  "outcome": "killed",
+  "seconds": 81.5
+ },
+ {
+  "operator": "comparison",
+  "line": 595,
+  "before": "if how == \"first_cited\":",
+  "after": "if how != \"first_cited\":",
+  "id": "harness.py:595:comparison:76",
+  "path": "src/verdict_mcp/harness.py",
+  "outcome": "killed",
+  "seconds": 81.9
+ },
+ {
+  "operator": "condition",
+  "line": 595,
+  "before": "if how == \"first_cited\":",
+  "after": "if False:",
+  "id": "harness.py:595:condition:77",
+  "path": "src/verdict_mcp/harness.py",
+  "outcome": "killed",
+  "seconds": 82.7
+ },
+ {
+  "operator": "condition",
+  "line": 595,
+  "before": "if how == \"first_cited\":",
+  "after": "if True:",
+  "id": "harness.py:595:condition:78",
+  "path": "src/verdict_mcp/harness.py",
+  "outcome": "killed",
+  "seconds": 81.4
+ },
+ {
+  "operator": "condition",
+  "line": 607,
+  "before": "if unselectable:",
+  "after": "if False:",
+  "id": "harness.py:607:condition:79",
+  "path": "src/verdict_mcp/harness.py",
+  "outcome": "killed",
+  "seconds": 81.6
+ },
+ {
+  "operator": "condition",
+  "line": 607,
+  "before": "if unselectable:",
+  "after": "if True:",
+  "id": "harness.py:607:condition:80",
+  "path": "src/verdict_mcp/harness.py",
+  "outcome": "survived",
+  "seconds": 90.1
+ },
+ {
+  "operator": "comparison",
+  "line": 609,
+  "before": "more = f\" and {len(unselectable) - 5} more\" if len(unselectable) > 5 else \"\"",
+  "after": "more = f\" and {len(unselectable) - 5} more\" if len(unselectable) >= 5 else \"\"",
+  "id": "harness.py:609:comparison:81",
+  "path": "src/verdict_mcp/harness.py",
+  "outcome": "survived",
+  "seconds": 89.9
+ },
+ {
+  "operator": "condition",
+  "line": 613,
+  "before": "if not runnable:",
+  "after": "if False:",
+  "id": "harness.py:613:condition:82",
+  "path": "src/verdict_mcp/harness.py",
+  "outcome": "survived",
+  "seconds": 89.8
+ },
+ {
+  "operator": "condition",
+  "line": 613,
+  "before": "if not runnable:",
+  "after": "if True:",
+  "id": "harness.py:613:condition:83",
+  "path": "src/verdict_mcp/harness.py",
+  "outcome": "killed",
+  "seconds": 81.1
+ },
+ {
+  "operator": "condition",
+  "line": 617,
+  "before": "if previous_sha:",
+  "after": "if False:",
+  "id": "harness.py:617:condition:84",
+  "path": "src/verdict_mcp/harness.py",
+  "outcome": "killed",
+  "seconds": 82.1
+ },
+ {
+  "operator": "condition",
+  "line": 617,
+  "before": "if previous_sha:",
+  "after": "if True:",
+  "id": "harness.py:617:condition:85",
+  "path": "src/verdict_mcp/harness.py",
+  "outcome": "survived",
+  "seconds": 89.9
+ },
+ {
+  "operator": "condition",
+  "line": 619,
+  "before": "if scratch is None:",
+  "after": "if False:",
+  "id": "harness.py:619:condition:86",
+  "path": "src/verdict_mcp/harness.py",
+  "outcome": "killed",
+  "seconds": 85.0
+ },
+ {
+  "operator": "condition",
+  "line": 619,
+  "before": "if scratch is None:",
+  "after": "if True:",
+  "id": "harness.py:619:condition:87",
+  "path": "src/verdict_mcp/harness.py",
+  "outcome": "survived",
+  "seconds": 89.8
+ },
+ {
+  "operator": "condition",
+  "line": 633,
+  "before": "if scratch is not None:",
+  "after": "if False:",
+  "id": "harness.py:633:condition:88",
+  "path": "src/verdict_mcp/harness.py",
+  "outcome": "killed",
+  "seconds": 82.2
+ },
+ {
+  "operator": "condition",
+  "line": 633,
+  "before": "if scratch is not None:",
+  "after": "if True:",
+  "id": "harness.py:633:condition:89",
+  "path": "src/verdict_mcp/harness.py",
+  "outcome": "killed",
+  "seconds": 85.7
+ },
+ {
+  "operator": "constant",
+  "line": 641,
+  "before": "test_file = test_id.split(\"::\", 1)[0]",
+  "after": "test_file = test_id.split(\"::\", 1)[1]",
+  "id": "harness.py:641:constant:90",
+  "path": "src/verdict_mcp/harness.py",
+  "outcome": "killed",
+  "seconds": 84.0
+ },
+ {
+  "operator": "condition",
+  "line": 643,
+  "before": "if src.is_file():",
+  "after": "if False:",
+  "id": "harness.py:643:condition:91",
+  "path": "src/verdict_mcp/harness.py",
+  "outcome": "killed",
+  "seconds": 83.7
+ },
+ {
+  "operator": "condition",
+  "line": 643,
+  "before": "if src.is_file():",
+  "after": "if True:",
+  "id": "harness.py:643:condition:92",
+  "path": "src/verdict_mcp/harness.py",
+  "outcome": "killed",
+  "seconds": 87.3
+ },
+ {
+  "operator": "condition",
+  "line": 647,
+  "before": "if differs:",
+  "after": "if False:",
+  "id": "harness.py:647:condition:93",
+  "path": "src/verdict_mcp/harness.py",
+  "outcome": "killed",
+  "seconds": 83.6
+ },
+ {
+  "operator": "condition",
+  "line": 647,
+  "before": "if differs:",
+  "after": "if True:",
+  "id": "harness.py:647:condition:94",
+  "path": "src/verdict_mcp/harness.py",
+  "outcome": "survived",
+  "seconds": 89.6
+ },
+ {
+  "operator": "condition",
+  "line": 655,
+  "before": "if not cdst.exists() or cdst.read_bytes() != csrc.read_bytes():",
+  "after": "if False:",
+  "id": "harness.py:655:condition:95",
+  "path": "src/verdict_mcp/harness.py",
+  "outcome": "killed",
+  "seconds": 88.2
+ },
+ {
+  "operator": "condition",
+  "line": 655,
+  "before": "if not cdst.exists() or cdst.read_bytes() != csrc.read_bytes():",
+  "after": "if True:",
+  "id": "harness.py:655:condition:96",
+  "path": "src/verdict_mcp/harness.py",
+  "outcome": "killed",
+  "seconds": 88.7
+ },
+ {
+  "operator": "constant",
+  "line": 667,
+  "before": "parts.insert(0, prev.get(\"summary\", \"\"))",
+  "after": "parts.insert(1, prev.get(\"summary\", \"\"))",
+  "id": "harness.py:667:constant:97",
+  "path": "src/verdict_mcp/harness.py",
+  "outcome": "survived",
+  "seconds": 90.0
+ },
+ {
+  "operator": "condition",
+  "line": 671,
+  "before": "if scratch is not None:",
+  "after": "if False:",
+  "id": "harness.py:671:condition:98",
+  "path": "src/verdict_mcp/harness.py",
+  "outcome": "survived",
+  "seconds": 90.0
+ },
+ {
+  "operator": "condition",
+  "line": 671,
+  "before": "if scratch is not None:",
+  "after": "if True:",
+  "id": "harness.py:671:condition:99",
+  "path": "src/verdict_mcp/harness.py",
+  "outcome": "killed",
+  "seconds": 85.2
+ },
+ {
+  "operator": "comparison",
+  "line": 676,
+  "before": "def _apply_verification(entry: dict, prior: dict | None, verification: dict) -> None:",
+  "after": "def _apply_verification(entry: dict, prior: dict | None, verification: dict) ->= None:",
+  "id": "harness.py:676:comparison:100",
+  "path": "src/verdict_mcp/harness.py",
+  "outcome": "killed",
+  "seconds": 0.7
+ },
+ {
+  "operator": "condition",
+  "line": 687,
+  "before": "if not rec:",
+  "after": "if False:",
+  "id": "harness.py:687:condition:101",
+  "path": "src/verdict_mcp/harness.py",
+  "outcome": "killed",
+  "seconds": 2.3
+ },
+ {
+  "operator": "condition",
+  "line": 687,
+  "before": "if not rec:",
+  "after": "if True:",
+  "id": "harness.py:687:condition:102",
+  "path": "src/verdict_mcp/harness.py",
+  "outcome": "killed",
+  "seconds": 82.1
+ },
+ {
+  "operator": "comparison",
+  "line": 690,
+  "before": "resolving = entry.get(\"delta\") == \"RESOLVED\"",
+  "after": "resolving = entry.get(\"delta\") != \"RESOLVED\"",
+  "id": "harness.py:690:comparison:103",
+  "path": "src/verdict_mcp/harness.py",
+  "outcome": "killed",
+  "seconds": 82.2
+ },
+ {
+  "operator": "comparison",
+  "line": 697,
+  "before": "if rec.get(\"at_head\") == \"fail\":",
+  "after": "if rec.get(\"at_head\") != \"fail\":",
+  "id": "harness.py:697:comparison:104",
+  "path": "src/verdict_mcp/harness.py",
+  "outcome": "killed",
+  "seconds": 80.4
+ },
+ {
+  "operator": "condition",
+  "line": 697,
+  "before": "if rec.get(\"at_head\") == \"fail\":",
+  "after": "if False:",
+  "id": "harness.py:697:condition:105",
+  "path": "src/verdict_mcp/harness.py",
+  "outcome": "killed",
+  "seconds": 82.6
+ },
+ {
+  "operator": "condition",
+  "line": 697,
+  "before": "if rec.get(\"at_head\") == \"fail\":",
+  "after": "if True:",
+  "id": "harness.py:697:condition:106",
+  "path": "src/verdict_mcp/harness.py",
+  "outcome": "killed",
+  "seconds": 80.8
+ },
+ {
+  "operator": "condition",
+  "line": 698,
+  "before": "if resolving:",
+  "after": "if False:",
+  "id": "harness.py:698:condition:107",
+  "path": "src/verdict_mcp/harness.py",
+  "outcome": "killed",
+  "seconds": 82.7
+ },
+ {
+  "operator": "condition",
+  "line": 698,
+  "before": "if resolving:",
+  "after": "if True:",
+  "id": "harness.py:698:condition:108",
+  "path": "src/verdict_mcp/harness.py",
+  "outcome": "survived",
+  "seconds": 89.4
+ },
+ {
+  "operator": "condition",
+  "line": 705,
+  "before": "if \"carried_forward\" in entry:",
+  "after": "if False:",
+  "id": "harness.py:705:condition:109",
+  "path": "src/verdict_mcp/harness.py",
+  "outcome": "killed",
+  "seconds": 82.5
+ },
+ {
+  "operator": "condition",
+  "line": 705,
+  "before": "if \"carried_forward\" in entry:",
+  "after": "if True:",
+  "id": "harness.py:705:condition:110",
+  "path": "src/verdict_mcp/harness.py",
+  "outcome": "survived",
+  "seconds": 90.1
+ },
+ {
+  "operator": "comparison",
+  "line": 709,
+  "before": "if resolving and rec.get(\"at_previous\") == \"fail\" and rec.get(\"at_head\") == \"pass\":",
+  "after": "if resolving and rec.get(\"at_previous\") != \"fail\" and rec.get(\"at_head\") == \"pass\":",
+  "id": "harness.py:709:comparison:111",
+  "path": "src/verdict_mcp/harness.py",
+  "outcome": "killed",
+  "seconds": 81.3
+ },
+ {
+  "operator": "comparison",
+  "line": 709,
+  "before": "if resolving and rec.get(\"at_previous\") == \"fail\" and rec.get(\"at_head\") == \"pass\":",
+  "after": "if resolving and rec.get(\"at_previous\") == \"fail\" and rec.get(\"at_head\") != \"pass\":",
+  "id": "harness.py:709:comparison:112",
+  "path": "src/verdict_mcp/harness.py",
+  "outcome": "killed",
+  "seconds": 80.3
+ },
+ {
+  "operator": "condition",
+  "line": 709,
+  "before": "if resolving and rec.get(\"at_previous\") == \"fail\" and rec.get(\"at_head\") == \"pass\":",
+  "after": "if False:",
+  "id": "harness.py:709:condition:113",
+  "path": "src/verdict_mcp/harness.py",
+  "outcome": "killed",
+  "seconds": 80.2
+ },
+ {
+  "operator": "condition",
+  "line": 709,
+  "before": "if resolving and rec.get(\"at_previous\") == \"fail\" and rec.get(\"at_head\") == \"pass\":",
+  "after": "if True:",
+  "id": "harness.py:709:condition:114",
+  "path": "src/verdict_mcp/harness.py",
+  "outcome": "killed",
+  "seconds": 85.0
+ },
+ {
+  "operator": "condition",
+  "line": 710,
+  "before": "if not _chosen(rec):",
+  "after": "if False:",
+  "id": "harness.py:710:condition:115",
+  "path": "src/verdict_mcp/harness.py",
+  "outcome": "killed",
+  "seconds": 82.8
+ },
+ {
+  "operator": "condition",
+  "line": 710,
+  "before": "if not _chosen(rec):",
+  "after": "if True:",
+  "id": "harness.py:710:condition:116",
+  "path": "src/verdict_mcp/harness.py",
+  "outcome": "killed",
+  "seconds": 80.3
+ },
+ {
+  "operator": "arithmetic",
+  "line": 723,
+  "before": "entry[\"evidence\"] = [*(str(e) for e in (entry.get(\"evidence\") or [])),",
+  "after": "entry[\"evidence\"] = [/(str(e) for e in (entry.get(\"evidence\") or [])),",
+  "id": "harness.py:723:arithmetic:117",
+  "path": "src/verdict_mcp/harness.py",
+  "outcome": "killed",
+  "seconds": 0.7
+ },
+ {
+  "operator": "comparison",
+  "line": 1256,
+  "before": "def _stamp_outcome(finding: dict, prior: dict | None = None) -> dict:",
+  "after": "def _stamp_outcome(finding: dict, prior: dict | None = None) ->= dict:",
+  "id": "harness.py:1256:comparison:118",
+  "path": "src/verdict_mcp/harness.py",
+  "outcome": "killed",
+  "seconds": 0.6
+ },
+ {
+  "operator": "arithmetic",
+  "line": 1264,
+  "before": "A settled outcome then *sticks*. Without that, a finding confirmed by",
+  "after": "A settled outcome then /sticks*. Without that, a finding confirmed by",
+  "id": "harness.py:1264:arithmetic:119",
+  "path": "src/verdict_mcp/harness.py",
+  "outcome": "survived",
+  "seconds": 88.9
+ },
+ {
+  "operator": "comparison",
+  "line": 1271,
+  "before": "if delta == \"WITHDRAWN\" or status == \"withdrawn\":",
+  "after": "if delta != \"WITHDRAWN\" or status == \"withdrawn\":",
+  "id": "harness.py:1271:comparison:120",
+  "path": "src/verdict_mcp/harness.py",
+  "outcome": "killed",
+  "seconds": 2.2
+ },
+ {
+  "operator": "comparison",
+  "line": 1271,
+  "before": "if delta == \"WITHDRAWN\" or status == \"withdrawn\":",
+  "after": "if delta == \"WITHDRAWN\" or status != \"withdrawn\":",
+  "id": "harness.py:1271:comparison:121",
+  "path": "src/verdict_mcp/harness.py",
+  "outcome": "killed",
+  "seconds": 1.1
+ },
+ {
+  "operator": "condition",
+  "line": 1271,
+  "before": "if delta == \"WITHDRAWN\" or status == \"withdrawn\":",
+  "after": "if False:",
+  "id": "harness.py:1271:condition:122",
+  "path": "src/verdict_mcp/harness.py",
+  "outcome": "killed",
+  "seconds": 2.0
+ },
+ {
+  "operator": "condition",
+  "line": 1271,
+  "before": "if delta == \"WITHDRAWN\" or status == \"withdrawn\":",
+  "after": "if True:",
+  "id": "harness.py:1271:condition:123",
+  "path": "src/verdict_mcp/harness.py",
+  "outcome": "killed",
+  "seconds": 1.1
+ },
+ {
+  "operator": "condition",
+  "line": 1275,
+  "before": "if prior_outcome in DECIDED:",
+  "after": "if False:",
+  "id": "harness.py:1275:condition:124",
+  "path": "src/verdict_mcp/harness.py",
+  "outcome": "killed",
+  "seconds": 1.1
+ },
+ {
+  "operator": "condition",
+  "line": 1275,
+  "before": "if prior_outcome in DECIDED:",
+  "after": "if True:",
+  "id": "harness.py:1275:condition:125",
+  "path": "src/verdict_mcp/harness.py",
+  "outcome": "killed",
+  "seconds": 1.1
+ },
+ {
+  "operator": "comparison",
+  "line": 1279,
+  "before": "if status == \"accepted\":",
+  "after": "if status != \"accepted\":",
+  "id": "harness.py:1279:comparison:126",
+  "path": "src/verdict_mcp/harness.py",
+  "outcome": "killed",
+  "seconds": 1.1
+ },
+ {
+  "operator": "condition",
+  "line": 1279,
+  "before": "if status == \"accepted\":",
+  "after": "if False:",
+  "id": "harness.py:1279:condition:127",
+  "path": "src/verdict_mcp/harness.py",
+  "outcome": "killed",
+  "seconds": 1.1
+ },
+ {
+  "operator": "condition",
+  "line": 1279,
+  "before": "if status == \"accepted\":",
+  "after": "if True:",
+  "id": "harness.py:1279:condition:128",
+  "path": "src/verdict_mcp/harness.py",
+  "outcome": "killed",
+  "seconds": 1.9
+ },
+ {
+  "operator": "comparison",
+  "line": 1289,
+  "before": "if delta == \"REGRESSED\":",
+  "after": "if delta != \"REGRESSED\":",
+  "id": "harness.py:1289:comparison:129",
+  "path": "src/verdict_mcp/harness.py",
+  "outcome": "killed",
+  "seconds": 2.0
+ },
+ {
+  "operator": "condition",
+  "line": 1289,
+  "before": "if delta == \"REGRESSED\":",
+  "after": "if False:",
+  "id": "harness.py:1289:condition:130",
+  "path": "src/verdict_mcp/harness.py",
+  "outcome": "killed",
+  "seconds": 2.0
+ },
+ {
+  "operator": "condition",
+  "line": 1289,
+  "before": "if delta == \"REGRESSED\":",
+  "after": "if True:",
+  "id": "harness.py:1289:condition:131",
+  "path": "src/verdict_mcp/harness.py",
+  "outcome": "killed",
+  "seconds": 2.0
+ },
+ {
+  "operator": "comparison",
+  "line": 1316,
+  "before": "shows_fix = (attempted and v.get(\"at_previous\") == \"fail\" and v.get(\"at_head\") == \"pass\"",
+  "after": "shows_fix = (attempted and v.get(\"at_previous\") != \"fail\" and v.get(\"at_head\") == \"pass\"",
+  "id": "harness.py:1316:comparison:132",
+  "path": "src/verdict_mcp/harness.py",
+  "outcome": "killed",
+  "seconds": 2.0
+ },
+ {
+  "operator": "comparison",
+  "line": 1316,
+  "before": "shows_fix = (attempted and v.get(\"at_previous\") == \"fail\" and v.get(\"at_head\") == \"pass\"",
+  "after": "shows_fix = (attempted and v.get(\"at_previous\") == \"fail\" and v.get(\"at_head\") != \"pass\"",
+  "id": "harness.py:1316:comparison:133",
+  "path": "src/verdict_mcp/harness.py",
+  "outcome": "killed",
+  "seconds": 2.0
+ },
+ {
+  "operator": "comparison",
+  "line": 1323,
+  "before": "contradicts = (attempted and v.get(\"at_head\") == \"fail\"",
+  "after": "contradicts = (attempted and v.get(\"at_head\") != \"fail\"",
+  "id": "harness.py:1323:comparison:134",
+  "path": "src/verdict_mcp/harness.py",
+  "outcome": "killed",
+  "seconds": 2.0
+ },
+ {
+  "operator": "comparison",
+  "line": 1326,
+  "before": "if delta == \"RESOLVED\" and shows_fix:",
+  "after": "if delta != \"RESOLVED\" and shows_fix:",
+  "id": "harness.py:1326:comparison:135",
+  "path": "src/verdict_mcp/harness.py",
+  "outcome": "killed",
+  "seconds": 2.0
+ },
+ {
+  "operator": "condition",
+  "line": 1326,
+  "before": "if delta == \"RESOLVED\" and shows_fix:",
+  "after": "if False:",
+  "id": "harness.py:1326:condition:136",
+  "path": "src/verdict_mcp/harness.py",
+  "outcome": "killed",
+  "seconds": 2.0
+ },
+ {
+  "operator": "condition",
+  "line": 1326,
+  "before": "if delta == \"RESOLVED\" and shows_fix:",
+  "after": "if True:",
+  "id": "harness.py:1326:condition:137",
+  "path": "src/verdict_mcp/harness.py",
+  "outcome": "killed",
+  "seconds": 2.0
+ },
+ {
+  "operator": "comparison",
+  "line": 1329,
+  "before": "if delta == \"RESOLVED\" and claimed and contradicts:",
+  "after": "if delta != \"RESOLVED\" and claimed and contradicts:",
+  "id": "harness.py:1329:comparison:138",
+  "path": "src/verdict_mcp/harness.py",
+  "outcome": "killed",
+  "seconds": 2.2
+ },
+ {
+  "operator": "condition",
+  "line": 1329,
+  "before": "if delta == \"RESOLVED\" and claimed and contradicts:",
+  "after": "if False:",
+  "id": "harness.py:1329:condition:139",
+  "path": "src/verdict_mcp/harness.py",
+  "outcome": "killed",
+  "seconds": 2.3
+ },
+ {
+  "operator": "condition",
+  "line": 1329,
+  "before": "if delta == \"RESOLVED\" and claimed and contradicts:",
+  "after": "if True:",
+  "id": "harness.py:1329:condition:140",
+  "path": "src/verdict_mcp/harness.py",
+  "outcome": "killed",
+  "seconds": 2.1
+ },
+ {
+  "operator": "comparison",
+  "line": 1332,
+  "before": "if delta == \"RESOLVED\" and claimed:",
+  "after": "if delta != \"RESOLVED\" and claimed:",
+  "id": "harness.py:1332:comparison:141",
+  "path": "src/verdict_mcp/harness.py",
+  "outcome": "killed",
+  "seconds": 2.1
+ },
+ {
+  "operator": "condition",
+  "line": 1332,
+  "before": "if delta == \"RESOLVED\" and claimed:",
+  "after": "if False:",
+  "id": "harness.py:1332:condition:142",
+  "path": "src/verdict_mcp/harness.py",
+  "outcome": "killed",
+  "seconds": 2.2
+ },
+ {
+  "operator": "condition",
+  "line": 1332,
+  "before": "if delta == \"RESOLVED\" and claimed:",
+  "after": "if True:",
+  "id": "harness.py:1332:condition:143",
+  "path": "src/verdict_mcp/harness.py",
+  "outcome": "killed",
+  "seconds": 2.1
+ },
+ {
+  "operator": "comparison",
+  "line": 1336,
+  "before": "if delta == \"RESOLVED\" and finding.get(\"carried_forward\"):",
+  "after": "if delta != \"RESOLVED\" and finding.get(\"carried_forward\"):",
+  "id": "harness.py:1336:comparison:144",
+  "path": "src/verdict_mcp/harness.py",
+  "outcome": "killed",
+  "seconds": 2.1
+ },
+ {
+  "operator": "condition",
+  "line": 1336,
+  "before": "if delta == \"RESOLVED\" and finding.get(\"carried_forward\"):",
+  "after": "if False:",
+  "id": "harness.py:1336:condition:145",
+  "path": "src/verdict_mcp/harness.py",
+  "outcome": "killed",
+  "seconds": 2.0
+ },
+ {
+  "operator": "condition",
+  "line": 1336,
+  "before": "if delta == \"RESOLVED\" and finding.get(\"carried_forward\"):",
+  "after": "if True:",
+  "id": "harness.py:1336:condition:146",
+  "path": "src/verdict_mcp/harness.py",
+  "outcome": "killed",
+  "seconds": 2.0
+ },
+ {
+  "operator": "comparison",
+  "line": 1340,
+  "before": "if delta == \"RESOLVED\":",
+  "after": "if delta != \"RESOLVED\":",
+  "id": "harness.py:1340:comparison:147",
+  "path": "src/verdict_mcp/harness.py",
+  "outcome": "killed",
+  "seconds": 2.0
+ },
+ {
+  "operator": "condition",
+  "line": 1340,
+  "before": "if delta == \"RESOLVED\":",
+  "after": "if False:",
+  "id": "harness.py:1340:condition:148",
+  "path": "src/verdict_mcp/harness.py",
+  "outcome": "killed",
+  "seconds": 2.0
+ },
+ {
+  "operator": "condition",
+  "line": 1340,
+  "before": "if delta == \"RESOLVED\":",
+  "after": "if True:",
+  "id": "harness.py:1340:condition:149",
+  "path": "src/verdict_mcp/harness.py",
+  "outcome": "killed",
+  "seconds": 2.0
+ },
+ {
+  "operator": "comparison",
+  "line": 1364,
+  "before": "def run_date(facts: dict | None) -> date:",
+  "after": "def run_date(facts: dict | None) ->= date:",
+  "id": "harness.py:1364:comparison:150",
+  "path": "src/verdict_mcp/harness.py",
+  "outcome": "killed",
+  "seconds": 0.6
+ },
+ {
+  "operator": "condition",
+  "line": 1382,
+  "before": "if when.tzinfo is not None:",
+  "after": "if False:",
+  "id": "harness.py:1382:condition:151",
+  "path": "src/verdict_mcp/harness.py",
+  "outcome": "killed",
+  "seconds": 27.2
+ },
+ {
+  "operator": "condition",
+  "line": 1382,
+  "before": "if when.tzinfo is not None:",
+  "after": "if True:",
+  "id": "harness.py:1382:condition:152",
+  "path": "src/verdict_mcp/harness.py",
+  "outcome": "survived",
+  "seconds": 90.8
+ },
+ {
+  "operator": "comparison",
+  "line": 251,
+  "before": "def outcome_row(finding: dict, decided_on: str | None = None) -> dict:",
+  "after": "def outcome_row(finding: dict, decided_on: str | None = None) ->= dict:",
+  "id": "state.py:251:comparison:153",
+  "path": "src/verdict_mcp/state.py",
+  "outcome": "killed",
+  "seconds": 0.2
+ },
+ {
+  "operator": "condition",
+  "line": 275,
+  "before": "if row[\"outcome\"] in (\"confirmed\", \"refuted\") and decided_on:",
+  "after": "if False:",
+  "id": "state.py:275:condition:154",
+  "path": "src/verdict_mcp/state.py",
+  "outcome": "killed",
+  "seconds": 2.1
+ },
+ {
+  "operator": "condition",
+  "line": 275,
+  "before": "if row[\"outcome\"] in (\"confirmed\", \"refuted\") and decided_on:",
+  "after": "if True:",
+  "id": "state.py:275:condition:155",
+  "path": "src/verdict_mcp/state.py",
+  "outcome": "killed",
+  "seconds": 2.0
+ }
+]

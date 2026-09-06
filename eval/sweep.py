@@ -109,14 +109,29 @@ def comment_only(before: str, after: str) -> bool:
     return _code_part(before) == _code_part(after)
 
 
+def docstring_lines(source: str) -> set[int]:
+    """Every line of every docstring — module, class, function. The first
+    sweep "mutated" `*sticks*` into `/sticks*` inside `_stamp_outcome`'s
+    docstring and reported a survivor; prose does not run."""
+    lines: set[int] = set()
+    for node in ast.walk(ast.parse(source)):
+        if isinstance(node, (ast.Module, ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef)):
+            body = getattr(node, "body", [])
+            if body and isinstance(body[0], ast.Expr) and isinstance(
+                    getattr(body[0], "value", None), ast.Constant) and isinstance(body[0].value.value, str):
+                lines.update(range(body[0].lineno, body[0].end_lineno + 1))
+    return lines
+
+
 def enumerate_scope(root: pathlib.Path, scope: dict) -> list[dict]:
     """Every single-site mutant inside the named ranges, tagged with its file."""
     out = []
     for rel, names in scope.items():
         source = (root / rel).read_text(encoding="utf-8")
         ranges = line_ranges(source, names)
+        prose = docstring_lines(source)
         for m in mutate.generate(source):
-            if comment_only(m["before"], m["after"]):
+            if m["line"] in prose or comment_only(m["before"], m["after"]):
                 continue
             if any(a <= m["line"] <= b for a, b in ranges):
                 out.append({**m, "path": rel, "id": f"{rel.rsplit('/', 1)[-1]}:{m['line']}:{m['operator']}:{len(out) + 1}"})
