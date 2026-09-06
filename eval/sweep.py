@@ -41,7 +41,6 @@ import argparse
 import ast
 import atexit
 import json
-import os
 import pathlib
 import shutil
 import subprocess

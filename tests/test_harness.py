@@ -511,6 +511,12 @@ SUMMARIES = [
      {"collected": 29, "passed": 26, "failed": 2, "skipped": 1}),
     ("vitest", " Test Files  1 failed (1)\n      Tests  5 failed (5)\n",
      {"collected": 5, "failed": 5}),
+    # Two digits after the double space. The F-65 sweep's first real survivor
+    # turned `.*?` into `./?` in the vitest `failed` pattern, and every row
+    # here had a one-digit count: on `Tests  12 failed` the mutant reads 2.
+    ("vitest", " Test Files  1 failed | 26 passed | 12 skipped (39)\n"
+               "      Tests  12 failed | 106 passed | 265 skipped (383)\n",
+     {"collected": 383, "passed": 106, "failed": 12, "skipped": 265}),
     ("jest", "Test Suites: 1 failed, 1 passed, 2 total\n"
              "Tests:       2 failed, 26 passed, 1 skipped, 29 total\n"
              "Snapshots:   0 total\nTime:        1.2 s\n",
