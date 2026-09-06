@@ -9,6 +9,7 @@ lesson about, one release earlier.
 """
 
 import json
+import os
 import pathlib
 import sys
 from pathlib import Path
@@ -158,7 +159,20 @@ def test_the_restorer_is_constructible_where_a_signal_is_missing(monkeypatch):
         signal.signal(getattr(signal, name), handler)
 
 
-def test_the_campaign_swaps_and_restores_the_file_it_mutates(tmp_path, monkeypatch):
+def _fake_repo(tmp_path):
+    root = tmp_path / "repo"
+    (root / "pkg").mkdir(parents=True)
+    target = root / "pkg" / "rule.py"
+    original = "def rule():\n    return True\n"
+    target.write_text(original, encoding="utf-8")
+    catalogue = root / "catalogue.json"
+    catalogue.write_text(json.dumps([{
+        "label": "T1 the rule stops holding", "path": "pkg/rule.py",
+        "old": "    return True\n", "new": "    return False\n"}]), encoding="utf-8")
+    return root, target, original, catalogue
+
+
+def test_the_in_tree_campaign_swaps_and_restores_the_file_it_mutates(tmp_path, monkeypatch):
     """The driver, not the helper. `write_atomic` is covered directly above,
     and both of its call sites live in a loop nothing exercised — running the
     real one means running the whole suite once per mutant, so the campaign
@@ -169,16 +183,7 @@ def test_the_campaign_swaps_and_restores_the_file_it_mutates(tmp_path, monkeypat
     catalogue in a temp root: the file must be swapped rather than rewritten in
     place, and put back byte for byte afterwards.
     """
-    root = tmp_path / "repo"
-    (root / "pkg").mkdir(parents=True)
-    target = root / "pkg" / "rule.py"
-    original = "def rule():\n    return True\n"
-    target.write_text(original, encoding="utf-8")
-    catalogue = root / "catalogue.json"
-    catalogue.write_text(json.dumps([{
-        "label": "T1 the rule stops holding", "path": "pkg/rule.py",
-        "old": "    return True\n", "new": "    return False\n"}]), encoding="utf-8")
-
+    root, target, original, catalogue = _fake_repo(tmp_path)
     swapped = {}
     real_write = pin_check.write_atomic
 
@@ -191,9 +196,111 @@ def test_the_campaign_swaps_and_restores_the_file_it_mutates(tmp_path, monkeypat
     monkeypatch.setattr(pin_check, "SUITE", [sys.executable, "-c", "pass"])   # a green "suite"
     monkeypatch.setattr(pin_check, "write_atomic", spy)
 
-    rc = pin_check.main([])
+    rc = pin_check.main(["--in-tree"])
     assert rc == 1, "a green suite means the mutant survived, which is a failing run"
     assert target.read_text(encoding="utf-8") == original, "the tree was left mutated"
     inodes = swapped.get(str(target), [])
     assert len(inodes) == 2, f"expected an atomic apply and an atomic restore, saw {inodes}"
     assert not list(root.rglob("*.pin_check.tmp")), "a temp file outlived the swap"
+
+
+def test_the_default_campaign_never_touches_the_tree(tmp_path, monkeypatch):
+    """Run 14's runner, adopted: the mutant lands in a scratch copy of the
+    tree and the real file is not written at all — not swapped, not restored,
+    not read while mutated. The copy is what gets measured, and it is gone
+    afterwards."""
+    root, target, original, catalogue = _fake_repo(tmp_path)
+    inode = target.stat().st_ino
+    written, copies = {}, []
+    real_write, real_copy = pin_check.write_atomic, pin_check.scratch_copy
+
+    def spy(path, text):
+        written.setdefault(str(path), []).append(text)
+        return real_write(path, text)
+
+    def remember(r):
+        copies.append(real_copy(r))
+        return copies[-1]
+
+    monkeypatch.setattr(pin_check, "ROOT", root)
+    monkeypatch.setattr(pin_check, "CATALOGUE", catalogue)
+    monkeypatch.setattr(pin_check, "SUITE", [sys.executable, "-c", "pass"])   # a green "suite"
+    monkeypatch.setattr(pin_check, "write_atomic", spy)
+    monkeypatch.setattr(pin_check, "scratch_copy", remember)
+    # Inside the scratch the import must resolve to the scratch; the fake repo
+    # has no package to import, so the check is stood in for by the answer it
+    # would give on a good copy.
+    monkeypatch.setattr(pin_check, "runs_its_own_code", lambda scratch, env: None)
+
+    rc = pin_check.main([])
+    assert rc == 1, "a green suite means the mutant survived, which is a failing run"
+    assert str(target) not in written, "the real file was written"
+    assert target.stat().st_ino == inode and target.read_text(encoding="utf-8") == original
+    assert len(copies) == 1
+    scratch_target = str(copies[0] / "pkg" / "rule.py")
+    assert [t.count("False") for t in written.get(scratch_target, [])] == [1, 0], (
+        "expected the mutant applied to the copy, then the copy put back")
+    assert not (root / ".pin_check.lock").exists(), "the scratch mode needs no tree lock"
+
+
+def test_a_scratch_that_runs_the_original_checkout_is_refused(tmp_path, monkeypatch, capsys):
+    """The instrument control run 9 wrote a lesson about: a re-injection in a
+    scratch copy that measured the original checkout, because the editable
+    install outranked the copy. A copy that cannot prove it runs its own code
+    produces no number at all — not a control, not a mutant.
+
+    The suite here is GREEN on purpose: a red one would make `main` return 1
+    for the wrong reason and the refusal could be deleted unnoticed (it was —
+    the first version of this test let mutant G5 survive)."""
+    root, target, original, catalogue = _fake_repo(tmp_path)
+    monkeypatch.setattr(pin_check, "ROOT", root)
+    monkeypatch.setattr(pin_check, "CATALOGUE", catalogue)
+    monkeypatch.setattr(pin_check, "SUITE", [sys.executable, "-c", "pass"])   # green
+    monkeypatch.setattr(pin_check, "IMPORT_CHECK",
+                        [sys.executable, "-c", f"print({str(target)!r})"])   # resolves OUTSIDE
+    rc = pin_check.main([])
+    out, err = capsys.readouterr()
+    assert rc == 1
+    assert "ISOLATION FAILED" in err and str(target) in err, err
+    assert "control:" not in out and "SURVIVED" not in out, (
+        "the suite ran against a copy that had not proved itself")
+    assert target.read_text(encoding="utf-8") == original
+
+
+def test_runs_its_own_code_reads_the_resolved_path(tmp_path, monkeypatch):
+    inside = tmp_path / "scratch" / "src" / "verdict_mcp" / "__init__.py"
+    inside.parent.mkdir(parents=True)
+    inside.write_text("", encoding="utf-8")
+    scratch = tmp_path / "scratch"
+    monkeypatch.setattr(pin_check, "IMPORT_CHECK", [sys.executable, "-c", f"print({str(inside)!r})"])
+    assert pin_check.runs_its_own_code(scratch, dict(os.environ)) is None
+    outside = tmp_path / "elsewhere" / "verdict_mcp" / "__init__.py"
+    monkeypatch.setattr(pin_check, "IMPORT_CHECK", [sys.executable, "-c", f"print({str(outside)!r})"])
+    assert pin_check.runs_its_own_code(scratch, dict(os.environ)) == str(outside)
+
+
+def test_the_scratch_copy_is_the_working_tree_not_the_last_commit(tmp_path):
+    """`git archive HEAD` would snapshot the commit; the mutants a maintainer
+    runs before committing must see the edits in hand. Tracked, modified and
+    new files come along; ignored ones stay behind."""
+    import subprocess
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    subprocess.run(["git", "init", "-q", "-b", "main", str(repo)], check=True)
+    (repo / "tracked.py").write_text("v1\n", encoding="utf-8")
+    (repo / ".gitignore").write_text(".venv/\n", encoding="utf-8")
+    subprocess.run(["git", "-C", str(repo), "add", "-A"], check=True)
+    subprocess.run(["git", "-C", str(repo), "-c", "user.name=t", "-c", "user.email=t@t",
+                    "commit", "-q", "-m", "one"], check=True)
+    (repo / "tracked.py").write_text("v2 — edited, not committed\n", encoding="utf-8")
+    (repo / "new.py").write_text("untracked but not ignored\n", encoding="utf-8")
+    (repo / ".venv").mkdir()
+    (repo / ".venv" / "big").write_text("ignored\n", encoding="utf-8")
+    scratch = pin_check.scratch_copy(repo)
+    try:
+        assert (scratch / "tracked.py").read_text(encoding="utf-8").startswith("v2")
+        assert (scratch / "new.py").is_file()
+        assert not (scratch / ".venv").exists() and not (scratch / ".git").exists()
+    finally:
+        import shutil
+        shutil.rmtree(scratch, ignore_errors=True)

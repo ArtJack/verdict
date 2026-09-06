@@ -673,5 +673,11 @@
   "path": "src/verdict_mcp/harness.py",
   "old": "        \"collected\": r\"(?m)^Tests:.*?(\\d+) total\",\n",
   "new": "        \"collected\": r\"(\\d+) total\",\n"
+ },
+ {
+  "label": "0.80.2 G5 pin_check: a scratch copy that runs the original checkout is measured anyway",
+  "path": "eval/pin_check.py",
+  "old": "        if elsewhere:\n",
+  "new": "        if False:\n"
  }
 ]

@@ -36,19 +36,27 @@ counted it as a kill would be the wrong number.
 Not a CI job. One suite run per mutant, roughly two seconds of thinking and a
 lot of waiting — a periodic exam, like the mutmut campaign in eval/README.md.
 
-**While this runs, the working tree is not yours.** Every mutant is applied to
-the real files and reverted after the suite finishes, so anything else that
-reads the tree meanwhile sees a defect that is not there. That happened during
-this tool's own development twice: a second instance read a failure the first
-had caused, and a hand-run probe reported a guard bug that was simply the
-mutant of the moment. The lock below stops the first; nothing can stop the
-second except not doing it. Run this when you are not editing.
+**The working tree is never touched.** Every mutant is applied to a scratch
+copy of the tree — tracked and untracked-but-not-ignored files, so what is
+about to be committed is what gets measured — and the suite runs there with
+the copy's `src/` ahead of the editable install. The copy has to prove it
+runs its own code before anything is trusted: an `import verdict_mcp` that
+resolves outside the scratch aborts the run, because a re-injection that
+measured the original checkout is a thing that happened here (run 9), and
+the number it produces is confident and wrong. In-tree mutation was the
+first design, and it cost twice: a second instance read a failure the first
+had caused, and an interrupted run left `harness.py` 2286 lines shorter.
+`--in-tree` keeps that mode for a tree that is not a git checkout; it holds
+a lock and restores every file, and while it runs the tree is not yours.
 
 Usage:
-    python3 eval/pin_check.py                    # every mutant
+    python3 eval/pin_check.py                    # every mutant, in a scratch copy
     python3 eval/pin_check.py --filter tar       # substring match on the label
     python3 eval/pin_check.py --list             # names only, no runs
+    python3 eval/pin_check.py --in-tree          # the old way: mutate the real files
 """
+
+from __future__ import annotations
 
 import argparse
 import atexit
@@ -61,11 +69,16 @@ import shutil
 import signal
 import subprocess
 import sys
+import tempfile
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 CATALOGUE = ROOT / "eval" / "pinned_mutants.json"
-SUITE = ["uv", "run", "--group", "dev", "pytest", "-q", "-p", "no:cacheprovider",
-         "-o", "addopts="]
+# `--project` pins the environment to the real checkout however the cwd moves;
+# PYTHONPATH then puts the scratch copy's own source ahead of it.
+SUITE = ["uv", "run", "--project", str(ROOT), "--group", "dev", "pytest", "-q",
+         "-p", "no:cacheprovider", "-o", "addopts="]
+IMPORT_CHECK = ["uv", "run", "--project", str(ROOT), "--group", "dev", "python", "-c",
+                "import verdict_mcp; print(verdict_mcp.__file__)"]
 
 
 def write_atomic(path, text):
@@ -93,16 +106,70 @@ def write_atomic(path, text):
     os.replace(tmp, path)
 
 
-def sweep():
+def sweep(root=None):
     """CPython validates bytecode on mtime-in-whole-seconds plus size, so two
     same-size mutants inside one second run the first one's code. This is the
     same discipline §3 of the contract asks of the agent (VERDICT-F-50)."""
-    for cache in ROOT.rglob("__pycache__"):
+    for cache in (root or ROOT).rglob("__pycache__"):
         shutil.rmtree(cache, ignore_errors=True)
 
 
-def run_suite(env):
-    return subprocess.run(SUITE, cwd=ROOT, capture_output=True, text=True, env=env)
+def run_suite(env, cwd=None):
+    return subprocess.run(SUITE, cwd=cwd or ROOT, capture_output=True, text=True, env=env)
+
+
+def scratch_copy(root) -> pathlib.Path:
+    """A copy of the tree as it is now — what `git` would commit, plus the
+    untracked files it would accept — under a fresh temporary directory.
+
+    Not `git archive HEAD`: that snapshots the last commit, and the mutants a
+    maintainer runs before committing must run against the edits in hand.
+    Ignored files (`.venv`, caches, scratch state) stay behind. A root that is
+    not a git checkout is copied whole, minus the obvious.
+    """
+    root = pathlib.Path(root)
+    dest = pathlib.Path(tempfile.mkdtemp(prefix="pin_check-"))
+    listing = subprocess.run(["git", "-C", str(root), "ls-files", "-z", "--cached",
+                              "--others", "--exclude-standard"],
+                             capture_output=True, text=True)
+    if listing.returncode == 0:
+        for rel in listing.stdout.split("\0"):
+            src = root / rel
+            if not rel or not src.is_file():
+                continue
+            target = dest / rel
+            target.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(src, target)
+    else:
+        shutil.copytree(root, dest, dirs_exist_ok=True,
+                        ignore=shutil.ignore_patterns(".git", ".venv", "__pycache__",
+                                                      "node_modules", ".pin_check.lock"))
+    return dest
+
+
+def scratch_env(scratch) -> dict:
+    """The copy's own source first, bytecode never written."""
+    scratch = pathlib.Path(scratch)
+    ahead = [str(p) for p in (scratch / "src", scratch) if p.is_dir()]
+    return {**os.environ, "PYTHONDONTWRITEBYTECODE": "1",
+            "PYTHONPATH": os.pathsep.join(ahead + [os.environ.get("PYTHONPATH", "")]).rstrip(os.pathsep)}
+
+
+def runs_its_own_code(scratch, env) -> str | None:
+    """Where `import verdict_mcp` resolves from inside the scratch, or None.
+
+    Returns the offending path when the import lands outside the copy, which
+    is the one result that makes every number after it meaningless: an
+    editable install points at the real checkout regardless of cwd, and only
+    PYTHONPATH outranks it (VERDICT-F-48, run 9's lesson).
+    """
+    probe = subprocess.run(IMPORT_CHECK, cwd=scratch, capture_output=True, text=True, env=env)
+    resolved = probe.stdout.strip().splitlines()[-1] if probe.stdout.strip() else ""
+    try:
+        inside = pathlib.Path(resolved).resolve().is_relative_to(pathlib.Path(scratch).resolve())
+    except (OSError, ValueError):
+        inside = False
+    return None if probe.returncode == 0 and resolved and inside else (resolved or probe.stderr[-300:])
 
 
 _COUNT = re.compile(r"(\d+) (passed|failed|errors?|skipped|xfailed|xpassed|deselected)\b")
@@ -210,9 +277,20 @@ class Restorer:
 
 
 def main(argv=None) -> int:
+    # Labels carry em dashes and middle dots; a Windows console defaults to
+    # cp1252 and a log reader to UTF-8, and the two disagree about both. Every
+    # CLI in this repository says UTF-8 out loud for the same reason.
+    for stream in (sys.stdout, sys.stderr):
+        if hasattr(stream, "reconfigure"):
+            try:
+                stream.reconfigure(encoding="utf-8", errors="replace")
+            except (ValueError, OSError):
+                pass
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--filter", default="", help="substring match on the label")
     ap.add_argument("--list", action="store_true", help="print the catalogue and stop")
+    ap.add_argument("--in-tree", action="store_true",
+                    help="mutate the real files under a lock instead of a scratch copy")
     args = ap.parse_args(argv)
 
     mutants = json.loads(CATALOGUE.read_text(encoding="utf-8"))
@@ -226,13 +304,29 @@ def main(argv=None) -> int:
         print("no mutants matched", file=sys.stderr)
         return 2
 
-    OnlyOne(str(ROOT / ".pin_check.lock"))   # held until the process exits
-    keeper = Restorer()
-    env = {**os.environ, "PYTHONDONTWRITEBYTECODE": "1"}
+    if args.in_tree:
+        tree = ROOT
+        OnlyOne(str(ROOT / ".pin_check.lock"))   # held until the process exits
+        keeper = Restorer()
+        env = {**os.environ, "PYTHONDONTWRITEBYTECODE": "1"}
+    else:
+        tree = scratch_copy(ROOT)
+        atexit.register(shutil.rmtree, tree, True)
+        keeper = None
+        env = scratch_env(tree)
+        elsewhere = runs_its_own_code(tree, env)
+        if elsewhere:
+            # The path is printed as is, not as a repr: on Windows a repr doubles
+            # every backslash and the message stops naming the file it names.
+            print("ISOLATION FAILED: inside the scratch copy `import verdict_mcp` resolves to "
+                  f"{elsewhere}, not to the copy. Every mutant would measure the original "
+                  "checkout.", file=sys.stderr)
+            return 1
+        print(f"scratch copy: {tree} · runs its own code")
     # Control the instrument before trusting it: a suite that is already red
     # kills every mutant and proves nothing.
-    sweep()
-    control = run_suite(env)
+    sweep(tree)
+    control = run_suite(env, tree)
     if control.returncode != 0:
         print("CONTROL FAILED — the suite is red before any mutation.", file=sys.stderr)
         print(control.stdout[-2000:], file=sys.stderr)
@@ -241,20 +335,24 @@ def main(argv=None) -> int:
 
     survivors, equivalents, broken = [], [], []
     for i, m in enumerate(mutants, 1):
-        path = ROOT / m["path"]
+        path = tree / m["path"]
         src = path.read_text(encoding="utf-8")
         hits = src.count(m["old"])
         if hits != 1:
             print(f"[{i:2}/{len(mutants)}] STALE    {m['label']}  (anchor matched {hits})")
             survivors.append(m["label"] + "  [stale anchor]")
             continue
-        keeper.hold(path, src)
+        if keeper is not None:
+            keeper.hold(path, src)
         write_atomic(path, src.replace(m["old"], m["new"]))
-        sweep()
+        sweep(tree)
         try:
-            result = run_suite(env)
+            result = run_suite(env, tree)
         finally:
-            keeper.restore()
+            if keeper is not None:
+                keeper.restore()
+            else:
+                write_atomic(path, src)
         outcome = classify(result.returncode, result.stdout)
         if outcome == "killed":
             print(f"[{i:2}/{len(mutants)}] KILLED   {m['label']}")

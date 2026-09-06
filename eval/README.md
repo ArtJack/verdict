@@ -217,6 +217,14 @@ matched a digit inside a parenthetical rather than the claim, and the only call 
 `_drop_bytecode`, whose deletion left every test passing because the mutant that "killed"
 it had changed the function's *body*.
 
+It runs in a **scratch copy of the working tree** — tracked and untracked-but-not-ignored
+files, so what is about to be committed is what gets measured — with the copy's `src/`
+ahead of the editable install, and it refuses to run until `import verdict_mcp` inside the
+copy resolves to the copy. That is run 14's independent runner, adopted: the first design
+mutated the real files under a lock, and it cost twice (a second instance read a failure
+the first had caused; an interrupted run left `harness.py` 2286 lines shorter). `--in-tree`
+keeps the old mode.
+
 Each mutant lands in one of three columns, read off pytest's own summary line rather
 than its exit code: **KILLED** (a test failed), **SURVIVED** (the suite stayed green), or
 **ERROR** — pytest exited without a failed test, which is a broken collection or a usage
