@@ -378,6 +378,12 @@ that found it.
 
 ### Answer-key amendments
 
+- **2026-09-06, `expected-cause.json`: `instrument-control-restores-the-original`.** Scores
+  the 0.81.0 §3 clause (VERDICT-F-58): the stale-bytecode control is a *restore* — put the
+  original back and watch the failure disappear — because re-running an injection you
+  already watched fail cannot fail in the ordering that produced F-50. Terms name the
+  restore, not "control", which the 0.74.0 row already scores and every control run writes.
+
 - **2026-09-03, cause row 7 (new):** `counterfactual-isolated-from-stale-bytecode` added
   alongside the v0.74.0 contract clause it scores, because VERDICT-F-52 established that no
   fixture could tell one version of this contract from another — the complaint was never the
