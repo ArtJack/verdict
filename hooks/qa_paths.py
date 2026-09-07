@@ -71,8 +71,17 @@ def _in_team_qa_root(p: str) -> bool:
 # Files inside a QA root that only the maintainer may write. The accepted-risk
 # ledger is the maintainer's decision about the tester's findings; a tester
 # that could write it could accept its own findings' risks and empty its own
-# open list. `verdict-accept` writes it from outside any session.
-MAINTAINER_FILES = ("accepted.json",)
+# open list. The answers ledger is the maintainer's decision on the tester's
+# questions; a tester that could write it could answer its own questions.
+# `verdict-accept` and `verdict-answer` write them from outside any session.
+MAINTAINER_FILES = ("accepted.json", "answers.json")
+# Which pen writes which file, for the guards' messages.
+MAINTAINER_PENS = {"accepted.json": "verdict-accept", "answers.json": "verdict-answer"}
+
+
+def maintainer_pen(path: str) -> str:
+    return MAINTAINER_PENS.get(os.path.basename(os.path.realpath(os.path.expanduser(path))),
+                               "the maintainer's command")
 
 
 def is_maintainer_file(path: str) -> bool:

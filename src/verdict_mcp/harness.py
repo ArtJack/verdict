@@ -56,8 +56,10 @@ from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
 try:
+    from . import questions
     from .anchors import DRIFTED, anchors_for, evidence_drift
     from .census import code_census
+    from .filed import FINDINGS_DIR, archive_findings, load_filed
     from .profile import ProfileError, gates_from
     from .profile import load as load_profile
     from .project_key import derive_key
@@ -68,13 +70,15 @@ try:
     from .state import (RUNS_FILE, chain_link, history_row, load_runs,
                         next_revision)
     from .state import home as state_home
-    from .validate import validate, validate_judgment
+    from .validate import known_tests, validate, validate_judgment
     from . import clock
 except ImportError:  # bare-script execution
     sys.path.insert(0, str(Path(__file__).resolve().parent))
     import clock
+    import questions
     from anchors import DRIFTED, anchors_for, evidence_drift
     from census import code_census
+    from filed import FINDINGS_DIR, archive_findings, load_filed
     from profile import ProfileError, gates_from
     from profile import load as load_profile
     from project_key import derive_key
@@ -85,7 +89,7 @@ except ImportError:  # bare-script execution
     from state import (RUNS_FILE, chain_link, history_row, load_runs,
                        next_revision)
     from state import home as state_home
-    from validate import validate, validate_judgment
+    from validate import known_tests, validate, validate_judgment
 
 RE_BASELINE_AFTER_DAYS = 7
 # A run marker at the same commit, this recent, is a retry rather than a night
@@ -296,6 +300,11 @@ def _prompt_identity(repo: Path) -> dict:
     if provisioned:
         out["provisioned_prompt_sha256"] = provisioned
     return out
+
+
+def finding_template() -> Path:
+    """One finding — the shape of `<qa-root>/findings/<ID>.json`."""
+    return Path(__file__).resolve().parent / "templates" / "finding.example.json"
 
 
 def judgment_template() -> Path:
@@ -1170,6 +1179,9 @@ def collect(repo: Path, qa_root: Path, gates: list[tuple[str, str]],
         "run_type_reason": why,
         # Start the judgment from this file; do not learn its shape by reading.
         "judgment_template": str(judgment_template()),
+        # One finding, one file: this is its shape, written to `findings_dir`.
+        "finding_template": str(finding_template()),
+        "findings_dir": str(Path(qa_root) / FINDINGS_DIR),
         "last_run": {
             "timestamp_utc": now.strftime("%Y-%m-%dT%H:%M:%SZ"),
             "git_sha": sha, "git_branch": branch, "sha_range": sha_range,
@@ -1310,6 +1322,11 @@ def collect(repo: Path, qa_root: Path, gates: list[tuple[str, str]],
     if vnotes:
         facts["verification_notes"] = vnotes
     facts["coverage"] = measure_diff_coverage(repo, sha_range, coverage_suite_cmd)
+    # What a person decided since the last run, and what is still waiting for
+    # one — read here so a decision is read, never asked again.
+    asked = questions.facts_view(qa_root, now.date())
+    if asked:
+        facts["questions"] = asked
     return facts
 
 
@@ -1701,10 +1718,10 @@ def merge(facts: dict, judgment: dict, previous: dict | None, today: date | None
             # of state into the reports and the ledger; this one stays visible,
             # because a tester that files a false positive and lets it fall off
             # the page next run is hiding the number that weighs all the others.
-            findings.append(dict(prior))
+            findings.append({k: v for k, v in prior.items() if k != "re_reported"})
             continue
         if maintainers:
-            carried = dict(prior)
+            carried = {k: v for k, v in prior.items() if k != "re_reported"}
             _fold_accepted(carried, accepted)
             carried.update(_stamp_outcome(carried, prior))
             findings.append(carried)
@@ -1720,7 +1737,7 @@ def merge(facts: dict, judgment: dict, previous: dict | None, today: date | None
             and len(unmentioned) >= CARRY_RESOLVE_FLOOR
             and len(unmentioned) > CARRY_RESOLVE_SHARE * prior_open)
     for prior in unmentioned:
-        carried = dict(prior)
+        carried = {k: v for k, v in prior.items() if k != "re_reported"}
         if held:
             carried.update(
                 status="open", delta="STILL_OPEN",
@@ -2100,14 +2117,24 @@ def facts_main(argv=None) -> int:
     # run's claim. The marker is written before the gates so a run killed
     # mid-suite still leaves a trace.
     abandoned = _read_json(qa_root / "run-in-progress.json")
+    head = _git(["rev-parse", "HEAD"], repo)
     (qa_root / "run-in-progress.json").write_text(json.dumps({
         "started_utc": clock.stamp(),
         "repo": str(repo),
         # The commit is what separates "my own retry" from "last night died".
-        "git_sha": _git(["rev-parse", "HEAD"], repo)}, indent=2) + "\n",
+        "git_sha": head}, indent=2) + "\n",
         encoding="utf-8")
+    # Last run's finding files move aside before this run writes its own —
+    # unless the marker says this is the same run trying again, in which case
+    # the files are this attempt's and stay. Moved, never deleted.
+    started = _parse_marker_time((abandoned or {}).get("started_utc")) if abandoned else None
+    retry = bool(abandoned) and abandoned.get("git_sha") == head and started is not None \
+        and (clock.now() - started).total_seconds() / 3600 <= RETRY_WINDOW_HOURS
+    archived = archive_findings(qa_root, keep=retry)
     facts = collect(repo, qa_root, gates, args.test_ids_cmd, abandoned=abandoned,
                     test_one_cmd=args.test_one_cmd, coverage_suite_cmd=args.coverage_suite_cmd)
+    if archived:
+        facts["findings_archived"] = archived
     if declared_authorship:
         facts.setdefault("code_census", {}).setdefault("provenance", {})[
             "declared"] = declared_authorship
@@ -2130,7 +2157,9 @@ def facts_main(argv=None) -> int:
     (args.out or (qa_root / "facts.json")).write_text(text + "\n", encoding="utf-8")
     print(text)
     print(f"verdict-facts: judgment template → {judgment_template()} — copy it, replace every "
-          "value, keep every key", file=sys.stderr)
+          f"value, keep every key. One finding = one file, {qa_root / FINDINGS_DIR}/<ID>.json, "
+          f"the shape of {finding_template()}; next id {facts.get('next_finding_id')}",
+          file=sys.stderr)
     return 0
 
 
@@ -2166,6 +2195,62 @@ def _report_name(qa_root: Path, stamp: str, topic: str, run_number) -> str:
     return f"{base}-run{run_number}-{n}.md"
 
 
+# What a re-report by id carries from the previous state: the finding as its
+# author last wrote it. Never the computed fields, never a fix claim — a
+# resolution by id is "gone, not verified" unless the harness measures it.
+_RE_REPORT_FIELDS = ("id", "title", "severity", "priority", "failure_classification",
+                     "confidence", "evidence", "verification_test", "root_cause")
+
+
+def _lift_narratives(judgment: dict) -> None:
+    """A finding file's `narrative` becomes `prose.findings[id]` — the place
+    the renderer has always read per-finding prose from."""
+    for f in judgment.get("findings") or []:
+        if not isinstance(f, dict) or "narrative" not in f:
+            continue
+        text = f.pop("narrative")
+        if isinstance(text, str) and text.strip():
+            prose = judgment.get("prose")
+            if not isinstance(prose, dict):
+                prose = judgment["prose"] = {}
+            if not isinstance(prose.get("findings"), dict):
+                prose["findings"] = {}
+            prose["findings"].setdefault(str(f.get("id")), text)
+
+
+def _re_report(judgment: dict, previous: dict | None, facts: dict) -> list[str]:
+    """Expand `still_open` and `resolved` into findings copied from the
+    previous state → problems.
+
+    The verb is cheap on purpose — run 14 re-typed eighteen findings to say
+    "still there" — and the harness keeps it honest: an id whose cited code
+    changed or vanished since the evidence was written (`evidence_drift`, T-1)
+    is refused, because the evidence no longer says what the finding says."""
+    prev_by_id = {str(f.get("id")): f for f in ((previous or {}).get("findings") or [])
+                  if isinstance(f, dict) and f.get("id")}
+    drift = ((facts.get("evidence_drift") or {}).get("findings") or {}) \
+        if isinstance(facts.get("evidence_drift"), dict) else {}
+    bad = []
+    for verb, status in (("still_open", "open"), ("resolved", "resolved")):
+        for fid in judgment.get(verb) or []:
+            prior = prev_by_id.get(str(fid))
+            if prior is None:
+                continue            # validate_judgment has already refused it
+            d = drift.get(str(fid)) if verb == "still_open" else None
+            if isinstance(d, dict) and d.get("drift") in ("changed", "missing"):
+                refs = ", ".join(f"{r.get('ref')} ({r.get('status')})" for r in d.get("refs") or []
+                                 if r.get("status") in ("changed", "missing"))
+                bad.append(f"still_open names {fid}, but the code it cites {d['drift']} since "
+                           f"the evidence was written ({refs}) — write "
+                           f"{FINDINGS_DIR}/{fid}.json with fresh evidence, or resolve it")
+                continue
+            entry = {k: prior[k] for k in _RE_REPORT_FIELDS if k in prior}
+            entry["status"] = status
+            entry["re_reported"] = verb
+            judgment["findings"].append(entry)
+    return bad
+
+
 def finalize_main(argv=None) -> int:
     ap = argparse.ArgumentParser(
         prog="verdict-finalize",
@@ -2188,20 +2273,61 @@ def finalize_main(argv=None) -> int:
 
     previous = _read_json(qa_root / "state.json")
 
+    # Findings as files: one `findings/<ID>.json` per finding, written when it
+    # was proven; assembled here, oldest first. The judgment may still carry
+    # `findings[]` itself — but not both, and never silently merged.
+    filed, file_problems = load_filed(qa_root)
+    if file_problems:
+        print(f"verdict-finalize: {len(file_problems)} finding file(s) cannot be read — fix "
+              "the file, not the check:\n  " + "\n  ".join(file_problems), file=sys.stderr)
+        return 1
+    inline = judgment.get("findings") or []
+    if filed and inline:
+        print(f"verdict-finalize: findings are in {FINDINGS_DIR}/ ({len(filed)} files) or in "
+              f"{args.judgment} ({len(inline)} entries), never both — remove one set",
+              file=sys.stderr)
+        return 1
+    sources = {}
+    if filed:
+        judgment["findings"] = []
+        for f in filed:
+            g = dict(f)
+            sources[str(g.get("id"))] = {"file": g.pop("_file"), "filed_at": g.pop("_filed_at")}
+            judgment["findings"].append(g)
+    _lift_narratives(judgment)
+
     # Checked here, where the author of judgment.json still stands. Validating
     # only the merged state stops a bad state reaching disk but explains it in
     # the vocabulary of a structure the agent did not write — a reworded
     # evidence line used to surface as `repeats id`, which says nothing about
     # what to change.
-    author_problems = validate_judgment(judgment, previous)
+    author_problems = validate_judgment(judgment, previous, known_tests(qa_root))
     if author_problems:
         print(f"verdict-finalize: {args.judgment} has {len(author_problems)} problem(s) "
               "— fix the judgment, not the check:\n  " + "\n  ".join(author_problems),
               file=sys.stderr)
         return 1
+    verb_problems = _re_report(judgment, previous, facts)
+    if verb_problems:
+        print(f"verdict-finalize: {len(verb_problems)} problem(s) with the ids you carried — "
+              "fix the judgment, not the check:\n  " + "\n  ".join(verb_problems),
+              file=sys.stderr)
+        return 1
+    for f in judgment["findings"]:
+        src = sources.get(str(f.get("id")))
+        if src:
+            f["filed_at"] = src["filed_at"]
 
     state = merge(facts, judgment, previous, ledger=load_outcomes(qa_root),
                   accepted=load_accepted(qa_root))
+    asked, qnotes = questions.fold(qa_root, questions.id_prefix(state["findings"], state["project"]),
+                                   judgment.get("questions"), state["run_number"], run_date(facts))
+    if asked["parked"] or asked["answered_since_last_run"]:
+        state["questions"] = asked
+    else:
+        state.pop("questions", None)     # not carried from the previous state as an unknown key
+    for note in qnotes:
+        print(f"verdict-finalize: {note}", file=sys.stderr)
 
     # Render the report before validating: the validator requires the file to
     # exist, and writing it here is what makes "the report went missing"
@@ -2337,6 +2463,60 @@ def _render_calibration(cal: dict) -> list[str]:
                   "would be a claim of its own.*"]
     lines.append("")
     return lines
+
+
+def _render_questions(state: dict) -> list[str]:
+    """The questions parked for a person, and the answers no run had read yet."""
+    asked = state.get("questions") if isinstance(state.get("questions"), dict) else {}
+    parked, fresh = asked.get("parked") or [], asked.get("answered_since_last_run") or []
+    if not parked and not fresh:
+        return []
+    out = [f"## Needs human decision ({len(parked)} parked)", ""]
+    for q in parked:
+        meta = f"asked run {q.get('asked_at_run')}"
+        if q.get("age_days") is not None:
+            meta += f", {q['age_days']}d ago"
+        if q.get("finding"):
+            meta += f" · about {q['finding']}"
+        out.append(f"- **{q.get('id')}** ({meta}) — {q.get('question')}")
+        if q.get("context"):
+            out.append(f"  _{q['context']}_")
+    if not parked:
+        out.append("_None parked._")
+    if fresh:
+        out += ["", "### Answered since the last run", ""]
+        for q in fresh:
+            decided = (f"dismissed: {q.get('reason')}" if q.get("status") == "dismissed"
+                       else str(q.get("answer")))
+            out.append(f"- **{q.get('id')}** — {q.get('question')}\n"
+                       f"  → {decided} ({q.get('by')}, {q.get('on')})")
+    out += ["", f"_Answer with `verdict-answer {state.get('project')} <Q-id> --answer "
+            "\"…\"`; the next run reads the decision instead of asking again._", ""]
+    return out
+
+
+def _measured_lines(f: dict, drift: dict) -> list[str]:
+    """Measured, not remembered: when the harness last ran this finding's
+    test, whether the code it cites is still where the evidence says, and
+    whether the tester re-reported it by id."""
+    out = []
+    if f.get("last_verified_at"):
+        v = f.get("verification") if isinstance(f.get("verification"), dict) else {}
+        at_head = v.get("at_head") if v.get("at_head") in ("pass", "fail") else None
+        out.append(f"- Last measured {str(f['last_verified_at'])[:10]}"
+                   + (f" — {'passes' if at_head == 'pass' else 'fails'} at HEAD"
+                      if at_head else ""))
+    elif is_open(f) and not f.get("verification_test"):
+        out.append("- Never measured — no `verification_test` declared")
+    moved_refs = _drifted_refs(drift, f)
+    if moved_refs:
+        out.append(f"- Cited code {moved_refs[0]} since the evidence was written: "
+                   + ", ".join(moved_refs[1]))
+    if f.get("re_reported"):
+        out.append(f"- _Re-reported by id (`{f['re_reported']}`): looked at, "
+                   f"{'still there' if f['re_reported'] == 'still_open' else 'gone'}; "
+                   "the evidence is as last filed_")
+    return out
 
 
 def _days_between(start, end) -> int | None:
@@ -2526,20 +2706,7 @@ def render_report(state: dict, prose: dict | None = None) -> str:
         out.append(str(f.get("title", "")))
         for e in (f.get("evidence") or []):
             out.append(f"- {e}")
-        # Measured, not remembered: when the harness last ran this finding's
-        # test, and whether the code it cites is still where the evidence says.
-        if f.get("last_verified_at"):
-            v = f.get("verification") if isinstance(f.get("verification"), dict) else {}
-            at_head = v.get("at_head") if v.get("at_head") in ("pass", "fail") else None
-            out.append(f"- Last measured {str(f['last_verified_at'])[:10]}"
-                       + (f" — {'passes' if at_head == 'pass' else 'fails'} at HEAD"
-                          if at_head else ""))
-        elif is_open(f) and not f.get("verification_test"):
-            out.append("- Never measured — no `verification_test` declared")
-        moved_refs = _drifted_refs(drift, f)
-        if moved_refs:
-            out.append(f"- Cited code {moved_refs[0]} since the evidence was written: "
-                       + ", ".join(moved_refs[1]))
+        out += _measured_lines(f, drift)
         rc = f.get("root_cause") or {}
         if rc:
             chain = " → ".join(str(rc[k]) for k in ("mechanism", "origin") if rc.get(k))
@@ -2590,6 +2757,7 @@ def render_report(state: dict, prose: dict | None = None) -> str:
         # confirmation that named invariants held is a headline, not a footnote.
         out += ["## Verified intact", "",
                 "\n".join(f"- {v}" for v in vi), ""]
+    out += _render_questions(state)
     out += ["## Not tested", ""]
     nt = state.get("not_tested") or []
     out.append("\n".join(f"- {n}" for n in nt) if nt else

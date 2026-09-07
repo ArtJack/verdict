@@ -28,6 +28,7 @@ from mcp.server.fastmcp import FastMCP
 from mcp.types import ToolAnnotations
 
 from . import clock
+from .questions import facts_view as questions_view
 from .state import (
     DELTA_VALUES,
     resolve_root,
@@ -147,6 +148,20 @@ def get_quarantine(project: str) -> dict:
         until = parse_date(q.get("quarantined_until", ""))
         entries.append({**q, "expired": bool(until and until < today)})
     return {"project": state.get("project", project), "count": len(entries), "quarantine": entries}
+
+
+@mcp.tool(annotations=_RO)
+def get_questions(project: str) -> dict:
+    """The questions the tester parked for a person — parked ones with their
+    age, and answers no run has read yet. Answer with `verdict-answer`."""
+    state, err = load_state(project)
+    if err:
+        return err
+    qv = questions_view(state["_qa_root"], clock.today()) or {"parked": [],
+                                                              "answered_since_last_run": []}
+    return {"project": state.get("project", project), "count": len(qv["parked"]),
+            "parked": qv["parked"], "answered_since_last_run": qv["answered_since_last_run"],
+            "answer_with": f"verdict-answer {state.get('project', project)} <Q-id> --answer \"…\""}
 
 
 @mcp.tool(annotations=_RO)

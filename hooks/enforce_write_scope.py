@@ -29,7 +29,7 @@ import sys
 
 from qa_paths import is_allowed_path as _is_allowed
 from qa_paths import is_maintainer_file as _is_maintainer
-from qa_paths import utf8_stderr
+from qa_paths import maintainer_pen, utf8_stderr
 
 
 def _caller_is_verdict(data: dict) -> bool:
@@ -59,9 +59,10 @@ def main() -> int:
         # Inside the QA root, and still not the tester's: the accepted-risk
         # ledger is the maintainer's decision about the tester's findings.
         sys.stderr.write(
-            f"verdict write-scope guard: {target!r} is the maintainer's accepted-risk "
-            "ledger — written by `verdict-accept`, never by the tester. A tester that "
-            "could accept its own findings' risks could empty its own open list.\n"
+            f"verdict write-scope guard: {target!r} is the maintainer's ledger — written by "
+            f"`{maintainer_pen(target)}`, never by the tester. A tester that could accept its "
+            "own findings' risks, or answer its own questions, would be grading its own "
+            "paper.\n"
         )
         return 2
     if _is_allowed(target):

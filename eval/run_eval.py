@@ -45,6 +45,7 @@ Model runs cost real tokens — this is never a per-PR CI job.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import re
@@ -140,9 +141,22 @@ def overlay(src: Path, dst: Path):
             shutil.copyfile(p, target)
 
 
-def provision(checkout: Path, fixture: dict):
-    """Project-local agent, scope-guard hooks, and (if any) the command file."""
-    agent = (REPO / "agents" / "verdict.md").read_text(encoding="utf-8")
+def prompt_at(ref: str | None) -> str:
+    """The agent prompt at a git revision, or the working tree's when `ref` is None."""
+    if ref is None:
+        return (REPO / "agents" / "verdict.md").read_text(encoding="utf-8")
+    proc = sh(["git", "show", f"{ref}:agents/verdict.md"], cwd=REPO)
+    if proc.returncode != 0:
+        raise SystemExit(f"eval: no agents/verdict.md at {ref!r}: {proc.stderr.strip()}")
+    return proc.stdout
+
+
+def provision(checkout: Path, fixture: dict, prompt_text: str | None = None):
+    """Project-local agent, scope-guard hooks, and (if any) the command file.
+
+    `prompt_text` is the control arm of a paired run: the prompt at another
+    revision, provisioned over the same harness, hooks and fixture."""
+    agent = prompt_text if prompt_text is not None else prompt_at(None)
     agent = agent.replace("name: verdict", "name: verdict-rc", 1)
     agent = agent.replace("${CLAUDE_PLUGIN_ROOT}", str(REPO))
     target = checkout / ".claude" / "agents" / "verdict-rc.md"
@@ -248,13 +262,21 @@ def archive(qa_root: Path, name: str, fixture_key: str, mode: str, model: str):
     print(f"archived to eval/corpus/{name}", file=sys.stderr)
 
 
-def run_once(args, fixture, mode, base_env):
-    """One full protocol execution in a fresh workdir → (failed, results, qa_root)."""
+def run_once(args, fixture, mode, base_env, prompt_text=None, arm=None):
+    """One full protocol execution in a fresh workdir → (failed, results, qa_root).
+
+    `prompt_text`/`arm` name the control arm of a paired run (T-17): the same
+    fixture and harness, the prompt at another revision."""
     workdir = Path(tempfile.mkdtemp(prefix="verdict-eval-"))
     checkout = workdir / fixture["dir"]
     qa_home = workdir / "qa-home"
     qa_root = qa_home / fixture["dir"]
-    results = {"fixture": args.fixture, "mode": mode, "workdir": str(workdir)}
+    results = {"fixture": args.fixture, "mode": mode, "workdir": str(workdir),
+               "prompt_sha256": hashlib.sha256(
+                   (prompt_text if prompt_text is not None else prompt_at(None))
+                   .encode("utf-8")).hexdigest()}
+    if arm:
+        results["arm"] = arm
     failed = False
     try:
         source = EVAL_DIR / "fixtures" / fixture["dir"]
@@ -270,13 +292,13 @@ def run_once(args, fixture, mode, base_env):
             for step in sorted(p for p in history.iterdir() if p.is_dir()):
                 overlay(step, checkout)
                 (checkout / "MESSAGE").unlink(missing_ok=True)
-                provision(checkout, fixture)
+                provision(checkout, fixture, prompt_text)
                 git(["add", "-A"], checkout, base_env)
                 message = (step / "MESSAGE").read_text(encoding="utf-8").strip()
                 git(["commit", "-q", "-m", message], checkout, base_env)
         else:
             shutil.copytree(source, checkout, dirs_exist_ok=True)
-            provision(checkout, fixture)
+            provision(checkout, fixture, prompt_text)
             git(["add", "-A"], checkout, base_env)
             git(["commit", "-qm", "fixture rev A"], checkout, base_env)
         rev_a = git(["rev-parse", "--short", "HEAD"], checkout, base_env)
@@ -323,6 +345,42 @@ def run_once(args, fixture, mode, base_env):
     return failed, results, qa_root, workdir
 
 
+def paired_summary(args, mode, head_runs, control_runs) -> dict:
+    """One table for a paired run: per phase, per row, the points each arm
+    earned across repeats, and the difference. Both prompt hashes are named,
+    so a published row can say which prompt produced it (T-6)."""
+    def points(runs, phase):
+        table: dict = {}
+        for r in runs:
+            for row in (r.get(phase) or {}).get("rows", []):
+                if "point" in row:
+                    table.setdefault(row["key"], []).append(row["point"])
+        return table
+
+    phases = [p for p in ("baseline", "delta") if any(p in r for r in head_runs + control_runs)]
+    out = {"fixture": args.fixture, "mode": mode, "model": args.model, "repeat": args.repeat,
+           "pair": args.pair,
+           "prompt_sha256": {"head": head_runs[0]["prompt_sha256"] if head_runs else None,
+                             "control": control_runs[0]["prompt_sha256"] if control_runs else None},
+           "phases": {}}
+    for phase in phases:
+        h, c = points(head_runs, phase), points(control_runs, phase)
+        rows = []
+        for key in sorted(set(h) | set(c)):
+            hs, cs = sum(h.get(key, [])), sum(c.get(key, []))
+            rows.append({"key": key, "head": f"{hs}/{len(h.get(key, []))}",
+                         "control": f"{cs}/{len(c.get(key, []))}", "delta": hs - cs})
+        totals = {
+            "head": [f"{r[phase]['score']}/{r[phase]['max']}" for r in head_runs if phase in r],
+            "control": [f"{r[phase]['score']}/{r[phase]['max']}" for r in control_runs if phase in r],
+            "hard_fails": {"head": sum(len(r[phase]["hard_fails"]) for r in head_runs if phase in r),
+                           "control": sum(len(r[phase]["hard_fails"]) for r in control_runs if phase in r)},
+        }
+        out["phases"][phase] = {"rows": rows, "totals": totals}
+    out["runs"] = {"head": head_runs, "control": control_runs}
+    return out
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--fixture", choices=sorted(FIXTURES), default="pricer")
@@ -340,6 +398,10 @@ def main() -> int:
                     action="store_false",
                     help="score a run that hand-wrote its state instead of using "
                          "verdict-facts / verdict-finalize (diagnostic only)")
+    ap.add_argument("--pair", default=None, metavar="GIT_REF",
+                    help="paired A/B: after each run with the working tree's prompt, run "
+                         "the same fixture with the prompt at GIT_REF (same harness, hooks "
+                         "and fixture), and print per-row deltas with both prompt hashes")
     args = ap.parse_args()
 
     fixture = FIXTURES[args.fixture]
@@ -351,9 +413,11 @@ def main() -> int:
         return 2
 
     base_env = dict(os.environ)
-    runs, any_failed, archived = [], False, False
+    control_prompt = prompt_at(args.pair) if args.pair else None
+    runs, control_runs, any_failed, archived = [], [], False, False
     for i in range(args.repeat):
-        failed, results, qa_root, workdir = run_once(args, fixture, mode, base_env)
+        failed, results, qa_root, workdir = run_once(args, fixture, mode, base_env,
+                                                     arm="head" if args.pair else None)
         runs.append(results)
         any_failed |= failed
         if not failed and args.archive and not archived:
@@ -361,6 +425,19 @@ def main() -> int:
             archived = True
         if not failed and not args.keep:
             shutil.rmtree(workdir, ignore_errors=True)
+        if control_prompt is not None:
+            # Interleaved, not batched: a rate limit or a bad hour then lands on
+            # both arms alike instead of on whichever ran second.
+            failed_c, results_c, _, workdir_c = run_once(
+                args, fixture, mode, base_env, prompt_text=control_prompt, arm="control")
+            control_runs.append(results_c)
+            any_failed |= failed_c
+            if not failed_c and not args.keep:
+                shutil.rmtree(workdir_c, ignore_errors=True)
+
+    if control_prompt is not None:
+        print(json.dumps(paired_summary(args, mode, runs, control_runs), indent=2))
+        return 1 if any_failed else 0
 
     if args.repeat == 1:
         print(json.dumps(runs[0], indent=2))

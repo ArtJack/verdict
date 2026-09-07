@@ -42,6 +42,7 @@ from pathlib import Path
 
 try:
     from .project_key import derive_key
+    from .questions import facts_view as questions_view
     from .state import (code_drift, fold_accepted, harness_signals, is_open, is_path_like,
                     load_accepted,
                     load_chain_anchor, load_runs, load_state, missing_durable,
@@ -53,6 +54,7 @@ except ImportError:  # executed as a bare script (GitHub Action gate mode)
     sys.path.insert(0, str(Path(__file__).resolve().parent))
     import clock
     from project_key import derive_key
+    from questions import facts_view as questions_view
     from state import (code_drift, fold_accepted, harness_signals, is_open, is_path_like,
                    load_accepted,
                    load_chain_anchor, load_runs, load_state, missing_durable,
@@ -103,6 +105,14 @@ def evaluate(project, fail_on, max_age_hours, min_run_number, now=None,
         "findings_open": order_findings([f for f in folded if is_open(f)]),
         "accepted_risks": sum(1 for f in folded if norm_status(f.get("status")) == "accepted"),
     }
+    # The questions the tester parked for a person, read from the ledger the
+    # way the banner and the report read it — pushed to the maintainer on
+    # every surface that reaches them, never mailed.
+    qv = questions_view(state.get("_qa_root") or ".", clock.today())
+    if qv and qv.get("parked"):
+        out["questions_parked"] = [{"id": q["id"], "question": q.get("question"),
+                                    "finding": q.get("finding"), "age_days": q.get("age_days")}
+                                   for q in qv["parked"]]
     if verdict not in ("pass", "pass with risks", "blocked", "fail"):
         out.update(exit_code=4, reason=f"state has no usable verdict: {verdict!r}")
         return out
@@ -245,6 +255,12 @@ def _fmt_text(r, n):
     for f in (r.get("findings_open") or [])[:n]:
         lines.append(f"  {f.get('delta', '?'):<10} {f.get('id')} "
                      f"{f.get('severity')}/{f.get('priority')} {f.get('title', '')}")
+    if r.get("questions_parked"):
+        qs = r["questions_parked"]
+        lines.append(f"needs human decision: {len(qs)} parked — "
+                     + "; ".join(f"{q['id']}: {str(q.get('question') or '')[:90]}" for q in qs[:3])
+                     + (f"; and {len(qs) - 3} more" if len(qs) > 3 else "")
+                     + f" (answer with `verdict-answer {r.get('project')} <Q-id> --answer …`)")
     if r.get("not_tested"):
         lines.append("not tested: " + "; ".join(map(str, r["not_tested"])))
     if r.get("chain") == "unchained":
@@ -287,6 +303,12 @@ def _fmt_comment(r, n):
         overflow = len(r.get("findings_open") or []) - len(rows)
         if overflow > 0:
             head.append(f"\n<sub>…and {overflow} more open findings — see the report.</sub>")
+        head.append("")
+    if r.get("questions_parked"):
+        head.append(f"**Needs human decision ({len(r['questions_parked'])} parked):**")
+        for q in r["questions_parked"][:5]:
+            text = str(q.get("question") or "").replace("|", "\\|")
+            head.append(f"- `{q['id']}` — {text}")
         head.append("")
     if r.get("not_tested"):
         head.append("**Not tested:** " + "; ".join(map(str, r["not_tested"])))

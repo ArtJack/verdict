@@ -35,6 +35,16 @@ def _silent() -> int:
     return 0
 
 
+def _parked_questions(root) -> list:
+    """The parked questions, answers folded in — empty on any failure."""
+    try:
+        from questions import facts_view
+        view = facts_view(root, datetime.now(timezone.utc).date())
+        return list((view or {}).get("parked") or [])
+    except Exception:
+        return []
+
+
 def main() -> int:
     try:
         event = json.load(sys.stdin)
@@ -143,6 +153,15 @@ def main() -> int:
         if focus:
             lines.append(f"Next-run focus: {str(focus[0])[:130]}"
                          + (f" (+{len(focus) - 1} more)" if len(focus) > 1 else ""))
+        # The questions the tester parked for a person: pushed, not left in a
+        # ledger nobody opens. One line, the first id, the command that answers.
+        parked = _parked_questions(root)
+        if parked:
+            first = parked[0]
+            lines.append(f"{len(parked)} question{'' if len(parked) == 1 else 's'} waiting for "
+                         f"you — {first['id']}: {str(first.get('question') or '')[:100]}"
+                         + (f" (+{len(parked) - 1} more)" if len(parked) > 1 else "")
+                         + f". Answer: `verdict-answer {project} {first['id']} --answer \"…\"`")
         if days is not None and days > STALE_DAYS:
             lines.append(f"This memory is {days} days old — re-run `/verdict:run` before "
                          "trusting it.")

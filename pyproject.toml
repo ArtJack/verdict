@@ -45,6 +45,7 @@ verdict-facts = "verdict_mcp.harness:facts_main"
 verdict-finalize = "verdict_mcp.harness:finalize_main"
 verdict-run = "verdict_mcp.runner:main"
 verdict-accept = "verdict_mcp.accept:main"
+verdict-answer = "verdict_mcp.questions:main"
 
 [build-system]
 requires = ["hatchling"]
