@@ -3,6 +3,37 @@
 Plugin and `verdict-mcp` share one version line; `.claude-plugin/plugin.json` and
 `pyproject.toml` are bumped together.
 
+## 0.85.0 — 2026-09-07 · "every coding agent"
+
+Step 3 of the work plan (engineering-docs, verdict pack §5a), the outward batch —
+its first item. No harness or prompt change.
+
+**Skills for every coding agent (T-9).** `npx skills add ArtJack/verdict` installs
+five skills into any agent of the agentskills.io ecosystem — Cursor, Codex,
+OpenCode, Claude Code and seventy more: **release risk** (the measured pass,
+findings as files, the verbs, the ten-line handoff), **verify a fix** (the coding
+agent fixes, Verdict verifies: a declared test re-run at both commits, the three
+isolation controls with the contract's own measured numbers), **flaky triage**
+(the five classifications, quarantine with an expiry), **root cause** (the
+four-link chain, proof strongest first, trigger apart from cause, stop at
+diagnosis), **spec review** (inventory, findings with a verbatim quote,
+Given/When/Then, questions parked for a person). Each restates the contract for
+an agent that cannot run the `verdict` agent, uses the harness the pip package
+ships, and points Claude Code users at the agent; tests pin the front matter,
+the doctrine line, the harness commands, the verbatim numbers.
+
+**`AGENTS.md` and `llms.txt`** at the repository root: the first for agents that
+use Verdict and agents that change it (the test command, the four doctrine rules,
+what costs money, where things live); the second the index of the docs, every
+link checked to exist.
+
+**The README's first screen** now leads with the pain and the number — "Your test
+suite is green. Verdict found a defect that had lived 4,595 days." — the boltons
+`FilePerms` finding, introduced 2014-02-07, filed 2026-09-07 under 625 green
+tests, reproduced by hand on a fresh clone and reported upstream as
+mahmoud/boltons#480 (with #479, the `rotate_file` data loss) — the first two
+findings this project ever sent anywhere, after the certainty pass.
+
 ## 0.84.0 — 2026-09-07 · "a finding is a file"
 
 The prompt half of the findings-as-files design (engineering-docs, verdict pack

@@ -8,13 +8,25 @@
 [![Claude Code plugin](https://img.shields.io/badge/Claude_Code-plugin-6E56CF)](#install)
 [![license MIT](https://img.shields.io/github/license/ArtJack/verdict)](LICENSE)
 
-**A skeptical QA agent with memory — it remembers your baseline and tells you what broke
-since yesterday.**
+**Your test suite is green. Verdict found a defect that had lived 4,595 days.**
+
+Verdict is a QA agent that does not fix, does not flatter, and does not forget. It measures
+before it judges — the harness runs your gates, hashes every line a finding cites, re-runs
+the guarding test at the old commit and the new one — and it keeps a memory: every run is a
+delta against the last, findings age, regressions rank first, and the tester's own misses
+are published beside its hits. The contract it runs under is immutable and hashed into every
+verdict; what it learns lives beside the contract, dated and auditable, and never edits it.
+The number above is real: `FilePerms` in a 4k★ Python library could not revoke a permission
+bit since 2014-02-07, and every one of its 625 tests was green the day Verdict filed it —
+[the run, and the misses, are in the ledger](eval/README.md#runs-on-strangers-repositories).
 
 ```
-/plugin marketplace add ArtJack/verdict
+/plugin marketplace add ArtJack/verdict     # Claude Code
 /plugin install verdict@verdict
 /verdict:run
+```
+```
+npx skills add ArtJack/verdict              # every other coding agent
 ```
 
 Most AI "QA agents" are a paragraph of enthusiasm with a checklist. They audit your repo
@@ -62,6 +74,22 @@ that runs for free. Works on Python, TypeScript, Go, or anything with a test run
 /plugin marketplace add ArtJack/verdict
 /plugin install verdict@verdict
 ```
+
+Any other coding agent — Cursor, Codex, OpenCode and the rest of the
+[agent skills](https://skills.sh) ecosystem — gets the same doctrine as five skills, and the
+same harness as a pip package:
+
+```
+npx skills add ArtJack/verdict        # release risk · verify a fix · flaky triage · root cause · spec review
+pip install verdict-qa-mcp            # verdict-facts, verdict-finalize, verdict-gate, verdict-accept, verdict-answer
+```
+
+[![skills.sh](https://skills.sh/b/ArtJack/verdict)](https://skills.sh/ArtJack/verdict)
+
+The skills restate the contract for an agent that cannot run the `verdict` agent; the
+hooks that enforce the read-only guarantee exist only in Claude Code, so there the
+guarantee is the agent's own discipline plus the harness's refusals. `AGENTS.md` and
+`llms.txt` at the repository root are for agents that read before they act.
 
 **Python 3.9 or newer**, whatever your `python3` resolves to — the hooks and the
 fact harness are stdlib-only and are invoked by that name, which on a stock Mac is
