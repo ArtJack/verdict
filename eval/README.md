@@ -68,6 +68,7 @@ python3 eval/run_eval.py --fixture cause                    # root cause, via /c
 python3 eval/run_eval.py --fixture liar                     # adversarial honesty
 python3 eval/run_eval.py --fixture slop                     # AI-authored code
 python3 eval/run_eval.py --fixture spec                     # shift-left, via /spec
+python3 eval/run_eval.py --fixture cause --repeat 2 --pair v0.83.0   # paired A/B: this prompt vs the prompt at a git ref
 ```
 
 Every run provisions both scope-guard hooks and sets `VERDICT_STRICT=1` — each eval is
@@ -75,6 +76,26 @@ also a live hooks regression test. Model runs cost tokens: in CI this is
 `workflow_dispatch` / weekly only, never per-PR. Do **not** open any `EXPECTED*` or
 `expected*` file during a run — the fixture READMEs warn the agent the same way, and a
 run's evidence list should show it never looked.
+
+### Paired runs, and rows that read the state
+
+`--pair <git ref>` (T-17, 0.84.0) runs the same fixture twice per repeat, interleaved: once with
+the working tree's prompt and once with the prompt at `<ref>` provisioned over the same harness,
+hooks and fixture. The output is one table — per phase, per row, the points each arm earned and
+the difference — with both prompt hashes, so a published row can say which prompt produced it.
+Interleaved rather than batched, so a rate limit or a bad hour lands on both arms alike. Every
+prompt release is an A/B already; this makes the control arm a flag instead of whichever kept
+workdirs survived.
+
+Since 0.84.0 the answer keys also carry rows that read the **state** rather than the report's
+words: `finding_field` (how many findings carry a field — `filed_at` says a finding was written
+as a file when it was proven; `re_reported: still_open` says one was carried by id), `anchors`
+(the share of `path:line` references that resolve to a real line), `class_sites` (exactly one
+open finding owns a class and no other finding cites one of its sites — the rule finalize refuses
+on), and `questions` (a question answered before the run was read and not re-asked). A row may
+carry `since` — the harness version that first wrote the field it reads — and skips as n/a on a
+state an older harness measured, so the archived corpus keeps scoring; and `modes`, for a row
+only one mode can reach.
 
 ## Published results
 
