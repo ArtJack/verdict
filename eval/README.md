@@ -101,6 +101,9 @@ only one mode can reach.
 
 | Date | Model | Fixture / mode | Score | Notes |
 |---|---|---|---|---|
+| 2026-09-07 | Opus (`run_eval.py --fixture cause --repeat 2 --pair v0.83.0`, **v0.84.0 prompt** = v0.83.0 + findings as files, the `still_open`/`resolved` verbs, the questions ledger, the test-id rule; **the first payment through the paired runner**) | rates (root cause), head vs control interleaved | head **9/10 · 10/10** — control **9/10 · 9/10** (final scorer; both prompt hashes in `scratchpad/eval-0840-cause_pair.json`: head `a29f5650…`, control `ea064ec3…`) | Parity on the seven pre-existing rows (the one miss per arm is `trigger-separated-from-cause`, the prose-vocabulary row of known variance), and the three rows added with 0.84.0 read the *system*, not the prompt: `findings-filed-as-files` 2/2 in **both** arms — the control's 0.83.0 prompt never heard of `findings/`, but `verdict-facts` names the directory and the template in facts.json and on stderr, and the agent followed the harness; `evidence-anchors-resolve` 2/2 both (22 and 24 references, 0 unresolvable); `class-not-split` head **2/2**, control **1/2** — one control run filed the truncation's other sites as a second finding, which the 0.84.0 prompt's "search the class before you file" prevented in both head runs (the harness rule alone cannot: the two findings cited different lines of the same files). Two questions parked per head run (round per component or on the total; Decimal end to end or float quantised) — the fixture's real spec ambiguity, on the ledger instead of in the handoff. **Two scorer false positives found on this payment and fixed before the table** (FP #6, #7): `root cause: the test` matched the renderer's own "- Root cause: <mechanism>" line of an unrelated finding ("the test dependency (pytest) is declared nowhere"), reading a run that had cleared the decoy as blaming it — the phrase now needs the test *change* named; and the `since` gate read a source checkout's harness (`0+unknown`) as older than everything, skipping every new row on the first head run — a checkout's harness is the current one. The runs were spread over eight hours by three session-limit waits (8734 s, 10800 s, 5308 s); the runner slept and retried. |
+| 2026-09-07 | Opus (`run_eval.py --fixture pricer --mode seeded`, v0.84.0 prompt) | pricer delta (the flagship) | **9/9** | The six delta rows as always (REGRESSED rounding first, NEW bulk threshold, STILL_OPEN floor, RESOLVED env fixture, the quarantine released on expiry, verdict `fail`) and the three 0.84.0 rows: the NEW finding was written as a file when proven (`filed_at`), the unchanged findings were carried by id (`still_open`), and the question the golden run-2 state had parked and the maintainer had answered (`PRICER-Q-1`, is a price at the floor listable) was read, acknowledged, and not asked again. The first attempt died on the session limit mid-delta ("resets 8:30am"); this is the re-run, n=1. |
+| 2026-09-07 | Opus (`run_eval.py --fixture liar`, v0.84.0 prompt) | liar (adversarial honesty) | **6/6** after an answer-key amendment (5/6 before it) | The run filed the mock-asserting test and the tautology as two sites of one finding — "Two of the three tests cannot fail: one asserts a Mock's own return value, one asserts a tautology" — which is what the 0.84.0 contract asks (one class, one finding), and what the key's maximum matching was built to refuse (one finding claiming two unrelated rows). The two rows now share a `class_of`; see Answer-key amendments. n=1. |
 | 2026-09-07 | Opus (`run_eval.py --fixture cause --repeat 2`, **v0.82.0 prompt** = v0.81.0 + "start from the template" + the ten-line handoff) | rates (root cause) | **7/7 · 7/7** | The payment for 0.82.0. Both prose-vocabulary rows ("mechanism", "trigger") landed on both runs — their variance is known (5/7·6/7 the day before on the same rows), so this is parity or better, not a measured gain. |
 | 2026-09-07 | Opus (`run_eval.py --fixture pricer --mode seeded`, v0.82.0 prompt) | pricer delta (the flagship) | **6/6** | Regression check: the template pointer and the handoff cap moved nothing on the delta classes. |
 | 2026-09-07 | Opus (`run_eval.py --fixture liar`, v0.82.0 prompt) | liar (adversarial honesty) | **6/6** | Regression check, n=1. |
@@ -409,6 +412,21 @@ change is eval-paid — so it is filed for the next run rather than smuggled int
 that found it.
 
 ### Answer-key amendments
+
+- **2026-09-07, `expected-liar.json`: `mock-asserting-test` and `tautological-assertion` share a
+  `class_of`.** The 0.84.0 contract files one finding per class, and the payment run reported the
+  two tests that cannot fail as two sites of one finding. The scorer's maximum matching exists to
+  stop one finding claiming two *unrelated* rows (the F-50 liar scar); rows that declare the same
+  `class_of` now accept a finding another row of that class owns, when it matches. Two findings
+  still earn the rows separately. The run scored 5/6 before, with the note "every text match was
+  already credited to another row" — the instrument's shape, not the tester's miss; 6/6 after.
+
+- **2026-09-07, `expected-cause.json`: `decoy-cache-not-blamed` loses the bare phrase
+  `root cause: the test`.** It matched the report renderer's own "- Root cause: <mechanism>" line
+  of an unrelated environment finding whose mechanism began "the test dependency (pytest) is
+  declared nowhere", so a run that had examined and cleared the decoy read as blaming it (scorer
+  FP #6). The phrase now needs the test *change* or the test *data* named, which is what the row
+  was written to catch. Re-scored: 9/10 → 10/10 on the run it hit.
 
 - **2026-09-06, `expected-cause.json`: `instrument-control-restores-the-original` — added,
   measured 0 of 2, removed the same day.** It scored the 0.81.0 §3 clause (VERDICT-F-58): the

@@ -72,6 +72,18 @@ release is the first paid through it. New scorer rows read the state rather
 than the words: findings filed as files, findings carried by id, anchors that
 resolve, one class not split, a question answered and not re-asked.
 
+**Paid, through the paired runner:** cause ×2, head **9/10 · 10/10** against the v0.83.0 prompt's
+**9/10 · 9/10** on the same fixture, interleaved — parity on the seven old rows (each arm's
+one miss is the prose-vocabulary `trigger` row), and on the rows that read the state the
+prompt's "search the class before you file" is the one measurable difference (`class-not-split`
+2/2 against 1/2); pricer seeded **9/9**; liar **6/6** after an answer-key amendment (the run
+filed the mock and the tautology as one class, as the contract now asks). Two scorer false
+positives found and fixed on the way (the decoy phrase matching the renderer's own line; a
+source checkout's harness read as the oldest). **Acceptance** on boltons, run 5 against run 2:
+judgment pause 1:18 (3:32), 14.4k chars with none inline (39.5k with eight re-typed), 22
+carried by id, 8 NEW filed during the run, 52.3k output tokens (60.8k); the class rule
+refused the first finalize on three `ecoutils` findings and the agent folded them.
+
 Pinned as mutants M1–M14. 1,079 tests.
 
 ## 0.83.0 — 2026-09-07 · "where the code went"
