@@ -3,7 +3,7 @@
 [![ci](https://github.com/ArtJack/verdict/actions/workflows/ci.yml/badge.svg)](https://github.com/ArtJack/verdict/actions/workflows/ci.yml)
 [![verdict on itself](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fraw.githubusercontent.com%2FArtJack%2Fverdict%2Fmain%2F.qa%2Fstate.json&query=%24.verdict&label=verdict%20on%20itself&color=blue)](.qa/reports/INDEX.md)
 [![eval 8/8 seeded defects](https://img.shields.io/badge/eval-8%2F8_seeded_defects-brightgreen)](eval/README.md#published-results)
-[![pinned rules 149/149 killed](https://img.shields.io/badge/pinned_rules-149%2F149_killed-brightgreen)](eval/README.md#suite-fault-detection-power--mutation-testing-on-ourselves)
+[![pinned rules 165/165 killed](https://img.shields.io/badge/pinned_rules-165%2F165_killed-brightgreen)](eval/README.md#suite-fault-detection-power--mutation-testing-on-ourselves)
 [![PyPI](https://img.shields.io/pypi/v/verdict-qa-mcp?label=verdict-qa-mcp&color=blue)](https://pypi.org/project/verdict-qa-mcp/)
 [![Claude Code plugin](https://img.shields.io/badge/Claude_Code-plugin-6E56CF)](#install)
 [![license MIT](https://img.shields.io/github/license/ArtJack/verdict)](LICENSE)
@@ -330,6 +330,12 @@ Rules that keep the loop honest — all enforced by the agent's contract, not by
 
 This is not hypothetical — it is the loop the author's private deployment runs nightly,
 unattended, against a production codebase.
+
+On nights when nothing a finding cites has moved, `verdict-run --skip-unless-drift` finalizes
+a **sweep** instead of a model run — the previous verdict carried by id, signed by no model,
+the run number advanced — and prints why whenever it cannot. The conditions are the harness's
+own measurements: every cited line where it was, every gate green, the test-id set unchanged,
+no quarantine due ([docs/nightly.md](docs/nightly.md)).
 
 ## CI: gate PRs on the tester's memory
 

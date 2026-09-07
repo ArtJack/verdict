@@ -45,7 +45,10 @@ except ImportError:  # bare-script execution
     from filed import FINDINGS_DIR, finding_file
 
 VERDICTS = {"pass", "pass with risks", "blocked", "fail"}
-RUN_TYPES = {"baseline", "delta", "re-baseline"}
+# `sweep` is the model-free run: HEAD moved, nothing any finding cites
+# changed, the gates are green — `verdict-run --skip-unless-drift` carries the
+# previous verdict by id and signs the run with no model (0.86.0).
+RUN_TYPES = {"baseline", "delta", "re-baseline", "sweep"}
 # WITHDRAWN is the tester's own false-positive record: a finding that was
 # reported and turned out not to be real. It exists because a production run
 # needed the concept and invented the word — and a tester that quietly deletes
@@ -115,7 +118,9 @@ COMPUTED_BY_FINALIZE = ("hash", "first_seen", "age_days", "outcome", "outcome_re
                         "anchors", "anchored_at_run", "last_verified_at",
                         "introduced_at", "introduced_sha", "fixed_at",
                         # When the finding file was written, and which verb carried it.
-                        "filed_at", "re_reported")
+                        "filed_at", "re_reported",
+                        # The tests coverage says execute the cited lines and stay green.
+                        "exercised_by_tests")
 # The verbs a judgment may use instead of re-typing a finding it looked at and
 # found unchanged: ids only, carried from the previous state by finalize.
 VERBS = ("still_open", "resolved")

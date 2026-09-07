@@ -60,6 +60,7 @@ try:
     from .anchors import DRIFTED, anchors_for, evidence_drift
     from .census import code_census
     from .filed import FINDINGS_DIR, archive_findings, load_filed
+    from .reports import read_report
     from .profile import ProfileError, gates_from
     from .profile import load as load_profile
     from .project_key import derive_key
@@ -79,6 +80,7 @@ except ImportError:  # bare-script execution
     from anchors import DRIFTED, anchors_for, evidence_drift
     from census import code_census
     from filed import FINDINGS_DIR, archive_findings, load_filed
+    from reports import read_report
     from profile import ProfileError, gates_from
     from profile import load as load_profile
     from project_key import derive_key
@@ -889,23 +891,27 @@ def measure_diff_coverage(repo: Path, sha_range: str | None, cmd: str | None) ->
     unexercised ranges and never-entered functions, and the tests that touch
     the diff; or {"status": "unavailable", "reason"} — said, never estimated.
     """
-    if not cmd:
-        return {"status": "unavailable",
-                "reason": "no coverage_suite_cmd in the profile — set one that runs the suite "
-                          "under coverage.py (e.g. `.venv/bin/python -m coverage run -m pytest`) "
-                          "to measure which changed lines any test executed; the diff-coverage "
-                          "gate reads coverage.py's database only, so on another runner it "
-                          "stays unmeasurable and says so"}
-    if not sha_range:
-        return {"status": "unavailable",
-                "reason": "no commit range this run (baseline or re-baseline) — diff coverage "
-                          "measures the change since the previous run"}
-    changed = _changed_lines(repo, sha_range)
-    if not changed:
-        return {"status": "measured", "sha_range": sha_range, "changed_files": 0,
-                "changed_lines": 0, "changed_lines_executed": 0,
-                "note": "no .py lines added or modified in the range"}
+    return measure_coverage(repo, sha_range, cmd, [])[0]
 
+
+def measure_coverage(repo: Path, sha_range: str | None, cmd: str | None,
+                     findings) -> tuple[dict, dict | None, dict | None]:
+    """One coverage run, three facts: the diff measurement (`coverage`, the
+    shape it has always had), the reading map (every production module's
+    coverage, ascending, with the findings that cite it — T-16), and the
+    verification candidates (for every open finding with anchors, the tests
+    whose contexts executed its cited lines — T-18). The suite runs under
+    coverage whenever the profile names a command: a baseline and an
+    empty-diff delta used to measure nothing, and those are exactly the runs
+    that need to know where the least-tested code is."""
+    if not cmd:
+        return ({"status": "unavailable",
+                 "reason": "no coverage_suite_cmd in the profile — set one that runs the suite "
+                           "under coverage.py (e.g. `.venv/bin/python -m coverage run -m pytest`) "
+                           "to measure which changed lines any test executed; the diff-coverage "
+                           "gate reads coverage.py's database only, so on another runner it "
+                           "stays unmeasurable and says so"}, None, None)
+    changed = _changed_lines(repo, sha_range) if sha_range else {}
     # Scratch, not record. These three used to be written into the QA root,
     # which in team mode IS the committed directory: run 5 of this repository
     # left a 94,987,311-byte coverage.json there, ignored by nothing, one
@@ -913,13 +919,151 @@ def measure_diff_coverage(repo: Path, sha_range: str | None, cmd: str | None) ->
     # (VERDICT-F-29). Nothing here survives the measurement it feeds.
     scratch = Path(tempfile.mkdtemp(prefix="verdict-coverage-"))
     try:
-        return _measure_diff_coverage(repo, scratch, sha_range, cmd, changed)
+        files, meta = _run_coverage(repo, scratch, cmd)
     finally:
         shutil.rmtree(scratch, ignore_errors=True)
+    if files is None:
+        return ({"status": "unavailable", "command": cmd, **meta}, None, None)
+    meta["command"] = cmd
+    reading_map = reading_map_from(files, findings, _tracked_python(repo))
+    reading_map.update(duration_s=meta.get("duration_s"), suite_exit_code=meta.get("suite_exit_code"))
+    exercised = exercised_by_from(files, findings, repo)
+    if not sha_range:
+        diff = {"status": "unavailable",
+                "reason": "no commit range this run (baseline or re-baseline) — diff coverage "
+                          "measures the change since the previous run"}
+    elif not changed:
+        diff = {"status": "measured", "sha_range": sha_range, "changed_files": 0,
+                "changed_lines": 0, "changed_lines_executed": 0,
+                "note": "no .py lines added or modified in the range"}
+    else:
+        diff = _diff_from_files(files, changed, meta, sha_range, repo)
+    return diff, reading_map, exercised
 
 
-def _measure_diff_coverage(repo: Path, scratch: Path, sha_range: str, cmd: str,
-                           changed: dict) -> dict:
+def _tracked_python(repo: Path) -> list[str]:
+    """Every .py file git tracks — coverage.py reports only the files the
+    suite imported, and a module nothing imports is the least-tested code
+    there is: 0%, and invisible to the tracer."""
+    out = _git(["ls-files", "--", "*.py", "**/*.py"], repo) or ""
+    return sorted({ln.strip().replace("\\", "/") for ln in out.splitlines() if ln.strip()})
+
+
+def reading_map_from(files: dict, findings, tracked=None) -> dict:
+    """Every production module the suite saw, least covered first, with the
+    findings that cite it (from the anchors 0.83.0 keeps) and the modules no
+    finding has ever cited. Boltons runs 2–4 produced 13 of the project's 15
+    highest-severity findings from its six lowest-coverage modules, and the
+    agent re-derived this ranking by hand on every run."""
+    modules = []
+    for path, f in (files or {}).items():
+        p = str(path).replace("\\", "/")
+        if is_test_file(p):
+            continue
+        summ = (f or {}).get("summary") or {}
+        n = int(summ.get("num_statements") or 0)
+        if n == 0:
+            continue
+        pct = summ.get("percent_covered")
+        modules.append({"path": p, "percent": round(float(pct)) if pct is not None else None,
+                        "statements": n, "missed": int(summ.get("missing_lines") or 0)})
+    seen = {m["path"] for m in modules}
+    # The roots the suite imports from (`boltons/` for boltons; `.` for a
+    # flat repository). A tracked file outside them — docs/conf.py, a bench
+    # script under misc/ — is not a module to read, and the first acceptance
+    # run put four of them at the top of the map.
+    roots = {m["path"].rsplit("/", 1)[0] if "/" in m["path"] else "." for m in modules}
+    outside = []
+    for path in tracked or []:
+        if path in seen or is_test_file(path):
+            continue
+        root = path.rsplit("/", 1)[0] if "/" in path else "."
+        if not any(root == r or root.startswith(r + "/") for r in roots):
+            outside.append(path)
+            continue
+        # Tracked, never imported by anything the suite ran: 0%, size unknown
+        # to the tracer, and the first thing to read.
+        modules.append({"path": path, "percent": 0, "statements": None, "missed": None,
+                        "never_imported": True})
+    modules.sort(key=lambda m: (m["percent"] if m["percent"] is not None else 101,
+                                -(m["statements"] or 10 ** 9)))
+    by_module: dict = {}
+    for f in findings or []:
+        if not isinstance(f, dict) or not f.get("id"):
+            continue
+        st = norm_status(f.get("status"))
+        if st in ("resolved", "withdrawn"):
+            continue
+        for a in f.get("anchors") or []:
+            path = str((a or {}).get("path") or "").replace("\\", "/")
+            if not path:
+                continue
+            entry = by_module.setdefault(path, {"open": 0, "ids": [], "last_cited_run": None})
+            if f["id"] in entry["ids"]:
+                continue
+            entry["ids"].append(f["id"])
+            if st == "open":
+                entry["open"] += 1
+            run = f.get("anchored_at_run")
+            if isinstance(run, int) and (entry["last_cited_run"] is None or run > entry["last_cited_run"]):
+                entry["last_cited_run"] = run
+    lowest = []
+    for m in modules[:25]:
+        cited = by_module.get(m["path"])
+        lowest.append({**m, "open_findings": cited["open"] if cited else 0,
+                       "last_cited_run": cited["last_cited_run"] if cited else None})
+    total = sum(m["statements"] or 0 for m in modules)
+    missed = sum(m["missed"] or 0 for m in modules)
+    return {"status": "measured", "modules": len(modules),
+            "overall_percent": (round(100 * (total - missed) / total) if total else None),
+            "lowest": lowest,
+            "never_examined": [m["path"] for m in modules if m["path"] not in by_module][:10],
+            **({"outside_package": outside[:20]} if outside else {}),
+            "findings_by_module": by_module}
+
+
+def exercised_by_from(files: dict, findings, repo: Path) -> dict:
+    """For every open finding with anchors, the tests whose coverage contexts
+    executed its cited lines, ranked by how many of those lines each covers.
+
+    Not candidates for `verification_test`, and the first acceptance run said
+    so: a defect filed under a green suite is, by construction, executed by
+    tests that do not fail on it — these are the tests that exercise the
+    defect and stay green, which is an assertion-quality lead (§3: green tests
+    are under review too) and the place a regression test belongs. A guard
+    that fails on the defect is what `verification_test` names; the harness
+    finds it on its own once a fix lands with its test (`added_this_run`)."""
+    out: dict = {}
+    for f in findings or []:
+        if not isinstance(f, dict) or not f.get("id") or not is_open(f):
+            continue
+        counts: dict = {}
+        anchored = 0
+        for a in f.get("anchors") or []:
+            path = (a or {}).get("path")
+            if not path:
+                continue
+            fj = (files or {}).get(path) or (files or {}).get(str(path).replace("/", "\\"))
+            if not fj:
+                continue
+            anchored += 1
+            for c in (fj.get("contexts") or {}).get(str(a.get("line")), []):
+                if not c or c == SUBPROCESS_CONTEXT:
+                    continue
+                t = _test_id_from_context(c, repo)
+                if t:
+                    counts[t] = counts.get(t, 0) + 1
+        if counts:
+            ranked = sorted(counts.items(), key=lambda kv: (-kv[1], kv[0]))[:5]
+            out[str(f["id"])] = {"tests": [t for t, _ in ranked],
+                                 "lines_covered": {t: n for t, n in ranked},
+                                 "anchored_lines": anchored, "source": "coverage contexts"}
+    return out
+
+
+def _run_coverage(repo: Path, scratch: Path, cmd: str) -> tuple[dict | None, dict]:
+    """The suite under coverage.py with dynamic contexts, rendered to JSON →
+    (files, meta), or (None, {"reason": …}) when nothing could be measured."""
     rc, db, out = scratch / "coverage.rc", scratch / "coverage.db", scratch / "coverage.json"
     # `ignore_errors` is not indulgence, it is proportion: measuring the suite's
     # children means the children record whatever they run, including files a
@@ -953,8 +1097,7 @@ def _measure_diff_coverage(repo: Path, scratch: Path, sha_range: str, cmd: str,
         proc = subprocess.run(cmd, cwd=str(repo), shell=True, capture_output=True, text=True,
                               timeout=COVERAGE_TIMEOUT_S, env=env)
     except (subprocess.TimeoutExpired, OSError) as exc:
-        return {"status": "unavailable", "command": cmd,
-                "reason": f"coverage run did not complete: {type(exc).__name__}"}
+        return None, {"reason": f"coverage run did not complete: {type(exc).__name__}"}
     duration = round(time.monotonic() - started, 2)
     render = _render_cmd(cmd, out)
     try:
@@ -965,17 +1108,21 @@ def _measure_diff_coverage(repo: Path, scratch: Path, sha_range: str, cmd: str,
         rendered_err = type(exc).__name__
     else:
         rendered_err = _summary_line(rproc.stdout + rproc.stderr)
+    meta = {"render_command": render, "suite_exit_code": proc.returncode, "duration_s": duration}
     if rproc is None or rproc.returncode != 0 or not out.is_file():
-        return {"status": "unavailable", "command": cmd, "render_command": render,
-                "suite_exit_code": proc.returncode, "duration_s": duration,
-                "reason": "the suite ran but the coverage database could not be rendered: "
-                          + rendered_err}
+        return None, {**meta, "reason": "the suite ran but the coverage database could not be "
+                                        "rendered: " + rendered_err}
     try:
         files = (json.loads(out.read_text(encoding="utf-8")) or {}).get("files") or {}
     except (OSError, json.JSONDecodeError) as exc:
-        return {"status": "unavailable", "command": cmd,
-                "reason": f"coverage.json unreadable: {exc}"}
+        return None, {**meta, "reason": f"coverage.json unreadable: {exc}"}
+    return files, meta
 
+
+def _diff_from_files(files: dict, changed: dict, meta: dict, sha_range: str,
+                     repo: Path) -> dict:
+    """The changed lines of the range against what the suite executed."""
+    cmd, proc_rc, duration = meta.get("command"), meta.get("suite_exit_code"), meta.get("duration_s")
     per_file: dict = {}
     total_measured = total_executed = total_in_child = 0
     split = {"production": [0, 0], "tests": [0, 0]}   # [measured, executed]
@@ -1030,7 +1177,7 @@ def _measure_diff_coverage(repo: Path, scratch: Path, sha_range: str, cmd: str,
         touching |= tests
         never_entered += [f"{path}:{name}" for name in fns]
     return {"status": "measured", "tool": "coverage.py dynamic contexts", "command": cmd,
-            "sha_range": sha_range, "suite_exit_code": proc.returncode, "duration_s": duration,
+            "sha_range": sha_range, "suite_exit_code": proc_rc, "duration_s": duration,
             "changed_files": len(changed), "changed_lines": total_measured,
             "changed_lines_executed": total_executed,
             "changed_lines_executed_in_subprocess": total_in_child,
@@ -1125,12 +1272,31 @@ def collect(repo: Path, qa_root: Path, gates: list[tuple[str, str]],
             run_type, why = "re-baseline", f"diff spans {files_changed} files / {lines_changed} lines"
 
     gate_results = {}
+    report_ids: list = []
+    # A gate that writes a report file (`{report}` in its command) is read
+    # from the file: exact counts, per-test durations, failures with their
+    # messages, the ids. The summary-line dialects are the fallback — a
+    # dialect is a guess, and vitest's and jest's counted the file line.
+    reports_dir = (Path(tempfile.mkdtemp(prefix="verdict-reports-"))
+                   if any("{report}" in c for _, c in gates) else None)
     for name, command in gates:
+        report_path = None
+        rendered = command
+        if reports_dir is not None and "{report}" in command:
+            report_path = reports_dir / f"{name}.report"
+            rendered = command.replace("{report}", str(report_path))
         started = time.monotonic()
-        proc = _run(command, cwd=repo, shell=True)
+        proc = _run(rendered, cwd=repo, shell=True)
         duration = round(time.monotonic() - started, 2)
         output = proc.stdout + proc.stderr
         counts, dialect = _counts(output)
+        report = None
+        if report_path is not None:
+            report, ids = read_report(report_path)
+            if report.get("status") == "measured":
+                counts, dialect = dict(report["counts"]), f"report/{report['format']}"
+                if ids and not report_ids:
+                    report_ids = ids
         gate_results[name] = {
             "command": command,
             "exit_code": proc.returncode,
@@ -1142,7 +1308,10 @@ def collect(repo: Path, qa_root: Path, gates: list[tuple[str, str]],
                                    "and the id set-diff cannot fire for this gate"}),
             **({"executed_nothing": nothing_ran} if (nothing_ran := executed_nothing(counts))
                else {}),
+            **({"report": report} if report is not None else {}),
         }
+    if reports_dir is not None:
+        shutil.rmtree(reports_dir, ignore_errors=True)
 
     # Compare each gate's duration against its own history. Prior durations
     # come from runs.jsonl rows written by finalize (gate_durations, additive
@@ -1241,9 +1410,19 @@ def collect(repo: Path, qa_root: Path, gates: list[tuple[str, str]],
             if k in ("passed", "failed", "skipped", "errors", "xfailed"))
         facts["tests"] = {**tests, "collected": collected}
 
-    if test_ids_cmd:
-        proc = _run(test_ids_cmd, cwd=repo, shell=True)
-        ids = sorted({x.strip() for x in proc.stdout.splitlines() if "::" in x})
+    ids_from_report = None
+    if not test_ids_cmd and report_ids:
+        # No id command, but a gate wrote a report that names every test: the
+        # ledger comes from there, in the report's own shape — said so, because
+        # `classname::name` is not a pytest node id and `test_one_cmd` cannot
+        # run it; a project that verifies fixes still declares `test_ids_cmd`.
+        ids_from_report = sorted(set(report_ids))
+    if test_ids_cmd or ids_from_report:
+        if ids_from_report:
+            ids = ids_from_report
+        else:
+            proc = _run(test_ids_cmd, cwd=repo, shell=True)
+            ids = sorted({x.strip() for x in proc.stdout.splitlines() if "::" in x})
         if not ids:
             # Zero ids is almost never an empty suite; it is a command that
             # printed something else. The commonest cause is verbosity: a
@@ -1272,6 +1451,9 @@ def collect(repo: Path, qa_root: Path, gates: list[tuple[str, str]],
             removed = sorted(set(before) - set(ids))
             facts["test_ids"] = {
                 "status": "measured",
+                **({"ids_from": "report — ids shaped as the report names them, not pytest "
+                                "node ids; set test_ids_cmd for the collected form"}
+                   if ids_from_report else {}),
                 "count": len(ids),
                 # The counts come from the untruncated sets; only the lists are
                 # capped, for display. The renderer used to take len() of the
@@ -1321,7 +1503,14 @@ def collect(repo: Path, qa_root: Path, gates: list[tuple[str, str]],
         facts["verification"] = verification
     if vnotes:
         facts["verification_notes"] = vnotes
-    facts["coverage"] = measure_diff_coverage(repo, sha_range, coverage_suite_cmd)
+    prev_findings = [f for f in ((previous or {}).get("findings") or []) if isinstance(f, dict)]
+    coverage, reading_map, exercised = measure_coverage(repo, sha_range, coverage_suite_cmd,
+                                                        prev_findings)
+    facts["coverage"] = coverage
+    if reading_map:
+        facts["reading_map"] = reading_map
+    if exercised:
+        facts["exercised_by"] = exercised
     # What a person decided since the last run, and what is still waiting for
     # one — read here so a decision is read, never asked again.
     asked = questions.facts_view(qa_root, now.date())
@@ -1384,6 +1573,17 @@ def _anchor(entry: dict, prior: dict | None, repo: Path, run_number) -> None:
         return
     entry["anchors"] = anchors_for(repo, texts)
     entry["anchored_at_run"] = run_number
+
+
+def _suggest_tests(entry: dict, facts: dict) -> None:
+    """The tests coverage says executed this finding's cited lines and stayed
+    green — computed by the harness, never a claim, and never a guard: a test
+    that runs the defect without failing is the assertion to look at, and the
+    place a regression test belongs."""
+    ex = (facts.get("exercised_by") or {}).get(str(entry.get("id") or ""))
+    entry.pop("exercised_by_tests", None)
+    if isinstance(ex, dict) and ex.get("tests") and is_open(entry):
+        entry["exercised_by_tests"] = list(ex["tests"])
 
 
 def _introduce(entry: dict, prior: dict | None, repo: Path | None) -> None:
@@ -1694,6 +1894,7 @@ def merge(facts: dict, judgment: dict, previous: dict | None, today: date | None
         _introduce(entry, prior, repo)
         if repo is not None:
             _anchor(entry, prior, repo, facts.get("run_number"))
+        _suggest_tests(entry, facts)
         entry.update(_stamp_outcome(entry, prior))
         findings.append(entry)
 
@@ -1753,6 +1954,7 @@ def merge(facts: dict, judgment: dict, previous: dict | None, today: date | None
         # re-reported proves nothing by itself; its cited test, re-run at both
         # commits, can still settle it either way.
         _apply_verification(carried, prior, facts.get("verification") or {}, measured_at)
+        _suggest_tests(carried, facts)
         carried.update(_stamp_outcome(carried, prior))
         findings.append(carried)
 
@@ -1805,6 +2007,10 @@ def merge(facts: dict, judgment: dict, previous: dict | None, today: date | None
                       "verdict-facts older than 0.83.0, so nothing was anchored this run"}
     if isinstance(facts.get("evidence_drift"), dict):
         state["evidence_drift"] = facts["evidence_drift"]
+    if isinstance(facts.get("reading_map"), dict):
+        state["reading_map"] = facts["reading_map"]
+    else:
+        state.pop("reading_map", None)
     # Measured coverage outranks written coverage. The judgment may still carry
     # its own block when the harness had nothing to measure with.
     if isinstance(facts.get("coverage"), dict) and facts["coverage"].get("status"):
@@ -2258,11 +2464,20 @@ def finalize_main(argv=None) -> int:
     ap.add_argument("--qa-root", required=True)
     ap.add_argument("--facts", type=Path, default=None, help="default: <qa-root>/facts.json")
     ap.add_argument("--judgment", type=Path, required=True)
+    ap.add_argument("--sweep", action="store_true",
+                    help="a model-free sweep (verdict-run --skip-unless-drift): run_type becomes "
+                         "'sweep' and no model signs the run — the judgment carries every open "
+                         "finding by id and the previous verdict, because nothing it rested on moved")
     args = ap.parse_args(argv)
 
     qa_root = Path(args.qa_root).expanduser().resolve()
     facts = _read_json(args.facts or (qa_root / "facts.json"))
     judgment = _read_json(args.judgment)
+    if args.sweep and isinstance(facts, dict):
+        facts["run_type"] = "sweep"
+        facts["run_type_reason"] = ("model-free sweep: HEAD moved, nothing any finding cites "
+                                    "changed, the gates are green — no agent ran")
+        facts.setdefault("last_run", {})["model"] = "none"
     if facts is None:
         print("verdict-finalize: facts.json missing or unreadable — run verdict-facts first",
               file=sys.stderr)
@@ -2465,6 +2680,27 @@ def _render_calibration(cal: dict) -> list[str]:
     return lines
 
 
+def _render_reading_map(state: dict) -> list[str]:
+    """Where the least-tested code is, and which of it no finding has touched."""
+    rm = state.get("reading_map") if isinstance(state.get("reading_map"), dict) else {}
+    if rm.get("status") != "measured" or not rm.get("lowest"):
+        return []
+    out = [f"## Reading map ({rm.get('modules')} production modules, "
+           f"{rm.get('overall_percent')}% covered overall)", "",
+           "| Module | Covered | Statements | Open findings | Last cited |",
+           "|---|---|---|---|---|"]
+    for m in rm["lowest"][:10]:
+        cited = f"run {m['last_cited_run']}" if m.get("last_cited_run") is not None else "never"
+        out.append(f"| `{m['path']}` | {m.get('percent')}% | {m.get('statements')} "
+                   f"| {m.get('open_findings', 0)} | {cited} |")
+    never = rm.get("never_examined") or []
+    if never:
+        out += ["", "Never cited by any finding, least covered first: "
+                + ", ".join(f"`{p}`" for p in never[:10])]
+    out.append("")
+    return out
+
+
 def _render_questions(state: dict) -> list[str]:
     """The questions parked for a person, and the answers no run had read yet."""
     asked = state.get("questions") if isinstance(state.get("questions"), dict) else {}
@@ -2508,6 +2744,11 @@ def _measured_lines(f: dict, drift: dict) -> list[str]:
                       if at_head else ""))
     elif is_open(f) and not f.get("verification_test"):
         out.append("- Never measured — no `verification_test` declared")
+    ex = f.get("exercised_by_tests") or []
+    if ex and is_open(f):
+        out.append("- Exercised and green: " + ", ".join(f"`{t}`" for t in ex[:5])
+                   + " — these run the cited lines and do not fail on the defect; the "
+                     "assertion to review, and where a regression test belongs")
     moved_refs = _drifted_refs(drift, f)
     if moved_refs:
         out.append(f"- Cited code {moved_refs[0]} since the evidence was written: "
@@ -2758,6 +2999,7 @@ def render_report(state: dict, prose: dict | None = None) -> str:
         out += ["## Verified intact", "",
                 "\n".join(f"- {v}" for v in vi), ""]
     out += _render_questions(state)
+    out += _render_reading_map(state)
     out += ["## Not tested", ""]
     nt = state.get("not_tested") or []
     out.append("\n".join(f"- {n}" for n in nt) if nt else

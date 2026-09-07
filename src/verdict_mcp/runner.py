@@ -58,7 +58,7 @@ try:
     from .gate import evaluate
     from .project_key import derive_key
     from .state import home as state_home
-    from .state import is_path_like, resolve_root
+    from .state import is_path_like, norm_status, resolve_root
     from . import clock
 except ImportError:  # bare-script execution
     sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -66,7 +66,7 @@ except ImportError:  # bare-script execution
     from gate import evaluate
     from project_key import derive_key
     from state import home as state_home
-    from state import is_path_like, resolve_root
+    from state import is_path_like, norm_status, resolve_root
 
 def _heartbeat_s() -> int:
     try:
@@ -412,6 +412,171 @@ def _save_record(path: Path, record: dict) -> None:
         pass
 
 
+# ── the model-free night ──────────────────────────────────────────────────
+#
+# "I don't change code every day" is the objection every low-churn project
+# raises against a nightly, and --skip-unchanged answered the exact-sha half of
+# it. The other half: HEAD moved, but by a commit that touched nothing any
+# finding cites. The harness can tell — it hashes every cited line (0.83.0),
+# runs the gates, diffs the test-id set, and knows the quarantine dates — so
+# the runner asks it, and when every condition holds it finalizes a sweep: the
+# previous verdict carried by id (the 0.84.0 verb), signed by no model, a run
+# number advanced so the gate's freshness reads true. Any condition failing
+# prints why and runs the model. The judgment is synthetic and says so in every
+# field a reader would look at.
+
+def _harness(sub: str, *args: str) -> subprocess.CompletedProcess:
+    return subprocess.run([sys.executable, "-m", "verdict_mcp.harness", sub, *args],
+                          capture_output=True, text=True, encoding="utf-8", errors="replace")
+
+
+def _changed_files(repo, sha_range: str):
+    proc = subprocess.run(["git", "-C", str(repo), "diff", "--name-only", sha_range],
+                          capture_output=True, text=True)
+    if proc.returncode != 0:
+        return None
+    return sorted({ln.strip().replace("\\", "/") for ln in proc.stdout.splitlines() if ln.strip()})
+
+
+def sweep_blockers(facts: dict, previous: dict, changed, today) -> list[str]:
+    """Every reason this run cannot be swept — empty means it can. Each
+    condition is a measurement the harness already made; none is a guess."""
+    why = []
+    drift = facts.get("evidence_drift") if isinstance(facts.get("evidence_drift"), dict) else {}
+    if drift.get("status") != "measured":
+        why.append("evidence drift not measured"
+                   + (f" ({drift['reason']})" if drift.get("reason") else ""))
+    else:
+        summ = drift.get("summary") or {}
+        moved = list(summ.get("drifted_findings") or []) + list(summ.get("drifted_accepted") or [])
+        if moved or summ.get("drifted_intact"):
+            why.append("cited code moved or changed: "
+                       + ", ".join(moved[:5] or ["a verified-intact item"]))
+    if changed is None:
+        why.append("no commit range to compare")
+    else:
+        cited = set()
+        for f in previous.get("findings") or []:
+            if not isinstance(f, dict) or norm_status(f.get("status")) in ("resolved", "withdrawn"):
+                continue
+            cited |= {str(a.get("path")).replace("\\", "/") for a in (f.get("anchors") or [])
+                      if isinstance(a, dict) and a.get("path")}
+        for group in previous.get("verified_intact_anchors") or []:
+            cited |= {str(a.get("path")).replace("\\", "/") for a in (group or [])
+                      if isinstance(a, dict) and a.get("path")}
+        hit = sorted(set(changed) & cited)
+        if hit:
+            why.append("changed files a finding cites: " + ", ".join(hit[:5]))
+    gates = facts.get("gates") or {}
+    if not gates:
+        why.append("no gate ran")
+    for name, g in gates.items():
+        if g.get("result") != "pass":
+            why.append(f"gate {name} failed")
+        if "counts_unparsed" in g:
+            why.append(f"gate {name}: counts unparsed")
+        if g.get("executed_nothing"):
+            why.append(f"gate {name}: {g['executed_nothing']}")
+    if gates and not any(g.get("counts") for g in gates.values()):
+        why.append("no gate produced test counts")
+    ids = facts.get("test_ids") if isinstance(facts.get("test_ids"), dict) else {}
+    if ids.get("status") != "measured":
+        why.append("the test-id set was not measured")
+    elif ids.get("added_count") or ids.get("removed_count"):
+        why.append(f"the test-id set changed (+{ids.get('added_count')}/-{ids.get('removed_count')})")
+    for q in previous.get("flaky_quarantine") or []:
+        until = str((q or {}).get("quarantined_until") or "")
+        if not until or until <= today.isoformat():
+            why.append(f"quarantine due: {(q or {}).get('test_id')}")
+    if facts.get("previous_run_incomplete"):
+        why.append("the previous run never finished")
+    cov = facts.get("coverage") if isinstance(facts.get("coverage"), dict) else {}
+    if cov.get("status") == "measured" and cov.get("changed_lines") \
+            and not cov.get("changed_lines_executed"):
+        why.append("the diff has changed lines no test executed")
+    return why
+
+
+def sweep_judgment(facts: dict, previous: dict, changed: list, commits) -> dict:
+    """The synthetic judgment of a sweep: the previous verdict, every open
+    finding carried by id, and a not_tested that says what a sweep does not do."""
+    open_ids = [str(f["id"]) for f in previous.get("findings") or []
+                if isinstance(f, dict) and f.get("id") and norm_status(f.get("status")) == "open"]
+    sha_range = (facts.get("last_run") or {}).get("sha_range")
+    n = f"{commits} commit{'' if commits == 1 else 's'}" if commits is not None else "commits"
+    m = f"{len(changed)} file{'' if len(changed) == 1 else 's'}"
+    return {
+        "topic": "sweep",
+        "verdict": previous.get("verdict"),
+        "isolation_check": {"result": "n/a", "method": "model-free sweep: no agent ran; "
+                            "verdict-facts read the checkout and wrote only inside the QA root"},
+        "full_sweep": False,
+        "release_blockers": list(previous.get("release_blockers") or []),
+        "findings": [], "still_open": open_ids, "resolved": [], "questions": [],
+        "not_tested": [f"everything a judgment covers — this run measured only: HEAD moved {n} "
+                       f"({m} changed, none cited by a finding), every gate green, the collected "
+                       "test-id set unchanged, no quarantine due, no cited line moved"],
+        "verified_intact": [],
+        "next_run_focus": list(previous.get("next_run_focus") or []),
+        "flaky_quarantine": list(previous.get("flaky_quarantine") or []),
+        "prose": {"scope": f"Model-free sweep over `{sha_range}`: {n}, {m} changed, none cited by "
+                           "an open or accepted finding or a verified-intact item.",
+                  "notes": "No agent ran. The previous verdict is carried because nothing it "
+                           "rested on moved; the next model run judges the change on its merits."},
+    }
+
+
+def sweep(repo, qa_root, project, fail_on, require_harness, before) -> int | None:
+    """Try the model-free sweep → the gate's exit code, or None to run the model."""
+    try:
+        previous = json.loads((Path(qa_root) / "state.json").read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        print("verdict-run: no sweep — no previous state to carry; running the model",
+              file=sys.stderr)
+        return None
+    facts_proc = _harness("facts", "--repo", str(repo), "--qa-root", str(qa_root))
+    if facts_proc.returncode != 0:
+        print("verdict-run: no sweep — verdict-facts failed: "
+              + (facts_proc.stderr or "").strip().splitlines()[-1:][0] if facts_proc.stderr
+              else "verdict-run: no sweep — verdict-facts failed", file=sys.stderr)
+        return None
+    try:
+        facts = json.loads((Path(qa_root) / "facts.json").read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        print("verdict-run: no sweep — facts.json unreadable; running the model", file=sys.stderr)
+        return None
+    sha_range = (facts.get("last_run") or {}).get("sha_range")
+    changed = _changed_files(repo, sha_range) if sha_range else None
+    why = sweep_blockers(facts, previous, changed, clock.today())
+    if why:
+        print("verdict-run: no sweep — " + "; ".join(why) + " — running the model", file=sys.stderr)
+        return None
+    count = subprocess.run(["git", "-C", str(repo), "rev-list", "--count", sha_range],
+                           capture_output=True, text=True)
+    commits = int(count.stdout.strip()) if count.returncode == 0 and count.stdout.strip().isdigit() else None
+    judgment = sweep_judgment(facts, previous, changed or [], commits)
+    jpath = Path(qa_root) / "judgment.json"
+    jpath.write_text(json.dumps(judgment, indent=2) + "\n", encoding="utf-8")
+    fin = _harness("finalize", "--qa-root", str(qa_root), "--judgment", str(jpath), "--sweep")
+    if fin.returncode != 0:
+        print("verdict-run: no sweep — finalize refused the sweep; running the model:\n"
+              + (fin.stderr or "").strip()[-600:], file=sys.stderr)
+        return None
+    counts = " · ".join(f"{name} {g.get('summary') or g.get('result')}"
+                        for name, g in (facts.get("gates") or {}).items())
+    print(f"verdict-run: swept — run {before + 1}: HEAD moved "
+          f"{commits if commits is not None else '?'} commit(s), {len(changed or [])} file(s) "
+          f"changed, none cited by a finding; gates green ({counts}); test-id set unchanged; "
+          f"no quarantine due; no cited line moved — verdict {previous.get('verdict')!r} "
+          "carried, no model call", file=sys.stderr)
+    result = evaluate(project, fail_on, None, before + 1, require_harness=require_harness)
+    print(f"verdict-run: verdict {result.get('verdict')!r} → exit {result['exit_code']} "
+          f"({result['reason']})")
+    if result.get("report"):
+        print(f"verdict-run: report {result['report']}")
+    return result["exit_code"]
+
+
 def main(argv=None) -> int:
     # The recorded Windows trap, hit for the second time in this repo: cp1252
     # consoles cannot encode `→`, and a crashed print turns exit codes into
@@ -439,6 +604,11 @@ def main(argv=None) -> int:
                     help="when HEAD equals the last run's sha and no quarantine "
                          "has expired, re-gate the standing verdict instead of "
                          "spending a model run")
+    ap.add_argument("--skip-unless-drift", action="store_true",
+                    help="when HEAD moved but nothing any finding cites changed, every gate "
+                         "is green, the test-id set is unchanged and no quarantine is due, "
+                         "finalize a model-free sweep instead of spending a model run "
+                         "(implies --skip-unchanged); any condition failing runs the model")
     ap.add_argument("--max-commits-behind", type=int, default=None,
                     help="gate exit 5 when the run's state is more than N commits "
                          "behind the profile's repository HEAD")
@@ -476,7 +646,7 @@ def main(argv=None) -> int:
     print(f"verdict-run: project {project!r} · repo {repo} · model {args.model} · "
           f"run_number before: {before}", file=sys.stderr)
 
-    if args.skip_unchanged:
+    if args.skip_unchanged or args.skip_unless_drift:
         reason = _unchanged_reason(qa_root, repo)
         if reason:
             print(f"verdict-run: skip — {reason}", file=sys.stderr)
@@ -488,6 +658,11 @@ def main(argv=None) -> int:
             print(f"verdict-run: verdict {result.get('verdict')!r} → exit "
                   f"{result['exit_code']} ({result['reason']})", file=sys.stderr)
             return result["exit_code"]
+
+    if args.skip_unless_drift:
+        code = sweep(repo, qa_root, project, args.fail_on, args.require_harness, before)
+        if code is not None:
+            return code
 
     if args.provision:
         problem, notes = provision(repo, plugin_root(args.plugin_root))

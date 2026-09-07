@@ -217,3 +217,17 @@ the agent being judged never sees its own ledger.
 mode — register it as a self-hosted runner and pass `claude-oauth-token`
 instead of an API key. GitHub-hosted runners then only ever execute the
 keyless gate mode.
+
+## A night that spends no model
+
+`verdict-run --skip-unless-drift` (0.86.0) extends `--skip-unchanged`: when HEAD moved but
+the commits touched nothing any finding cites, the gates are green with parsed counts, the
+test-id set is unchanged and no quarantine is due, the runner finalizes a **sweep** — the
+previous verdict carried by id, `run_type: sweep`, `last_run.model: none`, the run number
+advanced so the gate's freshness reads true — and spends nothing. Any condition failing is
+printed as the reason, and the model runs as usual. The conditions are the harness's own
+measurements (`docs/state-schema.md`, "The model-free night").
+
+```
+verdict-run myapp --skip-unless-drift --max-age-hours 26 --fail-on risks
+```
