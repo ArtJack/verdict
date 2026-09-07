@@ -421,13 +421,21 @@ def _fake_root(tmp_path, name, marker):
     return root
 
 
+def _hook_commands(local) -> str:
+    """Every hook command in settings.local.json, parsed — the raw JSON text
+    carries the root with doubled backslashes on Windows."""
+    hooks = json.loads(local.read_text(encoding="utf-8"))["hooks"]
+    return " ".join(h["command"] for group in hooks.values() for entry in group
+                    for h in entry.get("hooks", []))
+
+
 def test_the_runners_own_provision_follows_the_plugin_root(tmp_path, repo):
     a, b = _fake_root(tmp_path, "rootA", "A"), _fake_root(tmp_path, "rootB", "B")
     agent = repo / ".claude" / "agents" / "verdict.md"
     local = repo / ".claude" / "settings.local.json"
     proc, argv = _argv_of(tmp_path, repo, "--plugin-root", str(a))
     assert argv is not None, proc.stderr
-    assert str(a) in agent.read_text(encoding="utf-8") and str(a) in local.read_text(encoding="utf-8")
+    assert str(a) in agent.read_text(encoding="utf-8") and str(a) in _hook_commands(local)
     record = json.loads((repo / ".claude" / "verdict-provision.json").read_text(encoding="utf-8"))
     assert record["agent"]["root"] == str(a) and record["hooks"]["root"] == str(a)
     # the same root, unchanged: nothing rewritten, and said
@@ -437,7 +445,7 @@ def test_the_runners_own_provision_follows_the_plugin_root(tmp_path, repo):
     proc, _ = _argv_of(tmp_path, repo, "--plugin-root", str(b), name="moved")
     text = agent.read_text(encoding="utf-8")
     assert str(b) in text and str(a) not in text and "<!-- B -->" in text
-    hooks = local.read_text(encoding="utf-8")
+    hooks = _hook_commands(local)
     assert str(b) in hooks and str(a) not in hooks
     assert "re-provisioned .claude/agents/verdict.md" in proc.stderr and "moved from" in proc.stderr
     assert "re-installed hooks" in proc.stderr

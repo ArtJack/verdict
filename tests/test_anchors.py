@@ -44,7 +44,8 @@ def finalize(repo, qa_root, j, facts=None):
 
 
 def three_lines(repo):
-    (repo / "a.py").write_text(THREE, encoding="utf-8")
+    # bytes, not text: on Windows `write_text` turns the newline into CRLF and the blob moves
+    (repo / "a.py").write_bytes(THREE.encode("utf-8"))
     git(["commit", "-qam", "three lines"], repo)
 
 
@@ -96,7 +97,7 @@ def test_anchors_are_carried_while_the_evidence_is_the_text_they_were_taken_from
     three_lines(repo)
     state = finalize(repo, qa_root, judgment(findings=[finding()]))
     first = state["findings"][0]["anchors"]
-    (repo / "a.py").write_text("w = 0\n" + THREE, encoding="utf-8")   # the line moves
+    (repo / "a.py").write_bytes("w = 0\n" + THREE.encode("utf-8"))   # the line moves
     git(["commit", "-qam", "insert"], repo)
     # same evidence: the anchor still dates from run 1, so the drift shows
     state = finalize(repo, qa_root, judgment(findings=[finding()]))
@@ -123,7 +124,7 @@ def test_the_next_facts_say_where_the_cited_code_went(repo, qa_root):
                                 "drifted_intact": []}
 
     # a line inserted above: moved, and the harness says to where (L3)
-    (repo / "a.py").write_text("w = 0\n" + THREE, encoding="utf-8")
+    (repo / "a.py").write_bytes("w = 0\n" + THREE.encode("utf-8"))
     drift = collect(repo, qa_root, [])["evidence_drift"]
     assert drift["findings"]["W-F-1"] == {
         "drift": "moved", "refs": [{"ref": "a.py:2", "status": "moved", "now_line": 3}]}
@@ -133,13 +134,13 @@ def test_the_next_facts_say_where_the_cited_code_went(repo, qa_root):
     assert drift["summary"]["drifted_intact"] == [0]
 
     # the file changed elsewhere, the cited line where it was: unchanged
-    (repo / "a.py").write_text("x = 1\ny = 2\nz = 33\n", encoding="utf-8")
+    (repo / "a.py").write_bytes("x = 1\ny = 2\nz = 33\n".encode("utf-8"))
     drift = collect(repo, qa_root, [])["evidence_drift"]
     assert drift["findings"]["W-F-1"]["refs"] == [
         {"ref": "a.py:2", "status": "unchanged", "file_changed": True}]
 
     # the cited line itself rewritten: changed
-    (repo / "a.py").write_text("x = 1\ny = 22\nz = 3\n", encoding="utf-8")
+    (repo / "a.py").write_bytes("x = 1\ny = 22\nz = 3\n".encode("utf-8"))
     assert collect(repo, qa_root, [])["evidence_drift"]["findings"]["W-F-1"]["drift"] == "changed"
 
     # the file gone: missing
@@ -154,7 +155,7 @@ def test_the_code_under_an_accepted_risk_is_measured_in_its_own_bucket(repo, qa_
     state = json.loads(path.read_text(encoding="utf-8"))
     state["findings"][0]["status"] = "accepted"
     path.write_text(json.dumps(state), encoding="utf-8")
-    (repo / "a.py").write_text("x = 1\ny = 22\nz = 3\n", encoding="utf-8")
+    (repo / "a.py").write_bytes("x = 1\ny = 22\nz = 3\n".encode("utf-8"))
     drift = collect(repo, qa_root, [])["evidence_drift"]
     assert drift["findings"] == {}
     assert drift["accepted"]["W-F-1"]["drift"] == "changed"
@@ -190,7 +191,7 @@ def test_a_baseline_measures_no_drift_and_finalize_says_when_it_could_not_anchor
 def test_drift_travels_into_the_state_and_the_report(repo, qa_root):
     three_lines(repo)
     finalize(repo, qa_root, judgment(findings=[finding()]))
-    (repo / "a.py").write_text("w = 0\n" + THREE, encoding="utf-8")
+    (repo / "a.py").write_bytes("w = 0\n" + THREE.encode("utf-8"))
     git(["commit", "-qam", "insert"], repo)
     state = finalize(repo, qa_root, judgment(findings=[finding()]))
     assert state["evidence_drift"]["summary"]["drifted_findings"] == ["W-F-1"]
