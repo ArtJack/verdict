@@ -3,7 +3,7 @@
 [![ci](https://github.com/ArtJack/verdict/actions/workflows/ci.yml/badge.svg)](https://github.com/ArtJack/verdict/actions/workflows/ci.yml)
 [![verdict on itself](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fraw.githubusercontent.com%2FArtJack%2Fverdict%2Fmain%2F.qa%2Fstate.json&query=%24.verdict&label=verdict%20on%20itself&color=blue)](.qa/reports/INDEX.md)
 [![eval 8/8 seeded defects](https://img.shields.io/badge/eval-8%2F8_seeded_defects-brightgreen)](eval/README.md#published-results)
-[![pinned rules 135/135 killed](https://img.shields.io/badge/pinned_rules-135%2F135_killed-brightgreen)](eval/README.md#suite-fault-detection-power--mutation-testing-on-ourselves)
+[![pinned rules 149/149 killed](https://img.shields.io/badge/pinned_rules-149%2F149_killed-brightgreen)](eval/README.md#suite-fault-detection-power--mutation-testing-on-ourselves)
 [![PyPI](https://img.shields.io/pypi/v/verdict-qa-mcp?label=verdict-qa-mcp&color=blue)](https://pypi.org/project/verdict-qa-mcp/)
 [![Claude Code plugin](https://img.shields.io/badge/Claude_Code-plugin-6E56CF)](#install)
 [![license MIT](https://img.shields.io/github/license/ArtJack/verdict)](LICENSE)
@@ -391,10 +391,12 @@ is judgment, and every one of them is a place to be confidently wrong.
 So the run is split. `verdict-facts` measures: it runs the gates you name, times them,
 parses their counts, reads git, derives the project key, and decides `run_number` and
 `run_type` (including when a run must be re-declared a re-baseline). The agent then writes
-**only judgment** — verdict, findings, evidence, what was not tested. `verdict-finalize`
-merges the two, computing each finding's hash, `first_seen`, `age_days`, and its
-NEW/STILL_OPEN/RESOLVED/REGRESSED delta from the previous state, and validates the result
-before writing anything.
+**only judgment** — each finding as its own file the moment it is proven, validated as it
+is written; a finding it looked at and found unchanged as an id; the verdict and what was
+not tested. `verdict-finalize` assembles the files, computes each finding's hash,
+`first_seen`, `age_days`, and its NEW/STILL_OPEN/RESOLVED/REGRESSED delta from the previous
+state, hashes every line the evidence cites so the next run is told where the code moved,
+and validates the result before writing anything.
 
 `verdict-finalize` also **renders the report** — scope, gates, the REGRESSED-first
 findings table, not-tested, quarantine — from that same state, and injects the agent's
@@ -447,6 +449,21 @@ the next run, appears under **Accepted risks** in every report with its citation
 settles in the track record as `confirmed` on the maintainer's word — kept apart from the
 measured and the claimed confirmations, because it is neither. `--revoke` reverses it, with
 a reason; `--list` shows the ledger. A decision changes the next verdict, never the last one.
+
+The other thing only a person can settle is a question — is `;` still a query separator,
+is single-file vendoring a supported contract, should the gate run an installed wheel. The
+tester parks them (`questions` in its judgment; finalize mints `MYAPP-Q-3` and keeps
+`questions.json`), and the second pen answers:
+
+```
+verdict-answer myapp MYAPP-Q-3 --answer "at or above is the rule; README rule 1 is the spec"
+```
+
+That writes `answers.json`, refused to the agent like `accepted.json`. The next run reads the
+decision in its facts and never asks again; the report renders **Needs human decision** from
+the ledger; the session-start banner and `verdict-gate` say how many are waiting. Nothing is
+mailed and no issue is filed for a question — it is pushed to every surface that reaches you,
+and it waits there.
 
 ## The tester has memory. The implementer did not.
 

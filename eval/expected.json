@@ -5,50 +5,98 @@
   "rows": [
     {
       "key": "1-floor-boundary",
-      "match_any": ["is_listable"],
+      "match_any": [
+        "is_listable"
+      ],
       "classification": "REAL_DEFECT"
     },
     {
       "key": "4-bankers-rounding",
-      "match_any": ["round_cents"],
+      "match_any": [
+        "round_cents"
+      ],
       "classification": "REAL_DEFECT"
     },
     {
       "key": "3-stale-fee-expectation",
-      "match_any": ["net_proceeds", "10%", "fee"],
+      "match_any": [
+        "net_proceeds",
+        "10%",
+        "fee"
+      ],
       "classification": "STALE_EXPECTATION",
-      "require_evidence_any": ["changelog", "prc-142"]
+      "require_evidence_any": [
+        "changelog",
+        "prc-142"
+      ]
     },
     {
       "key": "5-nondeterministic-bulk-discount",
-      "match_any": ["bulk_discount"],
-      "classification": ["FLAKY", "BRITTLE_TEST"],
+      "match_any": [
+        "bulk_discount"
+      ],
+      "classification": [
+        "FLAKY",
+        "BRITTLE_TEST"
+      ],
       "flaky_requires_quarantine": true,
-      "quarantine_match_any": ["bulk_discount"]
+      "quarantine_match_any": [
+        "bulk_discount"
+      ]
     },
     {
       "key": "6-brittle-exact-message",
       "comment": "Match the concept, not one identifier: a run may name the test function, quote the pinned message, or describe the assertion. Broadened 2026-08-28 after a scorer false negative — the finding was present and correctly classified, the matcher was too narrow.",
-      "match_any": ["negative_price_message", "error message", "message string",
-                    "price must be >= 0"],
+      "match_any": [
+        "negative_price_message",
+        "error message",
+        "message string",
+        "price must be >= 0"
+      ],
       "classification": "BRITTLE_TEST"
     },
     {
       "key": "7-environment-missing-fixture",
-      "match_any": ["bulk_orders"],
+      "match_any": [
+        "bulk_orders"
+      ],
       "classification": "ENVIRONMENT"
     },
     {
       "key": "2-quarantine-graveyard-skip",
-      "match_any": ["skip", "no expiry", "graveyard"]
+      "match_any": [
+        "skip",
+        "no expiry",
+        "graveyard"
+      ]
     },
     {
       "key": "8-verdict",
       "type": "verdict",
-      "expect": ["fail"]
+      "expect": [
+        "fail"
+      ]
+    },
+    {
+      "key": "findings-filed-as-files",
+      "type": "finding_field",
+      "since": "0.84.0",
+      "field": "filed_at",
+      "only_delta": "NEW",
+      "min_count": 1,
+      "note": "Added 2026-09-07 with 0.84.0 (H-2): a NEW finding carries `filed_at` only when it was written as findings/<ID>.json — proven and filed in the moment, not composed at the end. n/a on a state an older harness measured."
+    },
+    {
+      "key": "evidence-anchors-resolve",
+      "type": "anchors",
+      "since": "0.83.0",
+      "max_unresolvable_share": 0.2,
+      "note": "Added 2026-09-07 with 0.84.0: at least 80% of the `path:line` references in the evidence resolve to a line in the repository (0.83.0's anchors). Scores evidence that names real lines; the boltons acceptance run measured 13 of 69 unresolvable."
     }
   ],
   "prose": {
-    "forbid": ["no bugs found"]
+    "forbid": [
+      "no bugs found"
+    ]
   }
 }

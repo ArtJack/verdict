@@ -3,6 +3,89 @@
 Plugin and `verdict-mcp` share one version line; `.claude-plugin/plugin.json` and
 `pyproject.toml` are bumped together.
 
+## 0.84.0 — 2026-09-07 · "a finding is a file"
+
+The prompt half of the findings-as-files design (engineering-docs, verdict pack
+§7, session 5): the judgment stops being one JSON written from memory at the
+end of the run. Eval-paid through the new paired runner; the acceptance run is
+a delta on boltons against the control measured before any of this was built
+(judgment pause 3:32, 39,500 characters, a third of them eight findings
+re-typed to say "still there").
+
+**A finding is a file (H-2).** `<qa-root>/findings/<ID>.json`, the shape of the
+new `templates/finding.example.json`, written the moment the finding is proven
+— with the exact excerpt still in the agent's context — and checked by the
+PostToolUse validator as it is written: the same per-finding rules the judgment
+loop always applied, plus the filename must equal the id. A rejection costs one
+file. `verdict-finalize` assembles the files oldest first and stamps `filed_at`
+from each file's modification time; `judgment.json` keeps the run-level fields
+(the judgment template carries no findings now) and may still carry `findings[]`
+inline — but never both, and never merged. `verdict-facts` moves the previous
+run's `findings/` to `findings.prev/` before the run starts; a retry of the same
+run keeps its own files. Nothing is deleted.
+
+**Two cheap verbs.** `still_open: [ids]` carries a finding the tester looked at
+and found unchanged, exactly as last filed — title, evidence, class, declared
+test, anchors and all; `resolved: [ids]` closes one it looked at and found gone,
+not fix-verified unless the harness measured it. Both take only findings open
+in the previous state; an accepted risk is refused; an id in a list and in a
+file is refused. And the word "still there" is not the tester's where the
+harness knows better: a `still_open` over code that `changed` or went `missing`
+since the evidence was written (0.83.0's drift) is refused — write the file
+with fresh evidence, or resolve it. `moved` is allowed, and the report says
+where the line went.
+
+**One class, one finding.** Filing findings one at a time makes it easy to file
+an instance of a class as a second finding — the thing §3.5's class link exists
+to prevent, and the design's one open concern. `validate_judgment` refuses a
+finding whose evidence cites a `path:line` that another finding, filed or
+carried, lists under `root_cause.class.sites`, and two findings that list the
+same site. Exact, never heuristic; the message names both exits.
+
+**Questions with a second pen (T-4).** A run ends with things only a person can
+decide, and they lived in the closing handoff, so the next run asked again — one
+question rode seven runs; boltons parked four in its profile where nobody would
+find them. A judgment now carries `questions`; finalize mints `<PROJECT>-Q-<n>`
+and keeps `questions.json` (its pen only, deduplicated on the text); the
+maintainer answers with `verdict-answer <project> <Q-id> --answer "…"` or
+`--dismiss --reason "…"`, which writes `answers.json` — refused to the tester by
+both scope guards, like `accepted.json`. The next `verdict-facts` says what is
+parked and what was answered since the last run; the report renders **Needs
+human decision** and **Answered since the last run**; the session-start banner
+says how many are waiting and how to answer; `verdict-gate`'s text and comment
+carry them; the MCP server has `get_questions`. Pushed to every surface that
+reaches a person; never mailed, never filed as an issue.
+
+**A declared test is a collected id (P-24).** A run wrote "none — no test in
+tests/x.py::y covers this" into `verification_test`, and the harness read it as
+a citation it could not find. When the id ledger exists, a `verification_test`
+that is not in it is refused: declare one, or omit the field and say in
+evidence that no test guards this.
+
+**The prompt** (§6, §7, §9, §13): a finding is a file written when it is
+proven, and the class search comes first; the two verbs; read `facts.questions`
+and never re-ask; the test-id rule; the handoff's "Needs human decision" is the
+ledger, not a place to invent new ones. **The eval runner** gains `--pair
+<ref>`: the same fixture with the prompt at HEAD and at a git revision,
+interleaved, one table with per-row deltas and both prompt hashes (T-17) — this
+release is the first paid through it. New scorer rows read the state rather
+than the words: findings filed as files, findings carried by id, anchors that
+resolve, one class not split, a question answered and not re-asked.
+
+**Paid, through the paired runner:** cause ×2, head **9/10 · 10/10** against the v0.83.0 prompt's
+**9/10 · 9/10** on the same fixture, interleaved — parity on the seven old rows (each arm's
+one miss is the prose-vocabulary `trigger` row), and on the rows that read the state the
+prompt's "search the class before you file" is the one measurable difference (`class-not-split`
+2/2 against 1/2); pricer seeded **9/9**; liar **6/6** after an answer-key amendment (the run
+filed the mock and the tautology as one class, as the contract now asks). Two scorer false
+positives found and fixed on the way (the decoy phrase matching the renderer's own line; a
+source checkout's harness read as the oldest). **Acceptance** on boltons, run 5 against run 2:
+judgment pause 1:18 (3:32), 14.4k chars with none inline (39.5k with eight re-typed), 22
+carried by id, 8 NEW filed during the run, 52.3k output tokens (60.8k); the class rule
+refused the first finalize on three `ecoutils` findings and the agent folded them.
+
+Pinned as mutants M1–M14. 1,079 tests.
+
 ## 0.83.0 — 2026-09-07 · "where the code went"
 
 The harness half of the findings-as-files design (engineering-docs, verdict

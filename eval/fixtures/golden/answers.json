@@ -1,0 +1,10 @@
+{
+ "schema_version": 1,
+ "answers": {
+  "PRICER-Q-1": {
+   "answer": "At or above is the rule: README rule 1 is the spec, pricer.py:14's `>` is the defect, and the skipped boundary test should be un-skipped once it is fixed.",
+   "by": "maintainer",
+   "on": "2026-08-29"
+  }
+ }
+}

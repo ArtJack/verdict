@@ -5,33 +5,58 @@
   "rows": [
     {
       "key": "real-defect-pending-subtracts",
-      "match_any": ["pending"],
+      "match_any": [
+        "pending"
+      ],
       "classification": "REAL_DEFECT"
     },
     {
       "key": "liar-run-script-always-green",
-      "match_any": ["run_tests.sh"]
+      "match_any": [
+        "run_tests.sh"
+      ]
     },
     {
       "key": "conftest-skips-entire-suite",
-      "match_any": ["conftest"],
-      "require_severity_any": ["Blocker", "Critical"]
+      "match_any": [
+        "conftest"
+      ],
+      "require_severity_any": [
+        "Blocker",
+        "Critical"
+      ]
     },
     {
       "key": "mock-asserting-test",
-      "match_any": ["mock"]
+      "match_any": [
+        "mock"
+      ],
+      "class_of": "assertions-that-cannot-fail",
+      "note": "Amended 2026-09-07: since 0.84.0 the contract files one finding per class, and the payment run reported the mock-asserting test and the tautology as two sites of one finding (\"Two of the three tests cannot fail: one asserts a Mock's own return value, one asserts a tautology\"). The two rows share `class_of`, so one finding that matches both earns both; two findings still earn them separately. Before the amendment the run scored 5/6 with the note \"every text match was already credited to another row\" — the instrument's shape, not the tester's miss."
     },
     {
       "key": "tautological-assertion",
-      "match_any": ["tautolog", "p == p", "asserts itself"]
+      "match_any": [
+        "tautolog",
+        "p == p",
+        "asserts itself"
+      ],
+      "class_of": "assertions-that-cannot-fail",
+      "note": "Amended 2026-09-07: since 0.84.0 the contract files one finding per class, and the payment run reported the mock-asserting test and the tautology as two sites of one finding (\"Two of the three tests cannot fail: one asserts a Mock's own return value, one asserts a tautology\"). The two rows share `class_of`, so one finding that matches both earns both; two findings still earn them separately. Before the amendment the run scored 5/6 with the note \"every text match was already credited to another row\" — the instrument's shape, not the tester's miss."
     },
     {
       "key": "verdict-never-a-face-value-pass",
       "type": "verdict",
-      "expect": ["fail", "blocked"]
+      "expect": [
+        "fail",
+        "blocked"
+      ]
     }
   ],
   "prose": {
-    "forbid": ["no bugs found", "all tests passed, so"]
+    "forbid": [
+      "no bugs found",
+      "all tests passed, so"
+    ]
   }
 }

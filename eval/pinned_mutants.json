@@ -823,5 +823,89 @@
   "path": "src/verdict_mcp/harness.py",
   "old": "        if not path.exists() or _report_belongs_to(path, run_number):\n",
   "new": "        if True:\n"
+ },
+ {
+  "label": "0.84.0 M1 finalize: finding files are never read (judgment.findings only)",
+  "path": "src/verdict_mcp/harness.py",
+  "old": "    filed, file_problems = load_filed(qa_root)\n",
+  "new": "    filed, file_problems = [], []\n"
+ },
+ {
+  "label": "0.84.0 M2 finalize: files and judgment.findings are merged instead of refused",
+  "path": "src/verdict_mcp/harness.py",
+  "old": "    if filed and inline:\n        print(f\"verdict-finalize: findings are in {FINDINGS_DIR}/ ({len(filed)} files) or in \"\n",
+  "new": "    if False:\n        print(f\"verdict-finalize: findings are in {FINDINGS_DIR}/ ({len(filed)} files) or in \"\n"
+ },
+ {
+  "label": "0.84.0 M3 hook: a finding file is written without being checked",
+  "path": "src/verdict_mcp/validate.py",
+  "old": "    filed = finding_file(target) if target else None\n    if filed is not None:\n        return _hook_finding(Path(target), *filed)\n",
+  "new": "    filed = finding_file(target) if target else None\n    if filed is not None:\n        return 0\n"
+ },
+ {
+  "label": "0.84.0 M4 hook: a file whose id disagrees with its name is accepted",
+  "path": "src/verdict_mcp/validate.py",
+  "old": "    if str(data.get(\"id\") or \"\") != fid:\n        bad.append(f\"{where} carries id {data.get('id')!r}, but the filename says {fid!r} — \"\n",
+  "new": "    if False:\n        bad.append(f\"{where} carries id {data.get('id')!r}, but the filename says {fid!r} — \"\n"
+ },
+ {
+  "label": "0.84.0 M5 validate: a second finding filed inside another finding's class passes",
+  "path": "src/verdict_mcp/validate.py",
+  "old": "    bad.extend(class_conflicts([f for f in findings if isinstance(f, dict)] + carried))\n",
+  "new": "    pass\n"
+ },
+ {
+  "label": "0.84.0 M6 validate: still_open accepts an id that is not open in the previous state",
+  "path": "src/verdict_mcp/validate.py",
+  "old": "            elif not _is_open(prior):\n                bad.append(f\"{verb} names {fid!r}, which the previous state already has as \"\n",
+  "new": "            elif False:\n                bad.append(f\"{verb} names {fid!r}, which the previous state already has as \"\n"
+ },
+ {
+  "label": "0.84.0 M7 finalize: still_open is accepted over code that changed or vanished",
+  "path": "src/verdict_mcp/harness.py",
+  "old": "            if isinstance(d, dict) and d.get(\"drift\") in (\"changed\", \"missing\"):\n",
+  "new": "            if False:\n"
+ },
+ {
+  "label": "0.84.0 M8 finalize: filed_at is not stamped from the file",
+  "path": "src/verdict_mcp/harness.py",
+  "old": "        src = sources.get(str(f.get(\"id\")))\n        if src:\n            f[\"filed_at\"] = src[\"filed_at\"]\n",
+  "new": "        src = sources.get(str(f.get(\"id\")))\n        if src:\n            pass\n"
+ },
+ {
+  "label": "0.84.0 M9 guards: answers.json is not the maintainer's file (the tester can answer its own question)",
+  "path": "hooks/qa_paths.py",
+  "old": "MAINTAINER_FILES = (\"accepted.json\", \"answers.json\")\n",
+  "new": "MAINTAINER_FILES = (\"accepted.json\",)\n"
+ },
+ {
+  "label": "0.84.0 M10 questions: an identical question is minted again instead of deduplicated",
+  "path": "src/verdict_mcp/questions.py",
+  "old": "        if key in existing:\n            notes.append(f\"question already on the ledger as {existing[key]} — not re-asked\")\n            continue\n",
+  "new": "        if False:\n            notes.append(f\"question already on the ledger as {existing[key]} — not re-asked\")\n            continue\n"
+ },
+ {
+  "label": "0.84.0 M11 facts: last run's finding files are deleted instead of moved aside",
+  "path": "src/verdict_mcp/filed.py",
+  "old": "    prev = Path(qa_root) / PREV_DIR\n    shutil.rmtree(prev, ignore_errors=True)\n    d.rename(prev)\n",
+  "new": "    prev = Path(qa_root) / PREV_DIR\n    shutil.rmtree(prev, ignore_errors=True)\n    shutil.rmtree(d)\n"
+ },
+ {
+  "label": "0.84.0 M12 validate: a verification_test that is not a collected id passes",
+  "path": "src/verdict_mcp/validate.py",
+  "old": "    if vt is not None and known_tests is not None:\n",
+  "new": "    if False:\n"
+ },
+ {
+  "label": "0.84.0 M13 questions: an answer is never acknowledged, so every run re-reads it as new",
+  "path": "src/verdict_mcp/questions.py",
+  "old": "    for row in out[\"answered_since_last_run\"]:\n        ledger[\"questions\"][row[\"id\"]][\"acknowledged_at_run\"] = run_number\n",
+  "new": "    for row in out[\"answered_since_last_run\"]:\n        pass\n"
+ },
+ {
+  "label": "0.84.0 M14 finalize: a carried finding keeps last run's verb",
+  "path": "src/verdict_mcp/harness.py",
+  "old": "    for prior in unmentioned:\n        carried = {k: v for k, v in prior.items() if k != \"re_reported\"}\n",
+  "new": "    for prior in unmentioned:\n        carried = dict(prior)\n"
  }
 ]

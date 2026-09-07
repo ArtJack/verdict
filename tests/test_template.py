@@ -11,16 +11,17 @@ import hashlib
 import json
 from pathlib import Path
 
-from verdict_mcp.harness import collect, judgment_template, merge, render_report
-from verdict_mcp.validate import validate_judgment
+from verdict_mcp.harness import (collect, finalize_main, finding_template, judgment_template,
+                                 merge, render_report)
+from verdict_mcp.validate import validate_finding, validate_judgment
 
 REPO = Path(__file__).resolve().parent.parent
 
 
-def test_the_template_is_the_one_shipped_in_the_package():
-    path = judgment_template()
-    assert path.is_file(), path
-    assert path.parent.parent.name == "verdict_mcp", "the template must live inside the package, so a wheel ships it"
+def test_the_templates_are_the_ones_shipped_in_the_package():
+    for path in (judgment_template(), finding_template()):
+        assert path.is_file(), path
+        assert path.parent.parent.name == "verdict_mcp", "the template must live inside the package, so a wheel ships it"
 
 
 def test_the_validator_accepts_the_template():
@@ -35,33 +36,46 @@ def test_the_template_carries_every_shape_the_validator_has_refused():
     """The shapes real runs were rejected on (itsdangerous, changesets, run 14):
     `isolation_check` an object, `verified_intact` a list, `flaky_quarantine`
     (not `quarantine`) with an expiry, `release_blockers` present, `full_sweep`
-    a bool, `prose.findings` a map, a finding with `root_cause.class` and a
-    declared `verification_test`."""
+    a bool, the verbs as lists — and, in the finding template, a finding with
+    `root_cause.class.sites`, a declared `verification_test` and a narrative."""
     t = json.loads(judgment_template().read_text(encoding="utf-8"))
     assert isinstance(t["isolation_check"], dict) and t["isolation_check"].get("result")
     assert isinstance(t["verified_intact"], list) and t["verified_intact"]
     assert "quarantine" not in t and isinstance(t["flaky_quarantine"], list)
     assert all(q.get("quarantined_until") for q in t["flaky_quarantine"])
     assert isinstance(t["release_blockers"], list) and isinstance(t["full_sweep"], bool)
-    assert isinstance(t["prose"]["findings"], dict)
-    proven = [f for f in t["findings"] if f.get("root_cause")]
-    assert proven and isinstance(proven[0]["root_cause"]["class"]["sites"], list)
-    assert all(f.get("verification_test") for f in t["findings"]), "every example finding declares its test"
+    assert t["findings"] == [], "findings are files now; the judgment template carries none"
+    assert isinstance(t["still_open"], list) and isinstance(t["resolved"], list)
+    assert isinstance(t["questions"], list) and t["questions"][0]["question"]
+    assert "findings" not in t["prose"], "per-finding prose is the finding file's narrative"
+    f = json.loads(finding_template().read_text(encoding="utf-8"))
+    assert validate_finding(f, "finding.example.json", set()) == []
+    assert isinstance(f["root_cause"]["class"]["sites"], list) and f.get("verification_test")
+    assert isinstance(f["narrative"], str) and f["narrative"]
+    assert not any(k in f for k in ("hash", "first_seen", "anchors", "outcome", "filed_at"))
 
 
-def test_the_template_finalizes_into_a_valid_state(repo, qa_root):
-    """Copied verbatim onto a real measurement, the template must become a
-    state and a report — the agent's first judgment is exactly this."""
+def test_the_templates_finalize_into_a_valid_state_through_a_finding_file(repo, qa_root):
+    """Copied verbatim onto a real measurement — the judgment template as
+    judgment.json, the finding template as findings/<ID>.json — the two must
+    become a state and a report: the agent's first run is exactly this."""
     facts = collect(repo, qa_root, [])
+    (qa_root / "facts.json").write_text(json.dumps(facts), encoding="utf-8")
+    f = json.loads(finding_template().read_text(encoding="utf-8"))
+    f.pop("_")
+    (qa_root / "findings").mkdir()
+    (qa_root / "findings" / f"{f['id']}.json").write_text(json.dumps(f), encoding="utf-8")
     template = json.loads(judgment_template().read_text(encoding="utf-8"))
-    template["findings"] = [dict(f, id=f["id"].replace("PRICER", facts["project"].upper()))
-                            for f in template["findings"]]
-    template["prose"]["findings"] = {k.replace("PRICER", facts["project"].upper()): v
-                                     for k, v in template["prose"]["findings"].items()}
-    state = merge(facts, template, None)
+    template["questions"] = []           # a question needs no answer to finalize; see test_filed
+    (qa_root / "judgment.json").write_text(json.dumps(template), encoding="utf-8")
+    assert finalize_main(["--qa-root", str(qa_root), "--judgment", str(qa_root / "judgment.json")]) == 0
+    state = json.loads((qa_root / "state.json").read_text(encoding="utf-8"))
     assert state["verdict"] == "pass with risks"
-    report = render_report(state)
-    assert "Accepted risks" not in report or "none" in report.lower()
+    filed = state["findings"][0]
+    assert filed["id"] == f["id"] and filed["delta"] == "NEW" and filed["filed_at"].endswith("Z")
+    assert "narrative" not in filed, "the narrative is rendered, not stored"
+    report = (qa_root / state["last_run"]["report"]).read_text(encoding="utf-8")
+    assert f["narrative"][:40] in report
     assert "- Harness: verdict-qa-mcp" in report
 
 

@@ -58,10 +58,13 @@
         "root cause: memoiz",
         "root cause is the memoiz",
         "cause: the perf commit",
-        "root cause: the test",
         "root cause is the test change",
-        "caused by the test change"
-      ]
+        "caused by the test change",
+        "root cause: the test change",
+        "root cause: the test-data",
+        "root cause: the test data"
+      ],
+      "note": "Amended 2026-09-07: `root cause: the test` alone matched the report renderer's own \"- Root cause: <mechanism>\" line of an unrelated finding whose mechanism began \"the test dependency (pytest) is declared nowhere\" — a run that had cleared the decoy read as blaming it (scorer FP #6, found on the 0.84.0 payment). The phrase now needs the test *change* or the test *data* named."
     },
     {
       "key": "counterfactual-isolated-from-stale-bytecode",
@@ -75,6 +78,33 @@
         "instrument control"
       ],
       "note": "Added 2026-09-03 with the v0.74.0 contract clause it scores. Terms are taken from the clause, not from any run's phrasing. First draft also accepted the bare string `__pycache__` and a control run earned the row for the sentence 'clean apart from __pycache__' — naming the directory while reporting the checkout untouched is housekeeping, not isolation. As scored now: 3 of 3 treatment runs earn it, 0 of 4 byte-identical control runs on the v0.73.0 prompt do. The row exists because VERDICT-F-52 established that no fixture could tell one version of this contract from another."
+    },
+    {
+      "key": "class-not-split",
+      "type": "class_sites",
+      "since": "0.84.0",
+      "match_any": [
+        "invoice.py",
+        "report.py"
+      ],
+      "min_sites": 2,
+      "note": "Added 2026-09-07 with 0.84.0 (H-2's one open concern): filing findings one at a time must not turn 'three sites, one root cause' into three findings. Exactly one open finding owns the truncation class (its root_cause.class.sites names the other sites) and no other finding cites one of those sites as its own defect — `class_conflicts`, the rule finalize refuses on. Sites are read by `path:line` reference into the two files, both required — a test named `test_invoice_renders_lines` in another finding's class is not a site in invoice.py (the first draft counted it, and read a legitimate second finding as a split)."
+    },
+    {
+      "key": "findings-filed-as-files",
+      "type": "finding_field",
+      "since": "0.84.0",
+      "field": "filed_at",
+      "only_delta": "NEW",
+      "min_count": 1,
+      "note": "Added 2026-09-07 with 0.84.0 (H-2): a NEW finding carries `filed_at` only when it was written as findings/<ID>.json — proven and filed in the moment, not composed at the end. n/a on a state an older harness measured."
+    },
+    {
+      "key": "evidence-anchors-resolve",
+      "type": "anchors",
+      "since": "0.83.0",
+      "max_unresolvable_share": 0.2,
+      "note": "Added 2026-09-07 with 0.84.0: at least 80% of the `path:line` references in the evidence resolve to a line in the repository (0.83.0's anchors). Scores evidence that names real lines; the boltons acceptance run measured 13 of 69 unresolvable."
     }
   ],
   "prose": {

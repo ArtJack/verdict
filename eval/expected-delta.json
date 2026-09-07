@@ -5,43 +5,107 @@
   "rows": [
     {
       "key": "regressed-rounding",
-      "match_any": ["round_cents"],
+      "match_any": [
+        "round_cents"
+      ],
       "classification": "REAL_DEFECT",
-      "delta": {"seeded": "REGRESSED", "live": "n/a"}
+      "delta": {
+        "seeded": "REGRESSED",
+        "live": "n/a"
+      }
     },
     {
       "key": "new-bulk-threshold",
-      "match_any": ["qty > 10", "threshold", "exactly 10", "bulk_unit_price"],
+      "match_any": [
+        "qty > 10",
+        "threshold",
+        "exactly 10",
+        "bulk_unit_price"
+      ],
       "classification": "REAL_DEFECT",
-      "delta": {"seeded": "NEW", "live": "NEW"}
+      "delta": {
+        "seeded": "NEW",
+        "live": "NEW"
+      }
     },
     {
       "key": "still-open-floor",
-      "match_any": ["is_listable"],
+      "match_any": [
+        "is_listable"
+      ],
       "classification": "REAL_DEFECT",
-      "delta": {"seeded": "STILL_OPEN", "live": "STILL_OPEN"}
+      "delta": {
+        "seeded": "STILL_OPEN",
+        "live": "STILL_OPEN"
+      }
     },
     {
       "key": "resolved-env-fixture",
-      "match_any": ["bulk_orders"],
+      "match_any": [
+        "bulk_orders"
+      ],
       "classification": "ENVIRONMENT",
-      "delta": {"seeded": "RESOLVED", "live": "RESOLVED"}
+      "delta": {
+        "seeded": "RESOLVED",
+        "live": "RESOLVED"
+      }
     },
     {
       "key": "quarantine-released-on-expiry",
       "type": "quarantine",
-      "match_any": ["bulk_discount"],
+      "match_any": [
+        "bulk_discount"
+      ],
       "expect_absent": true,
-      "delta": {"seeded": "released", "live": "n/a"}
+      "delta": {
+        "seeded": "released",
+        "live": "n/a"
+      }
     },
     {
       "key": "verdict",
       "type": "verdict",
-      "expect": ["fail"]
+      "expect": [
+        "fail"
+      ]
+    },
+    {
+      "key": "findings-filed-as-files",
+      "type": "finding_field",
+      "since": "0.84.0",
+      "field": "filed_at",
+      "only_delta": "NEW",
+      "min_count": 1,
+      "note": "Added 2026-09-07 with 0.84.0 (H-2): a NEW finding carries `filed_at` only when it was written as findings/<ID>.json — proven and filed in the moment, not composed at the end. n/a on a state an older harness measured.",
+      "delta": {
+        "seeded": "NEW",
+        "live": "NEW"
+      }
+    },
+    {
+      "key": "still-open-by-id",
+      "type": "finding_field",
+      "since": "0.84.0",
+      "field": "re_reported",
+      "equals": "still_open",
+      "min_count": 1,
+      "note": "Added 2026-09-07 with 0.84.0: at least one unchanged finding was carried by id (`still_open`) rather than re-typed — the verb that removes the 13,000 re-typed characters the control run measured."
+    },
+    {
+      "key": "questions-not-reasked",
+      "type": "questions",
+      "since": "0.84.0",
+      "modes": [
+        "seeded"
+      ],
+      "answered_not_reasked": "floor",
+      "note": "Added 2026-09-07 with 0.84.0 (T-4): the golden run-2 state parks PRICER-Q-1 (is a price exactly at the floor listable?) and answers.json answers it before run 3. The run reads the answer: the ledger shows it answered and acknowledged, and nothing about the floor is parked again."
     }
   ],
   "prose": {
-    "forbid": ["no bugs found"],
+    "forbid": [
+      "no bugs found"
+    ],
     "regressed_first": true
   }
 }

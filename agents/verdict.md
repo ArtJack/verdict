@@ -380,15 +380,42 @@ with nothing installed — so "the harness was not available" is almost never tr
 run that skips it is a run that composed its numbers instead of measuring them.
 
     verdict-facts --repo . --qa-root <root>
-    …you read facts.json, examine the code, and write judgment.json…
+    …you read facts.json, examine the code, and write each finding to
+    <root>/findings/<ID>.json the moment it is proven; at the end, judgment.json…
     verdict-finalize --qa-root <root> --judgment judgment.json
 
-**Start your judgment from the template.** facts.json names `judgment_template`: a complete
-judgment.json with every key present and every shape the validator insists on. Copy it,
-replace every value, keep every key. Do not learn the shape by reading
+**A finding is a file, written when it is proven.** facts.json names `findings_dir` and
+`finding_template`: one finding is one file, `<root>/findings/<ID>.json`, the shape of that
+template — its keys, nothing the harness computes — plus `narrative`, the prose the report
+renders under it. Write it while the evidence is in front of you: the exact excerpt, the
+command, the `path:line`. Not from memory at the end — the judgment used to be one JSON
+composed after ten minutes of investigation, thirty-nine thousand characters on one run,
+with evidence written ten minutes after it was measured. The validator checks each file as
+you write it and names what to fix; a rejection costs one file. Before you file, search the
+class (§3.5): a file that names one site of a pattern you have not searched is a finding
+filed too early, and finalize refuses a second finding that cites a line another finding
+lists as a site of its class. Until finalize a file is yours to rewrite or delete — fold two
+into one by deleting one and adding its site to the other's `root_cause.class.sites`. The
+next free id is `facts.next_finding_id`.
+
+**Start your judgment from the template.** facts.json names `judgment_template`: the
+run-level fields — verdict, isolation, blockers, not-tested, quarantine, questions, prose —
+with every shape the validator insists on. Copy it, replace every value, keep every key; it
+carries no findings, because the files do. Do not learn the shape by reading
 `docs/state-schema.md` or `harness.py` during the run — that cost every run two to three
 minutes and fifteen thousand characters of context, and three runs out of four still met
 the validator on a shape (`isolation_check` must be an object; `verified_intact` a list).
+
+**A finding you looked at and found unchanged is an id, not a file.** `still_open: [ids]`
+in judgment.json carries it from the previous state exactly as last filed — title,
+evidence, class, declared test — and `resolved: [ids]` closes one you looked at and found
+gone (not fix-verified; the harness measures that, and a cited test that still fails at
+HEAD refuses the resolution). One run re-typed eighteen findings, thirteen thousand
+characters, to say "still there"; the ids say it in a line. Both verbs take only findings
+that are open in the previous state, and the word is not yours where the harness knows
+better: `facts.evidence_drift` says whether each finding's cited lines are still where its
+evidence says, and a `still_open` over code that `changed` or went `missing` is refused —
+write the file with fresh evidence, or resolve it. Carry by id only what you looked at.
 
 **The commands come from the profile, not from you.** `profile.md` carries a front-matter
 block naming this project's real gates, and `verdict-facts` reads it — so you do not
@@ -413,12 +440,12 @@ It measures what you must not invent — the timestamp, the SHAs and range, gate
 durations, counts, the test-id set-diff, the project key, `run_number`, `run_type` — and
 `finalize` computes each finding's hash, `first_seen`, `age_days`, and delta from the
 previous state, validates the result, and only then writes `state.json` and the INDEX row.
-Your judgment.json carries **only judgment**: verdict, findings (title, severity,
-priority, classification, evidence, status), isolation result, not-tested, next-run focus,
-quarantine, and — under `prose` — the sections only a person can write: `scope`, `risks`,
-`fix_order`, `notes`, and `findings: {<id>: "…"}` for per-finding narrative. Do not restate
-a measured number in it; do not compute an age or a delta by hand; do not lay out the
-tables. `finalize` renders the report from the state and injects your prose, so the report
+Your judgment.json carries **only judgment**: verdict, isolation result, release blockers,
+not-tested, next-run focus, quarantine, the ids you carry (`still_open`, `resolved`), your
+`questions` for a person, and — under `prose` — the sections only a person can write:
+`scope`, `risks`, `fix_order`, `notes`. Each finding is its own file, and its narrative
+lives there. Do not restate a measured number in it; do not compute an age or a delta by
+hand; do not lay out the tables. `finalize` renders the report from the state and injects your prose, so the report
 and the state cannot disagree and the artifact cannot go missing — name a `topic` and it
 picks the filename.
 
@@ -464,6 +491,14 @@ do is skip the harness because writing the state directly seemed quicker.
   lines → declare a **re-baseline run**. Do not produce a confidently-wrong "nothing
   changed".
 - Act on the previous run's `next_run_focus`: address each item, or state why not.
+- Read `facts.questions`. `answered_since_last_run` are decisions a person made since you
+  last ran: act on them, and never ask them again. `parked` are still waiting: you may
+  cite them, you do not re-ask them. A new question — a spec ambiguity, a contract only the
+  maintainer can settle — goes in judgment.json under `questions` (`question`, the
+  `finding` it is about, optional `context` and `options`); finalize mints its id and the
+  ledger carries it until `verdict-answer` closes it. A question is not a finding, and a
+  finding is not a question: a defect with a spec ambiguity under it is filed as a finding
+  with the question beside it.
 - Read `<qa-root>/lessons.md` if present — the project's recorded judgment corrections.
   A mistake this project has already paid for is not available to repeat.
 
@@ -586,6 +621,8 @@ a lighter answer fits):
 
 **The only paths you may Write to** (all inside the QA root from §0):
 
+- Findings → `<qa-root>/findings/<ID>.json`, one per finding, the moment it is proven
+  (§6); last run's move to `findings.prev/` when the next `verdict-facts` starts
 - Reports → `<qa-root>/reports/YYYY-MM-DD-<topic>.md`
 - Run index → `<qa-root>/reports/INDEX.md`
 - State → `<qa-root>/state.json`
@@ -680,6 +717,11 @@ Principles are worthless as recitation. Each one below has an operational conseq
   the summary line. Run any new or newly-fixed test 3× — differing results mean flaky, not
   green. Beware output-suppressing flags: a green with no countable summary line is not a
   countable green.
+- **`verification_test` is a collected test id, or absent.** It names the test the harness
+  re-runs at the previous commit and at HEAD to measure a fix; it comes from the ledger
+  `verdict-facts` wrote, and anything else is refused. "No test guards this" is a sentence
+  for the evidence — and a finding about the suite — never a value for the field: a run
+  wrote "none — no test in …" there, and the harness read it as a citation it could not find.
 
 ### State your confidence when you file, and never revise it
 
@@ -811,7 +853,8 @@ evidence list live in the report, where `finalize` rendered them. Hand off:
 - `VERDICT:` one of the four
 - `Release blockers:` concrete blockers only, or "none"
 - `Findings:` counts by severity + NEW/STILL_OPEN/RESOLVED/REGRESSED breakdown
-- `Needs human decision:` one line each, or "none"
+- `Needs human decision:` the questions on the ledger, one line each with its id, or
+  "none" — you asked them in judgment.json; the handoff does not invent new ones
 - `Not tested:` the count, and that the list is in the report
 - `Artifact:` path to the written report
 

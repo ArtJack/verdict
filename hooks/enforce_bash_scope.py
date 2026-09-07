@@ -43,7 +43,7 @@ import shlex
 import sys
 import tempfile
 
-from qa_paths import is_allowed_path, is_maintainer_file, utf8_stderr
+from qa_paths import is_allowed_path, is_maintainer_file, maintainer_pen, utf8_stderr
 
 # Commands whose non-flag arguments name files they (may) mutate.
 _MUTATORS = {
@@ -262,8 +262,8 @@ def _target_ok(target: str, cwd: str) -> tuple[bool, str]:
         # In scope, and still refused: the accepted-risk ledger is the
         # maintainer's decision about the tester's findings, written by
         # `verdict-accept` from outside any session.
-        return False, (f"{resolved} (the maintainer's accepted-risk ledger — written by "
-                       "verdict-accept, never by the tester)")
+        return False, (f"{resolved} (the maintainer's ledger — written by "
+                       f"{maintainer_pen(resolved)}, never by the tester)")
     if is_allowed_path(resolved):
         return True, resolved
     for root in _tmp_roots():

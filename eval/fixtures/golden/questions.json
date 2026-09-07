@@ -1,0 +1,13 @@
+{
+ "schema_version": 1,
+ "questions": {
+  "PRICER-Q-1": {
+   "question": "Is a price exactly at the floor listable? README rule 1 says 'at or above'; pricer.py:14 compares with '>' and the boundary test is skipped.",
+   "context": "PRICER-F-001 rests on which of the two is the spec.",
+   "finding": "PRICER-F-001",
+   "status": "parked",
+   "asked_on": "2026-08-24",
+   "asked_at_run": 2
+  }
+ }
+}

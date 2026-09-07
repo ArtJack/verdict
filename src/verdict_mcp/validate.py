@@ -36,9 +36,13 @@ from pathlib import Path
 
 try:
     from . import clock
+    from .anchors import refs_in
+    from .filed import FINDINGS_DIR, finding_file
 except ImportError:  # bare-script execution
     sys.path.insert(0, str(Path(__file__).resolve().parent))
     import clock
+    from anchors import refs_in
+    from filed import FINDINGS_DIR, finding_file
 
 VERDICTS = {"pass", "pass with risks", "blocked", "fail"}
 RUN_TYPES = {"baseline", "delta", "re-baseline"}
@@ -109,7 +113,24 @@ COMPUTED_BY_FINALIZE = ("hash", "first_seen", "age_days", "outcome", "outcome_re
                         # Where the cited code lives, hashed; when it was last measured;
                         # when it entered and when its fix was verified. All measured.
                         "anchors", "anchored_at_run", "last_verified_at",
-                        "introduced_at", "introduced_sha", "fixed_at")
+                        "introduced_at", "introduced_sha", "fixed_at",
+                        # When the finding file was written, and which verb carried it.
+                        "filed_at", "re_reported")
+# The verbs a judgment may use instead of re-typing a finding it looked at and
+# found unchanged: ids only, carried from the previous state by finalize.
+VERBS = ("still_open", "resolved")
+MIN_QUESTION = 12
+
+
+def known_tests(qa_root):
+    """The collected test ids `verdict-facts` wrote, or None when there is no
+    ledger to check a citation against."""
+    path = Path(qa_root) / "test-ids.txt"
+    if not path.is_file():
+        return None
+    ids = {ln.strip().replace("\\", "/") for ln in path.read_text(encoding="utf-8").splitlines()
+           if ln.strip()}
+    return ids or None
 
 
 def _evidence_shape(finding, where, fid) -> list:
@@ -162,7 +183,7 @@ def _not_tested_shape(carrier) -> list:
     return []
 
 
-def validate_judgment(judgment, previous=None):
+def validate_judgment(judgment, previous=None, known_tests=None):
     """Check `judgment.json` at the boundary where its author still stands.
 
     `validate()` checks the merged state, which is the right place to stop a bad
@@ -206,8 +227,8 @@ def validate_judgment(judgment, previous=None):
     if not isinstance(findings, list):
         return bad + ["findings must be a list"]
 
-    known_ids = {str(f.get("id")) for f in ((previous or {}).get("findings") or [])
-                 if f.get("id")}
+    prev_findings = [f for f in ((previous or {}).get("findings") or []) if isinstance(f, dict)]
+    known_ids = {str(f.get("id")) for f in prev_findings if f.get("id")}
     seen = {}
     for i, f in enumerate(findings):
         where = f"findings[{i}]"
@@ -215,62 +236,19 @@ def validate_judgment(judgment, previous=None):
             bad.append(f"{where} is not an object")
             continue
         fid = str(f.get("id") or "")
-        if not fid:
-            bad.append(f"{where} has no id — mint one as <PROJECT>-F-<n>, once, and reuse "
-                       "it verbatim on every later run that re-reports this finding")
-        elif fid in seen:
+        if fid and fid in seen:
             bad.append(f"{where} and findings[{seen[fid]}] are both filed as {fid!r} — one "
                        "id is one finding; if these are two problems, mint a second id")
-        else:
+        elif fid:
             seen[fid] = i
+        bad.extend(validate_finding(f, where, known_ids, known_tests))
 
-        if f.get("severity") not in SEVERITIES:
-            bad.append(f"{where} ({fid}) severity {f.get('severity')!r} not in {sorted(SEVERITIES)}")
-        if f.get("priority") not in PRIORITIES:
-            bad.append(f"{where} ({fid}) priority {f.get('priority')!r} not in {sorted(PRIORITIES)}")
-        status = _status(f)
-        if status == "accepted":
-            bad.append(f"{where} ({fid}) status 'accepted' is the maintainer's word, not the "
-                       "tester's — a finding cannot accept its own risk. Leave it open; the "
-                       "maintainer records the decision with `verdict-accept` and the "
-                       "harness folds it in")
-        elif status and status not in JUDGMENT_STATUSES:
-            bad.append(f"{where} ({fid}) status {f.get('status')!r} not in "
-                       f"{sorted(JUDGMENT_STATUSES)}")
-        if "accepted" in f:
-            bad.append(f"{where} ({fid}) carries an `accepted` block — that is the "
-                       "maintainer's record, written by `verdict-accept`; a judgment may not "
-                       "decorate a finding with an acceptance nobody made")
-        fc = f.get("failure_classification")
-        if fc is not None and fc not in CLASSIFICATIONS:
-            bad.append(f"{where} ({fid}) failure_classification {fc!r} not in "
-                       f"{sorted(CLASSIFICATIONS)} — use null for a finding that is not "
-                       "about a failing, erroring, skipped or nondeterministic test")
-        if _is_open(f) and not (f.get("evidence") or []):
-            bad.append(f"{where} ({fid}) is open with no evidence — an uncited finding is a "
-                       "HYPOTHESIS, not a finding")
-        bad.extend(_evidence_shape(f, where, fid))
-
-        conf = f.get("confidence")
-        if conf is not None and conf not in CONFIDENCES:
-            bad.append(f"{where} ({fid}) confidence {conf!r} not in {sorted(CONFIDENCES)}")
-        elif conf is None and fid and fid not in known_ids:
-            bad.append(
-                f"{where} ({fid}) is not in the previous state, so it will be filed as NEW "
-                f"— state its confidence now: {sorted(CONFIDENCES)}. It is scored against "
-                "what the finding turns out to do, so it cannot be added later")
-
-        fv = f.get("fix_verified")
-        if fv is not None and not isinstance(fv, bool):
-            bad.append(f"{where} ({fid}) fix_verified must be true or false, not {fv!r}")
-        elif fv is True and not (f.get("evidence") or []):
-            bad.append(f"{where} ({fid}) claims fix_verified with no evidence — cite the "
-                       "test that failed when you re-injected the defect")
-
-        computed = [k for k in COMPUTED_BY_FINALIZE if k in f]
-        if computed:
-            bad.append(f"{where} ({fid}) sets {', '.join(computed)}, which verdict-finalize "
-                       "computes and will overwrite — judgment.json carries judgment only")
+    bad.extend(_verbs_shape(judgment, prev_findings, set(seen)))
+    bad.extend(_questions_shape(judgment, set(seen) | known_ids))
+    prev_by_id = {str(f.get("id")): f for f in prev_findings if f.get("id")}
+    carried = [prev_by_id[x] for x in (judgment.get("still_open") or [])
+               if isinstance(x, str) and x in prev_by_id]
+    bad.extend(class_conflicts([f for f in findings if isinstance(f, dict)] + carried))
 
     blocking = [str(f.get("id")) for f in findings if isinstance(f, dict) and _is_open(f)
                 and f.get("severity") in ("Critical", "Blocker")]
@@ -278,6 +256,168 @@ def validate_judgment(judgment, previous=None):
         bad.append("verdict is `pass` with open Critical/Blocker findings: "
                    + ", ".join(blocking) + " — §10 caps that at `pass with risks`")
     return bad
+
+
+def validate_finding(f: dict, where: str, known_ids, known_tests=None) -> list:
+    """One finding, checked the way the judgment loop always checked it — and
+    the way the PostToolUse hook checks a `findings/<ID>.json` the moment it
+    is written, while the evidence is still in front of its author."""
+    bad = []
+    fid = str(f.get("id") or "")
+    if not fid:
+        bad.append(f"{where} has no id — mint one as <PROJECT>-F-<n>, once, and reuse "
+                   "it verbatim on every later run that re-reports this finding")
+    if f.get("severity") not in SEVERITIES:
+        bad.append(f"{where} ({fid}) severity {f.get('severity')!r} not in {sorted(SEVERITIES)}")
+    if f.get("priority") not in PRIORITIES:
+        bad.append(f"{where} ({fid}) priority {f.get('priority')!r} not in {sorted(PRIORITIES)}")
+    status = _status(f)
+    if status == "accepted":
+        bad.append(f"{where} ({fid}) status 'accepted' is the maintainer's word, not the "
+                   "tester's — a finding cannot accept its own risk. Leave it open; the "
+                   "maintainer records the decision with `verdict-accept` and the "
+                   "harness folds it in")
+    elif status and status not in JUDGMENT_STATUSES:
+        bad.append(f"{where} ({fid}) status {f.get('status')!r} not in "
+                   f"{sorted(JUDGMENT_STATUSES)}")
+    if "accepted" in f:
+        bad.append(f"{where} ({fid}) carries an `accepted` block — that is the "
+                   "maintainer's record, written by `verdict-accept`; a judgment may not "
+                   "decorate a finding with an acceptance nobody made")
+    fc = f.get("failure_classification")
+    if fc is not None and fc not in CLASSIFICATIONS:
+        bad.append(f"{where} ({fid}) failure_classification {fc!r} not in "
+                   f"{sorted(CLASSIFICATIONS)} — use null for a finding that is not "
+                   "about a failing, erroring, skipped or nondeterministic test")
+    if _is_open(f) and not (f.get("evidence") or []):
+        bad.append(f"{where} ({fid}) is open with no evidence — an uncited finding is a "
+                   "HYPOTHESIS, not a finding")
+    bad.extend(_evidence_shape(f, where, fid))
+
+    conf = f.get("confidence")
+    if conf is not None and conf not in CONFIDENCES:
+        bad.append(f"{where} ({fid}) confidence {conf!r} not in {sorted(CONFIDENCES)}")
+    elif conf is None and fid and fid not in known_ids:
+        bad.append(
+            f"{where} ({fid}) is not in the previous state, so it will be filed as NEW "
+            f"— state its confidence now: {sorted(CONFIDENCES)}. It is scored against "
+            "what the finding turns out to do, so it cannot be added later")
+
+    fv = f.get("fix_verified")
+    if fv is not None and not isinstance(fv, bool):
+        bad.append(f"{where} ({fid}) fix_verified must be true or false, not {fv!r}")
+    elif fv is True and not (f.get("evidence") or []):
+        bad.append(f"{where} ({fid}) claims fix_verified with no evidence — cite the "
+                   "test that failed when you re-injected the defect")
+
+    computed = [k for k in COMPUTED_BY_FINALIZE if k in f]
+    if computed:
+        bad.append(f"{where} ({fid}) sets {', '.join(computed)}, which verdict-finalize "
+                   "computes and will overwrite — judgment.json carries judgment only")
+    if "narrative" in f and not isinstance(f["narrative"], str):
+        bad.append(f"{where} ({fid}) narrative must be a string — the per-finding prose "
+                   "that finalize renders under the finding")
+    # P-24: a run wrote "none — no test in tests/test_x.py::y covers this" into
+    # verification_test, and the harness read it as a citation it could not
+    # find. The field is a test id or absent; "no test guards this" is a
+    # sentence for the evidence, and a finding about the suite.
+    vt = f.get("verification_test")
+    if vt is not None and known_tests is not None:
+        if not isinstance(vt, str) or vt.strip().replace("\\", "/") not in known_tests:
+            bad.append(f"{where} ({fid}) verification_test {str(vt)[:70]!r} is not a "
+                       "collected test id — declare one from test-ids.txt, or omit the "
+                       "field and say in evidence that no test guards this")
+    return bad
+
+
+def _verbs_shape(judgment, prev_findings, filed_ids: set) -> list:
+    """`still_open` / `resolved`: ids only, each open in the previous state,
+    each in one place."""
+    bad = []
+    prev_by_id = {str(f.get("id")): f for f in prev_findings if f.get("id")}
+    listed: dict = {}
+    for verb in VERBS:
+        ids = judgment.get(verb)
+        if ids is None:
+            continue
+        if not isinstance(ids, list) or not all(isinstance(x, str) for x in ids):
+            bad.append(f"{verb} must be a list of finding ids — the ids you looked at and "
+                       f"found {'still there' if verb == 'still_open' else 'gone'}")
+            continue
+        for fid in ids:
+            prior = prev_by_id.get(fid)
+            if prior is None:
+                bad.append(f"{verb} names {fid!r}, which is not in the previous state — a "
+                           "finding seen for the first time is filed, with evidence")
+            elif _status(prior) == "accepted":
+                bad.append(f"{verb} names {fid!r}, an accepted risk — the maintainer's, not "
+                           "yours to carry or resolve; the harness folds it in")
+            elif not _is_open(prior):
+                bad.append(f"{verb} names {fid!r}, which the previous state already has as "
+                           f"{_status(prior)} — nothing to carry")
+            if fid in filed_ids:
+                bad.append(f"{fid} is in {verb} and filed as a finding — one or the other")
+            if fid in listed and listed[fid] != verb:
+                bad.append(f"{fid} is in both still_open and resolved — it is one or the other")
+            listed[fid] = verb
+    return bad
+
+
+def _questions_shape(judgment, ids: set) -> list:
+    qs = judgment.get("questions")
+    if qs is None:
+        return []
+    if not isinstance(qs, list):
+        return ["questions must be a list of {question, context?, finding?, options?} objects"]
+    bad = []
+    for i, q in enumerate(qs):
+        where = f"questions[{i}]"
+        if not isinstance(q, dict):
+            bad.append(f"{where} is not an object")
+            continue
+        text = q.get("question")
+        if not isinstance(text, str) or len(text.strip()) < MIN_QUESTION:
+            bad.append(f"{where} needs a `question` a person can answer, in a sentence")
+        if q.get("finding") is not None and str(q["finding"]) not in ids:
+            bad.append(f"{where} refers to finding {q['finding']!r}, which is neither filed "
+                       "this run nor in the previous state")
+        opts = q.get("options")
+        if opts is not None and not (isinstance(opts, list) and all(isinstance(o, str) for o in opts)):
+            bad.append(f"{where} options must be a list of strings")
+        if q.get("context") is not None and not isinstance(q["context"], str):
+            bad.append(f"{where} context must be a string")
+    return bad
+
+
+def class_conflicts(findings) -> list:
+    """Two findings, one class. A finding whose evidence cites a `path:line`
+    that another finding lists under `root_cause.class.sites` is an instance of
+    that class filed as a second finding — the thing §3.5's class link exists
+    to prevent, and the thing filing findings one at a time makes easy. Exact,
+    not heuristic: the same reference, in two places, with two owners."""
+    owners: dict = {}
+    bad = []
+    for f in findings:
+        fid = str(f.get("id") or "?")
+        rc = f.get("root_cause") if isinstance(f.get("root_cause"), dict) else {}
+        cls = rc.get("class") if isinstance(rc.get("class"), dict) else {}
+        sites = cls.get("sites") if isinstance(cls.get("sites"), list) else []
+        for ref in refs_in(sites):
+            prior = owners.get(ref)
+            if prior and prior != fid:
+                bad.append(f"{fid} and {prior} both name {ref[0]}:{ref[1]} as a site of their "
+                           "class — one class is one finding: fold them, or take the site out "
+                           "of the class it does not belong to")
+            owners.setdefault(ref, fid)
+    for f in findings:
+        fid = str(f.get("id") or "?")
+        for ref in refs_in(f.get("evidence") or []):
+            owner = owners.get(ref)
+            if owner and owner != fid:
+                bad.append(f"{fid} cites {ref[0]}:{ref[1]}, which {owner} names as a site of "
+                           f"its class — fold {fid} into {owner}'s sites, or remove the site "
+                           f"from {owner}'s class; say which")
+    return list(dict.fromkeys(bad))
 
 
 def _list_shape(state) -> list:
@@ -588,12 +728,24 @@ def _load(path: Path):
 
 
 def _hook_mode() -> int:
-    """PostToolUse: validate a state.json the agent just wrote."""
+    """PostToolUse: validate a state.json, or a findings/<ID>.json, the agent just wrote."""
+    # UTF-8 on the way out, whatever the console codepage: every message here
+    # carries an em-dash, and on Windows the default stream writes cp1252's
+    # 0x97, which the reader (a parent decoding UTF-8 on a thread) drops as a
+    # whole — a refusal that arrives as None. The guards do the same.
+    for stream in (sys.stdout, sys.stderr):
+        try:
+            stream.reconfigure(encoding="utf-8", errors="replace")
+        except (AttributeError, ValueError, OSError):
+            pass
     try:
         data = json.load(sys.stdin)
     except Exception:
         return 0  # fail open: a broken hook must never brick a session
     target = ((data.get("tool_input") or {}).get("file_path") or "")
+    filed = finding_file(target) if target else None
+    if filed is not None:
+        return _hook_finding(Path(target), *filed)
     if os.path.basename(target) != "state.json":
         return 0
     path = Path(target)
@@ -609,6 +761,35 @@ def _hook_mode() -> int:
     sys.stderr.write(
         "verdict-validate: the state you just wrote violates the contract "
         f"({len(bad)} problem(s)) — fix it now, in this run:\n  " + "\n  ".join(bad) + "\n")
+    return 2
+
+
+def _hook_finding(path: Path, qa_root: Path, fid: str) -> int:
+    """PostToolUse: a `findings/<ID>.json` the agent just wrote, checked while
+    the evidence is still in front of its author. One file, one rejection."""
+    data, err = _load(path)
+    if err:
+        sys.stderr.write(f"verdict-validate: {path} {err}\n")
+        return 2
+    if not isinstance(data, dict):
+        sys.stderr.write(f"verdict-validate: {path} is not a JSON object — one finding, the "
+                         "shape of one entry of the template's findings[]\n")
+        return 2
+    previous, _ = _load(qa_root / "state.json") if (qa_root / "state.json").is_file() \
+        else (None, None)
+    known_ids = {str(f.get("id")) for f in ((previous or {}).get("findings") or [])
+                 if isinstance(f, dict) and f.get("id")}
+    where = f"{FINDINGS_DIR}/{path.name}"
+    bad = validate_finding(data, where, known_ids, known_tests(qa_root))
+    if str(data.get("id") or "") != fid:
+        bad.append(f"{where} carries id {data.get('id')!r}, but the filename says {fid!r} — "
+                   "one finding, one file, one id")
+    if not bad:
+        return 0
+    sys.stderr.write(
+        "verdict-validate: the finding you just wrote violates the contract "
+        f"({len(bad)} problem(s)) — fix this file now, while the evidence is in front of "
+        "you:\n  " + "\n  ".join(bad) + "\n")
     return 2
 
 

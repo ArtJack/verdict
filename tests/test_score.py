@@ -187,7 +187,8 @@ def test_delta_live_skips_unreachable_rows(tmp_path):
                         mode="live", expected_file=EXPECTED_DELTA)
     assert out["hard_fails"] == []  # regressed_first not armed in live mode
     assert (out["score"], out["max"]) == (4, 4) and rc == 0
-    skipped = {r["key"] for r in out["rows"] if "skipped" in r}
+    # the rows live mode cannot reach; the version-gated rows skip on their own account
+    skipped = {r["key"] for r in out["rows"] if str(r.get("skipped", "")).startswith("n/a")}
     assert skipped == {"regressed-rounding", "quarantine-released-on-expiry"}
 
 
@@ -446,3 +447,106 @@ def test_liar_conftest_row_requires_high_severity(tmp_path):
     state["findings"][2]["severity"] = "Minor"  # skip-all called a nit
     rc, out = run_score(tmp_path, state, expected_file=EXPECTED_LIAR)
     assert out["score"] == 5 and rc == 1
+
+
+# --- rows that read the state, not the words (0.84.0) ------------------------
+
+def _expected_file(tmp_path, expected):
+    path = tmp_path / "expected.json"
+    path.write_text(json.dumps(expected), encoding="utf-8")
+    return path
+
+
+def _measured(state, version="0.84.0"):
+    state["last_run"]["harness"] = {"version": version, "path": "x"}
+    return state
+
+
+def test_state_rows_score_files_verbs_anchors_and_the_class(tmp_path):
+    state = _measured(perfect_state())
+    fs = state["findings"]
+    fs[0]["filed_at"] = "2026-09-07T10:00:00Z"
+    fs[1]["re_reported"] = "still_open"
+    fs[0]["root_cause"] = {"class": {"sites": ["pricer.py:14 (this)", "report.py:41 twin"]}}
+    state["evidence_anchors"] = {"status": "measured", "refs": 10, "unresolvable": 1}
+    expected = {"rows": [
+        {"key": "filed", "type": "finding_field", "field": "filed_at", "only_delta": "NEW"},
+        {"key": "carried", "type": "finding_field", "field": "re_reported", "equals": "still_open"},
+        {"key": "anchors", "type": "anchors", "max_unresolvable_share": 0.2},
+        {"key": "class", "type": "class_sites", "match_any": ["report.py"], "min_sites": 1},
+        {"key": "old", "type": "anchors", "since": "9.0.0"},
+    ]}
+    for f in fs:
+        f.setdefault("delta", "NEW")
+    key = _expected_file(tmp_path, expected)
+    rc, out = run_score(tmp_path, state, expected_file=key)
+    got = {r["key"]: r for r in out["rows"]}
+    assert [got[k]["point"] for k in ("filed", "carried", "anchors", "class")] == [1, 1, 1, 1]
+    assert got["class"]["matched"] == fs[0]["id"]
+    assert "needs harness ≥ 9.0.0" in got["old"]["skipped"] and out["max"] == 4
+    # a second finding citing the class's site is the split the row exists to catch
+    fs[1]["evidence"] = ["report.py:41 rounds with round()"]
+    fs[1]["status"] = "open"
+    rc, out = run_score(tmp_path, state, expected_file=key)
+    got = {r["key"]: r for r in out["rows"]}
+    assert got["class"]["point"] == 0 and "names as a site of its class" in got["class"]["note"]
+    # and a state an older harness measured skips every gated row
+    rc, out = run_score(tmp_path, _measured(perfect_state(), "0.82.0"),
+                        expected_file=_expected_file(tmp_path, {"rows": [
+                            {"key": "filed", "type": "finding_field", "since": "0.84.0",
+                             "field": "filed_at"}]}))
+    assert out["rows"][0]["skipped"].startswith("needs harness ≥ 0.84.0") and out["max"] == 0
+
+
+def test_the_questions_row_reads_the_ledger(tmp_path):
+    state = _measured(perfect_state())
+    root = tmp_path / "qa"
+    root.mkdir(parents=True, exist_ok=True)
+    ledger = {"schema_version": 1, "questions": {"P-Q-1": {
+        "question": "Is a price exactly at the floor listable?", "status": "answered",
+        "answer": "yes", "acknowledged_at_run": 3, "asked_at_run": 2}}}
+    (root / "questions.json").write_text(json.dumps(ledger), encoding="utf-8")
+    key = _expected_file(tmp_path, {"rows": [{"key": "q", "type": "questions",
+                                              "answered_not_reasked": "floor"}]})
+    rc, out = run_score(tmp_path, state, expected_file=key)
+    assert out["rows"][0]["point"] == 1
+    # re-asked in other words: the point is lost
+    state["questions"] = {"parked": [{"id": "P-Q-2", "question": "Should the floor be inclusive?"}],
+                          "answered_since_last_run": []}
+    rc, out = run_score(tmp_path, state, expected_file=key)
+    assert out["rows"][0]["point"] == 0 and "re-asked" in out["rows"][0]["note"]
+
+
+def test_a_source_checkouts_harness_counts_as_current(tmp_path):
+    """The eval runs the working tree's harness, whose package metadata reads
+    `0+unknown`; a version-gated row must score there, and must still skip on
+    a state with no harness block at all (the archived corpus)."""
+    key = _expected_file(tmp_path, {"rows": [{"key": "filed", "type": "finding_field",
+                                              "since": "0.84.0", "field": "filed_at"}]})
+    state = _measured(perfect_state(), "0+unknown")
+    state["findings"][0]["filed_at"] = "2026-09-07T10:00:00Z"
+    rc, out = run_score(tmp_path, state, expected_file=key)
+    assert out["rows"][0]["point"] == 1 and out["max"] == 1
+    state = perfect_state()
+    state["last_run"].pop("harness", None)
+    rc, out = run_score(tmp_path, state, expected_file=key)
+    assert "skipped" in out["rows"][0] and out["max"] == 0
+
+
+def test_two_rows_of_one_class_may_share_a_finding(tmp_path):
+    """Since 0.84.0 the contract files one finding per class; an answer key that
+    lists two sites of one class as two rows must not score that as a miss."""
+    state = perfect_state()
+    state["findings"] = [_finding("L-F-1", "two tests cannot fail: one asserts a mock, one a tautology",
+                                  "BRITTLE_TEST", ["test_x.py:8 mock; test_x.py:12 tautology p == p"])]
+    for f in state["findings"]:
+        f.setdefault("delta", "NEW")
+    shared = {"rows": [{"key": "mock", "match_any": ["mock"], "class_of": "cannot-fail"},
+                       {"key": "tautology", "match_any": ["tautolog"], "class_of": "cannot-fail"}]}
+    rc, out = run_score(tmp_path, state, expected_file=_expected_file(tmp_path, shared))
+    assert [r["point"] for r in out["rows"]] == [1, 1]
+    assert out["rows"][0]["matched"] == out["rows"][1]["matched"] == "L-F-1"
+    unrelated = {"rows": [{"key": "mock", "match_any": ["mock"]},
+                          {"key": "tautology", "match_any": ["tautolog"]}]}
+    rc, out = run_score(tmp_path, state, expected_file=_expected_file(tmp_path, unrelated))
+    assert sorted(r["point"] for r in out["rows"]) == [0, 1], "unrelated rows never share"
