@@ -54,13 +54,18 @@ runner did not write, or one edited since, stays the operator's, as before.
 no way to run git; `facts.next_finding_id`, one past the highest id ever
 minted with the outcome ledger included, so nobody scans for a gap and two
 findings can no longer share an id by accident; the six new fields join the
-list a judgment is told it cannot write.
+list a judgment is told it cannot write. And a second run on the same day with
+the same topic no longer overwrites the first one's report — `-run<n>` is
+appended — found by the acceptance run on its own history: boltons run 3, a
+delta, composed run 2's filename and run 2's report was gone. The agent
+noticed, corrected the INDEX by hand and filed a lesson; the harness keeps
+both now.
 
-Pinned as mutants L1–L10 (the anchoring dropped, the drift never measured, a
+Pinned as mutants L1–L11 (the anchoring dropped, the drift never measured, a
 moved line read as changed, a date stamped by a record that ran no test,
 `introduced_at` falling back to `first_seen`, `fixed_at` on a claim, the repo
 path not recorded, silence when nothing could be anchored, a foreign
-provision kept — prompt and hooks). 1,032 tests.
+provision kept — prompt and hooks, an earlier run's report overwritten). 1,034 tests.
 
 ## 0.82.0 — 2026-09-06 · "a template is copied, not studied"
 

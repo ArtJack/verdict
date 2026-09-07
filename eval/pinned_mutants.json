@@ -817,5 +817,11 @@
   "path": "src/verdict_mcp/runner.py",
   "old": "        owned = bool(mine.get(\"sha256\")) and \\\n            mine[\"sha256\"] == _sha(json.dumps(current[\"hooks\"], sort_keys=True))\n",
   "new": "        owned = False\n"
+ },
+ {
+  "label": "0.83.0 L11 finalize: a later run's report overwrites an earlier run's with the same date and topic",
+  "path": "src/verdict_mcp/harness.py",
+  "old": "        if not path.exists() or _report_belongs_to(path, run_number):\n",
+  "new": "        if True:\n"
  }
 ]

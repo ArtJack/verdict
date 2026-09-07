@@ -2134,6 +2134,38 @@ def facts_main(argv=None) -> int:
     return 0
 
 
+_REPORT_RUN = re.compile(r"·\s*run\s+(\d+)\b")
+
+
+def _report_belongs_to(path: Path, run_number) -> bool:
+    """True when the report on disk is this run's own — its header names the
+    run number — so a retry after a refused finalize reuses its file."""
+    try:
+        head = path.read_text(encoding="utf-8", errors="replace")[:200]
+    except OSError:
+        return False
+    m = _REPORT_RUN.search(head)
+    return bool(m) and m.group(1) == str(run_number)
+
+
+def _report_name(qa_root: Path, stamp: str, topic: str, run_number) -> str:
+    """`reports/<date>-<topic>.md`, unless an earlier run already wrote that
+    file. A second delta on the same day used to overwrite the first one's
+    report — the artifact of record, gone without a word — found by the
+    acceptance run for 0.83.0 on its own history (boltons run 3 over run 2).
+    Another run's file is left alone and this one gets `-run<n>` appended; a
+    file this run itself wrote is reused."""
+    base = f"reports/{stamp}-{topic}".replace(" ", "-")
+    for rel in (f"{base}.md", f"{base}-run{run_number}.md"):
+        path = qa_root / rel
+        if not path.exists() or _report_belongs_to(path, run_number):
+            return rel
+    n = 2
+    while (qa_root / f"{base}-run{run_number}-{n}.md").exists():
+        n += 1
+    return f"{base}-run{run_number}-{n}.md"
+
+
 def finalize_main(argv=None) -> int:
     ap = argparse.ArgumentParser(
         prog="verdict-finalize",
@@ -2178,7 +2210,7 @@ def finalize_main(argv=None) -> int:
     if not report_rel or not report_rel.endswith(".md"):
         stamp = facts.get("measured_at", "")[:10]
         topic = judgment.get("topic") or state.get("run_type", "run")
-        report_rel = f"reports/{stamp}-{topic}.md".replace(" ", "-")
+        report_rel = _report_name(qa_root, stamp, topic, state.get("run_number"))
         state["last_run"]["report"] = report_rel
     report_path = qa_root / report_rel
     report_path.parent.mkdir(parents=True, exist_ok=True)
