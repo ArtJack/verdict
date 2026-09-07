@@ -398,3 +398,70 @@ def test_the_default_prompt_forbids_the_outer_session_an_offer_to_fix():
     the position cannot afford, and the runner's own prompt is where it is stopped."""
     from verdict_mcp.runner import DEFAULT_PROMPT
     assert "verbatim" in DEFAULT_PROMPT and "no offer to write fixes" in DEFAULT_PROMPT
+
+
+# --- the runner's own provision follows the plugin root ------------------------
+#
+# A control run launched from the installed 0.82.0 plugin kept a prompt that an
+# earlier run had rendered from a development checkout, resolved that checkout
+# as its plugin root, and measured half of itself with code being edited at
+# the time — under the installed version's name. What the runner wrote, it
+# re-writes when the source moves; what the operator wrote, or edited, it keeps.
+
+def _fake_root(tmp_path, name, marker):
+    root = tmp_path / name
+    (root / "agents").mkdir(parents=True)
+    (root / "hooks").mkdir()
+    src = Path(__file__).resolve().parent.parent
+    (root / "agents" / "verdict.md").write_text(
+        (src / "agents" / "verdict.md").read_text(encoding="utf-8") + f"\n<!-- {marker} -->\n",
+        encoding="utf-8")
+    (root / "hooks" / "hooks.json").write_text(
+        (src / "hooks" / "hooks.json").read_text(encoding="utf-8"), encoding="utf-8")
+    return root
+
+
+def test_the_runners_own_provision_follows_the_plugin_root(tmp_path, repo):
+    a, b = _fake_root(tmp_path, "rootA", "A"), _fake_root(tmp_path, "rootB", "B")
+    agent = repo / ".claude" / "agents" / "verdict.md"
+    local = repo / ".claude" / "settings.local.json"
+    proc, argv = _argv_of(tmp_path, repo, "--plugin-root", str(a))
+    assert argv is not None, proc.stderr
+    assert str(a) in agent.read_text(encoding="utf-8") and str(a) in local.read_text(encoding="utf-8")
+    record = json.loads((repo / ".claude" / "verdict-provision.json").read_text(encoding="utf-8"))
+    assert record["agent"]["root"] == str(a) and record["hooks"]["root"] == str(a)
+    # the same root, unchanged: nothing rewritten, and said
+    proc, _ = _argv_of(tmp_path, repo, "--plugin-root", str(a), name="again")
+    assert "verdict.md is current" in proc.stderr and "hooks are current" in proc.stderr
+    # another root: the runner's own copy follows it — the prompt and the hooks
+    proc, _ = _argv_of(tmp_path, repo, "--plugin-root", str(b), name="moved")
+    text = agent.read_text(encoding="utf-8")
+    assert str(b) in text and str(a) not in text and "<!-- B -->" in text
+    hooks = local.read_text(encoding="utf-8")
+    assert str(b) in hooks and str(a) not in hooks
+    assert "re-provisioned .claude/agents/verdict.md" in proc.stderr and "moved from" in proc.stderr
+    assert "re-installed hooks" in proc.stderr
+    # the prompt at that root changes — a plugin upgrade: rewritten too
+    (b / "agents" / "verdict.md").write_text(
+        (b / "agents" / "verdict.md").read_text(encoding="utf-8") + "<!-- B2 -->\n", encoding="utf-8")
+    proc, _ = _argv_of(tmp_path, repo, "--plugin-root", str(b), name="upgraded")
+    assert "<!-- B2 -->" in agent.read_text(encoding="utf-8")
+    assert "the prompt at that root changed" in proc.stderr
+
+
+def test_an_edited_provision_is_the_operators_and_is_kept(tmp_path, repo):
+    a, b = _fake_root(tmp_path, "rootA", "A"), _fake_root(tmp_path, "rootB", "B")
+    agent = repo / ".claude" / "agents" / "verdict.md"
+    local = repo / ".claude" / "settings.local.json"
+    proc, argv = _argv_of(tmp_path, repo, "--plugin-root", str(a))
+    assert argv is not None, proc.stderr
+    agent.write_text(agent.read_text(encoding="utf-8") + "\n# my tweak\n", encoding="utf-8")
+    settings = json.loads(local.read_text(encoding="utf-8"))
+    settings["hooks"]["Stop"] = []
+    local.write_text(json.dumps(settings), encoding="utf-8")
+    proc, _ = _argv_of(tmp_path, repo, "--plugin-root", str(b), name="moved")
+    text = agent.read_text(encoding="utf-8")
+    assert "# my tweak" in text and str(b) not in text
+    assert "kept existing .claude/agents/verdict.md" in proc.stderr and "edited since" in proc.stderr
+    assert json.loads(local.read_text(encoding="utf-8"))["hooks"]["Stop"] == []
+    assert "kept existing hooks" in proc.stderr

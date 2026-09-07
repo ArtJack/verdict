@@ -105,7 +105,11 @@ def _parse_z(value: str):
 COMPUTED_BY_FINALIZE = ("hash", "first_seen", "age_days", "outcome", "outcome_reason",
                         "carried_forward",
                         # A measurement, not a claim: the harness re-ran the test.
-                        "verification", "resolution_refused")
+                        "verification", "resolution_refused",
+                        # Where the cited code lives, hashed; when it was last measured;
+                        # when it entered and when its fix was verified. All measured.
+                        "anchors", "anchored_at_run", "last_verified_at",
+                        "introduced_at", "introduced_sha", "fixed_at")
 
 
 def _evidence_shape(finding, where, fid) -> list:

@@ -41,6 +41,7 @@ the `claude` CLI verbatim (MCP configs, permission modes, extra flags).
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import queue
@@ -275,6 +276,13 @@ def plugin_root(explicit=None):
     return None
 
 
+PROVISION_RECORD = "verdict-provision.json"   # under .claude/, beside what it describes
+
+
+def _sha(text: str) -> str:
+    return hashlib.sha256(text.encode("utf-8")).hexdigest()
+
+
 def provision(repo: Path, root) -> tuple[str | None, list[str]]:
     """Make the agent and its guards visible to an isolated headless session.
 
@@ -288,17 +296,52 @@ def provision(repo: Path, root) -> tuple[str | None, list[str]]:
     behaviour, in an environment the runner had built wrong. The nightly and
     the eval each hand-roll these same steps; the runner owns them now.
 
-    Writes only what is absent: an existing `.claude/agents/verdict.md` is the
-    operator's (the nightly provisions its own from a pinned checkout), and
-    existing `hooks` are theirs too and are named rather than replaced. Hooks
-    go in `settings.local.json`, the file a project's `.gitignore`
-    conventionally excludes, so provisioning does not dirty a tracked
-    `settings.json`. Returns (fatal problem or None, notes for stderr).
+    Writes what is absent, and re-writes what it wrote itself when the source
+    moved. `.claude/verdict-provision.json` records the root and the hash of
+    every file the runner rendered, so a run with a different `--plugin-root`,
+    or the same root after a plugin upgrade, replaces the runner's own copy and
+    says so. It used to keep whatever was there: a control run launched from
+    the installed 0.82.0 plugin kept a prompt rendered from a development
+    checkout, resolved that checkout as its plugin root, and measured half of
+    itself with code that was being edited at the time — under the installed
+    version's name. A file the runner did not write, or one edited since, is
+    the operator's (the nightly provisions its own from a pinned checkout) and
+    is kept, named on stderr. Hooks go in `settings.local.json`, the file a
+    project's `.gitignore` conventionally excludes, so provisioning does not
+    dirty a tracked `settings.json`. Returns (fatal problem or None, notes).
     """
     notes = []
-    agent = repo / ".claude" / "agents" / "verdict.md"
+    dot = repo / ".claude"
+    record_path = dot / PROVISION_RECORD
+    record = {}
+    if record_path.is_file():
+        try:
+            record = json.loads(record_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            record = {}
+    if not isinstance(record, dict):
+        record = {}
+
+    agent = dot / "agents" / "verdict.md"
+    rendered = None
+    if root is not None:
+        rendered = (root / "agents" / "verdict.md").read_text(encoding="utf-8") \
+            .replace("${CLAUDE_PLUGIN_ROOT}", str(root))
+    mine = record.get("agent") if isinstance(record.get("agent"), dict) else {}
     if agent.is_file():
-        notes.append("provision: kept existing .claude/agents/verdict.md")
+        current = agent.read_text(encoding="utf-8")
+        owned = bool(mine.get("sha256")) and mine["sha256"] == _sha(current)
+        if owned and rendered is not None and _sha(rendered) != mine["sha256"]:
+            agent.write_text(rendered, encoding="utf-8")
+            why = (f"the plugin root moved from {mine.get('root')} to {root}"
+                   if str(mine.get("root")) != str(root) else "the prompt at that root changed")
+            notes.append(f"provision: re-provisioned .claude/agents/verdict.md from {root} — {why}")
+            record["agent"] = {"root": str(root), "sha256": _sha(rendered)}
+        elif owned:
+            notes.append(f"provision: .claude/agents/verdict.md is current (from {root})")
+        else:
+            notes.append("provision: kept existing .claude/agents/verdict.md — not written by "
+                         "verdict-run, or edited since, so it is the operator's")
     elif root is None:
         return ("the `verdict` agent is not available to an isolated session and no "
                 "plugin root was found — install the plugin (agents/ and hooks/ are not "
@@ -306,11 +349,11 @@ def provision(repo: Path, root) -> tuple[str | None, list[str]]:
                 ".claude/agents/verdict.md yourself", notes)
     else:
         agent.parent.mkdir(parents=True, exist_ok=True)
-        text = (root / "agents" / "verdict.md").read_text(encoding="utf-8")
-        agent.write_text(text.replace("${CLAUDE_PLUGIN_ROOT}", str(root)), encoding="utf-8")
+        agent.write_text(rendered, encoding="utf-8")
         notes.append(f"provision: wrote .claude/agents/verdict.md from {root}")
+        record["agent"] = {"root": str(root), "sha256": _sha(rendered)}
 
-    local = repo / ".claude" / "settings.local.json"
+    local = dot / "settings.local.json"
     current = {}
     if local.is_file():
         try:
@@ -318,21 +361,55 @@ def provision(repo: Path, root) -> tuple[str | None, list[str]]:
         except (OSError, json.JSONDecodeError):
             notes.append("provision: .claude/settings.local.json is unreadable — left "
                          "alone; the write/bash guards may not be enforcing")
+            _save_record(record_path, record)
             return None, notes
+    hooks_rendered = None
+    if root is not None:
+        hooks_rendered = json.loads(
+            (root / "hooks" / "hooks.json").read_text(encoding="utf-8")
+            .replace("${CLAUDE_PLUGIN_ROOT}", str(root).replace("\\", "\\\\")))["hooks"]
+    mine = record.get("hooks") if isinstance(record.get("hooks"), dict) else {}
     if isinstance(current, dict) and "hooks" in current:
-        notes.append("provision: kept existing hooks in .claude/settings.local.json")
+        owned = bool(mine.get("sha256")) and \
+            mine["sha256"] == _sha(json.dumps(current["hooks"], sort_keys=True))
+        if owned and hooks_rendered is not None and \
+                _sha(json.dumps(hooks_rendered, sort_keys=True)) != mine["sha256"]:
+            current["hooks"] = hooks_rendered
+            local.write_text(json.dumps(current, indent=2) + "\n", encoding="utf-8")
+            notes.append(f"provision: re-installed hooks into .claude/settings.local.json from "
+                         f"{root} — they pointed at {mine.get('root')}")
+            record["hooks"] = {"root": str(root),
+                               "sha256": _sha(json.dumps(hooks_rendered, sort_keys=True))}
+        elif owned:
+            notes.append(f"provision: hooks are current (from {root})")
+        else:
+            notes.append("provision: kept existing hooks in .claude/settings.local.json — not "
+                         "installed by verdict-run, or edited since, so they are the operator's")
     elif root is None:
         notes.append("provision: no plugin root, hooks NOT installed — the write/bash "
                      "guards are not enforcing this run")
     else:
-        hooks = json.loads((root / "hooks" / "hooks.json").read_text(encoding="utf-8")
-                           .replace("${CLAUDE_PLUGIN_ROOT}", str(root).replace("\\", "\\\\")))
         current = current if isinstance(current, dict) else {}
-        current["hooks"] = hooks["hooks"]
+        current["hooks"] = hooks_rendered
         local.parent.mkdir(parents=True, exist_ok=True)
         local.write_text(json.dumps(current, indent=2) + "\n", encoding="utf-8")
         notes.append("provision: installed hooks into .claude/settings.local.json")
+        record["hooks"] = {"root": str(root),
+                           "sha256": _sha(json.dumps(hooks_rendered, sort_keys=True))}
+    _save_record(record_path, record)
     return None, notes
+
+
+def _save_record(path: Path, record: dict) -> None:
+    """What the runner rendered, so the next run can tell its own copy from the
+    operator's. Written only when there is something to record."""
+    if not record:
+        return
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(record, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    except OSError:
+        pass
 
 
 def main(argv=None) -> int:

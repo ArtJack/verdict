@@ -3,6 +3,65 @@
 Plugin and `verdict-mcp` share one version line; `.claude-plugin/plugin.json` and
 `pyproject.toml` are bumped together.
 
+## 0.83.0 — 2026-09-07 · "where the code went"
+
+The harness half of the findings-as-files design (engineering-docs, verdict
+pack §7, session 5): fields nobody writes, and one fact the next run reads
+before it reads anything else. No prompt change, so no eval payment; the
+acceptance run is a delta on a stranger.
+
+**Every cited line, hashed (T-1).** `verdict-finalize` turns each `path:line`
+in a finding's evidence and class sites — and in each verified-intact item —
+into an anchor: the file's git blob id and a hash of that one line
+(`findings[].anchors`, `verified_intact_anchors`). The next `verdict-facts`
+re-measures them and writes `evidence_drift`: unchanged, moved (and to where),
+changed, missing, or unresolvable when the reference never named a file. The
+tester reads where the code moved instead of everything; the report's Scope
+line counts it; "the code under an accepted risk changed" is measured in its
+own bucket, where the contract used to ask the agent to say so from memory.
+Anchors date from when the evidence was written and are carried while the
+evidence text is unchanged, so "moved since" means since the tester last looked
+at that code. A state written before this release reads `unavailable`, never
+`unchanged`.
+
+**When it was last measured (T-2).** `findings[].last_verified_at` is the
+timestamp of the harness's own re-run of the finding's test — pass or fail; an
+error or an `unavailable` ran nothing and dates nothing. The report prints
+"Last measured 2026-09-05 — fails at HEAD", or "Never measured — no
+`verification_test` declared", which is the sentence that gets one declared.
+
+**Two more clocks (T-3).** `introduced_at` (and `introduced_sha`): the date of
+the commit `root_cause.origin` names, resolved by git; absent when the origin
+names no commit this repository has, never derived from `first_seen`.
+`fixed_at`: the date the harness measured fail→pass on a chosen test — the
+verified-fix date, not the fix commit's, and only ever on a measured
+resolution. The finding header prints both — "lived 243d before detection ·
+fix verified 3d after detection" — and the outcome ledger keeps them, so dwell
+time and fix latency survive the finding leaving the state.
+
+**The runner's own provision follows the plugin root.** `verdict-run` kept
+whatever `.claude/agents/verdict.md` and hooks it found in the target. The
+control run for this release, launched from the installed 0.82.0 plugin, kept
+a prompt an earlier run had rendered from a development checkout, resolved
+that checkout as its plugin root, and had its finalize half run by code that
+was being edited at the time — under the installed version's name.
+`.claude/verdict-provision.json` now records the root and the hash of every
+file the runner rendered; a different `--plugin-root`, or the same root after
+a plugin upgrade, replaces the runner's own copy and says why. A file the
+runner did not write, or one edited since, stays the operator's, as before.
+
+**Small things.** `facts.repo`, because finalize runs from the QA root and had
+no way to run git; `facts.next_finding_id`, one past the highest id ever
+minted with the outcome ledger included, so nobody scans for a gap and two
+findings can no longer share an id by accident; the six new fields join the
+list a judgment is told it cannot write.
+
+Pinned as mutants L1–L10 (the anchoring dropped, the drift never measured, a
+moved line read as changed, a date stamped by a record that ran no test,
+`introduced_at` falling back to `first_seen`, `fixed_at` on a claim, the repo
+path not recorded, silence when nothing could be anchored, a foreign
+provision kept — prompt and hooks). 1,032 tests.
+
 ## 0.82.0 — 2026-09-06 · "a template is copied, not studied"
 
 The first release of the work plan drawn from the run traces

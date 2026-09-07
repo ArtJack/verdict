@@ -101,6 +101,13 @@ here.
 | `calibration` | computed | The track record block: `by_confidence` and `by_proof_method` counts over every finding the project ever filed, with `precision` present only once a bucket reaches `min_sample` (30) settled outcomes. Rendered into the report as **Track record** |
 | `findings[].root_cause` | no | The §3.5 chain when one was established: `{mechanism, origin, class{pattern, sites[]}, trigger, latent_condition, fix_location, proof{method, evidence}, confidence}`. `proof.method` is `counterfactual` · `differential` · `archaeology` · `reading`; `fix_location` is `code` · `test` · `spec` · `environment` · `process`; `confidence` is `proven` · `hypothesis`. Carrying it forward means the next run inherits the diagnosis instead of re-deriving it |
 | `verdict` | yes | `pass` · `pass with risks` · `blocked` · `fail` |
+| `findings[].anchors` | computed | Every `path:line` the finding's evidence and `root_cause.class.sites` cite, hashed at finalize: `{ref, path, line, blob, line_sha}`, or `{ref, status: unresolvable, reason}` when the reference names no file this repository has. Carried while the evidence text is unchanged (`anchored_at_run` says which run took them), so drift is measured from when the evidence was written. See [Anchors and drift](#anchors-and-drift--where-the-cited-code-went) |
+| `findings[].last_verified_at` | computed | The timestamp of the harness's own last re-run of the finding's test (`at_head` pass or fail); an `error` or `unavailable` ran nothing and dates nothing. Carried forward; absent when never measured — and then the report says "no `verification_test` declared" |
+| `findings[].introduced_at` · `introduced_sha` | computed | The date (and full sha) of the commit `root_cause.origin` names, resolved by git — dwell time is `first_seen` minus this. Absent when the origin names no commit this repository has; never derived from `first_seen` |
+| `findings[].fixed_at` | computed | The date the harness measured fail→pass on a chosen test — the verified-fix date, not the fix commit's own; only on a `measured` resolution, never on a claim. Fix latency is this minus `first_seen` |
+| `verified_intact_anchors` | computed | One anchor list per `verified_intact` item, aligned by index — the strings stay strings |
+| `evidence_anchors` | computed | `{status: measured, refs, unresolvable}`, or `{status: unavailable, reason}` when facts.json named no `repo` and nothing could be anchored |
+| `evidence_drift` | measured | Copied from facts: where the previous state's anchors are now — per open finding, per accepted finding, per verified-intact item — `unchanged` · `moved` (with `now_line`) · `changed` · `missing` · `unresolvable`, with `summary.drifted_findings` / `drifted_accepted` / `drifted_intact`. `status: unavailable` when the previous state carried no anchors |
 | `release_blockers` | yes | Concrete blockers, or empty |
 | `not_tested` | yes | What was consciously not covered — a silent skip is a reporting failure. Must be **non-empty on `pass` and `pass with risks`**: an empty list claims total coverage, which almost no run can say honestly |
 | `next_run_focus` | no | Carries intent to the next run |
@@ -368,6 +375,64 @@ the computed `delta`), never `fix_verified` — that is the one judgment field i
 and counting it there published run 5's error/error record as "1 verified" (VERDICT-F-30).
 A finding claiming `fix_verified` that its own measurement does not show is named on the
 line below it.
+
+## Anchors and drift — where the cited code went
+
+A finding cites `path:line`, and until 0.83.0 nothing read that citation again:
+the next run re-read the code, or did not, and "the code under an accepted risk
+changed" was a sentence the contract asked the agent to write from memory.
+`verdict-finalize` now turns every such reference — in a finding's `evidence`
+and `root_cause.class.sites`, and in each `verified_intact` item — into an
+anchor: the file's git blob id (computed as git computes it, so an uncommitted
+file anchors the same way) and a hash of that one line.
+
+```json
+"anchors": [
+  {"ref": "src/pricer/money.py:14", "path": "src/pricer/money.py", "line": 14,
+   "blob": "9e1c4f0a77b2", "line_sha": "3d2a5c9b1e0f4a67"},
+  {"ref": "publish/index.ts:112", "status": "unresolvable",
+   "reason": "no such file in the repository"}
+]
+```
+
+The next `verdict-facts` re-measures every anchor the previous state carries and
+writes `evidence_drift`: `unchanged` (same blob, or the same line at the same
+place in a file that changed elsewhere), `moved` (the same line elsewhere —
+`now_line` says where), `changed` (the line is gone), `missing` (the file is
+gone), `unresolvable` (the reference never named a file). A finding's drift is
+the worst of its resolvable references. Open findings, accepted findings and
+verified-intact items are measured in three buckets, because they are three
+different sentences: what to re-read, what a maintainer's decision was made
+about, and what the tester stood on.
+
+```json
+"evidence_drift": {
+  "status": "measured",
+  "findings": {"PRICER-F-3": {"drift": "moved",
+               "refs": [{"ref": "src/pricer/money.py:14", "status": "moved", "now_line": 19}]}},
+  "accepted": {"PRICER-F-1": {"drift": "changed", "refs": [{"ref": "src/pricer/zones.py:22", "status": "changed"}]}},
+  "verified_intact": [{"text": "Zone lookup is pure …", "drift": "unchanged", "refs": [{"ref": "src/pricer/zones.py:18", "status": "unchanged"}]}],
+  "summary": {"drifted_findings": ["PRICER-F-3"], "drifted_accepted": ["PRICER-F-1"], "drifted_intact": []}
+}
+```
+
+Anchors are **carried, not refreshed**, while a re-reported finding's evidence
+text is the text they were taken from; new evidence re-anchors. So an anchor
+dates from when the tester last wrote about that code, and "moved since" means
+since it last looked — which is the question, rather than "since last night".
+Nothing decides anything on an anchor by itself: `unresolvable` costs nothing,
+and the rule that reads drift (0.84.0: a `still_open` id whose cited code
+changed or vanished is refused, "the code you cite no longer says that") stays
+quiet on it. A previous state written before anchors existed reads
+`evidence_drift.status: unavailable`, never `unchanged`; a facts.json that
+names no `repo` leaves `evidence_anchors.status: unavailable` in the state,
+said, not silent.
+
+`facts.json` gains two small things beside `evidence_drift`: `repo`, the path
+finalize runs git in, and `next_finding_id` — one past the highest id ever
+minted for the project, the outcome ledger included, so a finding resolved runs
+ago cannot have its number reused and two findings can no longer share an id by
+accident.
 
 ## Silence, resolution, and `full_sweep`
 

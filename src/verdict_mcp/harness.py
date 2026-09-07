@@ -56,6 +56,7 @@ from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
 try:
+    from .anchors import DRIFTED, anchors_for, evidence_drift
     from .census import code_census
     from .profile import ProfileError, gates_from
     from .profile import load as load_profile
@@ -72,6 +73,7 @@ try:
 except ImportError:  # bare-script execution
     sys.path.insert(0, str(Path(__file__).resolve().parent))
     import clock
+    from anchors import DRIFTED, anchors_for, evidence_drift
     from census import code_census
     from profile import ProfileError, gates_from
     from profile import load as load_profile
@@ -713,7 +715,8 @@ def verify_findings(repo: Path, previous: dict | None, test_one_cmd: str | None,
     return results, notes
 
 
-def _apply_verification(entry: dict, prior: dict | None, verification: dict) -> None:
+def _apply_verification(entry: dict, prior: dict | None, verification: dict,
+                        measured_at: str | None = None) -> None:
     """Stamp the measurement on a finding, and refuse a resolution it contradicts.
 
     Runs before the outcome is derived, so a verified fix reaches the ledger as
@@ -723,10 +726,20 @@ def _apply_verification(entry: dict, prior: dict | None, verification: dict) -> 
     the code being judged.
     """
     key = str(entry.get("id") or (prior or {}).get("id") or "")
+    # The last time the harness ran this finding's test is a date the finding
+    # keeps: "STILL_OPEN 12d, measured yesterday" and "STILL_OPEN 12d, never
+    # measured" are two different sentences, and only one of them is a reason
+    # to declare a `verification_test`.
+    if prior and prior.get("last_verified_at") and not entry.get("last_verified_at"):
+        entry["last_verified_at"] = prior["last_verified_at"]
     rec = verification.get(key) if verification else None
     if not rec:
         return
     entry["verification"] = rec
+    if rec.get("at_head") in ("pass", "fail") and measured_at:
+        # A measurement is a test that ran on the code under judgment. An
+        # `error` or an `unavailable` did not run it, and dates nothing.
+        entry["last_verified_at"] = measured_at
     resolving = entry.get("delta") == "RESOLVED"
     # Two directions, two bars. A prose citation, one or several, no longer
     # reaches here from `verify_findings` at all — it is reported
@@ -759,6 +772,11 @@ def _apply_verification(entry: dict, prior: dict | None, verification: dict) -> 
                                   "`verification_test` to make it count")
             return
         entry["fix_verified"] = True
+        if measured_at:
+            # The verified-fix date — when the harness watched the guard fail
+            # at the old commit and pass at HEAD — not the fix commit's own
+            # date, which nobody bisected. Fix latency is measured from here.
+            entry["fixed_at"] = measured_at[:10]
         sha7 = str(rec.get("previous_sha") or "")[:7]
         entry["evidence"] = [*(str(e) for e in (entry.get("evidence") or [])),
                              f"verification (measured): {rec['test']} fails at {sha7} "
@@ -1143,6 +1161,9 @@ def collect(repo: Path, qa_root: Path, gates: list[tuple[str, str]],
         "project": key,
         "project_key_source": key_source,
         "qa_root": str(qa_root),
+        # finalize anchors cited lines and resolves origin commits with git,
+        # and it runs from the QA root — it has to be told where the code is.
+        "repo": str(repo),
         "schema_version": 1,
         "run_number": run_number,
         "run_type": run_type,
@@ -1260,6 +1281,27 @@ def collect(repo: Path, qa_root: Path, gates: list[tuple[str, str]],
             # tells a guarding test from a mentioned one.
             facts["_added_test_ids"] = added
 
+    # The id the next NEW finding takes — one more than the highest ever minted,
+    # in the state or the outcome ledger — so the agent never scans for a gap
+    # and two findings can no longer share an id by accident.
+    facts["next_finding_id"] = next_finding_id(key, previous, load_outcomes(qa_root))
+
+    # Where the code the previous run cited has gone since: re-hash every
+    # anchor finalize recorded, so the tester reads what moved instead of
+    # everything, and "the code under an accepted risk changed" is measured.
+    if previous:
+        prev_findings = [f for f in (previous.get("findings") or []) if isinstance(f, dict)]
+        drift = evidence_drift(
+            repo,
+            [f for f in prev_findings if is_open(f)],
+            [f for f in prev_findings if norm_status(f.get("status")) == "accepted"],
+            list(zip(previous.get("verified_intact") or [],
+                     previous.get("verified_intact_anchors") or [])))
+        facts["evidence_drift"] = drift or {
+            "status": "unavailable",
+            "reason": "the previous state carries no evidence anchors — it was written by a "
+                      "verdict-finalize older than 0.83.0; this run anchors, the next measures"}
+
     verification, vnotes = verify_findings(repo, previous, test_one_cmd, prev_sha,
                                           known_ids=facts.get("_test_ids"),
                                           added_ids=facts.get("_added_test_ids"))
@@ -1275,6 +1317,85 @@ def collect(repo: Path, qa_root: Path, gates: list[tuple[str, str]],
 
 _LINE_NUMBERS = re.compile(r"\d+")
 _WS = re.compile(r"\s+")
+_FID = re.compile(r"^(?P<prefix>.+)-F-(?P<n>\d+)$")
+_SHA = re.compile(r"(?<![0-9a-zA-Z])[0-9a-f]{7,40}(?![0-9a-zA-Z])")
+
+
+def next_finding_id(key: str, previous: dict | None, ledger: dict | None) -> str:
+    """The id the next NEW finding takes: one past the highest ever minted for
+    this project, in the state or in the outcome ledger (a finding resolved
+    runs ago is gone from the state, and §6 forbids reusing its number). The
+    prefix is the one the project already uses, or the key upper-cased on a
+    first run; zero-padding is kept when the project pads (`PRICER-F-003`)."""
+    ids = [f.get("id") for f in (previous or {}).get("findings") or [] if isinstance(f, dict)]
+    ids += [row.get("id") for row in ((ledger or {}).get("findings") or {}).values()
+            if isinstance(row, dict)]
+    prefixes: dict = {}
+    top, width = 0, 0
+    for fid in ids:
+        m = _FID.match(str(fid or ""))
+        if not m:
+            continue
+        prefixes[m["prefix"]] = prefixes.get(m["prefix"], 0) + 1
+        n = int(m["n"])
+        if n > top:
+            top, width = n, (len(m["n"]) if m["n"].startswith("0") else 0)
+    prefix = max(prefixes, key=prefixes.get) if prefixes else str(key).upper()
+    return f"{prefix}-F-{top + 1:0{width}d}" if width else f"{prefix}-F-{top + 1}"
+
+
+def _anchor_texts(finding: dict) -> list[str]:
+    """The strings whose `path:line` references get anchored: the evidence and
+    the class's sites — the places the finding says the defect lives."""
+    rc = finding.get("root_cause") if isinstance(finding.get("root_cause"), dict) else {}
+    cls = rc.get("class") if isinstance(rc.get("class"), dict) else {}
+    sites = cls.get("sites") if isinstance(cls.get("sites"), list) else []
+    return [str(e) for e in (finding.get("evidence") or [])] + [str(x) for x in sites]
+
+
+def _anchor(entry: dict, prior: dict | None, repo: Path, run_number) -> None:
+    """Anchor the finding's cited lines — fresh when its evidence is new,
+    carried when the evidence is the text the anchors were taken from.
+    Carrying is what lets drift accumulate: an anchor dates from when the
+    evidence was written, so "moved since" means since the tester last looked
+    at that code, not since last night."""
+    texts = _anchor_texts(entry)
+    if prior and prior.get("anchors") and _anchor_texts(prior) == texts:
+        entry["anchors"] = prior["anchors"]
+        if prior.get("anchored_at_run") is not None:
+            entry["anchored_at_run"] = prior["anchored_at_run"]
+        return
+    entry["anchors"] = anchors_for(repo, texts)
+    entry["anchored_at_run"] = run_number
+
+
+def _introduce(entry: dict, prior: dict | None, repo: Path | None) -> None:
+    """`introduced_at`: the date of the commit `root_cause.origin` names,
+    resolved by git — the finding's other time axis, so dwell time
+    (introduction → detection) is a number the report prints. Carried while
+    the origin text is unchanged; absent when the origin names no commit this
+    repository has. Never derived from `first_seen`: detection is not
+    introduction, and a guessed date on this axis would be the kind of
+    plausible number the harness exists to refuse."""
+    rc = entry.get("root_cause") if isinstance(entry.get("root_cause"), dict) else {}
+    origin = rc.get("origin")
+    prc = (prior or {}).get("root_cause") if isinstance((prior or {}).get("root_cause"), dict) else {}
+    if prior and prior.get("introduced_at") and origin == prc.get("origin"):
+        entry["introduced_at"] = prior["introduced_at"]
+        if prior.get("introduced_sha"):
+            entry["introduced_sha"] = prior["introduced_sha"]
+        return
+    if not isinstance(origin, str) or repo is None:
+        return
+    for m in _SHA.finditer(origin):
+        if _git(["cat-file", "-t", m.group(0)], repo) != "commit":
+            continue
+        when = _git(["show", "-s", "--format=%cI", m.group(0)], repo)
+        full = _git(["rev-parse", m.group(0)], repo)
+        if when and full:
+            entry["introduced_at"] = when[:10]
+            entry["introduced_sha"] = full
+            return
 
 
 def finding_hash(finding: dict) -> str:
@@ -1475,6 +1596,13 @@ def merge(facts: dict, judgment: dict, previous: dict | None, today: date | None
     write.
     """
     today = today or run_date(facts)
+    # finalize runs from the QA root; facts says where the code is. An older
+    # facts.json names no repo, and then nothing is anchored — said in the
+    # state, never silently.
+    repo_path = facts.get("repo")
+    repo = Path(repo_path) if repo_path and Path(repo_path).is_dir() else None
+    measured_at = str(facts.get("measured_at")
+                      or (facts.get("last_run") or {}).get("timestamp_utc") or "") or None
     prev_by_hash, prev_by_id = {}, {}
     for f in ((previous or {}).get("findings") or []):
         if f.get("hash"):
@@ -1545,7 +1673,10 @@ def merge(facts: dict, judgment: dict, previous: dict | None, today: date | None
         if prior and prior.get("confidence"):
             entry["confidence"] = prior["confidence"]
         _fold_accepted(entry, accepted)
-        _apply_verification(entry, prior, facts.get("verification") or {})
+        _apply_verification(entry, prior, facts.get("verification") or {}, measured_at)
+        _introduce(entry, prior, repo)
+        if repo is not None:
+            _anchor(entry, prior, repo, facts.get("run_number"))
         entry.update(_stamp_outcome(entry, prior))
         findings.append(entry)
 
@@ -1604,7 +1735,7 @@ def merge(facts: dict, judgment: dict, previous: dict | None, today: date | None
         # Silence is not verification — but measurement is. A finding nobody
         # re-reported proves nothing by itself; its cited test, re-run at both
         # commits, can still settle it either way.
-        _apply_verification(carried, prior, facts.get("verification") or {})
+        _apply_verification(carried, prior, facts.get("verification") or {}, measured_at)
         carried.update(_stamp_outcome(carried, prior))
         findings.append(carried)
 
@@ -1638,6 +1769,25 @@ def merge(facts: dict, judgment: dict, previous: dict | None, today: date | None
     for optional in ("run_label", "next_run_focus", "flaky_quarantine", "coverage"):
         if judgment.get(optional) is not None:
             state[optional] = judgment[optional]
+    # Every cited line, hashed, so the next run is told where the code moved.
+    # The verified-intact items are strings and stay strings; their anchors
+    # sit beside them, aligned by index.
+    if repo is not None:
+        state["verified_intact_anchors"] = [anchors_for(repo, [str(t)])
+                                            for t in (judgment.get("verified_intact") or [])]
+        refs = [a for f in findings for a in (f.get("anchors") or [])]
+        refs += [a for group in state["verified_intact_anchors"] for a in group]
+        state["evidence_anchors"] = {
+            "status": "measured", "refs": len(refs),
+            "unresolvable": sum(1 for a in refs if a.get("status") == "unresolvable")}
+    else:
+        state["verified_intact_anchors"] = []
+        state["evidence_anchors"] = {
+            "status": "unavailable",
+            "reason": "facts.json names no repository path (`repo`) — measured by a "
+                      "verdict-facts older than 0.83.0, so nothing was anchored this run"}
+    if isinstance(facts.get("evidence_drift"), dict):
+        state["evidence_drift"] = facts["evidence_drift"]
     # Measured coverage outranks written coverage. The judgment may still carry
     # its own block when the harness had nothing to measure with.
     if isinstance(facts.get("coverage"), dict) and facts["coverage"].get("status"):
@@ -2157,6 +2307,30 @@ def _render_calibration(cal: dict) -> list[str]:
     return lines
 
 
+def _days_between(start, end) -> int | None:
+    """Whole days from one recorded date to another, or None when either is
+    missing or unreadable — a clock the report prints only when both ends
+    were measured."""
+    try:
+        a = date.fromisoformat(str(start)[:10])
+        b = date.fromisoformat(str(end)[:10])
+    except (TypeError, ValueError):
+        return None
+    return (b - a).days
+
+
+def _drifted_refs(drift: dict, finding: dict):
+    """(worst drift, [rendered refs]) for a finding whose cited code moved, or None."""
+    fid = str(finding.get("id") or "")
+    d = (drift.get("findings") or {}).get(fid) or (drift.get("accepted") or {}).get(fid)
+    if not isinstance(d, dict) or d.get("drift") not in DRIFTED:
+        return None
+    refs = [r for r in (d.get("refs") or []) if r.get("status") in DRIFTED]
+    shown = [str(r.get("ref")) + (f" (now line {r['now_line']})" if r.get("now_line")
+                                  else f" ({r.get('status')})") for r in refs[:6]]
+    return d["drift"], shown
+
+
 def render_report(state: dict, prose: dict | None = None) -> str:
     """Render the report from the state, injecting the agent's prose.
 
@@ -2186,6 +2360,18 @@ def render_report(state: dict, prose: dict | None = None) -> str:
         out.append(f"- Harness: verdict-qa-mcp {harness.get('version') or '?'}"
                    + (f" · prompt {prompt[:12]}" if prompt else "")
                    + f" · `{harness['path']}`")
+    drift = state.get("evidence_drift") if isinstance(state.get("evidence_drift"), dict) else {}
+    if drift.get("status") == "measured":
+        summary = drift.get("summary") or {}
+        moved = summary.get("drifted_findings") or []
+        moved_acc = summary.get("drifted_accepted") or []
+        out.append(f"- Evidence drift: {len(moved)} of {len(drift.get('findings') or {})} "
+                   "anchored open findings cite code that moved or changed since the "
+                   "evidence was written"
+                   + (f" ({', '.join(moved)})" if moved else "")
+                   + (f"; under accepted risks: {', '.join(moved_acc)}" if moved_acc else ""))
+    elif drift.get("status") == "unavailable":
+        out.append(f"- Evidence drift: not measured — {drift.get('reason')}")
     iso = state.get("isolation_check") or {}
     if iso:
         detail = iso.get("method") or iso.get("note") or ""
@@ -2296,14 +2482,32 @@ def render_report(state: dict, prose: dict | None = None) -> str:
         out.append("_None recorded this run._")
     for f in findings:
         cls = f.get("failure_classification")
+        dwell = _days_between(f.get("introduced_at"), f.get("first_seen"))
+        latency = _days_between(f.get("first_seen"), f.get("fixed_at"))
         out.append(f"### {f.get('id')} — {f.get('delta', '?')} — "
                    f"{f.get('severity')}/{f.get('priority')}"
                    + (f" — {cls}" if cls else "")
-                   + (f" — age {f['age_days']}d" if f.get("age_days") else ""))
+                   + (f" — age {f['age_days']}d" if f.get("age_days") else "")
+                   + (f" · lived {dwell}d before detection" if dwell is not None else "")
+                   + (f" · fix verified {latency}d after detection" if latency is not None else ""))
         out.append("")
         out.append(str(f.get("title", "")))
         for e in (f.get("evidence") or []):
             out.append(f"- {e}")
+        # Measured, not remembered: when the harness last ran this finding's
+        # test, and whether the code it cites is still where the evidence says.
+        if f.get("last_verified_at"):
+            v = f.get("verification") if isinstance(f.get("verification"), dict) else {}
+            at_head = v.get("at_head") if v.get("at_head") in ("pass", "fail") else None
+            out.append(f"- Last measured {str(f['last_verified_at'])[:10]}"
+                       + (f" — {'passes' if at_head == 'pass' else 'fails'} at HEAD"
+                          if at_head else ""))
+        elif is_open(f) and not f.get("verification_test"):
+            out.append("- Never measured — no `verification_test` declared")
+        moved_refs = _drifted_refs(drift, f)
+        if moved_refs:
+            out.append(f"- Cited code {moved_refs[0]} since the evidence was written: "
+                       + ", ".join(moved_refs[1]))
         rc = f.get("root_cause") or {}
         if rc:
             chain = " → ".join(str(rc[k]) for k in ("mechanism", "origin") if rc.get(k))
@@ -2335,9 +2539,12 @@ def render_report(state: dict, prose: dict | None = None) -> str:
                 "blockers; not out of sight._", ""]
         for f in accepted_f:
             a = f.get("accepted") or {}
+            moved_refs = _drifted_refs(drift, f)
             out.append(f"- **{f.get('id')}** ({f.get('severity')}/{f.get('priority')}, age "
                        f"{f.get('age_days', 0)}d) — accepted {a.get('on')} by {a.get('by')}, "
-                       f"citing {a.get('citation')}: {a.get('reason')}")
+                       f"citing {a.get('citation')}: {a.get('reason')}"
+                       + (f" — **the code under it {moved_refs[0]}** since the evidence was "
+                          f"written: {', '.join(moved_refs[1])}" if moved_refs else ""))
         out.append("")
 
     out += _render_calibration(state.get("calibration") or {})
