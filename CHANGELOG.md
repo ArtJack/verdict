@@ -3,6 +3,54 @@
 Plugin and `verdict-mcp` share one version line; `.claude-plugin/plugin.json` and
 `pyproject.toml` are bumped together.
 
+## 0.86.0 — 2026-09-08 · "a night that spends no model"
+
+Step 4 of the work plan (engineering-docs, verdict pack §5a), Measurement: one
+coverage run feeding three facts, structured test results before dialects, and
+a nightly that runs the model only when something a finding rests on moved.
+Harness only — no prompt change, no eval payment; three times now a fact has
+taught the behaviour without a prompt line.
+
+**The reading map (T-16).** The suite runs under coverage.py whenever the
+profile names `coverage_suite_cmd` — a baseline and an empty-diff delta used to
+measure nothing. `facts.reading_map` is every production module the tracer
+saw, least covered first, with the open findings that cite it and the last run
+that did; every git-tracked `.py` file the suite never imported, at 0% and
+said so; and `never_examined`, the least-covered modules no finding has ever
+cited. The report renders it as **Reading map**. Boltons runs 2–4 produced 13
+of the project's 15 highest-severity findings from its six lowest-coverage
+modules, re-deriving this ranking from the coverage JSON by hand every run.
+
+**Verification candidates (T-18).** From the same run's contexts: for every
+open finding with anchors, the tests whose contexts executed its cited lines,
+ranked, top five — `facts.verification_candidates`, `findings[].candidate_tests`
+on the state, and the report prints them after "Never measured — no
+`verification_test` declared". Declared on 0 of 30 boltons findings across
+five runs, because finding the id was a search nobody made; now a choice from
+a list, and still a choice.
+
+**Structured results before dialects (T-14).** A gate command may carry
+`{report}`; the harness renders it to a scratch path and parses what the gate
+wrote — JUnit XML or CTRF JSON — for exact counts, per-test durations, the
+failures with their messages and the ids. Counts from a report outrank the
+summary-line dialect (`counts_dialect: report/junit`); with no `test_ids_cmd`,
+the id ledger comes from the report in the report's own shape and says so. A
+gate that writes nothing reads `report.status: missing` and falls back.
+
+**A night that spends no model (T-5).** `verdict-run --skip-unless-drift`:
+HEAD unchanged → the `--skip-unchanged` path; HEAD moved → the runner runs
+`verdict-facts` itself and sweeps only when every condition holds — evidence
+drift measured and empty, no changed file cited by any finding or
+verified-intact item, every gate green with parsed counts, the test-id set
+measured and unchanged, no quarantine due, no incomplete previous run, no
+changed line that zero tests executed. It then finalizes a synthetic judgment
+(the previous verdict, every open finding carried by `still_open`, an isolation
+check that says no agent ran, a `not_tested` that says what a sweep does not
+do) with `verdict-finalize --sweep`: `run_type: sweep` joins the enum,
+`last_run.model: none`, the run number advances, the report and the signed
+history row are written. Any condition failing prints why and runs the model;
+the suite then runs once more inside the agent's own `verdict-facts`.
+
 ## 0.85.0 — 2026-09-07 · "every coding agent"
 
 Step 3 of the work plan (engineering-docs, verdict pack §5a), the outward batch —

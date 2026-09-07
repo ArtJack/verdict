@@ -101,6 +101,10 @@ here.
 | `calibration` | computed | The track record block: `by_confidence` and `by_proof_method` counts over every finding the project ever filed, with `precision` present only once a bucket reaches `min_sample` (30) settled outcomes. Rendered into the report as **Track record** |
 | `findings[].root_cause` | no | The §3.5 chain when one was established: `{mechanism, origin, class{pattern, sites[]}, trigger, latent_condition, fix_location, proof{method, evidence}, confidence}`. `proof.method` is `counterfactual` · `differential` · `archaeology` · `reading`; `fix_location` is `code` · `test` · `spec` · `environment` · `process`; `confidence` is `proven` · `hypothesis`. Carrying it forward means the next run inherits the diagnosis instead of re-deriving it |
 | `verdict` | yes | `pass` · `pass with risks` · `blocked` · `fail` |
+| `run_type: sweep` | — | The model-free run (0.86.0): `verdict-run --skip-unless-drift` found HEAD moved by commits that touched nothing any finding cites, every gate green with parsed counts, the test-id set unchanged, no quarantine due, no cited line moved — and finalized a synthetic judgment that carries every open finding by id and the previous verdict, `last_run.model: none`. Run number advances; the history row is signed like any other |
+| `findings[].candidate_tests` | computed | The collected tests whose coverage contexts executed the finding's cited lines, ranked by how many of those lines each covers, top five — a list to choose `verification_test` from. Absent on a finding that declares one, or whose lines no test executed |
+| `reading_map` | measured | Copied from facts: every production module the coverage run saw, least covered first (`lowest`, ≤25, each with `percent`, `statements`, `missed`, the `open_findings` that cite it and `last_cited_run`), git-tracked modules the suite never imported (`never_imported: true`, 0%), `never_examined` (the least-covered modules no finding has ever cited), `findings_by_module`, `overall_percent`. Present when the profile names `coverage_suite_cmd` |
+| `gates[].report` | measured | When the gate command carries `{report}`: the JUnit XML or CTRF JSON the gate wrote, read for `counts`, `duration_s`, `failures` (id, kind, message), `slowest` and the ids' shape; `status: missing` when the gate wrote nothing. Counts from a report set `counts_dialect: report/<format>` |
 | `findings[].filed_at` | computed | The modification time of the finding's file, `<qa-root>/findings/<ID>.json` — the measured moment it was written, which is when it was proven. Absent on a finding the judgment carried inline or by id |
 | `findings[].re_reported` | computed | `still_open` or `resolved`: the judgment carried this finding by id, and finalize copied it from the previous state — evidence as last filed. Set for one run only; a carried copy drops it |
 | `questions` | computed | The questions the tester parked for a person, rendered from `questions.json` with the maintainer's `answers.json` folded in: `{parked: [{id, question, finding?, context?, asked_on, asked_at_run, age_days}], answered_since_last_run: [{id, question, status, answer|reason, by, on}]}`. Present only while something is parked or an answer is unread |
@@ -378,6 +382,61 @@ the computed `delta`), never `fix_verified` — that is the one judgment field i
 and counting it there published run 5's error/error record as "1 verified" (VERDICT-F-30).
 A finding claiming `fix_verified` that its own measurement does not show is named on the
 line below it.
+
+## One coverage run, three facts — the reading map and the verification candidates
+
+The suite runs under coverage.py whenever the profile names `coverage_suite_cmd` — a
+baseline and an empty-diff delta used to measure nothing, and those are exactly the runs
+that need to know where the least-tested code is. From one run: the diff measurement above
+(`coverage`, unchanged), **`reading_map`**, and **`verification_candidates`**.
+
+The reading map is every production module the tracer saw, least covered first, with the
+open findings that cite it (from the anchors) and the last run that did; plus every
+git-tracked `.py` file the suite never imported, at 0% and `never_imported: true` — a module
+nothing imports is the least-tested code there is and invisible to a tracer; plus
+`never_examined`, the least-covered modules no finding has ever cited. Boltons runs 2–4
+produced 13 of the project's 15 highest-severity findings from its six lowest-coverage
+modules, re-deriving this ranking from the coverage JSON by hand on every run. The report
+renders it as **Reading map**. Test files are not modules to read and are left out.
+
+The candidates come from the coverage contexts: for every open finding with anchors, the
+tests whose contexts executed its cited lines, ranked by how many of the lines each covers,
+top five. finalize puts them on the finding as `candidate_tests`, and the report prints them
+after "Never measured — no `verification_test` declared". `verification_test` was declared on
+0 of 30 boltons findings across five runs, because finding the right id was a search nobody
+made; now it is a choice from a list — and still a choice: the harness never declares one.
+
+## Structured test results before dialects — `{report}`
+
+`verdict-facts` reads a dozen runner dialects off the summary line, and a dialect is a
+guess: vitest's and jest's counted the file line on a stranger's repository. A gate command
+may carry `{report}`; the harness renders it to a scratch path before the gate runs
+(`pytest -q --junitxml={report}`, `vitest --reporter=junit --outputFile={report}`,
+`gotestsum --junitfile {report}`, or any CTRF reporter) and parses what the gate wrote:
+JUnit XML or CTRF JSON. The gate result carries `report` — exact counts, `duration_s`, the
+`failures` with their messages, the `slowest` tests — and its counts outrank the dialect
+(`counts_dialect: report/junit`). When no `test_ids_cmd` is set, the id ledger comes from the
+report, in the report's own shape (`classname::name` for JUnit, `filePath::name` for CTRF)
+and `test_ids.ids_from` says so — a pytest node id needs `test_ids_cmd`, and so does fix
+verification. A gate given a path that writes nothing reads `report.status: missing` and
+falls back to the dialect. The scratch directory is removed when the measurement ends;
+nothing is written into the checkout.
+
+## The model-free night — `verdict-run --skip-unless-drift`
+
+`--skip-unchanged` answered half of "I don't change code every day": HEAD equal to the last
+run's sha re-gates the standing verdict. The other half is HEAD moved by a commit that
+touched nothing any finding cites. The runner asks the harness: it runs `verdict-facts`
+itself and sweeps only when **every** condition holds — `evidence_drift` measured and empty;
+no changed file in the range is cited by an open or accepted finding or a verified-intact
+anchor; every gate passed with parsed counts and nothing `executed_nothing`; the test-id set
+measured and unchanged; no quarantine due; no incomplete previous run; no changed line that
+zero tests executed. Then it finalizes a synthetic judgment — the previous verdict, blockers,
+focus and quarantine, every open finding carried by `still_open`, an isolation check that
+says no agent ran, a `not_tested` that says what a sweep does not do — with `--sweep`, which
+sets `run_type: sweep` and `last_run.model: none`. The run number advances, the report and
+the INDEX row are written, the history row is signed. Any condition failing prints why and
+runs the model; the suite then runs once more inside the agent's own `verdict-facts`.
 
 ## Findings as files — `<qa-root>/findings/<ID>.json`
 

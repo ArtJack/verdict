@@ -907,5 +907,101 @@
   "path": "src/verdict_mcp/harness.py",
   "old": "    for prior in unmentioned:\n        carried = {k: v for k, v in prior.items() if k != \"re_reported\"}\n",
   "new": "    for prior in unmentioned:\n        carried = dict(prior)\n"
+ },
+ {
+  "label": "0.86.0 N1 facts: the reading map is never measured",
+  "path": "src/verdict_mcp/harness.py",
+  "old": "    reading_map = reading_map_from(files, findings, _tracked_python(repo))\n",
+  "new": "    reading_map = None\n"
+ },
+ {
+  "label": "0.86.0 N2 reading map: sorted most covered first",
+  "path": "src/verdict_mcp/harness.py",
+  "old": "    modules.sort(key=lambda m: (m[\"percent\"] if m[\"percent\"] is not None else 101,\n                                -(m[\"statements\"] or 10 ** 9)))\n",
+  "new": "    modules.sort(key=lambda m: -(m[\"percent\"] or 0))\n"
+ },
+ {
+  "label": "0.86.0 N3 reading map: test files counted as modules to read",
+  "path": "src/verdict_mcp/harness.py",
+  "old": "        if is_test_file(p):\n            continue\n        summ = (f or {}).get(\"summary\") or {}\n",
+  "new": "        if False:\n            continue\n        summ = (f or {}).get(\"summary\") or {}\n"
+ },
+ {
+  "label": "0.86.0 N4 reading map: a module the suite never imported is invisible",
+  "path": "src/verdict_mcp/harness.py",
+  "old": "    for path in tracked or []:\n",
+  "new": "    for path in []:\n"
+ },
+ {
+  "label": "0.86.0 N5 facts: verification candidates are never computed",
+  "path": "src/verdict_mcp/harness.py",
+  "old": "    candidates = candidates_from(files, findings, repo)\n",
+  "new": "    candidates = None\n"
+ },
+ {
+  "label": "0.86.0 N6 candidates: any test of the file counts, not the tests that executed the cited line",
+  "path": "src/verdict_mcp/harness.py",
+  "old": "            for c in (fj.get(\"contexts\") or {}).get(str(a.get(\"line\")), []):\n",
+  "new": "            for c in {x for v in (fj.get(\"contexts\") or {}).values() for x in v}:\n"
+ },
+ {
+  "label": "0.86.0 N7 facts: a gate's report is read but its counts are ignored",
+  "path": "src/verdict_mcp/harness.py",
+  "old": "            if report.get(\"status\") == \"measured\":\n                counts, dialect = dict(report[\"counts\"]), f\"report/{report['format']}\"\n",
+  "new": "            if False:\n                counts, dialect = dict(report[\"counts\"]), f\"report/{report['format']}\"\n"
+ },
+ {
+  "label": "0.86.0 N8 reports: JUnit failures are dropped from the report",
+  "path": "src/verdict_mcp/reports.py",
+  "old": "                    failures.append({\"id\": tid, \"kind\": tag, \"message\": message[:300]})\n",
+  "new": "                    pass\n"
+ },
+ {
+  "label": "0.86.0 N9 facts: {report} is not rendered, so the gate never writes the file",
+  "path": "src/verdict_mcp/harness.py",
+  "old": "            rendered = command.replace(\"{report}\", str(report_path))\n",
+  "new": "            rendered = command\n"
+ },
+ {
+  "label": "0.86.0 N10 facts: the id ledger ignores the report's ids",
+  "path": "src/verdict_mcp/harness.py",
+  "old": "    if not test_ids_cmd and report_ids:\n",
+  "new": "    if False:\n"
+ },
+ {
+  "label": "0.86.0 N11 sweep: a changed file a finding cites does not block the sweep",
+  "path": "src/verdict_mcp/runner.py",
+  "old": "        if hit:\n            why.append(\"changed files a finding cites: \" + \", \".join(hit[:5]))\n",
+  "new": "        if False:\n            why.append(\"changed files a finding cites: \" + \", \".join(hit[:5]))\n"
+ },
+ {
+  "label": "0.86.0 N12 sweep: a red gate does not block the sweep",
+  "path": "src/verdict_mcp/runner.py",
+  "old": "        if g.get(\"result\") != \"pass\":\n            why.append(f\"gate {name} failed\")\n",
+  "new": "        if False:\n            why.append(f\"gate {name} failed\")\n"
+ },
+ {
+  "label": "0.86.0 N13 sweep: a quarantine that is due does not block the sweep",
+  "path": "src/verdict_mcp/runner.py",
+  "old": "        if not until or until <= today.isoformat():\n",
+  "new": "        if False:\n"
+ },
+ {
+  "label": "0.86.0 N14 sweep: a changed test-id set does not block the sweep",
+  "path": "src/verdict_mcp/runner.py",
+  "old": "    elif ids.get(\"added_count\") or ids.get(\"removed_count\"):\n",
+  "new": "    elif False:\n"
+ },
+ {
+  "label": "0.86.0 N15 finalize: a sweep is recorded as a delta",
+  "path": "src/verdict_mcp/harness.py",
+  "old": "        facts[\"run_type\"] = \"sweep\"\n",
+  "new": "        facts[\"run_type\"] = \"delta\"\n"
+ },
+ {
+  "label": "0.86.0 N16 validate: the sweep run type is refused",
+  "path": "src/verdict_mcp/validate.py",
+  "old": "RUN_TYPES = {\"baseline\", \"delta\", \"re-baseline\", \"sweep\"}",
+  "new": "RUN_TYPES = {\"baseline\", \"delta\", \"re-baseline\"}"
  }
 ]
