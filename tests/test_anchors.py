@@ -97,7 +97,7 @@ def test_anchors_are_carried_while_the_evidence_is_the_text_they_were_taken_from
     three_lines(repo)
     state = finalize(repo, qa_root, judgment(findings=[finding()]))
     first = state["findings"][0]["anchors"]
-    (repo / "a.py").write_bytes("w = 0\n" + THREE.encode("utf-8"))   # the line moves
+    (repo / "a.py").write_bytes(("w = 0\n" + THREE).encode("utf-8"))   # the line moves
     git(["commit", "-qam", "insert"], repo)
     # same evidence: the anchor still dates from run 1, so the drift shows
     state = finalize(repo, qa_root, judgment(findings=[finding()]))
@@ -124,7 +124,7 @@ def test_the_next_facts_say_where_the_cited_code_went(repo, qa_root):
                                 "drifted_intact": []}
 
     # a line inserted above: moved, and the harness says to where (L3)
-    (repo / "a.py").write_bytes("w = 0\n" + THREE.encode("utf-8"))
+    (repo / "a.py").write_bytes(("w = 0\n" + THREE).encode("utf-8"))
     drift = collect(repo, qa_root, [])["evidence_drift"]
     assert drift["findings"]["W-F-1"] == {
         "drift": "moved", "refs": [{"ref": "a.py:2", "status": "moved", "now_line": 3}]}
@@ -191,7 +191,7 @@ def test_a_baseline_measures_no_drift_and_finalize_says_when_it_could_not_anchor
 def test_drift_travels_into_the_state_and_the_report(repo, qa_root):
     three_lines(repo)
     finalize(repo, qa_root, judgment(findings=[finding()]))
-    (repo / "a.py").write_bytes("w = 0\n" + THREE.encode("utf-8"))
+    (repo / "a.py").write_bytes(("w = 0\n" + THREE).encode("utf-8"))
     git(["commit", "-qam", "insert"], repo)
     state = finalize(repo, qa_root, judgment(findings=[finding()]))
     assert state["evidence_drift"]["summary"]["drifted_findings"] == ["W-F-1"]
