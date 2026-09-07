@@ -14,12 +14,13 @@ import sys
 from datetime import date
 from pathlib import Path
 
+from test_runner import write_stub
 from verdict_mcp.harness import facts_main, finalize_main
 from verdict_mcp.runner import sweep_blockers, sweep_judgment
 
 RUNNER = Path(__file__).resolve().parent.parent / "src" / "verdict_mcp" / "runner.py"
 PY = f'"{sys.executable}"'
-STUB = "import json, os, sys\nfrom pathlib import Path\nPath(os.environ['ARGV_OUT']).write_text('ran')\nprint('stub ran')\n"
+STUB = "import os\nfrom pathlib import Path\nPath(os.environ['ARGV_OUT']).write_text('ran')\nprint('stub ran')\n"
 
 
 def git(repo, *args):
@@ -57,17 +58,14 @@ def project(tmp_path):
 
 
 def run(tmp_path, repo, home, *extra):
-    stub = tmp_path / "stub.py"
-    stub.write_text(STUB, encoding="utf-8")
-    launcher = tmp_path / "claude"
-    launcher.write_text(f"#!/bin/sh\nexec {PY} {stub} \"$@\"\n", encoding="utf-8")
-    launcher.chmod(0o755)
+    launcher = write_stub(tmp_path, STUB, name="claude-stub")   # a .cmd on Windows
     out = tmp_path / "argv.json"
     env = {k: v for k, v in os.environ.items() if not k.startswith("VERDICT_")}
     env.update(VERDICT_HOME=str(home), ARGV_OUT=str(out))
     proc = subprocess.run([sys.executable, str(RUNNER), "--repo", str(repo), "--claude-cmd",
                            str(launcher), "--model", "opus", "--no-provision", *extra],
-                          capture_output=True, text=True, env=env, encoding="utf-8")
+                          capture_output=True, text=True, env=env, encoding="utf-8",
+                          errors="replace")
     return proc, out.exists()
 
 
