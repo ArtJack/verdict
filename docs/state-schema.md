@@ -102,7 +102,7 @@ here.
 | `findings[].root_cause` | no | The §3.5 chain when one was established: `{mechanism, origin, class{pattern, sites[]}, trigger, latent_condition, fix_location, proof{method, evidence}, confidence}`. `proof.method` is `counterfactual` · `differential` · `archaeology` · `reading`; `fix_location` is `code` · `test` · `spec` · `environment` · `process`; `confidence` is `proven` · `hypothesis`. Carrying it forward means the next run inherits the diagnosis instead of re-deriving it |
 | `verdict` | yes | `pass` · `pass with risks` · `blocked` · `fail` |
 | `run_type: sweep` | — | The model-free run (0.86.0): `verdict-run --skip-unless-drift` found HEAD moved by commits that touched nothing any finding cites, every gate green with parsed counts, the test-id set unchanged, no quarantine due, no cited line moved — and finalized a synthetic judgment that carries every open finding by id and the previous verdict, `last_run.model: none`. Run number advances; the history row is signed like any other |
-| `findings[].candidate_tests` | computed | The collected tests whose coverage contexts executed the finding's cited lines, ranked by how many of those lines each covers, top five — a list to choose `verification_test` from. Absent on a finding that declares one, or whose lines no test executed |
+| `findings[].exercised_by_tests` | computed | The collected tests whose coverage contexts executed the finding's cited lines and stayed green, ranked by how many of those lines each covers, top five. Not a guard and not a candidate for `verification_test`: a defect filed under a green suite is executed by tests that do not fail on it — these are the assertions to review, and where a regression test belongs. Absent when no test executed the lines |
 | `reading_map` | measured | Copied from facts: every production module the coverage run saw, least covered first (`lowest`, ≤25, each with `percent`, `statements`, `missed`, the `open_findings` that cite it and `last_cited_run`), git-tracked modules the suite never imported (`never_imported: true`, 0%), `never_examined` (the least-covered modules no finding has ever cited), `findings_by_module`, `overall_percent`. Present when the profile names `coverage_suite_cmd` |
 | `gates[].report` | measured | When the gate command carries `{report}`: the JUnit XML or CTRF JSON the gate wrote, read for `counts`, `duration_s`, `failures` (id, kind, message), `slowest` and the ids' shape; `status: missing` when the gate wrote nothing. Counts from a report set `counts_dialect: report/<format>` |
 | `findings[].filed_at` | computed | The modification time of the finding's file, `<qa-root>/findings/<ID>.json` — the measured moment it was written, which is when it was proven. Absent on a finding the judgment carried inline or by id |
@@ -383,12 +383,12 @@ and counting it there published run 5's error/error record as "1 verified" (VERD
 A finding claiming `fix_verified` that its own measurement does not show is named on the
 line below it.
 
-## One coverage run, three facts — the reading map and the verification candidates
+## One coverage run, three facts — the reading map and the tests that exercise a defect
 
 The suite runs under coverage.py whenever the profile names `coverage_suite_cmd` — a
 baseline and an empty-diff delta used to measure nothing, and those are exactly the runs
 that need to know where the least-tested code is. From one run: the diff measurement above
-(`coverage`, unchanged), **`reading_map`**, and **`verification_candidates`**.
+(`coverage`, unchanged), **`reading_map`**, and **`exercised_by`**.
 
 The reading map is every production module the tracer saw, least covered first, with the
 open findings that cite it (from the anchors) and the last run that did; plus every
@@ -397,14 +397,20 @@ nothing imports is the least-tested code there is and invisible to a tracer; plu
 `never_examined`, the least-covered modules no finding has ever cited. Boltons runs 2–4
 produced 13 of the project's 15 highest-severity findings from its six lowest-coverage
 modules, re-deriving this ranking from the coverage JSON by hand on every run. The report
-renders it as **Reading map**. Test files are not modules to read and are left out.
+renders it as **Reading map**. Test files are not modules to read and are left out; so are
+git-tracked scripts outside the roots the suite imports from (`docs/conf.py`, a bench script
+under `misc/`), listed apart as `outside_package`.
 
-The candidates come from the coverage contexts: for every open finding with anchors, the
+`exercised_by` comes from the coverage contexts: for every open finding with anchors, the
 tests whose contexts executed its cited lines, ranked by how many of the lines each covers,
-top five. finalize puts them on the finding as `candidate_tests`, and the report prints them
-after "Never measured — no `verification_test` declared". `verification_test` was declared on
-0 of 30 boltons findings across five runs, because finding the right id was a search nobody
-made; now it is a choice from a list — and still a choice: the harness never declares one.
+top five. finalize puts them on the finding as `exercised_by_tests`, and the report prints
+"Exercised and green: …" under the finding. They are **not** candidates for
+`verification_test`, and the first acceptance run said so: a defect filed under a green suite
+is, by construction, executed by tests that do not fail on it — the two tests that pin
+`rotate_file`'s off-by-one execute every line of the defect. What the list is: the assertions
+to review (§3: green tests are under review too), and the place a regression test belongs. A
+guard that fails on the defect is what `verification_test` names; the harness finds it on its
+own once a fix lands with its test (`added_this_run`).
 
 ## Structured test results before dialects — `{report}`
 

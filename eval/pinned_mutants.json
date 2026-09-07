@@ -933,13 +933,13 @@
   "new": "    for path in []:\n"
  },
  {
-  "label": "0.86.0 N5 facts: verification candidates are never computed",
+  "label": "0.86.0 N5 facts: the exercised-by tests are never computed",
   "path": "src/verdict_mcp/harness.py",
-  "old": "    candidates = candidates_from(files, findings, repo)\n",
-  "new": "    candidates = None\n"
+  "old": "    exercised = exercised_by_from(files, findings, repo)\n",
+  "new": "    exercised = None\n"
  },
  {
-  "label": "0.86.0 N6 candidates: any test of the file counts, not the tests that executed the cited line",
+  "label": "0.86.0 N6 exercised-by: any test of the file counts, not the tests that executed the cited line",
   "path": "src/verdict_mcp/harness.py",
   "old": "            for c in (fj.get(\"contexts\") or {}).get(str(a.get(\"line\")), []):\n",
   "new": "            for c in {x for v in (fj.get(\"contexts\") or {}).values() for x in v}:\n"

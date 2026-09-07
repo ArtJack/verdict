@@ -927,7 +927,7 @@ def measure_coverage(repo: Path, sha_range: str | None, cmd: str | None,
     meta["command"] = cmd
     reading_map = reading_map_from(files, findings, _tracked_python(repo))
     reading_map.update(duration_s=meta.get("duration_s"), suite_exit_code=meta.get("suite_exit_code"))
-    candidates = candidates_from(files, findings, repo)
+    exercised = exercised_by_from(files, findings, repo)
     if not sha_range:
         diff = {"status": "unavailable",
                 "reason": "no commit range this run (baseline or re-baseline) — diff coverage "
@@ -938,7 +938,7 @@ def measure_coverage(repo: Path, sha_range: str | None, cmd: str | None,
                 "note": "no .py lines added or modified in the range"}
     else:
         diff = _diff_from_files(files, changed, meta, sha_range, repo)
-    return diff, reading_map, candidates
+    return diff, reading_map, exercised
 
 
 def _tracked_python(repo: Path) -> list[str]:
@@ -968,8 +968,18 @@ def reading_map_from(files: dict, findings, tracked=None) -> dict:
         modules.append({"path": p, "percent": round(float(pct)) if pct is not None else None,
                         "statements": n, "missed": int(summ.get("missing_lines") or 0)})
     seen = {m["path"] for m in modules}
+    # The roots the suite imports from (`boltons/` for boltons; `.` for a
+    # flat repository). A tracked file outside them — docs/conf.py, a bench
+    # script under misc/ — is not a module to read, and the first acceptance
+    # run put four of them at the top of the map.
+    roots = {m["path"].rsplit("/", 1)[0] if "/" in m["path"] else "." for m in modules}
+    outside = []
     for path in tracked or []:
         if path in seen or is_test_file(path):
+            continue
+        root = path.rsplit("/", 1)[0] if "/" in path else "."
+        if not any(root == r or root.startswith(r + "/") for r in roots):
+            outside.append(path)
             continue
         # Tracked, never imported by anything the suite ran: 0%, size unknown
         # to the tracer, and the first thing to read.
@@ -1008,15 +1018,21 @@ def reading_map_from(files: dict, findings, tracked=None) -> dict:
             "overall_percent": (round(100 * (total - missed) / total) if total else None),
             "lowest": lowest,
             "never_examined": [m["path"] for m in modules if m["path"] not in by_module][:10],
+            **({"outside_package": outside[:20]} if outside else {}),
             "findings_by_module": by_module}
 
 
-def candidates_from(files: dict, findings, repo: Path) -> dict:
+def exercised_by_from(files: dict, findings, repo: Path) -> dict:
     """For every open finding with anchors, the tests whose coverage contexts
     executed its cited lines, ranked by how many of those lines each covers.
-    The harness has always had this data; `verification_test` was declared on
-    0 of 30 boltons findings across five runs because finding the right id was
-    a search nobody made. Now it is a choice from a list."""
+
+    Not candidates for `verification_test`, and the first acceptance run said
+    so: a defect filed under a green suite is, by construction, executed by
+    tests that do not fail on it — these are the tests that exercise the
+    defect and stay green, which is an assertion-quality lead (§3: green tests
+    are under review too) and the place a regression test belongs. A guard
+    that fails on the defect is what `verification_test` names; the harness
+    finds it on its own once a fix lands with its test (`added_this_run`)."""
     out: dict = {}
     for f in findings or []:
         if not isinstance(f, dict) or not f.get("id") or not is_open(f):
@@ -1488,13 +1504,13 @@ def collect(repo: Path, qa_root: Path, gates: list[tuple[str, str]],
     if vnotes:
         facts["verification_notes"] = vnotes
     prev_findings = [f for f in ((previous or {}).get("findings") or []) if isinstance(f, dict)]
-    coverage, reading_map, candidates = measure_coverage(repo, sha_range, coverage_suite_cmd,
-                                                         prev_findings)
+    coverage, reading_map, exercised = measure_coverage(repo, sha_range, coverage_suite_cmd,
+                                                        prev_findings)
     facts["coverage"] = coverage
     if reading_map:
         facts["reading_map"] = reading_map
-    if candidates:
-        facts["verification_candidates"] = candidates
+    if exercised:
+        facts["exercised_by"] = exercised
     # What a person decided since the last run, and what is still waiting for
     # one — read here so a decision is read, never asked again.
     asked = questions.facts_view(qa_root, now.date())
@@ -1560,13 +1576,14 @@ def _anchor(entry: dict, prior: dict | None, repo: Path, run_number) -> None:
 
 
 def _suggest_tests(entry: dict, facts: dict) -> None:
-    """The tests coverage says executed this finding's cited lines — a list to
-    choose a `verification_test` from, computed by the harness and never a
-    claim. Absent when the finding has none, or already declares one."""
-    cands = (facts.get("verification_candidates") or {}).get(str(entry.get("id") or ""))
-    entry.pop("candidate_tests", None)
-    if isinstance(cands, dict) and cands.get("tests") and is_open(entry):
-        entry["candidate_tests"] = list(cands["tests"])
+    """The tests coverage says executed this finding's cited lines and stayed
+    green — computed by the harness, never a claim, and never a guard: a test
+    that runs the defect without failing is the assertion to look at, and the
+    place a regression test belongs."""
+    ex = (facts.get("exercised_by") or {}).get(str(entry.get("id") or ""))
+    entry.pop("exercised_by_tests", None)
+    if isinstance(ex, dict) and ex.get("tests") and is_open(entry):
+        entry["exercised_by_tests"] = list(ex["tests"])
 
 
 def _introduce(entry: dict, prior: dict | None, repo: Path | None) -> None:
@@ -2726,10 +2743,12 @@ def _measured_lines(f: dict, drift: dict) -> list[str]:
                    + (f" — {'passes' if at_head == 'pass' else 'fails'} at HEAD"
                       if at_head else ""))
     elif is_open(f) and not f.get("verification_test"):
-        cands = f.get("candidate_tests") or []
-        out.append("- Never measured — no `verification_test` declared"
-                   + (" — coverage says these tests execute its cited lines: "
-                      + ", ".join(f"`{t}`" for t in cands[:5]) if cands else ""))
+        out.append("- Never measured — no `verification_test` declared")
+    ex = f.get("exercised_by_tests") or []
+    if ex and is_open(f):
+        out.append("- Exercised and green: " + ", ".join(f"`{t}`" for t in ex[:5])
+                   + " — these run the cited lines and do not fail on the defect; the "
+                     "assertion to review, and where a regression test belongs")
     moved_refs = _drifted_refs(drift, f)
     if moved_refs:
         out.append(f"- Cited code {moved_refs[0]} since the evidence was written: "

@@ -119,8 +119,8 @@ COMPUTED_BY_FINALIZE = ("hash", "first_seen", "age_days", "outcome", "outcome_re
                         "introduced_at", "introduced_sha", "fixed_at",
                         # When the finding file was written, and which verb carried it.
                         "filed_at", "re_reported",
-                        # The tests coverage says execute the cited lines: a list to choose from.
-                        "candidate_tests")
+                        # The tests coverage says execute the cited lines and stay green.
+                        "exercised_by_tests")
 # The verbs a judgment may use instead of re-typing a finding it looked at and
 # found unchanged: ids only, carried from the previous state by finalize.
 VERBS = ("still_open", "resolved")

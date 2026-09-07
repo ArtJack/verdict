@@ -67,7 +67,7 @@ def test_a_baseline_measures_the_map_least_covered_first_and_test_files_apart(tm
     assert rm["never_examined"] == ["poorly.py", "well.py"], "no finding cites anything yet"
     assert "test_well.py" not in json.dumps(rm["lowest"]), "a test file is not a module to read"
     assert rm["overall_percent"] is not None and rm["findings_by_module"] == {}
-    assert "verification_candidates" not in facts
+    assert "exercised_by" not in facts
 
 
 def test_the_map_names_the_findings_that_cite_each_module(tmp_path):
@@ -84,7 +84,7 @@ def test_the_map_names_the_findings_that_cite_each_module(tmp_path):
     assert rm["never_examined"] == ["poorly.py"], "the cited module leaves the never-examined list"
 
 
-def test_candidates_are_the_tests_whose_contexts_executed_the_cited_lines(tmp_path):
+def test_exercised_by_names_the_tests_whose_contexts_executed_the_cited_lines(tmp_path):
     r, qa = project(tmp_path)
     facts = collect(r, qa, [], coverage_suite_cmd=CMD)
     (qa / "facts.json").write_text(json.dumps(facts), encoding="utf-8")
@@ -94,29 +94,42 @@ def test_candidates_are_the_tests_whose_contexts_executed_the_cited_lines(tmp_pa
         encoding="utf-8")
     assert finalize_main(["--qa-root", str(qa), "--judgment", str(qa / "judgment.json")]) == 0
     facts = collect(r, qa, [], coverage_suite_cmd=CMD)
-    cands = facts["verification_candidates"]
+    cands = facts["exercised_by"]
     assert cands["P-F-1"]["tests"] == ["test_well.py::test_a"], "the test that executed line 2, not any test of the file"
     assert cands["P-F-3"]["tests"] == ["test_well.py::test_b"]
     assert cands["P-F-1"]["lines_covered"] == {"test_well.py::test_a": 1}
     assert cands["P-F-1"]["source"] == "coverage contexts"
-    assert "P-F-2" not in cands, "no test executed poorly.py:8 — no candidate is invented"
+    assert "P-F-2" not in cands, "no test executed poorly.py:8 — nothing is invented"
     # finalize puts the list on the finding, and the report says where it came from
     (qa / "facts.json").write_text(json.dumps(facts), encoding="utf-8")
     state = merge(facts, judgment(findings=[finding(), finding(id="P-F-2", title="d doubles",
                                                             evidence=["poorly.py:8 — `return x * 2`"])]),
                   json.loads((qa / "state.json").read_text(encoding="utf-8")))
     by_id = {f["id"]: f for f in state["findings"]}
-    assert by_id["P-F-1"]["candidate_tests"] == ["test_well.py::test_a"]
-    assert "candidate_tests" not in by_id["P-F-2"]
+    assert by_id["P-F-1"]["exercised_by_tests"] == ["test_well.py::test_a"]
+    assert "exercised_by_tests" not in by_id["P-F-2"]
     report = render_report(state)
-    assert ("- Never measured — no `verification_test` declared — coverage says these tests "
-            "execute its cited lines: `test_well.py::test_a`") in report
+    assert "- Never measured — no `verification_test` declared" in report
+    assert ("- Exercised and green: `test_well.py::test_a` — these run the cited lines and do not "
+            "fail on the defect") in report
     assert "## Reading map (2 production modules" in report
     assert "| `poorly.py` | 0% | None | 1 | run 1 |" in report
     assert "Never cited by any finding" not in report, "both modules are cited now"
     assert state["reading_map"]["status"] == "measured"
 
 
-def test_a_finding_that_declares_its_test_gets_no_candidates_line_and_a_judgment_may_not_write_them():
-    bad = validate_judgment(judgment(findings=[finding(candidate_tests=["x"])]))
-    assert len(bad) == 1 and "candidate_tests" in bad[0]
+def test_a_judgment_may_not_write_the_exercised_by_field():
+    bad = validate_judgment(judgment(findings=[finding(exercised_by_tests=["x"])]))
+    assert len(bad) == 1 and "exercised_by_tests" in bad[0]
+
+
+def test_a_tracked_script_outside_the_suites_roots_is_not_a_module_to_read(tmp_path):
+    r, qa = project(tmp_path)
+    (r / "docs").mkdir()
+    (r / "docs" / "conf.py").write_bytes(b"project = 'x'\n")
+    git(r, "add", "-A")
+    git(r, "commit", "-qm", "docs config")
+    rm = collect(r, qa, [], coverage_suite_cmd=CMD)["reading_map"]
+    assert "docs/conf.py" not in [m["path"] for m in rm["lowest"]]
+    assert rm["outside_package"] == ["docs/conf.py"] and "docs/conf.py" not in rm["never_examined"]
+    assert "poorly.py" in rm["never_examined"], "a never-imported module in the package stays first"

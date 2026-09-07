@@ -21,13 +21,17 @@ cited. The report renders it as **Reading map**. Boltons runs 2–4 produced 13
 of the project's 15 highest-severity findings from its six lowest-coverage
 modules, re-deriving this ranking from the coverage JSON by hand every run.
 
-**Verification candidates (T-18).** From the same run's contexts: for every
-open finding with anchors, the tests whose contexts executed its cited lines,
-ranked, top five — `facts.verification_candidates`, `findings[].candidate_tests`
-on the state, and the report prints them after "Never measured — no
-`verification_test` declared". Declared on 0 of 30 boltons findings across
-five runs, because finding the id was a search nobody made; now a choice from
-a list, and still a choice.
+**The tests that exercise a defect and stay green (T-18, reframed by its
+acceptance).** From the same run's contexts: for every open finding with
+anchors, the tests that executed its cited lines, ranked — `facts.exercised_by`,
+`findings[].exercised_by_tests`, and the report prints "Exercised and green:
+…" under the finding. The design called them verification candidates; the
+first acceptance run declared none of them and was right not to: a defect
+filed under a green suite is, by construction, executed by tests that do not
+fail on it. What the list is: the assertions to review (§3: green tests are
+under review too), and where a regression test belongs. A guard is what
+`verification_test` names, and the harness finds it once a fix lands with its
+test.
 
 **Structured results before dialects (T-14).** A gate command may carry
 `{report}`; the harness renders it to a scratch path and parses what the gate
