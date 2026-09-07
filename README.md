@@ -63,6 +63,22 @@ that runs for free. Works on Python, TypeScript, Go, or anything with a test run
 /plugin install verdict@verdict
 ```
 
+Any other coding agent — Cursor, Codex, OpenCode and the rest of the
+[agent skills](https://skills.sh) ecosystem — gets the same doctrine as five skills, and the
+same harness as a pip package:
+
+```
+npx skills add ArtJack/verdict        # release risk · verify a fix · flaky triage · root cause · spec review
+pip install verdict-qa-mcp            # verdict-facts, verdict-finalize, verdict-gate, verdict-accept, verdict-answer
+```
+
+[![skills.sh](https://skills.sh/b/ArtJack/verdict)](https://skills.sh/ArtJack/verdict)
+
+The skills restate the contract for an agent that cannot run the `verdict` agent; the
+hooks that enforce the read-only guarantee exist only in Claude Code, so there the
+guarantee is the agent's own discipline plus the harness's refusals. `AGENTS.md` and
+`llms.txt` at the repository root are for agents that read before they act.
+
 **Python 3.9 or newer**, whatever your `python3` resolves to — the hooks and the
 fact harness are stdlib-only and are invoked by that name, which on a stock Mac is
 `/usr/bin/python3` (3.9). The optional MCP server is a pip install and needs 3.10+,
