@@ -728,7 +728,16 @@ def _load(path: Path):
 
 
 def _hook_mode() -> int:
-    """PostToolUse: validate a state.json the agent just wrote."""
+    """PostToolUse: validate a state.json, or a findings/<ID>.json, the agent just wrote."""
+    # UTF-8 on the way out, whatever the console codepage: every message here
+    # carries an em-dash, and on Windows the default stream writes cp1252's
+    # 0x97, which the reader (a parent decoding UTF-8 on a thread) drops as a
+    # whole — a refusal that arrives as None. The guards do the same.
+    for stream in (sys.stdout, sys.stderr):
+        try:
+            stream.reconfigure(encoding="utf-8", errors="replace")
+        except (AttributeError, ValueError, OSError):
+            pass
     try:
         data = json.load(sys.stdin)
     except Exception:

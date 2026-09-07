@@ -70,8 +70,8 @@ def hook(path):
     proc = subprocess.run([sys.executable, str(SRC / "validate.py")],
                           input=json.dumps({"tool_name": "Write",
                                             "tool_input": {"file_path": str(path)}}),
-                          capture_output=True, text=True, encoding="utf-8")
-    return proc.returncode, proc.stderr
+                          capture_output=True, text=True, encoding="utf-8", errors="replace")
+    return proc.returncode, proc.stderr or ""
 
 
 # ── files ──────────────────────────────────────────────────────────────────
