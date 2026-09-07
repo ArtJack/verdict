@@ -33,6 +33,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src" / "verdict_mcp"))
 from state import harness_signals  # noqa: E402  (one definition, shared with the gate)
+from verdict_mcp.anchors import refs_in  # noqa: E402
 from verdict_mcp.validate import class_conflicts  # noqa: E402
 
 _DELTA_TAG = re.compile(r"\b(NEW|STILL_OPEN|RESOLVED|REGRESSED)\b")
@@ -244,10 +245,13 @@ def _is_open_row(f) -> bool:
 
 
 def _site_hits(f, terms) -> int:
+    """How many of `terms` name a file the finding's class sites reference —
+    by `path:line` reference, not by substring: a test named
+    `test_invoice_renders_lines` is not a site in `invoice.py`."""
     rc = f.get("root_cause") if isinstance(f.get("root_cause"), dict) else {}
     cls = rc.get("class") if isinstance(rc.get("class"), dict) else {}
-    sites = " ".join(str(x) for x in (cls.get("sites") or [])).lower()
-    return sum(1 for t in terms if t.lower() in sites)
+    paths = {path.lower() for path, _ in refs_in(cls.get("sites") or [])}
+    return sum(1 for t in terms if any(t.lower() in path for path in paths))
 
 
 def _questions_row(qa_root: Path, state: dict, row) -> tuple:

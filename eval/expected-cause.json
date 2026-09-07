@@ -81,13 +81,11 @@
       "type": "class_sites",
       "since": "0.84.0",
       "match_any": [
-        "report.py",
-        "invoice",
-        "monthly_total",
-        "line_total"
+        "invoice.py",
+        "report.py"
       ],
-      "min_sites": 1,
-      "note": "Added 2026-09-07 with 0.84.0 (H-2's one open concern): filing findings one at a time must not turn 'three sites, one root cause' into three findings. Exactly one open finding owns the truncation class (its root_cause.class.sites names the other sites) and no other finding cites one of those sites as its own defect — `class_conflicts`, the rule finalize refuses on."
+      "min_sites": 2,
+      "note": "Added 2026-09-07 with 0.84.0 (H-2's one open concern): filing findings one at a time must not turn 'three sites, one root cause' into three findings. Exactly one open finding owns the truncation class (its root_cause.class.sites names the other sites) and no other finding cites one of those sites as its own defect — `class_conflicts`, the rule finalize refuses on. Sites are read by `path:line` reference into the two files, both required — a test named `test_invoice_renders_lines` in another finding's class is not a site in invoice.py (the first draft counted it, and read a legitimate second finding as a split)."
     },
     {
       "key": "findings-filed-as-files",
