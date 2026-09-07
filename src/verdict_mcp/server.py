@@ -22,12 +22,12 @@ friendlier for agent consumers.
 from __future__ import annotations
 
 import re
-from datetime import date
 from pathlib import Path
 
 from mcp.server.fastmcp import FastMCP
 from mcp.types import ToolAnnotations
 
+from . import clock
 from .state import (
     DELTA_VALUES,
     resolve_root,
@@ -141,7 +141,7 @@ def get_quarantine(project: str) -> dict:
     state, err = load_state(project)
     if err:
         return err
-    today = date.today()
+    today = clock.today()
     entries = []
     for q in state.get("flaky_quarantine", []):
         until = parse_date(q.get("quarantined_until", ""))

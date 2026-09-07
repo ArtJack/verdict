@@ -38,7 +38,6 @@ import argparse
 import json
 import re
 import sys
-from datetime import datetime, timezone
 from pathlib import Path
 
 try:
@@ -49,8 +48,10 @@ try:
                     norm_status, order_findings,
                     parse_timestamp, repo_for_root, resolve_root,
                     verify_chain)
+    from . import clock
 except ImportError:  # executed as a bare script (GitHub Action gate mode)
     sys.path.insert(0, str(Path(__file__).resolve().parent))
+    import clock
     from project_key import derive_key
     from state import (code_drift, fold_accepted, harness_signals, is_open, is_path_like,
                    load_accepted,
@@ -112,7 +113,7 @@ def evaluate(project, fail_on, max_age_hours, min_run_number, now=None,
         return out
     if max_age_hours is not None:
         ts = parse_timestamp(str(last.get("timestamp_utc") or ""))
-        now = now or datetime.now(timezone.utc)
+        now = now or clock.now()
         if ts is None or (now - ts).total_seconds() > max_age_hours * 3600:
             out.update(exit_code=5, reason=(
                 f"stale: last run at {last.get('timestamp_utc')!r} is older than "

@@ -41,14 +41,15 @@ import json
 import os
 import subprocess
 import sys
-from datetime import datetime, timezone
 from pathlib import Path
 
 try:
     from .state import ACCEPTED_FILE, is_open, load_state, norm_status
+    from . import clock
 except ImportError:  # invoked as a bare script
     sys.path.insert(0, str(Path(__file__).resolve().parent))
     from state import ACCEPTED_FILE, is_open, load_state, norm_status  # type: ignore
+    import clock  # type: ignore
 
 # A citation or a reason shorter than this is a placeholder, not a record.
 MIN_TEXT = 8
@@ -196,7 +197,7 @@ def main(argv=None) -> int:
             print("verdict-accept: a finding id is required (or --list)", file=sys.stderr)
             return 2
         by = args.by or _who()
-        today = args.today or datetime.now(timezone.utc).date().isoformat()
+        today = args.today or clock.today().isoformat()
         if args.revoke:
             code, msg = revoke(root, state, args.finding, args.reason, by, today)
         else:

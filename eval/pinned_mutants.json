@@ -683,8 +683,8 @@
  {
   "label": "0.80.2 G6 changesets: the facts stop naming the harness that measured them",
   "path": "src/verdict_mcp/harness.py",
-  "old": "            \"harness\": _harness_identity(),\n",
-  "new": "            \"harness_\": _harness_identity(),\n"
+  "old": "            \"harness\": {**_harness_identity(), **_prompt_identity(repo)},\n",
+  "new": "            \"harness_\": {**_harness_identity(), **_prompt_identity(repo)},\n"
  },
  {
   "label": "0.80.2 G7 F-65 campaign: gotestsum's skip count is read from a broken pattern (mutmut #27)",
@@ -733,5 +733,29 @@
   "path": "src/verdict_mcp/harness.py",
   "old": "    cited, unresolved, uncited = [], [], 0\n",
   "new": "    cited, unresolved, uncited = [], [], 1\n"
+ },
+ {
+  "label": "0.82.0 K1 clock: the frozen clock is ignored (VERDICT_CLOCK_AT does nothing)",
+  "path": "src/verdict_mcp/clock.py",
+  "old": "    return _frozen() or datetime.now(timezone.utc)\n",
+  "new": "    return datetime.now(timezone.utc)\n"
+ },
+ {
+  "label": "0.82.0 K2 clock: a frozen instant comes back naive",
+  "path": "src/verdict_mcp/clock.py",
+  "old": "        parsed = parsed.replace(tzinfo=timezone.utc)\n    return parsed.astimezone(timezone.utc)\n",
+  "new": "        parsed = parsed.replace(tzinfo=timezone.utc)\n    return parsed.replace(tzinfo=None)\n"
+ },
+ {
+  "label": "0.82.0 K3 harness: the prompt's hash is dropped from the facts",
+  "path": "src/verdict_mcp/harness.py",
+  "old": "    if shipped:\n        out[\"prompt_sha256\"] = shipped\n",
+  "new": "    if False:\n        out[\"prompt_sha256\"] = shipped\n"
+ },
+ {
+  "label": "0.82.0 K4 harness: the facts stop naming the judgment template",
+  "path": "src/verdict_mcp/harness.py",
+  "old": "        \"judgment_template\": str(judgment_template()),\n",
+  "new": "        \"judgment_template_\": str(judgment_template()),\n"
  }
 ]

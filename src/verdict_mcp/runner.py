@@ -50,7 +50,7 @@ import subprocess
 import sys
 import threading
 import time
-from datetime import date, datetime, timedelta
+from datetime import datetime, timedelta
 from pathlib import Path
 
 try:
@@ -58,8 +58,10 @@ try:
     from .project_key import derive_key
     from .state import home as state_home
     from .state import is_path_like, resolve_root
+    from . import clock
 except ImportError:  # bare-script execution
     sys.path.insert(0, str(Path(__file__).resolve().parent))
+    import clock
     from gate import evaluate
     from project_key import derive_key
     from state import home as state_home
@@ -151,7 +153,7 @@ def _unchanged_reason(qa_root, repo):
         return None
     if not state.get("verdict"):
         return None
-    today = date.today().isoformat()
+    today = clock.today().isoformat()
     for q in state.get("flaky_quarantine") or []:
         until = str((q or {}).get("quarantined_until") or "")
         # An expired (or unparseable) quarantine must be re-evaluated by a
@@ -185,7 +187,7 @@ def seconds_until_reset(output: str, ceiling_s: int = 10800) -> int | None:
     if not m:
         return min(3600, ceiling_s)
     raw = m.group(1).lower()
-    now = datetime.now()
+    now = clock.local_now()     # the CLI prints its reset time in the user's wall-clock
     try:
         fmt = "%I:%M%p" if raw.endswith(("am", "pm")) else "%H:%M"
         t = datetime.strptime(raw, fmt).time()

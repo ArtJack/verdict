@@ -3,6 +3,48 @@
 Plugin and `verdict-mcp` share one version line; `.claude-plugin/plugin.json` and
 `pyproject.toml` are bumped together.
 
+## 0.82.0 — 2026-09-06 · "a template is copied, not studied"
+
+The first release of the work plan drawn from the run traces
+(engineering-docs, "verdict — how it actually works, traced"): four small
+things, one eval payment.
+
+**One module knows the time (T-7).** Thirteen call sites asked the wall clock
+directly — two of them the naive local clock in the runner, one `date.today()`
+in the MCP server deciding whether a quarantine had expired against UTC dates
+in the state, off by a day for a third of the planet. `verdict_mcp.clock` is
+the seam: `now()`, `today()`, `stamp()`, and `local_now()` for the one reader
+that must parse the CLI's own wall-clock message. `VERDICT_CLOCK_AT` freezes
+all of them, so a quarantine can expire inside a test and a boundary can be
+stood on — the code-enumerated sweep had left every clock boundary standing
+because none could be. A test walks the package's AST for any other
+`datetime.now()`, `date.today()`, `utcnow()` or `time.time()`: discipline you
+can run beats discipline you intend.
+
+**The prompt that judged, as a hash (T-6).** `last_run.harness` carries
+`prompt_sha256` of the prompt shipped beside the harness and, in a team-mode
+checkout, `provisioned_prompt_sha256` of the one Claude Code actually loaded.
+"Byte-identical since 0.74.0" was an assertion; now it is a comparison, and
+the eval ledger can say which prompt produced which row.
+
+**A template is copied, not studied (H-1).** Every headless run learned the
+judgment's shape by reading `docs/state-schema.md` (~15,000 characters) and
+ranges of `harness.py` during the run — two to three minutes each time — and
+three runs out of four still met the validator on a shape (`isolation_check`
+must be an object; `verified_intact` a list; `flaky_quarantine`, not
+`quarantine`). The package now ships `templates/judgment.example.json`, a
+complete judgment with every key and every shape, validated by the validator
+in the test suite so it cannot drift; `verdict-facts` names it as
+`judgment_template` and says so on stderr; the prompt says to copy it and
+points at the schema document only for a field you do not understand.
+
+**Ten lines at the end (H-5).** The closing handoff was a second full report
+— 12,500 output tokens on the changesets run, 5,900 on ofetch — for a caller
+that reads `state.json`. §13 now caps it at ten lines and says why.
+
+Pinned: the frozen clock ignored, the clock returning a naive instant, the
+prompt hash dropped, the template no longer named. Paid for: see eval/README.
+
 ## 0.81.0 — 2026-09-06 · "the direction of a control"
 
 The prompt release the last four code releases queued behind one eval

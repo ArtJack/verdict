@@ -1,0 +1,86 @@
+{
+  "_": "A complete judgment.json, every key present, every shape the validator insists on. Copy it, replace every value, keep every key. Values here are a made-up project (PRICER); nothing in them is a rule. `verdict-facts` names this file as `judgment_template` in facts.json; `verdict-validate` checks yours the same way `tests/test_template.py` checks this one.",
+  "topic": "delta",
+  "verdict": "pass with risks",
+  "isolation_check": {
+    "result": "pass",
+    "method": "ls -a | grep -i '^\\.env' -> none; git status --porcelain -> clean; grep -rn 'https\\?://' src/ tests/ -> localhost only. No credential file, no service config, no database. Every experiment ran in a scratch copy under the session scratchpad; the checkout was never written to."
+  },
+  "full_sweep": true,
+  "release_blockers": [],
+  "findings": [
+    {
+      "id": "PRICER-F-3",
+      "title": "`to_cents` truncates instead of rounding, so every third quote is one cent short",
+      "severity": "Major",
+      "priority": "P1",
+      "status": "open",
+      "failure_classification": "REAL_DEFECT",
+      "confidence": "proven",
+      "evidence": [
+        "src/pricer/money.py:14 — `return int(amount * 100)` drops the fraction; `to_cents(1.005)` -> 100, expected 101",
+        "tests/test_money.py::test_to_cents_rounds_half_up — fails at HEAD: assert 100 == 101",
+        "counterfactual (scratch copy, PYTHONDONTWRITEBYTECODE=1, __pycache__ swept, import verified inside the scratch): replacing the line with Decimal ROUND_HALF_UP -> 6 passed, 0 failed; original restored -> 1 failed again"
+      ],
+      "verification_test": "tests/test_money.py::test_to_cents_rounds_half_up",
+      "root_cause": {
+        "mechanism": "`money.to_cents` converts through `int()`, which truncates toward zero; `invoice.line_total` and `report.monthly_total` call it per line, so the error accumulates once per line rather than once per invoice.",
+        "origin": "b7e1c2a (2026-08-12) `perf: avoid Decimal in the hot path` replaced `Decimal(...).quantize(...)` with the int() form",
+        "class": {
+          "pattern": "money converted to cents through int() instead of a half-up rounding",
+          "sites": [
+            "src/pricer/money.py:14 — to_cents (this finding)",
+            "src/pricer/report.py:41 — monthly_total rounds with round(), a second implementation of the same rule"
+          ]
+        }
+      }
+    },
+    {
+      "id": "PRICER-F-1",
+      "title": "Quote for a west-zone partial-weight parcel picked the east rate",
+      "severity": "Major",
+      "priority": "P1",
+      "status": "resolved",
+      "failure_classification": "REAL_DEFECT",
+      "confidence": "proven",
+      "evidence": [
+        "src/pricer/zones.py:22 — the zone lookup now keys on `zone` rather than `region`, commit 4c0d9e1",
+        "tests/test_quote.py::test_quote_west_partial_weight — fails at 9a8f7e6 (assert 'east' == 'west'), passes at HEAD"
+      ],
+      "verification_test": "tests/test_quote.py::test_quote_west_partial_weight"
+    }
+  ],
+  "flaky_quarantine": [
+    {
+      "test_id": "tests/test_api.py::test_rate_limit_resets",
+      "first_seen": "2026-09-06",
+      "fail_count": 1,
+      "run_count": 3,
+      "reason": "pass / fail / pass across three runs at one SHA; the failure is a 10 s timeout against a live clock, not an assertion",
+      "quarantined_until": "2026-09-20"
+    }
+  ],
+  "verified_intact": [
+    "Rounding is applied once per invoice line, not per quote: a 3-line invoice with line totals 1.005, 2.005, 3.005 sums to 6.03, measured in the scratch copy",
+    "Zone lookup is pure: `zones.lookup` returns a fresh dict on every call (zones.py:18, 22), so the memoisation added in 1a35060 cannot leak state between quotes"
+  ],
+  "not_tested": [
+    "The PDF export path (src/pricer/pdf.py) — no test exists and none was written; excluded by profile policy",
+    "Concurrency: parallel quotes through one Pricer instance were not exercised",
+    "Week-over-week suite duration — the history is two runs old; the harness says the gate is unmeasurable"
+  ],
+  "next_run_focus": [
+    "Re-verify PRICER-F-3 by re-injection once a fix lands, at both sites of its class (money.py:14 and report.py:41), not only the quoting path",
+    "Release tests/test_api.py::test_rate_limit_resets from quarantine on 2026-09-20 and run it three times before trusting it"
+  ],
+  "prose": {
+    "scope": "Delta over 9a8f7e6..HEAD (6 commits, 4 files). The range touches money and zones; the PDF path is untouched and unread.",
+    "risks": "One open Major on the money path: every third quote is a cent short, and the error compounds per line. Not a blocker — the amounts are quotes, not charges — but a spec question (is half-up the rule?) sits under it.",
+    "fix_order": "1. PRICER-F-3 at both sites of its class, with the test that fails today as the guard. 2. Nothing else is open.",
+    "notes": "Verdict is `pass with risks`, not `pass`: the gates are green and nothing is Critical, but an open Major on money is not clean. The quarantine entry is the first for this project; its expiry is the earliest date on which the flake can be re-measured, not a promise that it is fixed.",
+    "findings": {
+      "PRICER-F-3": "Proven by counterfactual, not by reading: the scratch copy with ROUND_HALF_UP went green and the restored original went red again, so the failure follows the line. The class has a second site in report.py that rounds differently; a fix at one site leaves the rule inconsistent.",
+      "PRICER-F-1": "Resolved and fix-verified: the cited test fails at the previous commit and passes at HEAD, on the harness's own re-run."
+    }
+  }
+}
