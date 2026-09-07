@@ -293,3 +293,23 @@ def test_archive_is_silent_on_an_empty_or_absent_directory(qa_root):
     assert archive_findings(qa_root, keep=False) is None
     (qa_root / "findings").mkdir()
     assert archive_findings(qa_root, keep=False) is None
+
+
+def test_a_finding_carried_by_silence_drops_last_runs_verb(repo, qa_root, capsys):
+    """`re_reported` describes one run's verb. A copy finalize carries on a later
+    run — resolved by silence here — must not still say "re-reported by id"."""
+    three_lines(repo)
+    run_facts(repo, qa_root)
+    write_finding(qa_root, finding("W-F-1"))
+    rc, _ = run_finalize(qa_root, judgment(findings=[]))
+    assert rc == 0, capsys.readouterr().err
+    run_facts(repo, qa_root)
+    rc, state = run_finalize(qa_root, judgment(findings=[], still_open=["W-F-1"]))
+    assert rc == 0, capsys.readouterr().err
+    assert state["findings"][0]["re_reported"] == "still_open"
+    run_facts(repo, qa_root)
+    rc, state = run_finalize(qa_root, judgment(findings=[]))       # unmentioned: silence resolves
+    assert rc == 0, capsys.readouterr().err
+    f = state["findings"][0]
+    assert f["delta"] == "RESOLVED" and f.get("carried_forward")
+    assert "re_reported" not in f
