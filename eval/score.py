@@ -33,6 +33,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src" / "verdict_mcp"))
 from state import harness_signals  # noqa: E402  (one definition, shared with the gate)
+from verdict_mcp.validate import class_conflicts  # noqa: E402
 
 _DELTA_TAG = re.compile(r"\b(NEW|STILL_OPEN|RESOLVED|REGRESSED)\b")
 _FINDING_ID = re.compile(r"\b[A-Z][A-Z0-9]*-F-\d+\b")
@@ -104,7 +105,8 @@ def _quarantine_hits(state, terms):
     ]
 
 
-_NON_FINDING_ROWS = frozenset({"verdict", "report_contains", "report_forbids", "quarantine"})
+_NON_FINDING_ROWS = frozenset({"verdict", "report_contains", "report_forbids", "quarantine",
+                               "finding_field", "anchors", "class_sites", "questions"})
 
 
 def _assign(row_ids, rows, findings, accepts):
@@ -145,6 +147,117 @@ def _assign(row_ids, rows, findings, accepts):
     return {r: i for i, r in owner.items()}
 
 
+_STATE_ROWS = frozenset({"finding_field", "anchors", "class_sites", "questions"})
+
+
+def _state_row(typ, row, state, findings, qa_root) -> tuple:
+    """The rows that read the state rather than the words → (point, matched, note)."""
+    point, matched, note = 0, None, ""
+    if typ == "finding_field":
+        # How many findings carry a field with a value (or at all), optionally
+        # only those of one delta.
+        hits = [f for f in findings
+                if (not row.get("only_delta") or f.get("delta") == row["only_delta"])
+                and _field_matches(f, row)]
+        need = int(row.get("min_count", 1))
+        point = 1 if len(hits) >= need else 0
+        note = "" if point else f"{len(hits)} of {need} findings carry {row.get('field')}"
+    elif typ == "anchors":
+        ea = state.get("evidence_anchors") if isinstance(state.get("evidence_anchors"), dict) else {}
+        refs, bad = int(ea.get("refs") or 0), int(ea.get("unresolvable") or 0)
+        share = (bad / refs) if refs else 1.0
+        point = 1 if ea.get("status") == "measured" and refs and share <= float(
+            row.get("max_unresolvable_share", 0.2)) else 0
+        note = f"{bad}/{refs} unresolvable" if refs else "no anchors measured"
+    elif typ == "class_sites":
+        # One class, one finding: an open finding owns the sites (its class
+        # lists at least `min_sites` of the terms) and no other finding cites
+        # one of them as its own defect.
+        owners = [f for f in findings if _is_open_row(f)
+                  and _site_hits(f, row.get("match_any", [])) >= int(row.get("min_sites", 1))]
+        conflicts = class_conflicts([f for f in findings if isinstance(f, dict)])
+        if len(owners) == 1 and not conflicts:
+            point, matched = 1, owners[0].get("id")
+        else:
+            note = (f"{len(owners)} findings own the class" if len(owners) != 1
+                    else "; ".join(conflicts)[:200])
+    elif typ == "questions":
+        point, note = _questions_row(qa_root, state, row)
+    return point, matched, note
+
+
+def _fixture_dirt(fixture_dir) -> list:
+    """Tracked files the run modified — tool byproducts excluded. Bytecode
+    caches, coverage data and linter caches are inevitable side effects of
+    measuring the code under test, not modifications of it; `.qa/` belongs
+    with them because in team mode the QA root lives inside the tree, so a run
+    that wrote its own state looked like a run that edited the code."""
+    porcelain = subprocess.run(["git", "-C", str(fixture_dir), "status", "--porcelain"],
+                               capture_output=True, text=True)
+    if porcelain.returncode != 0:
+        return []
+    byproducts = ("__pycache__", ".pytest_cache", ".coverage", "coverage.xml", "htmlcov",
+                  ".hypothesis", ".ruff_cache", ".mypy_cache", "node_modules", ".qa")
+    return [line for line in porcelain.stdout.strip().splitlines()
+            if not any(c in line for c in byproducts) and not line.endswith(".pyc")]
+
+
+def _skip_reason(row, mode, harness_version):
+    """Why a row is n/a on this run: it reads a field the harness only started
+    writing at some version (the archived corpus predates it, and a contract
+    that retroactively fails its own history is a rewrite), or it applies to
+    one mode only."""
+    if row.get("since") and _version_key(harness_version) < _version_key(row["since"]):
+        return f"needs harness ≥ {row['since']}, state measured by {harness_version or 'none'}"
+    if row.get("modes") and (mode or "") not in row["modes"]:
+        return f"n/a in {mode} mode"
+    return None
+
+
+def _version_key(v: str):
+    return tuple(int(x) if x.isdigit() else -1 for x in str(v or "0").split("."))
+
+
+def _field_matches(f, row) -> bool:
+    if not isinstance(f, dict) or row.get("field") not in f:
+        return False
+    if "equals" in row:
+        return f[row["field"]] == row["equals"]
+    return True
+
+
+def _is_open_row(f) -> bool:
+    return isinstance(f, dict) and str(f.get("status") or "").strip().lower() == "open"
+
+
+def _site_hits(f, terms) -> int:
+    rc = f.get("root_cause") if isinstance(f.get("root_cause"), dict) else {}
+    cls = rc.get("class") if isinstance(rc.get("class"), dict) else {}
+    sites = " ".join(str(x) for x in (cls.get("sites") or [])).lower()
+    return sum(1 for t in terms if t.lower() in sites)
+
+
+def _questions_row(qa_root: Path, state: dict, row) -> tuple:
+    """A question answered before the run was read, not re-asked: the ledger
+    carries it answered and acknowledged, and nothing parked mentions it."""
+    frag = str(row.get("answered_not_reasked") or "").lower()
+    try:
+        ledger = json.loads((qa_root / "questions.json").read_text(encoding="utf-8"))
+        entries = (ledger.get("questions") or {}).values()
+    except (OSError, json.JSONDecodeError, AttributeError):
+        return 0, "no questions.json"
+    answered = [q for q in entries if frag in str(q.get("question") or "").lower()
+                and q.get("status") in ("answered", "dismissed") and q.get("acknowledged_at_run")]
+    reasked = [q for q in entries if frag in str(q.get("question") or "").lower()
+               and q.get("status", "parked") == "parked"]
+    parked_now = [q for q in ((state.get("questions") or {}).get("parked") or [])
+                  if frag in str(q.get("question") or "").lower()]
+    if answered and not reasked and not parked_now:
+        return 1, ""
+    return 0, ("the answer was never read" if not answered else
+               f"re-asked: {(reasked or parked_now)[0].get('question')!s:.80}")
+
+
 def score(qa_root: Path, expected: dict, mode: str | None, fixture_dir: Path | None,
           require_harness: bool = False) -> dict:
     result = {"mode": mode, "score": 0, "max": 0, "rows": [], "hard_fails": []}
@@ -168,26 +281,9 @@ def score(qa_root: Path, expected: dict, mode: str | None, fixture_dir: Path | N
             "report_missing: the report artifact is part of the contract (§7)")
 
     if fixture_dir is not None:
-        porcelain = subprocess.run(
-            ["git", "-C", str(fixture_dir), "status", "--porcelain"],
-            capture_output=True, text=True)
-        if porcelain.returncode == 0:
-            # Tool byproducts — bytecode caches, coverage data, linter caches —
-            # are inevitable side effects of measuring the code under test, not
-            # modifications of it.
-            # `.qa/` belongs here for the same reason as the caches: in team
-            # mode the QA root lives *inside* the tree, so a run that wrote its
-            # own state looked like a run that edited the code under test.
-            _BYPRODUCTS = ("__pycache__", ".pytest_cache", ".coverage",
-                           "coverage.xml", "htmlcov", ".hypothesis",
-                           ".ruff_cache", ".mypy_cache", "node_modules", ".qa")
-            dirty = [
-                line for line in porcelain.stdout.strip().splitlines()
-                if not any(c in line for c in _BYPRODUCTS)
-                and not line.endswith(".pyc")
-            ]
-            if dirty:
-                result["hard_fails"].append("fixture_modified: " + "; ".join(dirty[:5]))
+        dirty = _fixture_dirt(fixture_dir)
+        if dirty:
+            result["hard_fails"].append("fixture_modified: " + "; ".join(dirty[:5]))
 
     findings = state.get("findings", [])
     rows = expected.get("rows", [])
@@ -217,6 +313,7 @@ def score(qa_root: Path, expected: dict, mode: str | None, fixture_dir: Path | N
     assigned = _assign(claimable, rows, findings, _accepts)
 
     expects_regressed = False
+    harness_version = str(((state.get("last_run") or {}).get("harness") or {}).get("version") or "")
     for r, row in enumerate(rows):
         key, typ = row.get("key", "?"), row.get("type", "finding")
         exp_delta = None
@@ -225,6 +322,10 @@ def score(qa_root: Path, expected: dict, mode: str | None, fixture_dir: Path | N
             if exp_delta == "n/a":
                 result["rows"].append({"key": key, "skipped": f"n/a in {mode} mode"})
                 continue
+        skipped = _skip_reason(row, mode, harness_version)
+        if skipped:
+            result["rows"].append({"key": key, "skipped": skipped})
+            continue
         result["max"] += 1
         if exp_delta == "REGRESSED":
             expects_regressed = True
@@ -269,6 +370,8 @@ def score(qa_root: Path, expected: dict, mode: str | None, fixture_dir: Path | N
                     point = 1
                 else:
                     note = "blamed the decoy: " + "; ".join(said)
+        elif typ in _STATE_ROWS:
+            point, matched, note = _state_row(typ, row, state, findings, qa_root)
         elif typ == "quarantine":
             hits = _quarantine_hits(state, row.get("match_any", []))
             if row.get("expect_absent"):

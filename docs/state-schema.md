@@ -101,6 +101,9 @@ here.
 | `calibration` | computed | The track record block: `by_confidence` and `by_proof_method` counts over every finding the project ever filed, with `precision` present only once a bucket reaches `min_sample` (30) settled outcomes. Rendered into the report as **Track record** |
 | `findings[].root_cause` | no | The §3.5 chain when one was established: `{mechanism, origin, class{pattern, sites[]}, trigger, latent_condition, fix_location, proof{method, evidence}, confidence}`. `proof.method` is `counterfactual` · `differential` · `archaeology` · `reading`; `fix_location` is `code` · `test` · `spec` · `environment` · `process`; `confidence` is `proven` · `hypothesis`. Carrying it forward means the next run inherits the diagnosis instead of re-deriving it |
 | `verdict` | yes | `pass` · `pass with risks` · `blocked` · `fail` |
+| `findings[].filed_at` | computed | The modification time of the finding's file, `<qa-root>/findings/<ID>.json` — the measured moment it was written, which is when it was proven. Absent on a finding the judgment carried inline or by id |
+| `findings[].re_reported` | computed | `still_open` or `resolved`: the judgment carried this finding by id, and finalize copied it from the previous state — evidence as last filed. Set for one run only; a carried copy drops it |
+| `questions` | computed | The questions the tester parked for a person, rendered from `questions.json` with the maintainer's `answers.json` folded in: `{parked: [{id, question, finding?, context?, asked_on, asked_at_run, age_days}], answered_since_last_run: [{id, question, status, answer|reason, by, on}]}`. Present only while something is parked or an answer is unread |
 | `findings[].anchors` | computed | Every `path:line` the finding's evidence and `root_cause.class.sites` cite, hashed at finalize: `{ref, path, line, blob, line_sha}`, or `{ref, status: unresolvable, reason}` when the reference names no file this repository has. Carried while the evidence text is unchanged (`anchored_at_run` says which run took them), so drift is measured from when the evidence was written. See [Anchors and drift](#anchors-and-drift--where-the-cited-code-went) |
 | `findings[].last_verified_at` | computed | The timestamp of the harness's own last re-run of the finding's test (`at_head` pass or fail); an `error` or `unavailable` ran nothing and dates nothing. Carried forward; absent when never measured — and then the report says "no `verification_test` declared" |
 | `findings[].introduced_at` · `introduced_sha` | computed | The date (and full sha) of the commit `root_cause.origin` names, resolved by git — dwell time is `first_seen` minus this. Absent when the origin names no commit this repository has; never derived from `first_seen` |
@@ -375,6 +378,83 @@ the computed `delta`), never `fix_verified` — that is the one judgment field i
 and counting it there published run 5's error/error record as "1 verified" (VERDICT-F-30).
 A finding claiming `fix_verified` that its own measurement does not show is named on the
 line below it.
+
+## Findings as files — `<qa-root>/findings/<ID>.json`
+
+The judgment was one JSON written from memory at the end of the run: boltons paused
+3:32 to write 39,500 characters, a third of them eight findings re-typed from the
+previous state to say "still there"; ofetch 5:12. Since 0.84.0 a finding is a file,
+`findings/<ID>.json`, the shape of one entry of `findings[]` (the package ships it as
+`templates/finding.example.json`; `verdict-facts` names it as `finding_template` and the
+directory as `findings_dir`), written the moment the finding is proven, while the evidence
+is in front of its author. The PostToolUse validator checks it as it is written — the
+same per-finding rules the judgment loop always applied, plus the filename must equal the
+`id` — and a rejection costs one file. A finding file may carry `narrative`, the
+per-finding prose the report renders under it (what `prose.findings[id]` used to be).
+
+`verdict-finalize` assembles the files, oldest first, and stamps each finding's
+`filed_at` from the file's modification time. `judgment.json` keeps the run-level fields
+and may still carry `findings[]` inline — but files **and** inline findings in one run is
+refused, never merged. `verdict-facts` moves the previous run's `findings/` to
+`findings.prev/` before the run starts (`findings_archived` says so); a retry of the same
+run — a marker at this commit, minutes old — keeps the files, because they are this
+attempt's own. Nothing is deleted.
+
+**The two cheap verbs.** `still_open: [ids]` — looked at, still there, nothing new to say:
+finalize copies the finding from the previous state (title, severity, evidence, root
+cause, declared test; never the computed fields, never a fix claim) and it reads
+`STILL_OPEN` with `re_reported: still_open`; its anchors carry, because the evidence text
+is unchanged. `resolved: [ids]` — looked at, gone, not fix-verified: an explicit
+resolution, outside the silence guardrail, `outcome: unknown` unless the harness measured
+the fix. Both take only ids that are open in the previous state; an accepted risk is the
+maintainer's and is refused; an id in a list and in a file is refused. And the word
+"still there" is not available where the harness knows better: a `still_open` id whose
+cited code `changed` or went `missing` since the evidence was written (`evidence_drift`)
+is refused — "write `findings/<ID>.json` with fresh evidence, or resolve it". `moved` is
+allowed; the report says where the line went.
+
+**One class, one finding.** Filing findings one at a time makes it easy to file an
+instance of a class as a second finding — the thing §3.5's class link exists to prevent.
+`validate_judgment` refuses a finding whose evidence cites a `path:line` that another
+finding (filed this run, or carried by id) lists under `root_cause.class.sites`, and two
+findings that list the same site; the message names both exits: fold it into the class,
+or take the site out of the class it does not belong to. Exact, never heuristic.
+
+**A declared test is a collected id.** A run wrote "none — no test in
+tests/x.py::y covers this" into `verification_test` and the harness read it as a
+citation it could not find. When `test-ids.txt` exists, a `verification_test` that is not
+in it is refused: declare a collected id, or omit the field and say in evidence that no
+test guards this — which is a finding about the suite.
+
+## Questions with a second pen — `questions.json` and `answers.json`
+
+A run ends with things only a person can decide, and they used to live in the closing
+handoff and the prose, so the next run asked them again. Two files, one pen each.
+
+`questions.json` is **finalize's**: every question a judgment asked
+(`questions: [{question, context?, finding?, options?}]`), with an id minted once
+(`<PROJECT>-Q-<n>`, the project's finding prefix), the run that asked it, its date, and
+its status — `parked`, `answered`, `dismissed`. A question already on the ledger (same
+text, case and whitespace aside) is not minted twice. `answers.json` is **the
+maintainer's**, written by `verdict-answer <project> <Q-id> --answer "…"` or
+`--dismiss --reason "…"`; the scope guards refuse it to the tester, as they refuse
+`accepted.json`, and a judgment cannot write an answer. finalize folds each answer into
+the question it answers and marks it `acknowledged_at_run` the first time a run reads it.
+
+```json
+{"schema_version": 1, "questions": {
+  "PRICER-Q-1": {"question": "Is half-up the rounding rule for cents?", "finding": "PRICER-F-3",
+                 "asked_on": "2026-09-07", "asked_at_run": 3, "status": "answered",
+                 "answer": "Half-up; the README is right.", "by": "ArtJack", "on": "2026-09-08",
+                 "acknowledged_at_run": 4}}}
+```
+
+`verdict-facts` writes `questions` — what is parked, with its age, and what was answered
+since the last run — so a decision is read, never re-asked. The report renders **Needs
+human decision** and **Answered since the last run**; the session-start banner says how
+many are waiting and how to answer; `verdict-gate`'s text and PR-comment renderers list
+them; the MCP server has `get_questions`. Nothing is sent: a question is not an issue,
+and no message leaves the machine for one.
 
 ## Anchors and drift — where the cited code went
 
