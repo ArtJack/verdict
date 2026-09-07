@@ -8,13 +8,25 @@
 [![Claude Code plugin](https://img.shields.io/badge/Claude_Code-plugin-6E56CF)](#install)
 [![license MIT](https://img.shields.io/github/license/ArtJack/verdict)](LICENSE)
 
-**A skeptical QA agent with memory — it remembers your baseline and tells you what broke
-since yesterday.**
+**Your test suite is green. Verdict found a defect that had lived 4,595 days.**
+
+Verdict is a QA agent that does not fix, does not flatter, and does not forget. It measures
+before it judges — the harness runs your gates, hashes every line a finding cites, re-runs
+the guarding test at the old commit and the new one — and it keeps a memory: every run is a
+delta against the last, findings age, regressions rank first, and the tester's own misses
+are published beside its hits. The contract it runs under is immutable and hashed into every
+verdict; what it learns lives beside the contract, dated and auditable, and never edits it.
+The number above is real: `FilePerms` in a 4k★ Python library could not revoke a permission
+bit since 2014-02-07, and every one of its 625 tests was green the day Verdict filed it —
+[the run, and the misses, are in the ledger](eval/README.md#runs-on-strangers-repositories).
 
 ```
-/plugin marketplace add ArtJack/verdict
+/plugin marketplace add ArtJack/verdict     # Claude Code
 /plugin install verdict@verdict
 /verdict:run
+```
+```
+npx skills add ArtJack/verdict              # every other coding agent
 ```
 
 Most AI "QA agents" are a paragraph of enthusiasm with a checklist. They audit your repo
