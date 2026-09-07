@@ -757,5 +757,71 @@
   "path": "src/verdict_mcp/harness.py",
   "old": "        \"judgment_template\": str(judgment_template()),\n",
   "new": "        \"judgment_template_\": str(judgment_template()),\n"
+ },
+ {
+  "label": "0.83.0 L1 finalize: cited lines are never anchored",
+  "path": "src/verdict_mcp/harness.py",
+  "old": "            _anchor(entry, prior, repo, facts.get(\"run_number\"))\n",
+  "new": "            pass\n"
+ },
+ {
+  "label": "0.83.0 L2 facts: evidence drift is never measured",
+  "path": "src/verdict_mcp/harness.py",
+  "old": "    if previous:\n        prev_findings = [f for f in (previous.get(\"findings\") or []) if isinstance(f, dict)]\n",
+  "new": "    if False:\n        prev_findings = [f for f in (previous.get(\"findings\") or []) if isinstance(f, dict)]\n"
+ },
+ {
+  "label": "0.83.0 L3 drift: a line that moved reads as changed",
+  "path": "src/verdict_mcp/anchors.py",
+  "old": "        hits = [i + 1 for i, ln in enumerate(lines) if line_sha(ln) == want]\n",
+  "new": "        hits = []\n"
+ },
+ {
+  "label": "0.83.0 L4 harness: last_verified_at is stamped by a record that ran no test",
+  "path": "src/verdict_mcp/harness.py",
+  "old": "    if rec.get(\"at_head\") in (\"pass\", \"fail\") and measured_at:\n",
+  "new": "    if rec.get(\"at_head\") and measured_at:\n"
+ },
+ {
+  "label": "0.83.0 L5 harness: introduced_at falls back to first_seen when the origin names no commit",
+  "path": "src/verdict_mcp/harness.py",
+  "old": "            entry[\"introduced_at\"] = when[:10]\n            entry[\"introduced_sha\"] = full\n            return\n",
+  "new": "            entry[\"introduced_at\"] = when[:10]\n            entry[\"introduced_sha\"] = full\n            return\n    if entry.get(\"first_seen\"):\n        entry[\"introduced_at\"] = entry[\"first_seen\"]\n"
+ },
+ {
+  "label": "0.83.0 L6 harness: fixed_at is stamped on the tester's claim",
+  "path": "src/verdict_mcp/harness.py",
+  "old": "        return {\"outcome\": \"confirmed\", \"outcome_basis\": \"claimed\",\n",
+  "new": "        return {\"outcome\": \"confirmed\", \"outcome_basis\": \"claimed\",\n                \"fixed_at\": str(finding.get(\"first_seen\") or \"\"),\n"
+ },
+ {
+  "label": "0.83.0 L7 facts: the repository path is not recorded, so finalize can anchor nothing",
+  "path": "src/verdict_mcp/harness.py",
+  "old": "        # and it runs from the QA root — it has to be told where the code is.\n        \"repo\": str(repo),\n",
+  "new": "        # and it runs from the QA root — it has to be told where the code is.\n"
+ },
+ {
+  "label": "0.83.0 L8 finalize: nothing says when it could not anchor",
+  "path": "src/verdict_mcp/harness.py",
+  "old": "        state[\"verified_intact_anchors\"] = []\n        state[\"evidence_anchors\"] = {\n",
+  "new": "        state[\"verified_intact_anchors\"] = []\n        state[\"_evidence_anchors\"] = {\n"
+ },
+ {
+  "label": "0.83.0 L9 runner: a prompt the runner rendered from another root is kept when --plugin-root moves",
+  "path": "src/verdict_mcp/runner.py",
+  "old": "        owned = bool(mine.get(\"sha256\")) and mine[\"sha256\"] == _sha(current)\n",
+  "new": "        owned = False\n"
+ },
+ {
+  "label": "0.83.0 L10 runner: hooks the runner installed from another root are kept when --plugin-root moves",
+  "path": "src/verdict_mcp/runner.py",
+  "old": "        owned = bool(mine.get(\"sha256\")) and \\\n            mine[\"sha256\"] == _sha(json.dumps(current[\"hooks\"], sort_keys=True))\n",
+  "new": "        owned = False\n"
+ },
+ {
+  "label": "0.83.0 L11 finalize: a later run's report overwrites an earlier run's with the same date and topic",
+  "path": "src/verdict_mcp/harness.py",
+  "old": "        if not path.exists() or _report_belongs_to(path, run_number):\n",
+  "new": "        if True:\n"
  }
 ]

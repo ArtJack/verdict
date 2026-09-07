@@ -265,6 +265,13 @@ def outcome_row(finding: dict, decided_on: str | None = None) -> dict:
         "outcome_basis": finding.get("outcome_basis"),
         "outcome_reason": finding.get("outcome_reason"),
         "first_seen": finding.get("first_seen"),
+        # The finding's other two clocks, when the harness could read them:
+        # when the defect entered (the origin commit's date) and when its fix
+        # was verified. Dwell time and fix latency are the numbers a track
+        # record can print that a state file, which drops resolved findings,
+        # cannot keep.
+        "introduced_at": finding.get("introduced_at"),
+        "fixed_at": finding.get("fixed_at"),
         # The measurement, not only the sentence about it. A row outlives the
         # finding — state.json drops it once resolved — so without this a
         # `confirmed` cannot be audited at all: 19 of this project's 21
