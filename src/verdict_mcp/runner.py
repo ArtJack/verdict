@@ -170,8 +170,10 @@ DEFAULT_PROMPT = (
     "against the stored baseline, or a baseline if none exists. Run the agent to "
     "completion IN THIS SESSION: do not spawn it in the background, and do not end "
     "your turn until its state file and report are written — there is no 'later' in "
-    "a headless run. Verdict reports and specifies; it does not fix. Return the full "
-    "handoff.")
+    "a headless run. Verdict reports and specifies; it does not fix. Relay the agent's "
+    "handoff verbatim and add nothing of your own: no summary, no offer to write fixes "
+    "— an offer to fix under Verdict's name is the one sentence its position cannot "
+    "afford.")
 
 
 def seconds_until_reset(output: str, ceiling_s: int = 10800) -> int | None:

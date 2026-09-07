@@ -42,8 +42,22 @@ points at the schema document only for a field you do not understand.
 — 12,500 output tokens on the changesets run, 5,900 on ofetch — for a caller
 that reads `state.json`. §13 now caps it at ten lines and says why.
 
+**And the runner's own sentence.** The acceptance run for this release ended
+with the *outer* headless session appending "Say the word if you want the
+fixes written" under the agent's handoff. Verdict never patches; a relay that
+offers to is the one sentence the position cannot afford. The runner's prompt
+now says: relay the handoff verbatim, add nothing.
+
 Pinned: the frozen clock ignored, the clock returning a naive instant, the
-prompt hash dropped, the template no longer named. Paid for: see eval/README.
+prompt hash dropped, the template no longer named. **Paid for:** seeded 6/6,
+liar 6/6, `cause` ×2 at **7/7 and 7/7** (the two prose-vocabulary rows landed
+on both runs this time; their variance is known). **Measured on a stranger,
+`mahmoud/boltons` (625 tests, 15 minutes, `pass with risks`, two Majors in
+unreleased code):** zero reads of `docs/state-schema.md` where every earlier
+run read two chunks; one `verdict-finalize` where earlier runs needed two or
+three; the closing handoff 976 output tokens where ofetch's was 5,900 and
+changesets' 12,500; the judgment turn 3:02 for eight findings. The trace is
+in the maintainer's notes beside the four it is compared against.
 
 ## 0.81.0 — 2026-09-06 · "the direction of a control"
 
