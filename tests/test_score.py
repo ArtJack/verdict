@@ -515,3 +515,19 @@ def test_the_questions_row_reads_the_ledger(tmp_path):
                           "answered_since_last_run": []}
     rc, out = run_score(tmp_path, state, expected_file=key)
     assert out["rows"][0]["point"] == 0 and "re-asked" in out["rows"][0]["note"]
+
+
+def test_a_source_checkouts_harness_counts_as_current(tmp_path):
+    """The eval runs the working tree's harness, whose package metadata reads
+    `0+unknown`; a version-gated row must score there, and must still skip on
+    a state with no harness block at all (the archived corpus)."""
+    key = _expected_file(tmp_path, {"rows": [{"key": "filed", "type": "finding_field",
+                                              "since": "0.84.0", "field": "filed_at"}]})
+    state = _measured(perfect_state(), "0+unknown")
+    state["findings"][0]["filed_at"] = "2026-09-07T10:00:00Z"
+    rc, out = run_score(tmp_path, state, expected_file=key)
+    assert out["rows"][0]["point"] == 1 and out["max"] == 1
+    state = perfect_state()
+    state["last_run"].pop("harness", None)
+    rc, out = run_score(tmp_path, state, expected_file=key)
+    assert "skipped" in out["rows"][0] and out["max"] == 0

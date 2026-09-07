@@ -202,12 +202,25 @@ def _fixture_dirt(fixture_dir) -> list:
             if not any(c in line for c in byproducts) and not line.endswith(".pyc")]
 
 
+def _harness_version(state) -> str:
+    """The version of the harness that measured the state. A state with no
+    `harness` block predates the field (0.80.2) and reads as the oldest; a
+    source checkout reports `0+unknown` from package metadata and reads as
+    the working tree's — which is the harness the eval actually ran."""
+    who = (state.get("last_run") or {}).get("harness")
+    if not isinstance(who, dict):
+        return ""
+    version = str(who.get("version") or "")
+    return "current" if not version or version.startswith("0+") else version
+
+
 def _skip_reason(row, mode, harness_version):
     """Why a row is n/a on this run: it reads a field the harness only started
     writing at some version (the archived corpus predates it, and a contract
     that retroactively fails its own history is a rewrite), or it applies to
     one mode only."""
-    if row.get("since") and _version_key(harness_version) < _version_key(row["since"]):
+    if row.get("since") and harness_version != "current" \
+            and _version_key(harness_version) < _version_key(row["since"]):
         return f"needs harness ≥ {row['since']}, state measured by {harness_version or 'none'}"
     if row.get("modes") and (mode or "") not in row["modes"]:
         return f"n/a in {mode} mode"
@@ -313,7 +326,7 @@ def score(qa_root: Path, expected: dict, mode: str | None, fixture_dir: Path | N
     assigned = _assign(claimable, rows, findings, _accepts)
 
     expects_regressed = False
-    harness_version = str(((state.get("last_run") or {}).get("harness") or {}).get("version") or "")
+    harness_version = _harness_version(state)
     for r, row in enumerate(rows):
         key, typ = row.get("key", "?"), row.get("type", "finding")
         exp_delta = None
