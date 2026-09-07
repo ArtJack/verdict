@@ -73,7 +73,8 @@ def test_facts_name_the_template_and_the_prompt_that_judged(repo, qa_root):
     assert who["prompt_sha256"] == hashlib.sha256(shipped.read_bytes()).hexdigest()
     assert "provisioned_prompt_sha256" not in who, "the test repo has no .claude/agents/verdict.md"
     (repo / ".claude" / "agents").mkdir(parents=True)
-    (repo / ".claude" / "agents" / "verdict.md").write_text("# an older prompt\n", encoding="utf-8")
+    # bytes, not text: on Windows `write_text` turns the newline into CRLF and the hash moves
+    (repo / ".claude" / "agents" / "verdict.md").write_bytes(b"# an older prompt\n")
     facts = collect(repo, qa_root, [])
     who = facts["last_run"]["harness"]
     assert who["provisioned_prompt_sha256"] == hashlib.sha256(b"# an older prompt\n").hexdigest()
