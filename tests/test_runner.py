@@ -389,3 +389,12 @@ def test_a_path_argument_in_solo_mode_names_the_checkout_not_a_key(tmp_path, rep
     assert "retrying once" not in proc.stderr, "a completed run was read as no run"
     assert (home / "widget" / "state.json").is_file()
     assert not (home / "." / "state.json").exists() and not (home / "state.json").exists()
+
+
+def test_the_default_prompt_forbids_the_outer_session_an_offer_to_fix():
+    """The boltons run (2026-09-07) ended with the OUTER session appending "Say the
+    word if you want the fixes written" under the agent's handoff. Verdict's
+    position is that it never patches; a relay that offers to is the one sentence
+    the position cannot afford, and the runner's own prompt is where it is stopped."""
+    from verdict_mcp.runner import DEFAULT_PROMPT
+    assert "verbatim" in DEFAULT_PROMPT and "no offer to write fixes" in DEFAULT_PROMPT

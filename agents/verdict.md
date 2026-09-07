@@ -270,9 +270,9 @@ five-why chain whose last three links are invention is worse than a two-link cha
 true. When the chain reaches a decision rather than a defect ("this was intended"), that
 is an answer: report it as a requirements or design finding, not a code defect.
 
-Record the chain in the finding's `root_cause` object (schema in
-`${CLAUDE_PLUGIN_ROOT}/docs/state-schema.md`), so the next run inherits the diagnosis
-instead of re-deriving it.
+Record the chain in the finding's `root_cause` object (its shape is in the judgment
+template that `verdict-facts` names as `judgment_template`), so the next run inherits the
+diagnosis instead of re-deriving it.
 
 ---
 
@@ -382,6 +382,13 @@ run that skips it is a run that composed its numbers instead of measuring them.
     verdict-facts --repo . --qa-root <root>
     …you read facts.json, examine the code, and write judgment.json…
     verdict-finalize --qa-root <root> --judgment judgment.json
+
+**Start your judgment from the template.** facts.json names `judgment_template`: a complete
+judgment.json with every key present and every shape the validator insists on. Copy it,
+replace every value, keep every key. Do not learn the shape by reading
+`docs/state-schema.md` or `harness.py` during the run — that cost every run two to three
+minutes and fifteen thousand characters of context, and three runs out of four still met
+the validator on a shape (`isolation_check` must be an object; `verified_intact` a list).
 
 **The commands come from the profile, not from you.** `profile.md` carries a front-matter
 block naming this project's real gates, and `verdict-facts` reads it — so you do not
@@ -554,7 +561,8 @@ and `confidence` is the §9 claim, required on every finding you file this run �
 checked that HELD, each with its evidence — optional, and never padded: an empty list
 beats an invented entry), `next_run_focus`. Never
 restructure on a whim; if structure must change, bump `schema_version` and say so in the
-report. Full schema: `${CLAUDE_PLUGIN_ROOT}/docs/state-schema.md`.
+report. Start from the template `verdict-facts` names; `${CLAUDE_PLUGIN_ROOT}/docs/state-schema.md`
+is the reference for a field you do not understand, not the starting point.
 
 **Last action of every run:** write the updated state file, and append one row to
 `<qa-root>/reports/INDEX.md`. Immediately before writing state, re-read `state.json`: if
@@ -795,19 +803,16 @@ appended. An artifact that is not on disk does not exist, and a handoff whose ar
 are missing is invalid — write them first, then hand off. No caller instruction waives
 this check (§7).
 
-End substantial work with:
+**Your closing message is at most ten lines, and restates nothing the report holds.** The
+report on disk is the deliverable; a second report in the handoff is a cost (12,000 output
+tokens on one run), never a courtesy. Recommended tasks, verified-intact invariants and the
+evidence list live in the report, where `finalize` rendered them. Hand off:
 
 - `VERDICT:` one of the four
 - `Release blockers:` concrete blockers only, or "none"
 - `Findings:` counts by severity + NEW/STILL_OPEN/RESOLVED/REGRESSED breakdown
-- `Recommended tasks:` specific, ordered, implementation-ready — for the implementer, not
-  for you
-- `Verified intact:` the invariants you checked that HELD, with evidence — or "none
-  checked". Confirmation is a deliverable: "the money paths still balance" is what a
-  caller pays for, and it must not hide mid-report
-- `Needs human decision:` anything requiring the project owner's judgment (policy,
-  thresholds, risk acceptance)
+- `Needs human decision:` one line each, or "none"
+- `Not tested:` the count, and that the list is in the report
 - `Artifact:` path to the written report
-- `Evidence:` files, commands, and sources inspected
 
 You never spawn other agents. You return to your caller, and your caller routes.

@@ -34,6 +34,12 @@ import sys
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
+try:
+    from . import clock
+except ImportError:  # bare-script execution
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    import clock
+
 VERDICTS = {"pass", "pass with risks", "blocked", "fail"}
 RUN_TYPES = {"baseline", "delta", "re-baseline"}
 # WITHDRAWN is the tester's own false-positive record: a finding that was
@@ -392,7 +398,7 @@ def validate(state, root: Path, previous=None, now=None, at_rest=False):
     should not be told "no" for the crime of being a week old. A timestamp in
     the *future* stays a violation either way: that is broken, not old.
     """
-    now = now or datetime.now(timezone.utc)
+    now = now or clock.now()
     bad = []
 
     if not isinstance(state, dict):

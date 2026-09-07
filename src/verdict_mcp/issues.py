@@ -37,14 +37,15 @@ import os
 import subprocess
 import sys
 import tempfile
-from datetime import datetime, timezone
 from pathlib import Path
 
 try:
     from .state import fold_accepted, is_open, load_accepted, load_state, order_findings, repo_for_root
+    from . import clock
 except ImportError:  # bare-script execution
     sys.path.insert(0, str(Path(__file__).resolve().parent))
     from state import fold_accepted, is_open, load_accepted, load_state, order_findings, repo_for_root
+    import clock
 
 ISSUES_FILE = "issues.json"
 MARKER = "<!-- verdict-finding:{id} -->"
@@ -247,7 +248,7 @@ def main(argv=None) -> int:
             failed = (fid, str(exc))
             break
         ledger[fid] = {**made, "hash": f.get("hash"),
-                       "created_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+                       "created_at": clock.stamp(),
                        "run_number": state.get("run_number")}
         if prior:
             # The issue this recurrence replaces is not lost: someone closed it,

@@ -68,8 +68,10 @@ try:
                         next_revision)
     from .state import home as state_home
     from .validate import validate, validate_judgment
+    from . import clock
 except ImportError:  # bare-script execution
     sys.path.insert(0, str(Path(__file__).resolve().parent))
+    import clock
     from census import code_census
     from profile import ProfileError, gates_from
     from profile import load as load_profile
@@ -263,6 +265,44 @@ def _harness_identity() -> dict:
     except Exception:                                    # pragma: no cover
         declared = "0+unknown"
     return {"version": declared, "path": str(Path(__file__).resolve())}
+
+
+def _sha256_of(path: Path) -> str | None:
+    try:
+        return hashlib.sha256(path.read_bytes()).hexdigest()
+    except OSError:
+        return None
+
+
+def _prompt_identity(repo: Path) -> dict:
+    """Which prompt judged — as a hash, because a version number is a claim.
+
+    Two files can be the prompt: the one shipped beside this harness
+    (`<plugin>/agents/verdict.md`) and the one Claude Code actually loaded in a
+    team-mode checkout (`<repo>/.claude/agents/verdict.md`, provisioned from
+    some plugin version, not necessarily this one). Both are hashed when
+    present; the eval ledger reads the first, a drift between the two is a
+    finding. Prompt versions were "byte-identical since 0.74.0" by assertion
+    until now; a hash makes the assertion checkable.
+    """
+    root = Path(__file__).resolve().parents[2]
+    out = {}
+    shipped = _sha256_of(root / "agents" / "verdict.md")
+    if shipped:
+        out["prompt_sha256"] = shipped
+    provisioned = _sha256_of(Path(repo) / ".claude" / "agents" / "verdict.md")
+    if provisioned:
+        out["provisioned_prompt_sha256"] = provisioned
+    return out
+
+
+def judgment_template() -> Path:
+    """The complete example judgment, shipped inside the package so a wheel
+    and a plugin checkout name the same file. Every run used to learn the
+    judgment's shape by reading `docs/state-schema.md` and `harness.py` during
+    the run (2–3 minutes, ~15k characters) and three runs out of four still met
+    the validator on a shape; a template is copied, not studied."""
+    return Path(__file__).resolve().parent / "templates" / "judgment.example.json"
 
 
 def _counts(output: str) -> tuple[dict, str | None]:
@@ -983,7 +1023,7 @@ def collect(repo: Path, qa_root: Path, gates: list[tuple[str, str]],
             test_ids_cmd: str | None = None, abandoned=_UNSET,
             test_one_cmd: str | None = None, coverage_suite_cmd: str | None = None) -> dict:
     """Measure everything about this run that is not a judgment."""
-    now = datetime.now(timezone.utc)
+    now = clock.now()
     previous = None
     state_path = qa_root / "state.json"
     if state_path.is_file():
@@ -1107,11 +1147,13 @@ def collect(repo: Path, qa_root: Path, gates: list[tuple[str, str]],
         "run_number": run_number,
         "run_type": run_type,
         "run_type_reason": why,
+        # Start the judgment from this file; do not learn its shape by reading.
+        "judgment_template": str(judgment_template()),
         "last_run": {
             "timestamp_utc": now.strftime("%Y-%m-%dT%H:%M:%SZ"),
             "git_sha": sha, "git_branch": branch, "sha_range": sha_range,
             "diff_stat": diff_stat,
-            "harness": _harness_identity(),
+            "harness": {**_harness_identity(), **_prompt_identity(repo)},
             # A verdict is only as good as its judge, and which model signed it
             # used to live only in the operator's memory. The runner that
             # launched the session knows; it exports VERDICT_MODEL and the
@@ -1378,7 +1420,7 @@ def run_date(facts: dict | None) -> date:
     try:
         when = datetime.fromisoformat(stamp.replace("Z", "+00:00"))
     except ValueError:
-        return datetime.now(timezone.utc).date()
+        return clock.today()
     if when.tzinfo is not None:
         when = when.astimezone(timezone.utc)
     return when.date()
@@ -1890,7 +1932,7 @@ def facts_main(argv=None) -> int:
     if existing:
         head = _git(["rev-parse", "HEAD"], repo)
         try:
-            age = (datetime.now(timezone.utc) - datetime.strptime(
+            age = (clock.now() - datetime.strptime(
                 existing.get("measured_at", ""), "%Y-%m-%dT%H:%M:%SZ").replace(
                     tzinfo=timezone.utc)).total_seconds() / 60
         except (ValueError, TypeError):
@@ -1909,7 +1951,7 @@ def facts_main(argv=None) -> int:
     # mid-suite still leaves a trace.
     abandoned = _read_json(qa_root / "run-in-progress.json")
     (qa_root / "run-in-progress.json").write_text(json.dumps({
-        "started_utc": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "started_utc": clock.stamp(),
         "repo": str(repo),
         # The commit is what separates "my own retry" from "last night died".
         "git_sha": _git(["rev-parse", "HEAD"], repo)}, indent=2) + "\n",
@@ -1937,6 +1979,8 @@ def facts_main(argv=None) -> int:
     text = json.dumps(facts, indent=2)
     (args.out or (qa_root / "facts.json")).write_text(text + "\n", encoding="utf-8")
     print(text)
+    print(f"verdict-facts: judgment template → {judgment_template()} — copy it, replace every "
+          "value, keep every key", file=sys.stderr)
     return 0
 
 
@@ -2138,7 +2182,10 @@ def render_report(state: dict, prose: dict | None = None) -> str:
             f"- Branch: `{last.get('git_branch') or 'n/a'}` · measured {last.get('timestamp_utc')}"]
     harness = last.get("harness") or {}
     if harness.get("path"):
-        out.append(f"- Harness: verdict-qa-mcp {harness.get('version') or '?'} · `{harness['path']}`")
+        prompt = harness.get("prompt_sha256")
+        out.append(f"- Harness: verdict-qa-mcp {harness.get('version') or '?'}"
+                   + (f" · prompt {prompt[:12]}" if prompt else "")
+                   + f" · `{harness['path']}`")
     iso = state.get("isolation_check") or {}
     if iso:
         detail = iso.get("method") or iso.get("note") or ""
