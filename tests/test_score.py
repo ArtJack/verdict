@@ -531,3 +531,22 @@ def test_a_source_checkouts_harness_counts_as_current(tmp_path):
     state["last_run"].pop("harness", None)
     rc, out = run_score(tmp_path, state, expected_file=key)
     assert "skipped" in out["rows"][0] and out["max"] == 0
+
+
+def test_two_rows_of_one_class_may_share_a_finding(tmp_path):
+    """Since 0.84.0 the contract files one finding per class; an answer key that
+    lists two sites of one class as two rows must not score that as a miss."""
+    state = perfect_state()
+    state["findings"] = [_finding("L-F-1", "two tests cannot fail: one asserts a mock, one a tautology",
+                                  "BRITTLE_TEST", ["test_x.py:8 mock; test_x.py:12 tautology p == p"])]
+    for f in state["findings"]:
+        f.setdefault("delta", "NEW")
+    shared = {"rows": [{"key": "mock", "match_any": ["mock"], "class_of": "cannot-fail"},
+                       {"key": "tautology", "match_any": ["tautolog"], "class_of": "cannot-fail"}]}
+    rc, out = run_score(tmp_path, state, expected_file=_expected_file(tmp_path, shared))
+    assert [r["point"] for r in out["rows"]] == [1, 1]
+    assert out["rows"][0]["matched"] == out["rows"][1]["matched"] == "L-F-1"
+    unrelated = {"rows": [{"key": "mock", "match_any": ["mock"]},
+                          {"key": "tautology", "match_any": ["tautolog"]}]}
+    rc, out = run_score(tmp_path, state, expected_file=_expected_file(tmp_path, unrelated))
+    assert sorted(r["point"] for r in out["rows"]) == [0, 1], "unrelated rows never share"

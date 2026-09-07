@@ -145,7 +145,23 @@ def _assign(row_ids, rows, findings, accepts):
 
     for r in row_ids:
         place(r, set())
-    return {r: i for i, r in owner.items()}
+    assigned = {r: i for i, r in owner.items()}
+    # Two rows of one class may share a finding. The 0.84.0 contract files one
+    # finding per class ("one class is one finding"), so a run that reports the
+    # mock-asserting test and the tautology as two sites of "assertions that
+    # cannot fail" has answered both rows with one finding — and the matching
+    # above, which exists to stop one finding claiming two *unrelated* rows,
+    # would score it as a miss. Rows that declare the same `class_of` accept
+    # a finding another row of that class already owns, when it matches.
+    for r in row_ids:
+        cls = rows[r].get("class_of")
+        if r in assigned or not cls:
+            continue
+        for i, f in enumerate(findings):
+            if i in owner and rows[owner[i]].get("class_of") == cls and accepts(rows[r], f):
+                assigned[r] = i
+                break
+    return assigned
 
 
 _STATE_ROWS = frozenset({"finding_field", "anchors", "class_sites", "questions"})

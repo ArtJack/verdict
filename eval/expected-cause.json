@@ -58,10 +58,13 @@
         "root cause: memoiz",
         "root cause is the memoiz",
         "cause: the perf commit",
-        "root cause: the test",
         "root cause is the test change",
-        "caused by the test change"
-      ]
+        "caused by the test change",
+        "root cause: the test change",
+        "root cause: the test-data",
+        "root cause: the test data"
+      ],
+      "note": "Amended 2026-09-07: `root cause: the test` alone matched the report renderer's own \"- Root cause: <mechanism>\" line of an unrelated finding whose mechanism began \"the test dependency (pytest) is declared nowhere\" — a run that had cleared the decoy read as blaming it (scorer FP #6, found on the 0.84.0 payment). The phrase now needs the test *change* or the test *data* named."
     },
     {
       "key": "counterfactual-isolated-from-stale-bytecode",
