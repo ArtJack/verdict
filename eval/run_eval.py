@@ -167,7 +167,29 @@ def read_env_file(path: Path) -> dict:
     return out
 
 
-def gateway_env(base_env: dict, config_dir: Path) -> dict:
+def seed_config(config_dir: Path, project: Path) -> None:
+    """Mark the scratch project trusted inside an isolated config.
+
+    A config directory the CLI has never seen has not accepted the trust dialog
+    or bypass-permissions mode, and `-p --dangerously-skip-permissions` there
+    exits 0 having done nothing at all: no output, no transcript, no state — a
+    run that looks like a model failure and is a configuration one. Measured
+    2026-09-08: identical command, empty config = silence, seeded config = the
+    answer.
+    """
+    doc_path = config_dir / ".claude.json"
+    try:
+        doc = json.loads(doc_path.read_text(encoding="utf-8")) if doc_path.is_file() else {}
+    except (OSError, json.JSONDecodeError):
+        doc = {}
+    doc["bypassPermissionsModeAccepted"] = True
+    doc.setdefault("projects", {}).setdefault(str(project), {}).update(
+        {"hasTrustDialogAccepted": True, "hasCompletedProjectOnboarding": True})
+    config_dir.mkdir(parents=True, exist_ok=True)
+    doc_path.write_text(json.dumps(doc, indent=1), encoding="utf-8")
+
+
+def gateway_env(base_env: dict, config_dir: Path, project: Path) -> dict:
     """The environment a run needs to reach a gateway instead of Anthropic.
 
     The decisive part is `CLAUDE_CONFIG_DIR`: a logged-in CLI sends its stored
@@ -182,6 +204,7 @@ def gateway_env(base_env: dict, config_dir: Path) -> dict:
     env = dict(GATEWAY_DEFAULTS, **base_env)
     config_dir.mkdir(parents=True, exist_ok=True)
     env["CLAUDE_CONFIG_DIR"] = str(config_dir)
+    seed_config(config_dir, project)
     token = env.get("ANTHROPIC_AUTH_TOKEN")
     if token and not env.get("ANTHROPIC_API_KEY"):
         env["ANTHROPIC_API_KEY"] = token
@@ -338,7 +361,7 @@ def run_once(args, fixture, mode, base_env, prompt_text=None, arm=None, model=No
     workdir = Path(tempfile.mkdtemp(prefix="verdict-eval-"))
     checkout = workdir / fixture["dir"]
     qa_home = workdir / "qa-home"
-    base_env = gateway_env(base_env, workdir / "claude-config")
+    base_env = gateway_env(base_env, workdir / "claude-config", checkout)
     qa_root = qa_home / fixture["dir"]
     results = {"fixture": args.fixture, "mode": mode, "workdir": str(workdir),
                "model": model,
