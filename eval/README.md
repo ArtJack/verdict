@@ -181,11 +181,14 @@ What one run is:
    alternates link cut — so `git log` cannot see the fix and neither can the tester.
    Tags on ancestors stay (setuptools_scm reads the version from them).
 2. **The environment is the one the maintainers had.** Interpreter from SWE-bench's specs
-   ([`swebench/specs.json`](swebench/specs.json)); packages resolved *as of the instance's
-   date* (`uv --exclude-newer`) for instances filed since 2020, SWE-bench's pins with fresh
-   test tooling before that (a 2015 pytest cannot run on 3.9). SWE-bench's own pins
-   post-date the instances by a year and break the suites around the withheld test —
-   seaborn 0.12 under pandas 2.0 is 646 red at base; dated, it is 0 red.
+   ([`swebench/specs.json`](swebench/specs.json)); packages resolved *as of the base
+   commit's date* (`uv --exclude-newer`; the commit's, not the issue's — an issue can sit
+   open for a year before the tree that fixes it exists) for base commits since 2020,
+   SWE-bench's pins with fresh test tooling before that (a 2015 pytest cannot run on 3.9),
+   and the pins again when the dated resolution cannot build (pylint pins astroid versions
+   released after its own commits) or fails the proof below. SWE-bench's own pins post-date
+   the instances by a year and break the suites around the withheld test — seaborn 0.12
+   under pandas 2.0 is 646 red at base; dated, it is 0 red.
 3. **The environment is proven before the tester arrives:** the withheld tests fail at
    base and pass with the gold patch, applied in the checkout and reverted. An instance
    that fails this is published as `env_invalid`, never run.

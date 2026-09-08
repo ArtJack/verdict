@@ -308,11 +308,19 @@ def uv_python(version: str) -> str:
     return proc.stdout.strip()
 
 
-def is_dated(inst: dict) -> bool:
-    return inst["repo"] in DATED_ENV or inst["created_at"][:10] >= DATED_FROM
+def is_dated(inst: dict, as_of: str) -> bool:
+    return inst["repo"] in DATED_ENV or as_of >= DATED_FROM
 
 
-def build_env(inst: dict, spec: dict, checkout: Path, venv: Path,
+def base_date(checkout: Path) -> str:
+    """The base commit's date — the week the code under test was written. Not the
+    issue's `created_at`: SWE-bench dates an instance by the issue, and an issue can
+    sit open for a year before the commit that fixes it (requests-5414: filed
+    2020-04, fixed on a 2021-09 tree whose dependencies did not exist in 2020)."""
+    return git(["show", "-s", "--format=%cI", "HEAD"], checkout)[:10]
+
+
+def build_env(inst: dict, spec: dict, checkout: Path, venv: Path, as_of: str,
               force_pins: bool = False) -> list[str]:
     """The maintainers' environment: SWE-bench's interpreter, packages as of the
     instance's date (or SWE-bench's pins — see DATED_FROM, or `force_pins` when
@@ -331,8 +339,7 @@ def build_env(inst: dict, spec: dict, checkout: Path, venv: Path,
     py = uv_python(spec["python"])
     sh(["uv", "venv", "-q", "--python", py, str(venv)], check=True)
     vpy = str(venv / "bin" / "python")
-    as_of = inst["created_at"][:10]
-    dated = is_dated(inst) and not force_pins
+    dated = is_dated(inst, as_of) and not force_pins
     date_flag = ["--exclude-newer", as_of] if dated else []
     pkgs = [] if dated else list(spec.get("pip_packages", []))
     has_pytest = any(re.match(r"pytest(==|>=|$)", p) for p in pkgs)
@@ -571,20 +578,22 @@ def prepare(inst: dict, row: dict, keep_existing: bool) -> dict:
         checkout_base(inst["repo"], inst["base_commit"], checkout)
     spec = spec_for(inst["repo"], inst["version"])
     vpy = str(venv / "bin" / "python")
+    as_of = base_date(checkout)
+    info["base_date"] = as_of
     fresh = not Path(vpy).exists()
     dated_failed = None
     if fresh:
-        print(f"  environment: python {spec['python']}, {len(spec.get('pip_packages', []))} pins",
-              file=sys.stderr)
+        print(f"  environment: python {spec['python']}, {len(spec.get('pip_packages', []))} pins, "
+              f"base commit dated {as_of}", file=sys.stderr)
         try:
-            info["env_notes"] = build_env(inst, spec, checkout, venv)
+            info["env_notes"] = build_env(inst, spec, checkout, venv, as_of)
         except RuntimeError as exc:
-            # A project whose metadata pins a dependency released AFTER the issue
-            # (pylint's astroid dev pins) cannot resolve as of its date at all.
-            if not is_dated(inst):
+            # A project whose metadata pins a dependency released AFTER its base
+            # commit (pylint's astroid dev pins) cannot resolve as of its date at all.
+            if not is_dated(inst, as_of):
                 raise
             dated_failed = f"dated environment did not build: {str(exc)[-300:]}"
-    if dated_failed is None and fresh and is_dated(inst):
+    if dated_failed is None and fresh and is_dated(inst, as_of):
         ok, why = validate_env(row, checkout, vpy)
         if not ok:
             dated_failed = f"dated environment failed validation: {why}"
@@ -593,7 +602,7 @@ def prepare(inst: dict, row: dict, keep_existing: bool) -> dict:
         # the instance is given up, and named in the notes either way.
         print(f"  {dated_failed} — rebuilding with SWE-bench's pins", file=sys.stderr)
         shutil.rmtree(venv, ignore_errors=True)
-        info["env_notes"] = [dated_failed] + build_env(inst, spec, checkout, venv,
+        info["env_notes"] = [dated_failed] + build_env(inst, spec, checkout, venv, as_of,
                                                         force_pins=True)
     ok, why = validate_env(row, checkout, vpy)
     info["env_valid"], info["env_check"] = ok, why
@@ -910,7 +919,7 @@ def one(inst: dict, args, root: Path) -> dict:
         result.update(status="prepare_failed", note=str(exc)[-600:])
         return result
     result["env"] = {"valid": info["env_valid"], "check": info["env_check"],
-                     "notes": info["env_notes"]}
+                     "notes": info["env_notes"], "base_date": info.get("base_date")}
     if not info["env_valid"]:
         result.update(status="env_invalid", note=info["env_check"])
         cleanup(info, args.keep)
