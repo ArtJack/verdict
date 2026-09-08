@@ -1045,5 +1045,11 @@
   "path": "src/verdict_mcp/runner.py",
   "old": "        if not args.env_file.is_file():\n            print(f\"verdict-run: --env-file {args.env_file} does not exist\", file=sys.stderr)\n            return 2",
   "new": "        if not args.env_file.is_file():\n            args.env_file = None"
+ },
+ {
+  "label": "0.87.0 O8 runner: any ANTHROPIC_BASE_URL counts as a gateway, so a plain run loses its named account",
+  "path": "src/verdict_mcp/runner.py",
+  "old": "    return not (host == \"anthropic.com\" or host.endswith(\".anthropic.com\"))",
+  "new": "    return True"
  }
 ]

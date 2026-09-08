@@ -129,3 +129,35 @@ def test_the_env_file_reaches_the_child_and_seeds_its_config(tmp_path, monkeypat
     assert seen.get("VERDICT_STRICT") == "1", "the guards stay armed"
     doc = json.loads((cfg / ".claude.json").read_text(encoding="utf-8"))
     assert doc["projects"][str(repo.resolve())]["hasTrustDialogAccepted"] is True
+
+
+def test_anthropics_own_base_url_is_not_a_gateway():
+    """Tooling sets ANTHROPIC_BASE_URL to Anthropic's own API without meaning to
+    redirect anything. Reading that as a gateway sent runs to an empty config
+    directory and they came back 'Not logged in'."""
+    assert runner.is_gateway("http://ai-lab:4000")
+    assert runner.is_gateway("https://litellm.internal/v1")
+    assert not runner.is_gateway("https://api.anthropic.com")
+    assert not runner.is_gateway("https://api.anthropic.com/")
+    assert not runner.is_gateway("https://eu.api.anthropic.com")
+    assert not runner.is_gateway("")
+    assert not runner.is_gateway(None)
+
+
+def test_anthropics_own_base_url_leaves_the_named_account_alone(tmp_path):
+    cfg, repo = tmp_path / "cfg", tmp_path / "repo"
+    repo.mkdir()
+    env, notes = runner.session_env(
+        {"ANTHROPIC_BASE_URL": "https://api.anthropic.com", "CLAUDE_CONFIG_DIR": str(cfg)}, repo)
+    assert env["CLAUDE_CONFIG_DIR"] == str(cfg), "the operator's account still pays"
+    assert "CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY" not in env
+    assert not any("401" in n for n in notes)
+
+
+def test_a_gateway_keeps_the_config_directory_the_operator_named(tmp_path):
+    cfg, repo = tmp_path / "named", tmp_path / "repo"
+    repo.mkdir()
+    env, _ = runner.session_env(
+        {"ANTHROPIC_BASE_URL": "http://gw:4000", "CLAUDE_CONFIG_DIR": str(cfg)}, repo)
+    assert env["CLAUDE_CONFIG_DIR"] == str(cfg)
+    assert (cfg / ".claude.json").is_file()

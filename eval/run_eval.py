@@ -56,6 +56,7 @@ import tempfile
 import time
 from datetime import datetime, timedelta
 from pathlib import Path
+from urllib.parse import urlparse
 
 EVAL_DIR = Path(__file__).resolve().parent
 REPO = EVAL_DIR.parent
@@ -167,6 +168,21 @@ def read_env_file(path: Path) -> dict:
     return out
 
 
+def is_gateway(url) -> bool:
+    """True only for a base URL that is *not* Anthropic's own.
+
+    `ANTHROPIC_BASE_URL` is routinely set to `https://api.anthropic.com` by
+    tooling that never intended to redirect anything. Treating any value as a
+    gateway sent a run to an empty config directory with no login in it, and the
+    session came back "Not logged in" — the operator's named account ignored
+    because of a variable that changed nothing.
+    """
+    if not url:
+        return False
+    host = urlparse(str(url)).hostname or ""
+    return not (host == "anthropic.com" or host.endswith(".anthropic.com"))
+
+
 def seed_config(config_dir: Path, project: Path) -> None:
     """Mark the scratch project trusted inside an isolated config.
 
@@ -209,11 +225,14 @@ def session_env(base_env: dict, scratch_config: Path, project: Path) -> dict:
     Every isolated directory is seeded (see `seed_config`), because a config the
     CLI has never seen refuses bypass-permissions mode in silence.
     """
-    if base_env.get("ANTHROPIC_BASE_URL"):
+    if is_gateway(base_env.get("ANTHROPIC_BASE_URL")):
         env = dict(GATEWAY_DEFAULTS, **base_env)
-        scratch_config.mkdir(parents=True, exist_ok=True)
-        env["CLAUDE_CONFIG_DIR"] = str(scratch_config)
-        seed_config(scratch_config, project)
+        # An operator who named a config directory meant it; only a gateway run
+        # with no directory of its own gets the throwaway one.
+        config = Path(env.get("CLAUDE_CONFIG_DIR") or scratch_config)
+        config.mkdir(parents=True, exist_ok=True)
+        env["CLAUDE_CONFIG_DIR"] = str(config)
+        seed_config(config, project)
         token = env.get("ANTHROPIC_AUTH_TOKEN")
         if token and not env.get("ANTHROPIC_API_KEY"):
             env["ANTHROPIC_API_KEY"] = token

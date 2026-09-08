@@ -53,6 +53,7 @@ import threading
 import time
 from datetime import datetime, timedelta
 from pathlib import Path
+from urllib.parse import urlparse
 
 try:
     from .gate import evaluate
@@ -314,6 +315,21 @@ GATEWAY_FLAGS = {
 }
 
 
+def is_gateway(url) -> bool:
+    """True only for a base URL that is *not* Anthropic's own.
+
+    `ANTHROPIC_BASE_URL` is routinely set to `https://api.anthropic.com` by
+    tooling that never intended to redirect anything. Treating any value as a
+    gateway sent a run to an empty config directory with no login in it, and the
+    session came back "Not logged in" — the operator's named account ignored
+    because of a variable that changed nothing.
+    """
+    if not url:
+        return False
+    host = urlparse(str(url)).hostname or ""
+    return not (host == "anthropic.com" or host.endswith(".anthropic.com"))
+
+
 def read_env_file(path) -> dict:
     """`KEY=VALUE` lines from a file the operator owns.
 
@@ -371,7 +387,7 @@ def session_env(env: dict, repo) -> tuple[dict, list]:
     gateway run needs a config directory with no login in it.
     """
     notes = []
-    if env.get("ANTHROPIC_BASE_URL"):
+    if is_gateway(env.get("ANTHROPIC_BASE_URL")):
         for key, value in GATEWAY_FLAGS.items():
             env.setdefault(key, value)
         if env.get("ANTHROPIC_AUTH_TOKEN") and not env.get("ANTHROPIC_API_KEY"):
