@@ -1021,5 +1021,29 @@
   "path": "src/verdict_mcp/runner.py",
   "old": "    if limit_kind(output) != \"session\":\n        return None",
   "new": "    if limit_kind(output) is None:\n        return None"
+ },
+ {
+  "label": "0.87.0 O4 runner: a named config directory is used without seeding trust, so the run is refused in silence",
+  "path": "src/verdict_mcp/runner.py",
+  "old": "    if config_dir:\n        seed_config(config_dir, repo)",
+  "new": "    if config_dir:\n        pass"
+ },
+ {
+  "label": "0.87.0 O5 runner: a gateway token is not mirrored to ANTHROPIC_API_KEY",
+  "path": "src/verdict_mcp/runner.py",
+  "old": "            env[\"ANTHROPIC_API_KEY\"] = env[\"ANTHROPIC_AUTH_TOKEN\"]",
+  "new": "            pass"
+ },
+ {
+  "label": "0.87.0 O6 runner: the operator's own flag value is overwritten by the gateway defaults",
+  "path": "src/verdict_mcp/runner.py",
+  "old": "        for key, value in GATEWAY_FLAGS.items():\n            env.setdefault(key, value)",
+  "new": "        for key, value in GATEWAY_FLAGS.items():\n            env[key] = value"
+ },
+ {
+  "label": "0.87.0 O7 runner: --env-file silently does nothing when the file is missing",
+  "path": "src/verdict_mcp/runner.py",
+  "old": "        if not args.env_file.is_file():\n            print(f\"verdict-run: --env-file {args.env_file} does not exist\", file=sys.stderr)\n            return 2",
+  "new": "        if not args.env_file.is_file():\n            args.env_file = None"
  }
 ]

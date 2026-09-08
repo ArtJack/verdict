@@ -210,7 +210,41 @@ cost and tokens, the plugin version and the prompt hash; `python3 eval/swebench.
 renders it. The QA roots and run logs are archived outside the repository
 (`~/.cache/verdict-swebench/runs/`).
 
-@SWEBENCH_TABLE@
+**Measured 2026-09-08, plugin 0.86.0, Opus, twelve instances of forty.** The batch was stopped by the weekly subscription limit, not by a result; the remaining instances are pending, and the table is republished as they land. Cost is the CLI's own list-price estimate on a subscription run, so read it as a comparable number rather than a bill.
+
+Instances attempted: 14 · ran: 12 · scored: 12
+- located at `function` or better — any finding: 12/12 (100%); headline finding: 12/12 (100%)
+- located at `hunk` or better — any finding: 12/12 (100%); headline finding: 12/12 (100%)
+- located at `file` or better — any finding: 12/12 (100%); headline finding: 12/12 (100%)
+- wall time per run: median 13 min, max 31 min; total 2h44
+- cost per run (CLI-reported): median $3.09, total $38.45
+- output tokens per run (whole session, from the transcript): median 51k, total 607k
+
+| Instance | Difficulty | Status | Findings | Any | Headline | Wall | Output tok | Cost |
+|---|---|---|---|---|---|---|---|---|
+| pallets__flask-5014 | <15 min fix | scored | 2 | function | function | 8 min | 41k | $2.54 |
+| psf__requests-1142 | <15 min fix | scored | 2 | function | function | 8 min | 40k | $3.01 |
+| psf__requests-1724 | <15 min fix | env_invalid | — | — | — | — | — | — |
+| psf__requests-1766 | <15 min fix | scored | 4 | function | function | 14 min | 63k | $3.52 |
+| psf__requests-1921 | <15 min fix | scored | 2 | function | function | 10 min | 45k | $2.67 |
+| psf__requests-2317 | <15 min fix | scored | 4 | function | function | 31 min | 58k | $4.30 |
+| psf__requests-2931 | 15 min - 1 hour | scored | 3 | function | function | 9 min | 45k | $2.62 |
+| psf__requests-5414 | <15 min fix | scored | 3 | function | function | 11 min | 52k | $3.09 |
+| psf__requests-6028 | 15 min - 1 hour | scored | 3 | function | function | 13 min | 56k | $3.59 |
+| pytest-dev__pytest-5262 | <15 min fix | scored | 2 | function | function | 10 min | 41k | $2.51 |
+| pytest-dev__pytest-5631 | 15 min - 1 hour | scored | 2 | function | function | 14 min | 46k | $3.02 |
+| pytest-dev__pytest-5787 | 1-4 hours | env_invalid | — | — | — | — | — | — |
+| pytest-dev__pytest-5809 | <15 min fix | scored | 5 | function | function | 13 min | 51k | $3.20 |
+| pytest-dev__pytest-7982 | <15 min fix | scored | 3 | function | function | 15 min | 64k | $4.37 |
+
+| Difficulty | Scored | Any ≥ hunk | Headline ≥ hunk |
+|---|---|---|---|
+| 15 min - 1 hour | 3 | 3/3 (100%) | 3/3 (100%) |
+| <15 min fix | 9 | 9/9 (100%) | 9/9 (100%) |
+
+Not scored:
+- psf__requests-1724: env_invalid — all 6 withheld test(s) already pass at base
+- pytest-dev__pytest-5787: env_invalid — withheld tests do not pass with the gold patch: ERROR testing/test_reports.py::TestReportSerialization::test_chained_exceptions[TestReport] | ERROR testing/test
 
 ### Recall — what the tester *misses*
 

@@ -303,6 +303,91 @@ def plugin_root(explicit=None):
     return None
 
 
+GATEWAY_FLAGS = {
+    # A model that is not Anthropic's behind the base URL rejects the `thinking`
+    # block and any pre-release field, and cannot be named from the CLI's built-in
+    # catalogue. Without these three a gateway run fails with a 400 that names
+    # none of this.
+    "CLAUDE_CODE_DISABLE_ADAPTIVE_THINKING": "1",
+    "CLAUDE_CODE_DISABLE_EXPERIMENTAL_BETAS": "1",
+    "CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY": "1",
+}
+
+
+def read_env_file(path) -> dict:
+    """`KEY=VALUE` lines from a file the operator owns.
+
+    A nightly should be able to say *which account or endpoint it spends* without
+    that credential appearing in a command line, a crontab, or a log. Blank lines
+    and `#` comments are skipped; surrounding quotes are stripped.
+    """
+    out = {}
+    for line in Path(path).read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, _, value = line.partition("=")
+        out[key.strip()] = value.strip().strip('"').strip("'")
+    return out
+
+
+def seed_config(config_dir, repo) -> None:
+    """Mark `repo` trusted inside a config directory the CLI may never have seen.
+
+    A fresh `CLAUDE_CONFIG_DIR` has accepted neither the trust dialog nor
+    bypass-permissions mode, and this runner always passes
+    `--dangerously-skip-permissions`: the session then exits 0 having done
+    nothing at all — no output, no state — which the gate reports as a lost run
+    while the real cause is configuration. Measured 2026-09-08: identical
+    command, empty config directory silent, seeded one answers.
+    """
+    config_dir = Path(config_dir)
+    doc_path = config_dir / ".claude.json"
+    try:
+        doc = json.loads(doc_path.read_text(encoding="utf-8")) if doc_path.is_file() else {}
+    except (OSError, json.JSONDecodeError):
+        doc = {}
+    if not isinstance(doc, dict):
+        doc = {}
+    doc["bypassPermissionsModeAccepted"] = True
+    projects = doc.setdefault("projects", {})
+    if isinstance(projects, dict):
+        entry = projects.setdefault(str(Path(repo).resolve()), {})
+        if isinstance(entry, dict):
+            entry.update({"hasTrustDialogAccepted": True,
+                          "hasCompletedProjectOnboarding": True})
+    config_dir.mkdir(parents=True, exist_ok=True)
+    doc_path.write_text(json.dumps(doc, indent=1) + "\n", encoding="utf-8")
+
+
+def session_env(env: dict, repo) -> tuple[dict, list]:
+    """Apply the operator's account or endpoint choice → (env, notes).
+
+    `CLAUDE_CONFIG_DIR` chooses *which stored login pays* — a second
+    subscription, a machine account — and is seeded so the headless run is not
+    refused in silence. `ANTHROPIC_BASE_URL` chooses a different endpoint
+    entirely (an LLM gateway, a local model server): the CLI ignores
+    `ANTHROPIC_AUTH_TOKEN` while it has a login of its own to prefer, so a
+    gateway run needs a config directory with no login in it.
+    """
+    notes = []
+    if env.get("ANTHROPIC_BASE_URL"):
+        for key, value in GATEWAY_FLAGS.items():
+            env.setdefault(key, value)
+        if env.get("ANTHROPIC_AUTH_TOKEN") and not env.get("ANTHROPIC_API_KEY"):
+            env["ANTHROPIC_API_KEY"] = env["ANTHROPIC_AUTH_TOKEN"]
+        if not env.get("CLAUDE_CONFIG_DIR"):
+            notes.append("endpoint: ANTHROPIC_BASE_URL is set but CLAUDE_CONFIG_DIR is not — "
+                         "a CLI with a stored login sends that credential instead of the "
+                         "gateway's and the gateway answers 401")
+        notes.append(f"endpoint: {env['ANTHROPIC_BASE_URL']}")
+    config_dir = env.get("CLAUDE_CONFIG_DIR")
+    if config_dir:
+        seed_config(config_dir, repo)
+        notes.append(f"account: CLAUDE_CONFIG_DIR {config_dir} (trust seeded)")
+    return env, notes
+
+
 PROVISION_RECORD = "verdict-provision.json"   # under .claude/, beside what it describes
 
 
@@ -649,6 +734,12 @@ def main(argv=None) -> int:
     ap.add_argument("--no-provision", dest="provision", action="store_false",
                     help="do not write .claude/agents/verdict.md or the hook set into "
                          ".claude/settings.local.json before launching")
+    ap.add_argument("--env-file", type=Path, default=None, metavar="PATH",
+                    help="KEY=VALUE file merged into the run's environment: "
+                         "CLAUDE_CONFIG_DIR to spend a chosen account's allowance rather "
+                         "than the ambient login, or ANTHROPIC_BASE_URL (+ "
+                         "ANTHROPIC_AUTH_TOKEN) to run against an LLM gateway or a local "
+                         "model server. Keeps the credential out of the command line")
     ap.add_argument("--plugin-root", default=None,
                     help="where agents/ and hooks/ live (default: CLAUDE_PLUGIN_ROOT, "
                          "this checkout, then the newest plugin-cache version)")
@@ -710,6 +801,14 @@ def main(argv=None) -> int:
         passthrough = [*passthrough, "--dangerously-skip-permissions"]
 
     env = dict(os.environ, VERDICT_STRICT="1", VERDICT_MODEL=args.model)
+    if args.env_file:
+        if not args.env_file.is_file():
+            print(f"verdict-run: --env-file {args.env_file} does not exist", file=sys.stderr)
+            return 2
+        env.update(read_env_file(args.env_file))
+    env, env_notes = session_env(env, repo)
+    for note in env_notes:
+        print(f"verdict-run: {note}", file=sys.stderr)
     # `project,local`: the user-scope plugin stays out (isolation), and the
     # hooks provisioned into settings.local.json come in.
     cmd = [args.claude_cmd, "-p", prompt, "--model", args.model,
