@@ -177,14 +177,41 @@ DEFAULT_PROMPT = (
     "afford.")
 
 
+def limit_kind(output: str) -> str | None:
+    """Which allowance the CLI says is spent: `session` (a window that reopens
+    within hours) or `weekly` (days away), or None.
+
+    The difference decides whether waiting is sensible. A session limit is worth
+    sleeping through; a weekly one is not — the first version knew only the word
+    "session", so a weekly limit read as an ordinary failure, and the runner
+    spent its retry, reported a lost run, and left the operator to find the real
+    reason in the log.
+    """
+    low = output.lower()
+    if "weekly limit" in low:
+        return "weekly"
+    if "session limit" in low or "usage limit" in low:
+        return "session"
+    return None
+
+
+def limit_line(output: str) -> str:
+    """The CLI's own sentence about the limit, for a message that explains itself."""
+    for line in output.splitlines():
+        if "limit" in line.lower() and "reset" in line.lower():
+            return line.strip()[:200]
+    return "the CLI reported a usage limit"
+
+
 def seconds_until_reset(output: str, ceiling_s: int = 10800) -> int | None:
     """Parse 'resets 2:40am' / 'resets 23:15' from a session-limit error.
 
-    None when the output is not a session-limit error at all; a bounded wait
-    when it is but the time cannot be read — the window exists even when its
-    edge is unknown.
+    None when the output is not a limit this runner should wait out — no limit
+    at all, or a weekly one, which reopens in days and must be reported rather
+    than slept through. A bounded wait when the window exists but its edge
+    cannot be read.
     """
-    if "session limit" not in output.lower():
+    if limit_kind(output) != "session":
         return None
     m = re.search(r"resets\s+([0-9]{1,2}:[0-9]{2}(?:am|pm)?)", output, re.I)
     if not m:
@@ -694,6 +721,12 @@ def main(argv=None) -> int:
             print(f"verdict-run: attempt {attempt} timed out after {args.timeout_s}s",
                   file=sys.stderr)
             continue
+        if limit_kind(output) == "weekly":
+            # Days away, not hours: nothing this run can wait for, and a second
+            # attempt would only spend the retry. Say so in the CLI's own words.
+            print(f"verdict-run: {limit_line(output)} — no model run is possible until then; "
+                  "the standing verdict is left as it is", file=sys.stderr)
+            break
         wait = seconds_until_reset(output, args.reset_ceiling_s)
         if wait and attempt == 1:
             print(f"verdict-run: session limit; waiting {wait}s for the window to reset",

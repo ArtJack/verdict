@@ -60,7 +60,7 @@ SPECS = OUT_DIR / "specs.json"
 sys.path.insert(0, str(REPO / "src"))
 from verdict_mcp.anchors import refs_in  # noqa: E402
 from verdict_mcp.project_key import derive_key  # noqa: E402
-from verdict_mcp.runner import plugin_root, seconds_until_reset  # noqa: E402
+from verdict_mcp.runner import limit_kind, plugin_root, seconds_until_reset  # noqa: E402
 
 DATASET = "princeton-nlp/SWE-bench_Verified"
 ROWS_URL = ("https://datasets-server.huggingface.co/rows?dataset=princeton-nlp%2FSWE-bench_Verified"
@@ -713,7 +713,8 @@ def run_instance(inst: dict, row: dict, info: dict, root: Path, model: str,
         "tokens": {k: usage.get(k) for k in ("input_tokens", "output_tokens",
                                              "cache_creation_input_tokens",
                                              "cache_read_input_tokens")} if usage else None,
-        "session_limited": "session limit" in output.lower(),
+        "session_limited": limit_kind(output) == "session",
+        "limit": limit_kind(output),
         "output": output,
     }
 
@@ -946,6 +947,7 @@ def one(inst: dict, args, root: Path) -> dict:
         qa_root = Path(info["qa_home"]) / info["key"]
         if (qa_root / "state.json").is_file() or not run["session_limited"]:
             break
+
         wait = seconds_until_reset(run["output"]) or 3600
         print(f"  session limit and no state — waiting {wait}s (attempt {attempt})",
               file=sys.stderr)
@@ -1098,6 +1100,12 @@ def cmd_batch(args) -> int:
         print(f"[{n}/{len(todo)}]", file=sys.stderr)
         result = one(inst, args, root)
         append_result(result)
+        if (result.get("run") or {}).get("limit") == "weekly":
+            # The allowance is gone for days. Every remaining instance would fail
+            # the same way and be written into the ledger as a run that never ran.
+            print("weekly limit reached — stopping the batch; resume with the same "
+                  "command once it resets", file=sys.stderr)
+            break
         s = result.get("score") or {}
         print(f"  → {result['status']}: any {s.get('any_hit')}, headline {s.get('headline_hit')}, "
               f"{s.get('findings')} finding(s), {(result.get('run') or {}).get('wall_s')}s",

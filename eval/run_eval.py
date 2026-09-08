@@ -192,9 +192,21 @@ def provision(checkout: Path, fixture: dict, prompt_text: str | None = None):
         (cdir / fixture["command_file"]).write_text(cmd, encoding="utf-8")
 
 
+def _limit_kind(output: str) -> str | None:
+    """`session` (hours) or `weekly` (days) or None — see runner.limit_kind."""
+    low = output.lower()
+    if "weekly limit" in low:
+        return "weekly"
+    if "session limit" in low or "usage limit" in low:
+        return "session"
+    return None
+
+
 def _seconds_until_reset(output: str) -> int | None:
-    """Parse 'resets 2:40am' / 'resets 23:15' from a session-limit error."""
-    if "session limit" not in output.lower():
+    """Parse 'resets 2:40am' / 'resets 23:15' from a session-limit error. A
+    weekly limit returns None: it reopens in days, so the run stops and says so
+    rather than sleeping or spending its retry."""
+    if _limit_kind(output) != "session":
         return None
     m = re.search(r"resets\s+([0-9]{1,2}:[0-9]{2}(?:am|pm)?)", output, re.I)
     if not m:
@@ -224,7 +236,13 @@ def run_agent(prompt, checkout, qa_home, model, timeout_s, base_env, log_path):
             encoding="utf-8")
         if proc.returncode == 0:
             return
-        wait = _seconds_until_reset(proc.stdout + proc.stderr)
+        combined = proc.stdout + proc.stderr
+        if _limit_kind(combined) == "weekly":
+            line = next((ln.strip() for ln in combined.splitlines()
+                         if "limit" in ln.lower() and "reset" in ln.lower()),
+                        "weekly limit reached")
+            raise RuntimeError(f"{line} — no model run is possible until then; log: {log_path}")
+        wait = _seconds_until_reset(combined)
         if wait and attempt == 1:
             print(f"session limit; waiting {wait}s for the window to reset",
                   file=sys.stderr)
