@@ -161,6 +161,54 @@ itself does on a codebase and toolchain it was not built beside. Each row record
 | 2026-09-07 | **0.86.0** (this checkout via `verdict-run --plugin-root … --skip-unless-drift`) | [mahmoud/boltons](https://github.com/mahmoud/boltons) — a comment-only local commit in `iterutils.py`, a file no finding cites | **swept, no model** · run 6 · 13 s including the wheel build | "HEAD moved 1 commit(s), 1 file(s) changed, none cited by a finding; gates green (suite 625 passed in 3.46s); test-id set unchanged; no quarantine due; no cited line moved — verdict 'fail' carried, no model call." The state reads `run_type: sweep`, `model: none`, all 30 findings carried by id. The same facts run measured the reading map (34 modules, 75% overall, `mboxutils` 12% with two open findings) and the tests that exercise each finding's cited lines (16 of 30). | **The model-free night, measured on a real repository:** the conditions are all harness measurements, and the first version of the map led with `docs/conf.py` and `misc/bench_omd.py` — git-tracked scripts outside the package — fixed before the tag (`outside_package`). |
 | 2026-09-07 | **0.86.0** (same checkout) | [mahmoud/boltons](https://github.com/mahmoud/boltons) — one more comment line in `strutils.py`, a file three findings cite | `fail` · 37 findings (7 NEW in `setutils`: 2 Critical, 3 Major; 30 carried) · 15.5 min | The runner refused the sweep with the reasons ("cited code moved or changed: F-30, F-1, F-4; changed files a finding cites: strutils.py") and ran the model. `_ComplementSet`: `&=`/`update()` return the inverted set and `update()` can leave both internal slots `None` so the next membership test raises; `&` reverses its operands, `^` uses plain difference — under `tests/test_setutils.py:138-151`, whose own docstring says it "doesn't really confirm math identities" (13 mutating operations, zero assertions). The agent also caught and did not file its own false positive (a finite-universe model of `complement()` had scored six comparison operators as broken; a complement set is unbounded) and wrote the discriminator into `lessons.md`. | **The reading map was read and followed unprompted** ("the budget went to the coverage ranking rather than the diff, landing on `setutils._ComplementSet` (66%, the module run 6 nominated)"). **`verification_test` declared: 0 of 37** with the tests coverage names printed under every open finding — and the agent was right: a defect under a green suite is executed by tests that do not fail on it. The feature was reframed before the tag: `exercised_by`, the assertions to review and where a regression test belongs, never a candidate guard. The ten-line handoff grew a 15-line preamble again (P-23). |
 
+### The external key — SWE-bench Verified instances
+
+Every key above was written by the same hands that wrote the prompt, so a tester that
+passes them has been tuned against them. The external key is a set of real defects
+nobody here chose or described: SWE-bench Verified instances, each a maintainers' fix
+with a test that fails before it and passes after it. `eval/swebench.py` turns one
+instance into one run of the **shipped** plugin (the newest version in the plugin
+cache — never a checkout being edited) and scores it against the fix's location.
+
+The set is a rule, not a hand-pick: every Verified instance whose repository has fewer
+than twenty instances in the set — the five smallest repositories (pytest 19, pylint 10,
+requests 8, seaborn 2, flask 1; 40 instances, [`swebench/instances.json`](swebench/instances.json)).
+
+What one run is:
+
+1. **The checkout ends at the base commit.** The fixed commit's parent, with every later
+   commit, branch and tag physically absent — reflogs expired before the repack, the
+   alternates link cut — so `git log` cannot see the fix and neither can the tester.
+   Tags on ancestors stay (setuptools_scm reads the version from them).
+2. **The environment is the one the maintainers had.** Interpreter from SWE-bench's specs
+   ([`swebench/specs.json`](swebench/specs.json)); packages resolved *as of the instance's
+   date* (`uv --exclude-newer`) for instances filed since 2020, SWE-bench's pins with fresh
+   test tooling before that (a 2015 pytest cannot run on 3.9). SWE-bench's own pins
+   post-date the instances by a year and break the suites around the withheld test —
+   seaborn 0.12 under pandas 2.0 is 646 red at base; dated, it is 0 red.
+3. **The environment is proven before the tester arrives:** the withheld tests fail at
+   base and pass with the gold patch, applied in the checkout and reverted. An instance
+   that fails this is published as `env_invalid`, never run.
+4. **The issue text, verbatim, is the charter** — the shipped `/verdict:bug` command,
+   headless through `verdict-run`, in solo mode with a generated profile naming the
+   project's own suite. `hints_text` and the withheld tests are never shown.
+5. **The score is location, deterministic.** Every `path:line` a finding cites (the
+   anchors finalize took from its evidence and class sites, plus references in its title
+   and mechanism) is graded against the gold patch on the base side: `file` (a file the
+   fix touched), `hunk` (within 15 lines of one of its hunks), `function` (the same
+   enclosing function, by AST). The tester's *headline* finding — highest severity, first
+   filed — is scored apart from "any finding", because a hit buried under seven other
+   findings is not what a maintainer reads first. Mechanism is prose and is not
+   machine-scored: a miss is published with what the finding said instead.
+
+Per instance the ledger ([`swebench/results.jsonl`](swebench/results.jsonl)) records the
+status, both grades, the findings with their cited files, wall time, the CLI's reported
+cost and tokens, the plugin version and the prompt hash; `python3 eval/swebench.py table`
+renders it. The QA roots and run logs are archived outside the repository
+(`~/.cache/verdict-swebench/runs/`).
+
+@SWEBENCH_TABLE@
+
 ### Recall — what the tester *misses*
 
 Every row above measures precision against a hand-authored answer key: defects someone
