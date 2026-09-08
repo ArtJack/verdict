@@ -60,6 +60,9 @@ from pathlib import Path
 EVAL_DIR = Path(__file__).resolve().parent
 REPO = EVAL_DIR.parent
 
+sys.path.insert(0, str(EVAL_DIR))
+import usage as usage_mod  # noqa: E402  (the run's own bill, from the transcript)
+
 GIT_ENV = {
     "GIT_AUTHOR_NAME": "verdict-eval", "GIT_AUTHOR_EMAIL": "eval@verdict",
     "GIT_COMMITTER_NAME": "verdict-eval", "GIT_COMMITTER_EMAIL": "eval@verdict",
@@ -262,16 +265,20 @@ def archive(qa_root: Path, name: str, fixture_key: str, mode: str, model: str):
     print(f"archived to eval/corpus/{name}", file=sys.stderr)
 
 
-def run_once(args, fixture, mode, base_env, prompt_text=None, arm=None):
+def run_once(args, fixture, mode, base_env, prompt_text=None, arm=None, model=None):
     """One full protocol execution in a fresh workdir → (failed, results, qa_root).
 
     `prompt_text`/`arm` name the control arm of a paired run (T-17): the same
-    fixture and harness, the prompt at another revision."""
+    fixture and harness, the prompt at another revision — or, with `model`, the
+    same prompt on another model. Either way the arms are interleaved and the
+    run's own token bill is read back from its transcript."""
+    model = model or args.model
     workdir = Path(tempfile.mkdtemp(prefix="verdict-eval-"))
     checkout = workdir / fixture["dir"]
     qa_home = workdir / "qa-home"
     qa_root = qa_home / fixture["dir"]
     results = {"fixture": args.fixture, "mode": mode, "workdir": str(workdir),
+               "model": model,
                "prompt_sha256": hashlib.sha256(
                    (prompt_text if prompt_text is not None else prompt_at(None))
                    .encode("utf-8")).hexdigest()}
@@ -304,7 +311,7 @@ def run_once(args, fixture, mode, base_env, prompt_text=None, arm=None):
         rev_a = git(["rev-parse", "--short", "HEAD"], checkout, base_env)
 
         if mode in ("baseline", "live"):
-            run_agent(fixture["prompt"], checkout, qa_home, args.model,
+            run_agent(fixture["prompt"], checkout, qa_home, model,
                       args.timeout_s, base_env, workdir / "phase1.log")
             rc, out = score(qa_root, EVAL_DIR / fixture["expected_baseline"],
                             None, checkout, args.require_harness)
@@ -329,7 +336,7 @@ def run_once(args, fixture, mode, base_env, prompt_text=None, arm=None):
             subprocess.run(["git", "add", "-A"], cwd=checkout, env=env, check=True)
             subprocess.run(["git", "commit", "-qm", "fixture rev B"],
                            cwd=checkout, env=env, check=True)
-            run_agent(DELTA_PROMPT, checkout, qa_home, args.model,
+            run_agent(DELTA_PROMPT, checkout, qa_home, model,
                       args.timeout_s, base_env, workdir / "phase2.log")
             rc, out = score(qa_root, EVAL_DIR / fixture["expected_delta"],
                             mode, checkout, args.require_harness)
@@ -340,6 +347,11 @@ def run_once(args, fixture, mode, base_env, prompt_text=None, arm=None):
         # first version deleted the evidence it needed to explain itself.
         failed = True
         results["error"] = str(exc)
+    try:
+        results["usage"] = usage_mod.usage_of(checkout)
+    except OSError as exc:                      # a bill is never worth a crash
+        results["usage"] = None
+        results["usage_error"] = str(exc)
     if failed or args.keep:
         print(f"workdir kept for inspection: {workdir}", file=sys.stderr)
     return failed, results, qa_root, workdir
@@ -348,7 +360,9 @@ def run_once(args, fixture, mode, base_env, prompt_text=None, arm=None):
 def paired_summary(args, mode, head_runs, control_runs) -> dict:
     """One table for a paired run: per phase, per row, the points each arm
     earned across repeats, and the difference. Both prompt hashes are named,
-    so a published row can say which prompt produced it (T-6)."""
+    so a published row can say which prompt produced it (T-6) — and both bills,
+    because a cheaper arm that scores the same is the whole question when the
+    axis is the model."""
     def points(runs, phase):
         table: dict = {}
         for r in runs:
@@ -357,11 +371,20 @@ def paired_summary(args, mode, head_runs, control_runs) -> dict:
                     table.setdefault(row["key"], []).append(row["point"])
         return table
 
+    def bill(runs):
+        total = None
+        for r in runs:
+            total = usage_mod.add(total, r.get("usage"))
+        return total
+
     phases = [p for p in ("baseline", "delta") if any(p in r for r in head_runs + control_runs)]
+    axis = "model" if args.pair_model else ("prompt" if args.pair else None)
     out = {"fixture": args.fixture, "mode": mode, "model": args.model, "repeat": args.repeat,
-           "pair": args.pair,
+           "axis": axis, "pair": args.pair, "pair_model": args.pair_model,
+           "arm_model": {"head": args.model, "control": args.pair_model or args.model},
            "prompt_sha256": {"head": head_runs[0]["prompt_sha256"] if head_runs else None,
                              "control": control_runs[0]["prompt_sha256"] if control_runs else None},
+           "usage": {"head": bill(head_runs), "control": bill(control_runs)},
            "phases": {}}
     for phase in phases:
         h, c = points(head_runs, phase), points(control_runs, phase)
@@ -402,6 +425,11 @@ def main() -> int:
                     help="paired A/B: after each run with the working tree's prompt, run "
                          "the same fixture with the prompt at GIT_REF (same harness, hooks "
                          "and fixture), and print per-row deltas with both prompt hashes")
+    ap.add_argument("--pair-model", default=None, metavar="MODEL",
+                    help="paired A/B on the model axis: the same prompt and fixture, "
+                         "--model against MODEL, runs interleaved, one table with per-row "
+                         "deltas and each arm's token bill (e.g. --model opus "
+                         "--pair-model sonnet)")
     args = ap.parse_args()
 
     fixture = FIXTURES[args.fixture]
@@ -412,12 +440,17 @@ def main() -> int:
         print("error: the `claude` CLI is required for model runs", file=sys.stderr)
         return 2
 
+    if args.pair and args.pair_model:
+        ap.error("--pair and --pair-model are different axes; a run that moved both "
+                 "would not say which one moved the score")
+
     base_env = dict(os.environ)
     control_prompt = prompt_at(args.pair) if args.pair else None
+    paired = bool(args.pair or args.pair_model)
     runs, control_runs, any_failed, archived = [], [], False, False
     for i in range(args.repeat):
         failed, results, qa_root, workdir = run_once(args, fixture, mode, base_env,
-                                                     arm="head" if args.pair else None)
+                                                     arm="head" if paired else None)
         runs.append(results)
         any_failed |= failed
         if not failed and args.archive and not archived:
@@ -425,17 +458,18 @@ def main() -> int:
             archived = True
         if not failed and not args.keep:
             shutil.rmtree(workdir, ignore_errors=True)
-        if control_prompt is not None:
+        if paired:
             # Interleaved, not batched: a rate limit or a bad hour then lands on
             # both arms alike instead of on whichever ran second.
             failed_c, results_c, _, workdir_c = run_once(
-                args, fixture, mode, base_env, prompt_text=control_prompt, arm="control")
+                args, fixture, mode, base_env, prompt_text=control_prompt, arm="control",
+                model=args.pair_model)
             control_runs.append(results_c)
             any_failed |= failed_c
             if not failed_c and not args.keep:
                 shutil.rmtree(workdir_c, ignore_errors=True)
 
-    if control_prompt is not None:
+    if paired:
         print(json.dumps(paired_summary(args, mode, runs, control_runs), indent=2))
         return 1 if any_failed else 0
 
