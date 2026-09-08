@@ -208,6 +208,17 @@ A QA agent that was never tested is exactly the kind of claim it should reject.
 repo and scratch state home. Results are published as measured; misses — and any answer-key
 amendment — stay in the table ([eval/README.md](eval/README.md)).
 
+Every one of those keys was written by the hands that wrote the prompt. **The external key**
+([eval/swebench.py](eval/swebench.py)) is one nobody here chose: SWE-bench Verified
+instances — real defects, each fixed by its own maintainers with a test that fails before the
+fix — every instance from the five smallest repositories in the set (pytest, pylint, requests,
+seaborn, flask; 40). The checkout's history ends at the bug's base commit, the environment is
+the one the maintainers had that week, the withheld test never enters the tree, and the issue
+text is the whole charter. The score is location, deterministic: does a `path:line` the
+finding cites fall in the file the fix touched, inside its hunk, in the same function? Rate,
+time, tokens and every miss are in the
+[ledger](eval/README.md#the-external-key--swe-bench-verified-instances).
+
 ## State modes
 
 - **Solo (default):** state lives in `~/.claude/verdict/<repo-name>/` — nothing added to
