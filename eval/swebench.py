@@ -424,8 +424,20 @@ def status_of(outcomes: dict[str, str], test_id: str) -> str:
         next(v for v in matches if v != "PASSED")
 
 
+def temproot(checkout: Path) -> Path:
+    """A private pytest temp root per instance. The default `pytest-of-<user>` is
+    shared by every suite on the machine, and pytest's own suite leaves read-only
+    `garbage-*` directories there (`test_cache_failure_warns`) that the next
+    session's cleanup warns about — a warning pytest's config turns into a setup
+    ERROR on unrelated tests."""
+    root = checkout.parent / "scratch" / "pytest-tmp"
+    root.mkdir(parents=True, exist_ok=True)
+    return root
+
+
 def run_test_files(vpy: str, checkout: Path, files: list[str]) -> tuple[dict[str, str], str]:
-    env = dict(os.environ, PYTHONDONTWRITEBYTECODE="1")
+    env = dict(os.environ, PYTHONDONTWRITEBYTECODE="1",
+               PYTEST_DEBUG_TEMPROOT=str(temproot(checkout)))
     proc = sh([vpy, "-m", "pytest", "-rA", "-p", "no:cacheprovider", "-p", "no:randomly",
                *files], cwd=checkout, env=env, timeout=1800)
     output = proc.stdout + proc.stderr
@@ -489,7 +501,8 @@ def write_profile(qa_root: Path, key: str, inst: dict, checkout: Path, vpy: str,
     repo = inst["repo"]
     package = LAYOUT[repo]["package"]
     target = tests_target(repo, checkout)
-    base = f"PYTHONDONTWRITEBYTECODE=1 {vpy} -m pytest -q -p no:cacheprovider"
+    base = (f"PYTHONDONTWRITEBYTECODE=1 PYTEST_DEBUG_TEMPROOT={temproot(checkout)} "
+            f"{vpy} -m pytest -q -p no:cacheprovider")
     network = ""
     if repo == "psf/requests":
         network = ("- Parts of the suite talk to a public httpbin (`httpbin.org`) or a local "
@@ -500,7 +513,7 @@ gates:
   suite: {base} --junitxml={{report}} {target}
 test_ids_cmd: {base} --collect-only {target}
 test_one_cmd: {base} "{{id}}"
-coverage_suite_cmd: PYTHONDONTWRITEBYTECODE=1 COVERAGE_FILE={scratch}/.coverage {vpy} -m coverage run --source={package} -m pytest -q -p no:cacheprovider {target}
+coverage_suite_cmd: PYTHONDONTWRITEBYTECODE=1 PYTEST_DEBUG_TEMPROOT={temproot(checkout)} COVERAGE_FILE={scratch}/.coverage {vpy} -m coverage run --source={package} -m pytest -q -p no:cacheprovider {target}
 ---
 
 # QA Profile — {key}
@@ -528,8 +541,9 @@ the report is being processed at the moment it was filed, not with hindsight.
   `pytest` and `coverage`. Do **not** install anything, anywhere, and do not run
   `pip`; if the venv is missing, report `blocked`.
 - Every pytest invocation carries `-p no:cacheprovider` and `PYTHONDONTWRITEBYTECODE=1`
-  (else `.pytest_cache/` and `__pycache__/` appear in the checkout). Coverage runs
-  with `COVERAGE_FILE` outside the checkout, as the gate above does.
+  (else `.pytest_cache/` and `__pycache__/` appear in the checkout), and
+  `PYTEST_DEBUG_TEMPROOT={temproot(checkout)}` so its temp directories stay private to
+  this run. Coverage runs with `COVERAGE_FILE` outside the checkout, as the gate above does.
 - Counterfactuals go in a scratch copy of the tree with the copy's source first on
   `PYTHONPATH` — the editable install's `.pth` names this checkout absolutely.
 - Isolation check each run: `git status --porcelain` before and after the gates.
