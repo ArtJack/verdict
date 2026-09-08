@@ -144,6 +144,50 @@ def overlay(src: Path, dst: Path):
             shutil.copyfile(p, target)
 
 
+GATEWAY_DEFAULTS = {
+    # A non-Anthropic model behind the base URL rejects the `thinking` block and
+    # any pre-release field, and cannot be named from the CLI's built-in model
+    # list — the three flags that turn a 400 into a run.
+    "CLAUDE_CODE_DISABLE_ADAPTIVE_THINKING": "1",
+    "CLAUDE_CODE_DISABLE_EXPERIMENTAL_BETAS": "1",
+    "CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY": "1",
+}
+
+
+def read_env_file(path: Path) -> dict:
+    """`KEY=VALUE` lines from a file the operator owns — the way a gateway key
+    reaches the run without being typed into a command or a transcript."""
+    out = {}
+    for line in path.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, _, value = line.partition("=")
+        out[key.strip()] = value.strip().strip('"').strip("'")
+    return out
+
+
+def gateway_env(base_env: dict, config_dir: Path) -> dict:
+    """The environment a run needs to reach a gateway instead of Anthropic.
+
+    The decisive part is `CLAUDE_CONFIG_DIR`: a logged-in CLI sends its stored
+    subscription credential and ignores `ANTHROPIC_AUTH_TOKEN` entirely, so the
+    gateway answers 401 with a key nobody configured. Pointed at an empty config
+    directory the CLI has no stored login to prefer, and falls back to the
+    environment. Measured 2026-09-08 against a LiteLLM gateway serving Ollama:
+    401 with the ambient config, `OK` with an isolated one.
+    """
+    if not base_env.get("ANTHROPIC_BASE_URL"):
+        return base_env
+    env = dict(GATEWAY_DEFAULTS, **base_env)
+    config_dir.mkdir(parents=True, exist_ok=True)
+    env["CLAUDE_CONFIG_DIR"] = str(config_dir)
+    token = env.get("ANTHROPIC_AUTH_TOKEN")
+    if token and not env.get("ANTHROPIC_API_KEY"):
+        env["ANTHROPIC_API_KEY"] = token
+    return env
+
+
 def prompt_at(ref: str | None) -> str:
     """The agent prompt at a git revision, or the working tree's when `ref` is None."""
     if ref is None:
@@ -294,9 +338,12 @@ def run_once(args, fixture, mode, base_env, prompt_text=None, arm=None, model=No
     workdir = Path(tempfile.mkdtemp(prefix="verdict-eval-"))
     checkout = workdir / fixture["dir"]
     qa_home = workdir / "qa-home"
+    base_env = gateway_env(base_env, workdir / "claude-config")
     qa_root = qa_home / fixture["dir"]
     results = {"fixture": args.fixture, "mode": mode, "workdir": str(workdir),
                "model": model,
+               # the endpoint, never the credential
+               "endpoint": base_env.get("ANTHROPIC_BASE_URL", "anthropic"),
                "prompt_sha256": hashlib.sha256(
                    (prompt_text if prompt_text is not None else prompt_at(None))
                    .encode("utf-8")).hexdigest()}
@@ -443,6 +490,12 @@ def main() -> int:
                     help="paired A/B: after each run with the working tree's prompt, run "
                          "the same fixture with the prompt at GIT_REF (same harness, hooks "
                          "and fixture), and print per-row deltas with both prompt hashes")
+    ap.add_argument("--env-file", type=Path, default=None, metavar="PATH",
+                    help="KEY=VALUE file loaded into the run's environment — how a gateway "
+                         "reaches the harness (ANTHROPIC_BASE_URL + ANTHROPIC_AUTH_TOKEN) "
+                         "without the key passing through a command line. A run with a base "
+                         "URL set also gets its own empty CLAUDE_CONFIG_DIR, or the CLI sends "
+                         "its stored subscription credential and the gateway answers 401")
     ap.add_argument("--pair-model", default=None, metavar="MODEL",
                     help="paired A/B on the model axis: the same prompt and fixture, "
                          "--model against MODEL, runs interleaved, one table with per-row "
@@ -463,6 +516,12 @@ def main() -> int:
                  "would not say which one moved the score")
 
     base_env = dict(os.environ)
+    if args.env_file:
+        if not args.env_file.is_file():
+            ap.error(f"--env-file {args.env_file} does not exist")
+        base_env.update(read_env_file(args.env_file))
+        print(f"eval: endpoint {base_env.get('ANTHROPIC_BASE_URL', 'anthropic')}",
+              file=sys.stderr)
     control_prompt = prompt_at(args.pair) if args.pair else None
     paired = bool(args.pair or args.pair_model)
     runs, control_runs, any_failed, archived = [], [], False, False
