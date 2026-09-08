@@ -189,26 +189,39 @@ def seed_config(config_dir: Path, project: Path) -> None:
     doc_path.write_text(json.dumps(doc, indent=1), encoding="utf-8")
 
 
-def gateway_env(base_env: dict, config_dir: Path, project: Path) -> dict:
-    """The environment a run needs to reach a gateway instead of Anthropic.
+def session_env(base_env: dict, scratch_config: Path, project: Path) -> dict:
+    """Which credentials and which stored login a run uses.
 
-    The decisive part is `CLAUDE_CONFIG_DIR`: a logged-in CLI sends its stored
-    subscription credential and ignores `ANTHROPIC_AUTH_TOKEN` entirely, so the
-    gateway answers 401 with a key nobody configured. Pointed at an empty config
-    directory the CLI has no stored login to prefer, and falls back to the
-    environment. Measured 2026-09-08 against a LiteLLM gateway serving Ollama:
-    401 with the ambient config, `OK` with an isolated one.
+    Three shapes, decided by what the operator's env file carries:
+
+    * `ANTHROPIC_BASE_URL` — a gateway. The decisive part is `CLAUDE_CONFIG_DIR`:
+      a logged-in CLI sends its stored subscription credential and ignores
+      `ANTHROPIC_AUTH_TOKEN` entirely, so the gateway answers 401 with a key
+      nobody configured. Pointed at an empty config directory it has no stored
+      login to prefer and falls back to the environment. Measured 2026-09-08
+      against a LiteLLM gateway serving Ollama: 401 ambient, `OK` isolated. The
+      directory is per-run and thrown away with the workdir.
+    * `CLAUDE_CONFIG_DIR` and no base URL — a second Anthropic account, logged in
+      once by the operator and kept, so a long batch spends that subscription's
+      allowance instead of the ambient one.
+    * neither — the ambient login, unchanged.
+
+    Every isolated directory is seeded (see `seed_config`), because a config the
+    CLI has never seen refuses bypass-permissions mode in silence.
     """
-    if not base_env.get("ANTHROPIC_BASE_URL"):
-        return base_env
-    env = dict(GATEWAY_DEFAULTS, **base_env)
-    config_dir.mkdir(parents=True, exist_ok=True)
-    env["CLAUDE_CONFIG_DIR"] = str(config_dir)
-    seed_config(config_dir, project)
-    token = env.get("ANTHROPIC_AUTH_TOKEN")
-    if token and not env.get("ANTHROPIC_API_KEY"):
-        env["ANTHROPIC_API_KEY"] = token
-    return env
+    if base_env.get("ANTHROPIC_BASE_URL"):
+        env = dict(GATEWAY_DEFAULTS, **base_env)
+        scratch_config.mkdir(parents=True, exist_ok=True)
+        env["CLAUDE_CONFIG_DIR"] = str(scratch_config)
+        seed_config(scratch_config, project)
+        token = env.get("ANTHROPIC_AUTH_TOKEN")
+        if token and not env.get("ANTHROPIC_API_KEY"):
+            env["ANTHROPIC_API_KEY"] = token
+        return env
+    named = base_env.get("CLAUDE_CONFIG_DIR")
+    if named:
+        seed_config(Path(named), project)
+    return base_env
 
 
 def prompt_at(ref: str | None) -> str:
@@ -361,7 +374,7 @@ def run_once(args, fixture, mode, base_env, prompt_text=None, arm=None, model=No
     workdir = Path(tempfile.mkdtemp(prefix="verdict-eval-"))
     checkout = workdir / fixture["dir"]
     qa_home = workdir / "qa-home"
-    base_env = gateway_env(base_env, workdir / "claude-config", checkout)
+    base_env = session_env(base_env, workdir / "claude-config", checkout)
     qa_root = qa_home / fixture["dir"]
     results = {"fixture": args.fixture, "mode": mode, "workdir": str(workdir),
                "model": model,

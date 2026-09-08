@@ -671,6 +671,20 @@ def transcript_usage(cwd: Path, session_id) -> dict | None:
     return {"requests": len(by_req), "files": seen, **totals}
 
 
+def seed_config(config_dir: Path, project: Path) -> None:
+    """Mark the checkout trusted inside a named config directory."""
+    doc_path = config_dir / ".claude.json"
+    try:
+        doc = json.loads(doc_path.read_text(encoding="utf-8")) if doc_path.is_file() else {}
+    except (OSError, json.JSONDecodeError):
+        doc = {}
+    doc["bypassPermissionsModeAccepted"] = True
+    doc.setdefault("projects", {}).setdefault(str(project), {}).update(
+        {"hasTrustDialogAccepted": True, "hasCompletedProjectOnboarding": True})
+    config_dir.mkdir(parents=True, exist_ok=True)
+    doc_path.write_text(json.dumps(doc, indent=1), encoding="utf-8")
+
+
 def result_line(output: str) -> dict:
     """The `--output-format json` result the CLI printed, out of the runner's relay."""
     for line in reversed(output.splitlines()):
@@ -686,14 +700,35 @@ def result_line(output: str) -> dict:
     return {}
 
 
+def read_env_file(path: Path) -> dict:
+    """`KEY=VALUE` lines from a file the operator owns — how a second account's
+    `CLAUDE_CONFIG_DIR`, or a gateway's base URL and key, reach a batch without
+    passing through a command line."""
+    out = {}
+    for line in path.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, _, value = line.partition("=")
+        out[key.strip()] = value.strip().strip('"').strip("'")
+    return out
+
+
 def run_instance(inst: dict, row: dict, info: dict, root: Path, model: str,
-                 timeout_s: int, attempt: int) -> dict:
+                 timeout_s: int, attempt: int, extra_env: dict | None = None) -> dict:
     work = Path(info["work"])
     prompt_file = work / "prompt.md"
     prompt_file.write_text(build_prompt(root, row), encoding="utf-8")
     log = work / "logs" / f"run{attempt}.log"
-    env = dict(os.environ, VERDICT_HOME=info["qa_home"])
+    env = dict(os.environ, VERDICT_HOME=info["qa_home"], **(extra_env or {}))
     env.pop("CLAUDE_PLUGIN_ROOT", None)
+    config_dir = env.get("CLAUDE_CONFIG_DIR")
+    if config_dir:
+        # A config directory the CLI has never seen has accepted neither the
+        # trust dialog nor bypass-permissions mode, and `verdict-run` passes
+        # `--dangerously-skip-permissions`: the session would exit 0 having
+        # done nothing, which reads as a lost run rather than a setup error.
+        seed_config(Path(config_dir), Path(info["checkout"]))
     cmd = [sys.executable, str(root / "src" / "verdict_mcp" / "runner.py"), info["key"],
            "--repo", info["checkout"], "--plugin-root", str(root),
            "--prompt-file", str(prompt_file), "--model", model, "--timeout-s", str(timeout_s),
@@ -943,7 +978,8 @@ def one(inst: dict, args, root: Path) -> dict:
     attempt, run = 0, None
     while attempt < 3:
         attempt += 1
-        run = run_instance(inst, row, info, root, args.model, args.timeout_s, attempt)
+        run = run_instance(inst, row, info, root, args.model, args.timeout_s, attempt,
+                           extra_env=getattr(args, "_env", None))
         qa_root = Path(info["qa_home"]) / info["key"]
         if (qa_root / "state.json").is_file() or not run["session_limited"]:
             break
@@ -1235,6 +1271,10 @@ def main(argv=None) -> int:
                            help="re-run instances whose latest row has one of these statuses "
                                 "(env_invalid, prepare_failed, no_state, blocked)")
         p.add_argument("--model", default="opus")
+        p.add_argument("--env-file", type=Path, default=None, metavar="PATH",
+                       help="KEY=VALUE file loaded into each run's environment: "
+                            "CLAUDE_CONFIG_DIR to spend a second account's allowance, or "
+                            "ANTHROPIC_BASE_URL + ANTHROPIC_AUTH_TOKEN for a gateway")
         p.add_argument("--timeout-s", type=int, default=2700)
         p.add_argument("--plugin-root", default=None)
         p.add_argument("--keep", action="store_true", help="keep the checkout and venv")
@@ -1244,6 +1284,13 @@ def main(argv=None) -> int:
     rs = sub.add_parser("rescore", help="re-grade archived runs with the current scorer")
     rs.add_argument("instances", nargs="*")
     args = ap.parse_args(argv)
+    args._env = {}
+    if getattr(args, "env_file", None):
+        if not args.env_file.is_file():
+            ap.error(f"--env-file {args.env_file} does not exist")
+        args._env = read_env_file(args.env_file)
+        where = args._env.get("ANTHROPIC_BASE_URL") or args._env.get("CLAUDE_CONFIG_DIR")
+        print(f"swebench: environment from {args.env_file} ({where})", file=sys.stderr)
     if args.cmd == "select":
         return cmd_select(args)
     if args.cmd == "prepare":
