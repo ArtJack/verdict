@@ -383,16 +383,55 @@ def build_env(inst: dict, spec: dict, checkout: Path, venv: Path,
     return notes
 
 
-def run_tests(vpy: str, checkout: Path, ids: list[str]) -> subprocess.CompletedProcess:
+_OUTCOME = re.compile(r"^(PASSED|FAILED|ERROR|SKIPPED|XFAIL|XPASS) (\S.*?)(?: - .*)?$")
+
+
+def outcomes_from(output: str) -> dict[str, str]:
+    """Per-test outcomes from a `-rA` run's short summary — SWE-bench's own way of
+    reading a run. Test ids are not passed on the command line: a parametrized id
+    with a space in it (`test_get_annotation_annassign[a: str = None-Optional[str]]`)
+    is split by pytest 6 before it is matched, and reads as "not found"."""
+    out: dict[str, str] = {}
+    for line in output.splitlines():
+        m = _OUTCOME.match(line.strip())
+        if m:
+            out[m.group(2).strip()] = m.group(1)
+    return out
+
+
+def test_files_of(test_patch: str) -> list[str]:
+    return sorted(gold_of(test_patch))
+
+
+def status_of(outcomes: dict[str, str], test_id: str) -> str:
+    """The outcome of one withheld test. SWE-bench's own log parser cut ids at
+    whitespace (`…test_get_annotation_annassign[a:` for `[a: str = None-Optional[str]]`),
+    so a listed id that names no outcome is read as a prefix: PASSED when every
+    outcome it prefixes passed, the worst of them otherwise, `absent` when none."""
+    if test_id in outcomes:
+        return outcomes[test_id]
+    matches = [v for k, v in outcomes.items() if k.startswith(test_id)]
+    if not matches:
+        return "absent"
+    return "PASSED" if all(v == "PASSED" for v in matches) else \
+        next(v for v in matches if v != "PASSED")
+
+
+def run_test_files(vpy: str, checkout: Path, files: list[str]) -> tuple[dict[str, str], str]:
     env = dict(os.environ, PYTHONDONTWRITEBYTECODE="1")
-    return sh([vpy, "-m", "pytest", "-q", "-p", "no:cacheprovider", "-p", "no:randomly", *ids],
-              cwd=checkout, env=env, timeout=1800)
+    proc = sh([vpy, "-m", "pytest", "-rA", "-p", "no:cacheprovider", "-p", "no:randomly",
+               *files], cwd=checkout, env=env, timeout=1800)
+    output = proc.stdout + proc.stderr
+    return outcomes_from(output), output
 
 
 def validate_env(row: dict, checkout: Path, vpy: str) -> tuple[bool, str]:
     """The withheld tests fail at base and pass with the gold patch — proven in
-    the checkout, then reverted, before the tester arrives."""
+    the checkout, then reverted, before the tester arrives. Read the way SWE-bench
+    reads its own runs: the test files from the test patch, `-rA`, per-test
+    outcomes; a withheld test that is absent or erroring at base counts as failing."""
     ids = json.loads(row["FAIL_TO_PASS"])
+    files = test_files_of(row["test_patch"])
     test_patch = checkout / ".swebench-test.patch"
     gold_patch = checkout / ".swebench-gold.patch"
     test_patch.write_text(row["test_patch"], encoding="utf-8")
@@ -401,17 +440,27 @@ def validate_env(row: dict, checkout: Path, vpy: str) -> tuple[bool, str]:
         proc = sh(["git", "apply", "--whitespace=nowarn", str(test_patch)], cwd=checkout)
         if proc.returncode != 0:
             return False, f"test patch does not apply: {proc.stderr.strip()[-300:]}"
-        before = run_tests(vpy, checkout, ids)
-        if before.returncode == 0:
-            return False, "withheld tests already pass at base"
+        before, _ = run_test_files(vpy, checkout, files)
+        failing_at_base = [i for i in ids if status_of(before, i) != "PASSED"]
+        if not failing_at_base:
+            return False, f"all {len(ids)} withheld test(s) already pass at base"
         proc = sh(["git", "apply", "--whitespace=nowarn", str(gold_patch)], cwd=checkout)
         if proc.returncode != 0:
             return False, f"gold patch does not apply: {proc.stderr.strip()[-300:]}"
-        after = run_tests(vpy, checkout, ids)
-        if after.returncode != 0:
-            tail = (after.stdout + after.stderr).strip().splitlines()[-3:]
-            return False, "withheld tests do not pass with the gold patch: " + " | ".join(tail)
-        return True, f"{len(ids)} withheld test(s) fail at base, pass with the fix"
+        after, output = run_test_files(vpy, checkout, files)
+        failing = [i for i in ids if status_of(after, i) != "PASSED"]
+        if failing:
+            detail = "; ".join(f"{i} → {status_of(after, i)}" for i in failing[:3])
+            tail = " | ".join(output.strip().splitlines()[-2:])
+            return False, (f"{len(failing)} of {len(ids)} withheld test(s) do not pass with the "
+                           f"gold patch: {detail} | {tail}")
+        # Every withheld test passes with the fix; the defect is observable when at
+        # least one fails without it. Tests SWE-bench lists that already pass here
+        # are named, not fatal — their base run failed for its own reasons.
+        note = "" if len(failing_at_base) == len(ids) else \
+            f" ({len(ids) - len(failing_at_base)} already passed at base)"
+        return True, (f"{len(failing_at_base)} of {len(ids)} withheld test(s) fail at base, "
+                      f"all pass with the fix{note}")
     finally:
         test_patch.unlink(missing_ok=True)
         gold_patch.unlink(missing_ok=True)
@@ -823,6 +872,8 @@ def done_ids() -> set[str]:
 
 
 def append_result(row: dict) -> None:
+    """Append; a retried instance keeps its earlier rows too, and `load_results`
+    reads the latest — the ledger is a history, the table is the present."""
     OUT_DIR.mkdir(parents=True, exist_ok=True)
     with RESULTS.open("a", encoding="utf-8") as fh:
         fh.write(json.dumps(row, sort_keys=True) + "\n")
@@ -1005,6 +1056,11 @@ def cmd_batch(args) -> int:
     root = resolve_root(args.plugin_root)
     print(f"plugin root: {root} ({plugin_version(root) or 'unversioned'})", file=sys.stderr)
     done = done_ids() if not args.redo else set()
+    if args.retry:
+        # Rows whose status names an environment or a lost run, not a verdict —
+        # the instance goes again once the harness has been fixed.
+        retry = {r["instance_id"] for r in load_results() if r.get("status") in args.retry}
+        done -= retry
     todo = [i for i in instances() if i["instance_id"] not in done]
     if args.only:
         todo = [i for i in todo if i["repo"] in args.only or i["instance_id"] in args.only]
@@ -1066,17 +1122,23 @@ def render_table(rows: list[dict]) -> str:
     if costs:
         lines.append(f"- cost per run (CLI-reported): median ${sorted(costs)[len(costs) // 2]:.2f}, "
                      f"total ${sum(costs):.2f}")
+    outs = [r["run"]["transcript"]["output_tokens"] for r in ran
+            if (r.get("run") or {}).get("transcript")]
+    if outs:
+        lines.append(f"- output tokens per run (whole session, from the transcript): median "
+                     f"{sorted(outs)[len(outs) // 2] // 1000}k, total {sum(outs) // 1000}k")
     lines.append("")
-    lines.append("| Instance | Difficulty | Status | Findings | Any | Headline | Wall | Cost |")
-    lines.append("|---|---|---|---|---|---|---|---|")
+    lines.append("| Instance | Difficulty | Status | Findings | Any | Headline | Wall | Output tok | Cost |")
+    lines.append("|---|---|---|---|---|---|---|---|---|")
     for r in sorted(rows, key=lambda r: (REPO_ORDER.index(r["repo"]) if r["repo"] in REPO_ORDER
                                          else 99, r["instance_id"])):
         s, run = r.get("score") or {}, r.get("run") or {}
         wall = f"{run['wall_s'] // 60} min" if run.get("wall_s") else "—"
         cost = f"${run['cost_usd']:.2f}" if run.get("cost_usd") else "—"
+        tok = f"{run['transcript']['output_tokens'] // 1000}k" if run.get("transcript") else "—"
         lines.append(f"| {r['instance_id']} | {r['difficulty']} | {r['status']} | "
                      f"{s.get('findings', '—')} | {s.get('any_hit', '—')} | "
-                     f"{s.get('headline_hit', '—')} | {wall} | {cost} |")
+                     f"{s.get('headline_hit', '—')} | {wall} | {tok} | {cost} |")
     by_diff: dict[str, list] = {}
     for r in scored:
         by_diff.setdefault(r["difficulty"], []).append(r)
@@ -1089,6 +1151,28 @@ def render_table(rows: list[dict]) -> str:
             headh = sum(_at_least(r, "headline_hit", "hunk") for r in group)
             lines.append(f"| {diff} | {len(group)} | {_pct(anyh, len(group))} | "
                          f"{_pct(headh, len(group))} |")
+    misses = [r for r in scored if r["score"]["headline_hit"] == "none"]
+    if misses:
+        lines.append("")
+        lines.append("Misses — what the headline finding said instead (mechanism is not "
+                     "machine-scored; judge the near-misses yourself):")
+        for r in misses:
+            s = r["score"]
+            head = next((f for f in s.get("per_finding", []) if f["id"] == s.get("headline")),
+                        None)
+            if head is None:
+                lines.append(f"- {r['instance_id']}: no finding filed; gold "
+                             f"{', '.join(r.get('gold_files', []))}")
+                continue
+            lines.append(f"- {r['instance_id']} ({s['any_hit']} at best): {head['severity']} "
+                         f"\"{head['title']}\" — cited {', '.join(head['cited']) or 'nothing'}; "
+                         f"gold {', '.join(r.get('gold_files', []))}")
+    unrun = [r for r in rows if r.get("status") not in ("scored",)]
+    if unrun:
+        lines.append("")
+        lines.append("Not scored:")
+        for r in unrun:
+            lines.append(f"- {r['instance_id']}: {r['status']} — {str(r.get('note') or '')[:160]}")
     return "\n".join(lines) + "\n"
 
 
@@ -1116,6 +1200,9 @@ def main(argv=None) -> int:
             p.add_argument("--limit", type=int, default=0)
             p.add_argument("--only", nargs="*", default=None, help="repositories or instance ids")
             p.add_argument("--redo", action="store_true", help="ignore existing results")
+            p.add_argument("--retry", nargs="*", default=None, metavar="STATUS",
+                           help="re-run instances whose latest row has one of these statuses "
+                                "(env_invalid, prepare_failed, no_state, blocked)")
         p.add_argument("--model", default="opus")
         p.add_argument("--timeout-s", type=int, default=2700)
         p.add_argument("--plugin-root", default=None)

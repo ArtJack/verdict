@@ -189,14 +189,57 @@ def test_table_counts_levels_and_survives_unscored_rows():
         {"instance_id": "b-1", "repo": "pytest-dev/pytest", "difficulty": "1-4 hours",
          "status": "env_invalid", "note": "withheld tests already pass at base"},
     ]
+    rows[1]["score"]["headline"] = "A-2-F-1"
+    rows[1]["score"]["per_finding"] = [
+        {"id": "A-2-F-1", "severity": "Minor", "title": "a docs nit", "cited": ["README.md"],
+         "hit": "none"}]
+    rows[1]["gold_files"] = ["requests/models.py"]
     table = swebench.render_table(rows)
     assert "scored: 2" in table
     assert "located at `hunk` or better — any finding: 1/2 (50%); headline finding: 1/2 (50%)" \
         in table
-    assert "| b-1 | 1-4 hours | env_invalid | — | — | — | — | — |" in table
+    assert "| b-1 | 1-4 hours | env_invalid | — | — | — | — | — | — |" in table
     assert "total $5.00" in table
+    assert '- a-2 (none at best): Minor "a docs nit" — cited README.md; gold requests/models.py' \
+        in table
+    assert "- b-1: env_invalid — withheld tests already pass at base" in table
 
 
 @pytest.mark.parametrize("bad", ["", "no patch here"])
 def test_gold_of_empty(bad):
     assert swebench.gold_of(bad) == {}
+
+
+def test_outcomes_are_read_from_the_short_summary_with_spaces_and_messages():
+    output = (
+        "=========================== short test summary info ============================\n"
+        "PASSED tests/unittest_pyreverse_writer.py::test_dot_files[packages_No_Name.dot]\n"
+        "PASSED tests/unittest_pyreverse_writer.py::test_get_annotation_annassign[a: str = None-Optional[str]]\n"
+        "FAILED tests/test_x.py::test_y - AssertionError: assert 1 == 2\n"
+        "ERROR tests/test_x.py::test_z - ImportError: cannot import name 'get_annotation'\n"
+        "SKIPPED [1] tests/test_s.py:12: no display\n"
+        "2 passed, 1 failed, 1 error in 0.10s\n")
+    got = swebench.outcomes_from(output)
+    assert got["tests/unittest_pyreverse_writer.py::test_get_annotation_annassign[a: str = None-Optional[str]]"] == "PASSED"
+    assert got["tests/test_x.py::test_y"] == "FAILED"
+    assert got["tests/test_x.py::test_z"] == "ERROR"
+    assert "2 passed" not in " ".join(got)
+
+
+def test_test_files_come_from_the_test_patch():
+    assert swebench.test_files_of(GOLD_PATCH) == ["src/pkg/other.py", "src/pkg/pathlib.py"]
+
+
+def test_status_of_reads_swebench_ids_cut_at_whitespace_as_prefixes():
+    outcomes = {
+        "t.py::test_a[a: str = None-Optional[str]]": "PASSED",
+        "t.py::test_a[a: int = 1-int]": "FAILED",
+        "t.py::test_b[x]": "PASSED",
+        "t.py::test_c": "ERROR",
+    }
+    assert swebench.status_of(outcomes, "t.py::test_c") == "ERROR"
+    assert swebench.status_of(outcomes, "t.py::test_b[x]") == "PASSED"
+    assert swebench.status_of(outcomes, "t.py::test_a[a:") == "FAILED", \
+        "a cut id covers every outcome it prefixes; one failure fails it"
+    assert swebench.status_of({"t.py::test_a[a: x]": "PASSED"}, "t.py::test_a[a:") == "PASSED"
+    assert swebench.status_of(outcomes, "t.py::test_zzz") == "absent"
