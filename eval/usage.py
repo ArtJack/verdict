@@ -8,14 +8,18 @@ subagent, so the session's real bill lives in the transcript — the main sessio
 file plus every `subagents/*.jsonl` beside it, summed per request id (the same
 request is written more than once as a turn streams).
 
-Claude Code stores a session under `~/.claude/projects/<cwd with every character
-outside [A-Za-z0-9-] replaced by ->/<session-id>.jsonl`. Each eval run gets its
-own scratch checkout, so that directory holds exactly this run's sessions.
+Claude Code stores a session under `<config>/projects/<cwd with every character
+outside [A-Za-z0-9-] replaced by ->/<session-id>.jsonl`, where `<config>` is
+`CLAUDE_CONFIG_DIR` when set and `~/.claude` otherwise — so a run that spends a
+second account's allowance writes its transcript beside that account, not in the
+default place. Each eval run gets its own scratch checkout, so that directory
+holds exactly this run's sessions.
 """
 
 from __future__ import annotations
 
 import json
+import os
 import re
 from pathlib import Path
 
@@ -23,15 +27,22 @@ FIELDS = ("input_tokens", "output_tokens", "cache_creation_input_tokens",
           "cache_read_input_tokens")
 
 
-def project_dir(cwd) -> Path:
+def config_root(config_dir=None) -> Path:
+    """Where the CLI keeps its state: the directory named here, then
+    `CLAUDE_CONFIG_DIR`, then the default."""
+    named = config_dir or os.environ.get("CLAUDE_CONFIG_DIR")
+    return Path(named).expanduser() if named else Path.home() / ".claude"
+
+
+def project_dir(cwd, config_dir=None) -> Path:
     key = re.sub(r"[^A-Za-z0-9-]", "-", str(Path(cwd).resolve()))
-    return Path.home() / ".claude" / "projects" / key
+    return config_root(config_dir) / "projects" / key
 
 
-def session_files(cwd, session_id=None) -> list[Path]:
+def session_files(cwd, session_id=None, config_dir=None) -> list[Path]:
     """The transcript files for a run: one session's, or every session recorded
     for this working directory when no id is known."""
-    base = project_dir(cwd)
+    base = project_dir(cwd, config_dir)
     if not base.is_dir():
         return []
     ids = [session_id] if session_id else [p.stem for p in base.glob("*.jsonl")]
@@ -46,10 +57,10 @@ def session_files(cwd, session_id=None) -> list[Path]:
     return out
 
 
-def usage_of(cwd, session_id=None) -> dict | None:
+def usage_of(cwd, session_id=None, config_dir=None) -> dict | None:
     """`{requests, files, sessions, <token fields>}` for a run, or None when the
     transcript is not there (a different machine, a cleaned home)."""
-    files = session_files(cwd, session_id)
+    files = session_files(cwd, session_id, config_dir)
     if not files:
         return None
     by_req: dict[str, dict] = {}

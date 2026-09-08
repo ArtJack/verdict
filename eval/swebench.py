@@ -633,14 +633,16 @@ def prepare(inst: dict, row: dict, keep_existing: bool) -> dict:
 
 # ── the run ───────────────────────────────────────────────────────────────────
 
-def transcript_usage(cwd: Path, session_id) -> dict | None:
+def transcript_usage(cwd: Path, session_id, config_dir=None) -> dict | None:
     """The whole session's token bill from Claude Code's own transcript — the main
     session and every subagent — summed per request id. The CLI's result line
     reports the last turn only; the tester's work happens in the subagent."""
     if not session_id:
         return None
     key = re.sub(r"[^A-Za-z0-9-]", "-", str(cwd))
-    base = Path.home() / ".claude" / "projects" / key
+    # `CLAUDE_CONFIG_DIR` moves the transcripts with the account that paid.
+    named = (config_dir or os.environ.get("CLAUDE_CONFIG_DIR"))
+    base = (Path(named).expanduser() if named else Path.home() / ".claude") / "projects" / key
     files = [base / f"{session_id}.jsonl"]
     files += sorted((base / session_id / "subagents").glob("*.jsonl")) \
         if (base / session_id / "subagents").is_dir() else []
@@ -989,7 +991,8 @@ def one(inst: dict, args, root: Path) -> dict:
               file=sys.stderr)
         time.sleep(wait)
     output = run.pop("output", "")
-    run["transcript"] = transcript_usage(Path(info["checkout"]), run.get("session_id"))
+    run["transcript"] = transcript_usage(Path(info["checkout"]), run.get("session_id"),
+                                         (args._env or {}).get("CLAUDE_CONFIG_DIR"))
     result["run"] = run
     result["attempts"] = attempt
     qa_root = Path(info["qa_home"]) / info["key"]

@@ -101,3 +101,18 @@ def test_brief_reads_as_a_bill():
     text = usage.brief({"requests": 59, "output_tokens": 64_268, "cache_read_input_tokens": 3_735_693})
     assert text == "64k out · 3735k cache read · 59 requests"
     assert usage.brief(None) == "usage unknown"
+
+
+def test_a_second_accounts_transcripts_are_read_from_its_own_config(tmp_path, monkeypatch):
+    """A run that spends another account's allowance writes its transcript beside
+    that account. Reading the default location instead reported no bill at all,
+    which is the one number a model comparison cannot do without."""
+    home, cfg, cwd = tmp_path / "home", tmp_path / "cfg", tmp_path / "work" / "repo"
+    cwd.mkdir(parents=True)
+    monkeypatch.setattr(Path, "home", staticmethod(lambda: home))
+    monkeypatch.delenv("CLAUDE_CONFIG_DIR", raising=False)
+    _session(usage.project_dir(cwd, cfg), "s1", [_assistant("a", output_tokens=11)])
+    assert usage.usage_of(cwd) is None, "nothing in the default location"
+    assert usage.usage_of(cwd, config_dir=cfg)["output_tokens"] == 11
+    monkeypatch.setenv("CLAUDE_CONFIG_DIR", str(cfg))
+    assert usage.usage_of(cwd)["output_tokens"] == 11, "the environment names it too"

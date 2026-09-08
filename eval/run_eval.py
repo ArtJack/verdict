@@ -468,7 +468,8 @@ def run_once(args, fixture, mode, base_env, prompt_text=None, arm=None, model=No
         failed = True
         results["error"] = str(exc)
     try:
-        results["usage"] = usage_mod.usage_of(checkout)
+        results["usage"] = usage_mod.usage_of(
+            checkout, config_dir=base_env.get("CLAUDE_CONFIG_DIR"))
     except OSError as exc:                      # a bill is never worth a crash
         results["usage"] = None
         results["usage_error"] = str(exc)
