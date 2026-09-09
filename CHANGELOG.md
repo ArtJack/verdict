@@ -3,7 +3,28 @@
 Plugin and `verdict-mcp` share one version line; `.claude-plugin/plugin.json` and
 `pyproject.toml` are bumped together.
 
-## Unreleased
+## 0.87.0 · "the harness drives, the model answers"
+
+**Local mode: the harness drives, a small model answers.** `verdict-local` is a
+second way to run: Python does everything deterministic — measure the gates, read
+coverage, slice the source into functions, validate the JSON, assemble the state — and
+the model answers one bounded question at a time about one function, with a few hundred
+tokens of context and a schema it must fill. Nothing accumulates between calls, so the
+context never grows and a weak model is never asked to hold a plan in its head.
+
+Why it exists: the agent shape cannot shrink to a 7B model. Measured on this project's
+own runs, a run is ~38 model turns each re-reading ~53k tokens, of which ~19k is fixed
+preamble before the investigation starts; a 40k-window model has nothing left to think
+with. Measured the other way, on a local `qwen3:8b` behind a LiteLLM gateway: 6 model
+calls, 1,403 input tokens, 3,055 output, two real defects found in the eval's own
+baseline fixture (the `>` that should be `>=`, and `round()` where the spec says
+half-up), scored 4/10 against the same answer key Opus is scored against, with no hard
+failures and the harness chain intact.
+
+What it does not do is in the report, every run: nothing is executed, no counterfactual
+is applied, no history is read, the suite is not judged. Every finding it files is
+`confidence: hypothesis`, and the validator is what writes it — a claim that cannot pass
+the same check the agent's findings pass is never filed.
 
 **Which account pays, and which endpoint answers.** `verdict-run --env-file <path>`
 merges a `KEY=VALUE` file into the run's environment, so a scheduled run can spend a
