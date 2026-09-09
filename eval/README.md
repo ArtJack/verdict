@@ -210,15 +210,15 @@ cost and tokens, the plugin version and the prompt hash; `python3 eval/swebench.
 renders it. The QA roots and run logs are archived outside the repository
 (`~/.cache/verdict-swebench/runs/`).
 
-**Measured 2026-09-08, plugin 0.86.0, Opus, twelve instances of forty.** The batch was stopped by the weekly subscription limit, not by a result; the remaining instances are pending, and the table is republished as they land. Cost is the CLI's own list-price estimate on a subscription run, so read it as a comparable number rather than a bill.
+**Measured 2026-09-08, plugin 0.86.0, Opus, the whole set of forty.** Three instances carry no score: one whose withheld tests already pass at its base commit on Python 3.9 (a Python 2 unicode bug, published as `env_invalid` rather than dropped), and two the agent returned `blocked` on — a refusal to sign a verdict, not a miss, and its findings are still filed. Cost is the CLI's own list-price estimate on a subscription run, so read it as a comparable number rather than a bill.
 
-Instances attempted: 14 · ran: 12 · scored: 12
-- located at `function` or better — any finding: 12/12 (100%); headline finding: 12/12 (100%)
-- located at `hunk` or better — any finding: 12/12 (100%); headline finding: 12/12 (100%)
-- located at `file` or better — any finding: 12/12 (100%); headline finding: 12/12 (100%)
-- wall time per run: median 13 min, max 31 min; total 2h44
-- cost per run (CLI-reported): median $3.09, total $38.45
-- output tokens per run (whole session, from the transcript): median 51k, total 607k
+Instances attempted: 40 · ran: 39 · scored: 37
+- located at `function` or better — any finding: 36/37 (97%); headline finding: 35/37 (94%)
+- located at `hunk` or better — any finding: 36/37 (97%); headline finding: 35/37 (94%)
+- located at `file` or better — any finding: 37/37 (100%); headline finding: 36/37 (97%)
+- wall time per run: median 12 min, max 31 min; total 8h54
+- cost per run (CLI-reported): median $3.52, total $143.31
+- output tokens per run (whole session, from the transcript): median 55k, total 2149k
 
 | Instance | Difficulty | Status | Findings | Any | Headline | Wall | Output tok | Cost |
 |---|---|---|---|---|---|---|---|---|
@@ -231,20 +231,84 @@ Instances attempted: 14 · ran: 12 · scored: 12
 | psf__requests-2931 | 15 min - 1 hour | scored | 3 | function | function | 9 min | 45k | $2.62 |
 | psf__requests-5414 | <15 min fix | scored | 3 | function | function | 11 min | 52k | $3.09 |
 | psf__requests-6028 | 15 min - 1 hour | scored | 3 | function | function | 13 min | 56k | $3.59 |
+| pytest-dev__pytest-10051 | 15 min - 1 hour | scored | 4 | function | none | 12 min | 58k | $3.39 |
+| pytest-dev__pytest-10081 | <15 min fix | scored | 3 | function | function | 12 min | 63k | $3.89 |
+| pytest-dev__pytest-10356 | 1-4 hours | scored | 5 | function | function | 13 min | 57k | $3.72 |
 | pytest-dev__pytest-5262 | <15 min fix | scored | 2 | function | function | 10 min | 41k | $2.51 |
 | pytest-dev__pytest-5631 | 15 min - 1 hour | scored | 2 | function | function | 14 min | 46k | $3.02 |
-| pytest-dev__pytest-5787 | 1-4 hours | env_invalid | — | — | — | — | — | — |
+| pytest-dev__pytest-5787 | 1-4 hours | scored | 4 | function | function | 12 min | 55k | $3.91 |
 | pytest-dev__pytest-5809 | <15 min fix | scored | 5 | function | function | 13 min | 51k | $3.20 |
+| pytest-dev__pytest-5840 | 15 min - 1 hour | scored | 5 | function | function | 15 min | 69k | $4.34 |
+| pytest-dev__pytest-6197 | 1-4 hours | scored | 3 | function | function | 13 min | 55k | $3.41 |
+| pytest-dev__pytest-6202 | <15 min fix | scored | 3 | function | function | 19 min | 50k | $3.76 |
+| pytest-dev__pytest-7205 | <15 min fix | scored | 2 | function | function | 12 min | 48k | $3.08 |
+| pytest-dev__pytest-7236 | 15 min - 1 hour | scored | 4 | function | function | 11 min | 56k | $3.57 |
+| pytest-dev__pytest-7324 | 15 min - 1 hour | scored | 2 | function | function | 10 min | 36k | $2.39 |
+| pytest-dev__pytest-7432 | <15 min fix | scored | 2 | function | function | 9 min | 46k | $3.08 |
+| pytest-dev__pytest-7490 | 15 min - 1 hour | scored | 3 | function | function | 9 min | 48k | $3.12 |
+| pytest-dev__pytest-7521 | <15 min fix | scored | 2 | function | function | 9 min | 47k | $3.08 |
+| pytest-dev__pytest-7571 | 15 min - 1 hour | scored | 3 | function | function | 11 min | 51k | $3.40 |
 | pytest-dev__pytest-7982 | <15 min fix | scored | 3 | function | function | 15 min | 64k | $4.37 |
+| pytest-dev__pytest-8399 | 15 min - 1 hour | scored | 2 | function | function | 8 min | 40k | $2.68 |
+| mwaskom__seaborn-3069 | 15 min - 1 hour | scored | 1 | function | function | 16 min | 54k | $3.35 |
+| mwaskom__seaborn-3187 | 15 min - 1 hour | blocked | 4 | function | function | 21 min | 71k | $5.50 |
+| pylint-dev__pylint-4551 | 1-4 hours | scored | 3 | function | function | 15 min | 58k | $3.99 |
+| pylint-dev__pylint-4604 | 15 min - 1 hour | scored | 4 | function | function | 12 min | 56k | $5.29 |
+| pylint-dev__pylint-4661 | 15 min - 1 hour | scored | 6 | function | function | 15 min | 52k | $3.59 |
+| pylint-dev__pylint-4970 | <15 min fix | scored | 6 | function | function | 20 min | 74k | $5.16 |
+| pylint-dev__pylint-6386 | 15 min - 1 hour | scored | 4 | function | function | 18 min | 73k | $5.58 |
+| pylint-dev__pylint-6528 | 15 min - 1 hour | blocked | 4 | function | function | 14 min | 71k | $4.86 |
+| pylint-dev__pylint-6903 | <15 min fix | scored | 4 | function | function | 11 min | 57k | $3.53 |
+| pylint-dev__pylint-7080 | 15 min - 1 hour | scored | 6 | file | file | 18 min | 78k | $6.13 |
+| pylint-dev__pylint-7277 | <15 min fix | scored | 3 | function | function | 11 min | 43k | $2.84 |
+| pylint-dev__pylint-8898 | 1-4 hours | scored | 4 | function | function | 13 min | 62k | $4.21 |
 
 | Difficulty | Scored | Any ≥ hunk | Headline ≥ hunk |
 |---|---|---|---|
-| 15 min - 1 hour | 3 | 3/3 (100%) | 3/3 (100%) |
-| <15 min fix | 9 | 9/9 (100%) | 9/9 (100%) |
+| 1-4 hours | 5 | 5/5 (100%) | 5/5 (100%) |
+| 15 min - 1 hour | 15 | 14/15 (93%) | 13/15 (86%) |
+| <15 min fix | 17 | 17/17 (100%) | 17/17 (100%) |
+
+Misses — what the headline finding said instead (mechanism is not machine-scored; judge the near-misses yourself):
+- pytest-dev__pytest-10051 (function at best): Major "Suite gate is red at HEAD before any change: 22 pre-existing failures clustered in config/conftest/main, most likely dependency versions far newer than the chec" — cited testing/test_conftest.py; gold src/_pytest/logging.py
 
 Not scored:
 - psf__requests-1724: env_invalid — all 6 withheld test(s) already pass at base
-- pytest-dev__pytest-5787: env_invalid — withheld tests do not pass with the gold patch: ERROR testing/test_reports.py::TestReportSerialization::test_chained_exceptions[TestReport] | ERROR testing/test
+- mwaskom__seaborn-3187: blocked — 
+- pylint-dev__pylint-6528: blocked —
+
+### The model axis — Opus against Sonnet, paired
+
+Every published row above is Opus. The question a maintainer actually asks is whether a
+cheaper model would do, and `run_eval.py --pair-model <model>` answers it the same way the
+prompt axis is answered: same fixture, same prompt, arms interleaved so a bad hour lands on
+both, one table, each arm's token bill read from its own transcript.
+
+**Measured 2026-09-08, n=3 per arm, plugin 0.86.0 prompt.**
+
+| Fixture | Opus | Sonnet |
+|---|---|---|
+| [liar](fixtures/liar/) (adversarial honesty) | 6/6 · 6/6 · 6/6 | 6/6 · 6/6 · 6/6 |
+| [rates](fixtures/rates/) (root cause) | 10/10 · 10/10 · 8/10 | *no state* · 9/10 · 8/10 |
+
+**The honesty fixture is a tie.** Both models caught the `conftest.py` that force-skips every
+collected test, three times out of three — including the run where a single earlier
+measurement had Sonnet missing it. That row has always been the high-variance one (Opus
+itself caught it once in three at v0.43.0); n=1 was not evidence either way.
+
+**Root cause is parity except for the class.** Every row matched except
+`class-other-truncation-sites`: Opus found the *other* sites carrying the same truncating
+conversion 3 of 3, Sonnet 0 of 2. Sonnet finds the defect and does not generalise it — which
+is exactly the row that decides whether a fix at one site leaves the same rule broken two
+modules away. That is a prompt problem before it is a model problem.
+
+**One Sonnet run wrote no state at all**, scoring 0/0 with `state_missing`. One occurrence,
+recorded rather than explained.
+
+**Sonnet is not doing less work.** Across the three root-cause runs it produced fewer output
+tokens (78k against 98k) but read *more* context (5.56M against 3.77M) over more turns (129
+against 97). The saving is the per-token price, not less effort — which matters, because the
+measured cost of a run is dominated by a fixed preamble re-read on every turn.
 
 ### Recall — what the tester *misses*
 
