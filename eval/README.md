@@ -277,6 +277,53 @@ Not scored:
 - mwaskom__seaborn-3187: blocked — 
 - pylint-dev__pylint-6528: blocked —
 
+### A prompt cut that measured worse — and what it cost to learn
+
+The largest measured cost of a run is not any one output: it is a fixed preamble
+re-read on every turn. The contract was 53,003 characters (~13,250 tokens) against ~38
+turns, so a cut there is worth more than any other edit. Two changes were made and paid
+for together on 2026-09-09, and the payment is why only one of them shipped.
+
+**What was cut.** Section 6 restated what the harness had since taken over: it decides
+`run_type` and records why, ages every finding, and writes the state, the report and the
+INDEX row itself. Section 7 listed twelve paths where the agent writes four. Together
+that was 1,070 tokens off every turn.
+
+**What was added.** The class link — "is this an instance or a pattern?" — was turned
+from a principle into an instruction to run `grep -rn` and record the hits, aimed at a
+measured gap: Sonnet finds a defect and does not generalise it (0 of 2 against Opus's 3
+of 3).
+
+**Paired against v0.87.0, n=2, Opus:**
+
+| Fixture | New prompt | v0.87.0 |
+|---|---|---|
+| rates (root cause) | 8/10 · 10/10 | 10/10 · 10/10 |
+| pricer (seeded delta) | 9/9 · **0/9** | 8/9 · 9/9 |
+
+| Root-cause arm | Output tokens | Cache read | Requests |
+|---|---|---|---|
+| New prompt | 88,991 | 3,794,582 | 81 |
+| v0.87.0 | 64,984 | 2,541,808 | 65 |
+
+Worse on quality **and** 37% dearer, which is the opposite of the intent. Two causes,
+both found by reading the runs rather than by guessing:
+
+- **The instruction to run a search bought extra turns and won nothing.** It fired on the
+  root-cause fixture, where searching is already the work, and the class rows did not
+  improve. Reverted to the released wording.
+- **One trimmed path was load-bearing.** The old §7 named `judgment.json` explicitly; the
+  compressed version did not, and a run wrote its judgment outside the QA root. Everything
+  else about that run was correct — nine findings, a `fail` verdict, a full report — and it
+  scored **0/9** on a hard failure, because a judgment the harness cannot find is
+  indistinguishable from state written by hand. The path is back, with the reason beside
+  it.
+
+The deduplication was then re-measured alone. Cutting what the harness already decides is
+safe; adding an instruction to spend turns is not, and neither was obvious before the
+runs. This is what the paired eval is for: it is cheaper to be wrong here than in a
+release.
+
 ### Local mode — a 7B model, measured
 
 `verdict-local` is the other way to run: the harness drives and the model answers one
