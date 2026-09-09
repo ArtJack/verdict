@@ -14,7 +14,13 @@ from pathlib import Path
 
 REPO = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO / "src"))
+sys.path.insert(0, str(REPO / "tests"))
+from test_runner import write_stub  # noqa: E402  (portable: /bin/echo is not on Windows)
 from verdict_mcp import runner  # noqa: E402
+
+
+def _noop(tmp_path, name="claude-noop"):
+    return write_stub(tmp_path, "import sys\nsys.exit(0)\n", name=name)
 
 
 def test_read_env_file_skips_comments_and_strips_quotes(tmp_path):
@@ -101,7 +107,7 @@ def test_the_runner_refuses_a_missing_env_file(tmp_path, capsys):
     repo = tmp_path / "repo"
     repo.mkdir()
     code = runner.main(["t", "--repo", str(repo), "--env-file", str(tmp_path / "nope"),
-                        "--claude-cmd", "/bin/echo", "--no-provision"])
+                        "--claude-cmd", str(_noop(tmp_path)), "--no-provision"])
     assert code == 2 and "does not exist" in capsys.readouterr().err
 
 
@@ -124,7 +130,7 @@ def test_the_env_file_reaches_the_child_and_seeds_its_config(tmp_path, monkeypat
 
     monkeypatch.setattr(runner, "_run_streaming", fake_stream)
     runner.main(["t", "--repo", str(repo), "--env-file", str(env_file),
-                 "--claude-cmd", "/bin/echo", "--no-provision"])
+                 "--claude-cmd", str(_noop(tmp_path, "claude-env")), "--no-provision"])
     assert seen.get("CLAUDE_CONFIG_DIR") == str(cfg), "the child spends the named account"
     assert seen.get("VERDICT_STRICT") == "1", "the guards stay armed"
     doc = json.loads((cfg / ".claude.json").read_text(encoding="utf-8"))

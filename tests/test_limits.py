@@ -13,6 +13,8 @@ from pathlib import Path
 
 REPO = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO / "src"))
+sys.path.insert(0, str(REPO / "tests"))
+from test_runner import write_stub  # noqa: E402  (one portable stub, not two)
 from verdict_mcp import runner  # noqa: E402
 
 WEEKLY = "You've hit your weekly limit · resets Sep 10 at 7pm (America/Los_Angeles)"
@@ -37,12 +39,16 @@ def test_limit_line_returns_the_clis_own_sentence():
     assert "usage limit" in runner.limit_line("nothing here")
 
 
-def _stub(tmp_path: Path, output: str) -> Path:
-    """A `claude` stand-in that prints `output` and fails, like the real one does."""
-    path = tmp_path / "claude-stub"
-    path.write_text("#!/bin/sh\nprintf '%s\\n' \"$STUB_OUTPUT\"\nexit 1\n", encoding="utf-8")
-    path.chmod(0o755)
-    return path
+def _stub(tmp_path: Path, output: str, name="claude-stub") -> Path:
+    """A `claude` stand-in that prints the limit message and fails, as the real CLI does.
+
+    Built with the suite's portable helper: a bare `#!/bin/sh` script is not executable
+    on Windows, where it fails with `WinError 193` — a trap this repository has already
+    recorded once."""
+    body = ("import sys\n"
+            f"sys.stdout.write({output!r} + chr(10))\n"
+            "sys.exit(1)\n")
+    return write_stub(tmp_path, body, name=name)
 
 
 def _profile(qa_root: Path, repo: Path) -> None:
@@ -57,7 +63,6 @@ def test_the_runner_stops_on_a_weekly_limit_instead_of_spending_its_retry(
     repo, home = tmp_path / "repo", tmp_path / "home"
     repo.mkdir()
     monkeypatch.setenv("VERDICT_HOME", str(home))
-    monkeypatch.setenv("STUB_OUTPUT", WEEKLY)
     _profile(home / "t", repo)
     stub = _stub(tmp_path, WEEKLY)
 
@@ -83,9 +88,8 @@ def test_the_runner_still_waits_out_a_session_limit(tmp_path, monkeypatch):
     repo, home = tmp_path / "repo", tmp_path / "home"
     repo.mkdir()
     monkeypatch.setenv("VERDICT_HOME", str(home))
-    monkeypatch.setenv("STUB_OUTPUT", SESSION)
     _profile(home / "t", repo)
-    stub = _stub(tmp_path, SESSION)
+    stub = _stub(tmp_path, SESSION, name="claude-session")
     slept = []
     monkeypatch.setattr(runner.time, "sleep", lambda s: slept.append(s))
     runner.main(["t", "--repo", str(repo), "--claude-cmd", str(stub), "--no-provision",
