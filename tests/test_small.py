@@ -139,7 +139,7 @@ def test_a_finding_from_local_mode_is_a_hypothesis_and_validates():
     assert validate_finding(entry, "findings/PRICER-F-1.json", set()) == []
 
 
-def test_ask_json_retries_once_then_gives_up():
+def test_ask_json_retries_then_gives_up():
     class Flaky(small.Model):
         def __init__(self, replies):
             super().__init__("m", "http://x", "t")
@@ -150,8 +150,9 @@ def test_ask_json_retries_once_then_gives_up():
 
     good = Flaky(["not json", '{"ok": 1}'])
     assert good.ask_json("q") == {"ok": 1} and good.retries == 1
-    bad = Flaky(["nope", "still nope"])
-    assert bad.ask_json("q") is None and bad.retries == 2
+    # three attempts, because a small model's reply parses about half the time
+    bad = Flaky(["nope", "still nope", "and again"])
+    assert bad.ask_json("q") is None and bad.retries == 3
 
 
 def test_read_env_file_and_a_missing_one(tmp_path, capsys):
@@ -177,7 +178,7 @@ def test_the_console_script_is_declared():
 def test_the_judgment_says_what_local_mode_did_not_do():
     source = (REPO / "src" / "verdict_mcp" / "small.py").read_text(encoding="utf-8")
     assert '"not_tested"' in source
-    assert "no test was run against a claim" in source, \
+    assert "no claim was proven by flipping the" in source, \
         "a pass must always name what was not tested; local mode tests almost nothing"
 
 
@@ -185,3 +186,57 @@ def test_finding_json_is_written_only_after_the_validator_accepts_it():
     source = (REPO / "src" / "verdict_mcp" / "small.py").read_text(encoding="utf-8")
     i, j = source.index("problems = validate_finding"), source.index("write_text(json.dumps(entry")
     assert i < j, "a rejected finding must never reach the findings directory"
+
+
+def test_an_error_class_the_interpreter_names_needs_no_model():
+    """Asking a model whether a FileNotFoundError is an environment failure spends a call
+    to learn nothing — and when its reply is not JSON, loses the finding entirely."""
+    assert small.deterministic_kind("FileNotFoundError: [Errno 2] no such file") == "ENVIRONMENT"
+    assert small.deterministic_kind("ModuleNotFoundError: No module named 'httpx'") == "ENVIRONMENT"
+    assert small.deterministic_kind("ConnectionRefusedError: [Errno 61]") == "ENVIRONMENT"
+    assert small.deterministic_kind("assert 0.12 == 0.13") is None, "a wrong number is judgement"
+    assert small.deterministic_kind("") is None
+
+
+def test_a_skip_expires_only_on_a_future_date():
+    """`temporarily disabled 2026-05-02` is the day someone switched it off and moved on,
+    not a deadline. Reading any date as an expiry let the whole class through."""
+    assert not small.has_expiry('reason="temporarily disabled 2026-05-02 - flaky?"')
+    assert not small.has_expiry("no date at all")
+    assert small.has_expiry("skip until 2099-01-01")
+    assert not small.has_expiry("2026-13-45 is not a date")
+
+
+def test_words_split_identifiers_so_a_changelog_can_be_found():
+    got = [w.lower() for w in small.words_of("def test_net_proceeds_hundred(): # 10% fee")]
+    assert "test_net_proceeds_hundred" in got and "proceeds" in got and "fee" not in got[:1]
+    assert got.count("proceeds") == 1, "each word once"
+
+
+def test_unstable_is_the_symmetric_difference_across_runs():
+    first = [{"id": "a"}, {"id": "b"}]
+    assert small.unstable(first, [{"a"}, {"a"}]) == {"b"}, "b failed once, passed twice"
+    assert small.unstable(first, [{"a", "b"}]) == set(), "failing every time is not flaky"
+    assert small.unstable(first, []) == set(), "one run cannot show instability"
+
+
+def test_a_quarantine_entry_uses_the_key_the_validator_reads():
+    entry = {"test_id": "t.py::test_x", "quarantined_until": "2099-01-01",
+             "first_seen": "2026-01-01", "fail_count": 1, "run_count": 3, "reason": "r"}
+    finding = small.flaky_finding(entry, 3, "P-F-1")
+    assert finding["failure_classification"] == "FLAKY"
+    assert "t.py::test_x" in finding["title"]
+    assert validate_finding(finding, "findings/P-F-1.json", set()) == []
+
+
+def test_the_verdict_is_arithmetic_over_the_findings():
+    assert small.verdict_for([]) == "pass"
+    assert small.verdict_for([{"severity": "Minor"}]) == "pass with risks"
+    assert small.verdict_for([{"severity": "Minor"}, {"severity": "Critical"}]) == "fail"
+    assert small.verdict_for([{"severity": "Blocker"}]) == "fail"
+
+
+def test_ids_from_a_report_use_the_harnesss_own_parser():
+    source = (REPO / "src" / "verdict_mcp" / "small.py").read_text(encoding="utf-8")
+    assert "read_report(path)" in source, \
+        "a second parser gave a second id shape, and every rerun looked unstable"
