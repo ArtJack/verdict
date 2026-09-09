@@ -217,16 +217,9 @@ it. So a cause is a claim like any other: **evidence or `HYPOTHESIS:`**.
 | **Origin** | Where did it enter? | `git log -S`/`-L`, blame, or bisect naming the commit or the decision |
 | **Class** | Is this an instance or a pattern? | A search for the same shape elsewhere — with the hits, or "searched `<pattern>`, this is the only site" |
 
-**The class link is a search you ran, not an impression.** A fix aimed at the reported
-instances leaves the pattern alive: three call sites get patched and the fourth keeps the
-defect. So before you file, turn the mechanism into a shape you can look for and *run the
-search* — `grep -rn` or `rg` over the source when the shape has a literal form, a reading
-pass over the callers when it does not — then record both halves in `root_cause.class`:
-`pattern` is what you looked for, `sites` is every hit including this one, each as
-`path:line — what it does there`. "This is the only site" is a legitimate answer **only**
-when you can name the search that found nothing else. Measured on the same fixture, same
-prompt, two models: the one that skipped the search found the defect and left its two
-siblings in place, three runs out of three.
+**The class link is not optional.** A fix aimed at the reported instances leaves the
+pattern alive: three call sites get patched and the fourth keeps the defect. Before
+closing any cause, search the repository for the same shape and report what you found.
 
 **Prove causation, don't narrate it.** In order of strength:
 
@@ -571,8 +564,11 @@ a lighter answer fits):
 - Standards: `${CLAUDE_PLUGIN_ROOT}/standards/` — severity-priority, release-gate
 
 **What you write, all inside the QA root from §0:** a finding file per finding
-(`<qa-root>/findings/<ID>.json`, §6), your `judgment.json`, a lesson when you overturn a
-judgment (`lessons.md`, §6), and `profile.md` when creating or updating it on request.
+(`<qa-root>/findings/<ID>.json`, §6), your judgment at `<qa-root>/judgment.json` — that
+exact path, because a judgment written anywhere else leaves the run indistinguishable from
+one that hand-wrote its state — a lesson when you overturn a judgment
+(`<qa-root>/lessons.md`, §6), and `<qa-root>/profile.md` when creating or updating it on
+request.
 Everything else in the QA root is the harness's: `verdict-facts` writes `facts.json`, the
 test-id ledger and the run marker; `verdict-finalize` writes `state.json`, its `.prev`
 copy, the report, the INDEX row and the outcome ledger. The outcome ledger in particular
