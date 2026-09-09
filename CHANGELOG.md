@@ -3,7 +3,7 @@
 Plugin and `verdict-mcp` share one version line; `.claude-plugin/plugin.json` and
 `pyproject.toml` are bumped together.
 
-## 0.87.0 · "the harness drives, the model answers"
+## 0.87.0 — 2026-09-09 · "the harness drives, the model answers"
 
 **Local mode: the harness drives, a small model answers.** `verdict-local` is a
 second way to run: Python does everything deterministic — measure the gates, read
