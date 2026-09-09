@@ -277,6 +277,48 @@ Not scored:
 - mwaskom__seaborn-3187: blocked — 
 - pylint-dev__pylint-6528: blocked —
 
+### Local mode — a 7B model, measured
+
+`verdict-local` is the other way to run: the harness drives and the model answers one
+bounded question at a time (see the module docstring in
+[`src/verdict_mcp/small.py`](../src/verdict_mcp/small.py) for why the agent shape cannot
+shrink to a small model). It is scored by the same `score.py`, against the same
+[expected.json](expected.json), on the same baseline fixture.
+
+**Measured 2026-09-09, `qwen3:8b` on a local Ollama behind a LiteLLM gateway, n=3.**
+
+| Run | Score | Missed | Model calls | Input tokens |
+|---|---|---|---|---|
+| 1 | 9/10 | stale expectation | 27 | 7,167 |
+| 2 | 9/10 | stale expectation | 25 | 6,390 |
+| 3 | **10/10** | — | 30 | 8,103 |
+
+No hard failures in any run, and the harness chain (`facts_measured`,
+`judgment_written`, `state_computed`, `report_rendered`, `chain_intact`) intact in all
+three — the state was assembled by `verdict-finalize`, not written by hand.
+
+The one unstable row is `3-stale-fee-expectation`: the failing fee test has to be read as
+a deliberate change authorised by the CHANGELOG rather than as a defect. Two runs in three
+called it correctly. That is the row that needs judgement rather than arithmetic, and it
+is exactly where a small model wavers.
+
+**What did the work, and what the model was spared.** The climb from 4/10 to 10/10 was
+almost entirely a transfer of work *out* of the model:
+
+| Row won | By |
+|---|---|
+| nondeterministic test + quarantine | running the suite three times and comparing the failing sets — no model call |
+| environment failure | the error class the interpreter already named (`FileNotFoundError`) — no model call |
+| skip with no expiry | a regular expression over the test files, where a date in the past is not an expiry — no model call |
+| the verdict | arithmetic over the filed findings — no model call |
+| brittle test, stale expectation, both real defects | one bounded question each, a few hundred tokens |
+
+A run costs ~30 model calls and ~7k input tokens in total. The Opus agent on this same
+fixture reads about two million tokens of context across 38 turns. The comparison is not
+quality-for-quality — local mode proves nothing by execution and says so in every report,
+and it does not attempt archaeology, an exploratory charter, or an adversarial reading of
+the suite — but on this fixture's answer key it is not behind.
+
 ### The model axis — Opus against Sonnet, paired
 
 Every published row above is Opus. The question a maintainer actually asks is whether a
