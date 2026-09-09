@@ -3,7 +3,7 @@
 [![ci](https://github.com/ArtJack/verdict/actions/workflows/ci.yml/badge.svg)](https://github.com/ArtJack/verdict/actions/workflows/ci.yml)
 [![verdict on itself](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fraw.githubusercontent.com%2FArtJack%2Fverdict%2Fmain%2F.qa%2Fstate.json&query=%24.verdict&label=verdict%20on%20itself&color=blue)](.qa/reports/INDEX.md)
 [![eval 8/8 seeded defects](https://img.shields.io/badge/eval-8%2F8_seeded_defects-brightgreen)](eval/README.md#published-results)
-[![pinned rules 165/165 killed](https://img.shields.io/badge/pinned_rules-165%2F165_killed-brightgreen)](eval/README.md#suite-fault-detection-power--mutation-testing-on-ourselves)
+[![pinned rules 173/173 killed](https://img.shields.io/badge/pinned_rules-173%2F173_killed-brightgreen)](eval/README.md#suite-fault-detection-power--mutation-testing-on-ourselves)
 [![PyPI](https://img.shields.io/pypi/v/verdict-qa-mcp?label=verdict-qa-mcp&color=blue)](https://pypi.org/project/verdict-qa-mcp/)
 [![Claude Code plugin](https://img.shields.io/badge/Claude_Code-plugin-6E56CF)](#install)
 [![license MIT](https://img.shields.io/github/license/ArtJack/verdict)](LICENSE)
@@ -207,6 +207,17 @@ A QA agent that was never tested is exactly the kind of claim it should reject.
 `python3 eval/run_eval.py --mode seeded|live|baseline` runs it all in an isolated scratch
 repo and scratch state home. Results are published as measured; misses — and any answer-key
 amendment — stay in the table ([eval/README.md](eval/README.md)).
+
+Every one of those keys was written by the hands that wrote the prompt. **The external key**
+([eval/swebench.py](eval/swebench.py)) is one nobody here chose: SWE-bench Verified
+instances — real defects, each fixed by its own maintainers with a test that fails before the
+fix — every instance from the five smallest repositories in the set (pytest, pylint, requests,
+seaborn, flask; 40). The checkout's history ends at the bug's base commit, the environment is
+the one the maintainers had that week, the withheld test never enters the tree, and the issue
+text is the whole charter. The score is location, deterministic: does a `path:line` the
+finding cites fall in the file the fix touched, inside its hunk, in the same function? Rate,
+time, tokens and every miss are in the
+[ledger](eval/README.md#the-external-key--swe-bench-verified-instances).
 
 ## State modes
 

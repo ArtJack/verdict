@@ -1,0 +1,1290 @@
+{
+ "_rule": "every princeton-nlp/SWE-bench_Verified instance whose repository has fewer than 20 instances in the set \u2014 the five smallest repositories, nothing chosen by hand",
+ "selected_at": "2026-09-08T00:19:33Z",
+ "count": 40,
+ "instances": [
+  {
+   "instance_id": "pallets__flask-5014",
+   "repo": "pallets/flask",
+   "version": "2.3",
+   "difficulty": "<15 min fix",
+   "base_commit": "7ee9ceb71e868944a46e1ff00b506772a53a4f1d",
+   "created_at": "2023-03-04T18:36:21Z",
+   "gold_files": [
+    "src/flask/blueprints.py"
+   ],
+   "gold_hunks": {
+    "src/flask/blueprints.py": [
+     [
+      190,
+      195
+     ]
+    ]
+   },
+   "fail_to_pass": [
+    "tests/test_blueprints.py::test_empty_name_not_allowed"
+   ],
+   "problem_statement_chars": 195
+  },
+  {
+   "instance_id": "psf__requests-1142",
+   "repo": "psf/requests",
+   "version": "1.1",
+   "difficulty": "<15 min fix",
+   "base_commit": "22623bd8c265b78b161542663ee980738441c307",
+   "created_at": "2013-01-25T05:19:16Z",
+   "gold_files": [
+    "requests/models.py"
+   ],
+   "gold_hunks": {
+    "requests/models.py": [
+     [
+      386,
+      398
+     ]
+    ]
+   },
+   "fail_to_pass": [
+    "test_requests.py::RequestsTestCase::test_no_content_length"
+   ],
+   "problem_statement_chars": 381
+  },
+  {
+   "instance_id": "psf__requests-1724",
+   "repo": "psf/requests",
+   "version": "2.0",
+   "difficulty": "<15 min fix",
+   "base_commit": "1ba83c47ce7b177efe90d5f51f7760680f72eda0",
+   "created_at": "2013-11-04T09:37:00Z",
+   "gold_files": [
+    "requests/sessions.py"
+   ],
+   "gold_hunks": {
+    "requests/sessions.py": [
+     [
+      12,
+      18
+     ],
+     [
+      309,
+      314
+     ]
+    ]
+   },
+   "fail_to_pass": [
+    "test_requests.py::RequestsTestCase::test_DIGEST_AUTH_RETURNS_COOKIE",
+    "test_requests.py::RequestsTestCase::test_DIGEST_HTTP_200_OK_GET",
+    "test_requests.py::RequestsTestCase::test_different_encodings_dont_break_post",
+    "test_requests.py::RequestsTestCase::test_generic_cookiejar_works",
+    "test_requests.py::RequestsTestCase::test_uppercase_scheme_redirect",
+    "test_requests.py::RequestsTestCase::test_user_agent_transfers"
+   ],
+   "problem_statement_chars": 7476
+  },
+  {
+   "instance_id": "psf__requests-1766",
+   "repo": "psf/requests",
+   "version": "2.0",
+   "difficulty": "<15 min fix",
+   "base_commit": "847735553aeda6e6633f2b32e14ba14ba86887a4",
+   "created_at": "2013-11-29T08:38:09Z",
+   "gold_files": [
+    "requests/auth.py"
+   ],
+   "gold_hunks": {
+    "requests/auth.py": [
+     [
+      105,
+      111
+     ],
+     [
+      144,
+      150
+     ]
+    ]
+   },
+   "fail_to_pass": [
+    "test_requests.py::RequestsTestCase::test_DIGESTAUTH_QUOTES_QOP_VALUE",
+    "test_requests.py::RequestsTestCase::test_HTTP_200_OK_GET_ALTERNATIVE",
+    "test_requests.py::RequestsTestCase::test_cookie_sent_on_redirect",
+    "test_requests.py::RequestsTestCase::test_custom_content_type",
+    "test_requests.py::RequestsTestCase::test_params_are_merged_case_sensitive",
+    "test_requests.py::RequestsTestCase::test_user_agent_transfers"
+   ],
+   "problem_statement_chars": 897
+  },
+  {
+   "instance_id": "psf__requests-1921",
+   "repo": "psf/requests",
+   "version": "2.3",
+   "difficulty": "<15 min fix",
+   "base_commit": "3c88e520da24ae6f736929a750876e7654accc3d",
+   "created_at": "2014-02-14T22:15:56Z",
+   "gold_files": [
+    "requests/sessions.py"
+   ],
+   "gold_hunks": {
+    "requests/sessions.py": [
+     [
+      59,
+      64
+     ]
+    ]
+   },
+   "fail_to_pass": [
+    "test_requests.py::RequestsTestCase::test_DIGESTAUTH_WRONG_HTTP_401_GET",
+    "test_requests.py::RequestsTestCase::test_POSTBIN_GET_POST_FILES",
+    "test_requests.py::RequestsTestCase::test_basicauth_with_netrc",
+    "test_requests.py::RequestsTestCase::test_cookie_persists_via_api",
+    "test_requests.py::RequestsTestCase::test_headers_on_session_with_None_are_not_sent",
+    "test_requests.py::RequestsTestCase::test_uppercase_scheme_redirect"
+   ],
+   "problem_statement_chars": 708
+  },
+  {
+   "instance_id": "psf__requests-2317",
+   "repo": "psf/requests",
+   "version": "2.4",
+   "difficulty": "<15 min fix",
+   "base_commit": "091991be0da19de9108dbe5e3752917fea3d7fdc",
+   "created_at": "2014-11-01T02:20:16Z",
+   "gold_files": [
+    "requests/sessions.py"
+   ],
+   "gold_hunks": {
+    "requests/sessions.py": [
+     [
+      13,
+      19
+     ],
+     [
+      425,
+      431
+     ]
+    ]
+   },
+   "fail_to_pass": [
+    "test_requests.py::RequestsTestCase::test_HTTP_302_ALLOW_REDIRECT_GET",
+    "test_requests.py::RequestsTestCase::test_POSTBIN_GET_POST_FILES",
+    "test_requests.py::RequestsTestCase::test_POSTBIN_GET_POST_FILES_WITH_DATA",
+    "test_requests.py::RequestsTestCase::test_basicauth_with_netrc",
+    "test_requests.py::RequestsTestCase::test_json_param_post_content_type_works",
+    "test_requests.py::RequestsTestCase::test_manual_redirect_with_partial_body_read",
+    "test_requests.py::RequestsTestCase::test_requests_history_is_saved",
+    "test_requests.py::TestTimeout::test_encoded_methods"
+   ],
+   "problem_statement_chars": 841
+  },
+  {
+   "instance_id": "psf__requests-2931",
+   "repo": "psf/requests",
+   "version": "2.9",
+   "difficulty": "15 min - 1 hour",
+   "base_commit": "5f7a3a74aab1625c2bb65f643197ee885e3da576",
+   "created_at": "2015-12-16T14:57:00Z",
+   "gold_files": [
+    "requests/models.py"
+   ],
+   "gold_hunks": {
+    "requests/models.py": [
+     [
+      81,
+      87
+     ],
+     [
+      385,
+      390
+     ]
+    ]
+   },
+   "fail_to_pass": [
+    "test_requests.py::TestRequests::test_binary_put"
+   ],
+   "problem_statement_chars": 271
+  },
+  {
+   "instance_id": "psf__requests-5414",
+   "repo": "psf/requests",
+   "version": "2.26",
+   "difficulty": "<15 min fix",
+   "base_commit": "39d0fdd9096f7dceccbc8f82e1eda7dd64717a8e",
+   "created_at": "2020-04-05T16:52:04Z",
+   "gold_files": [
+    "requests/models.py"
+   ],
+   "gold_hunks": {
+    "requests/models.py": [
+     [
+      403,
+      409
+     ]
+    ]
+   },
+   "fail_to_pass": [
+    "tests/test_requests.py::TestRequests::test_invalid_url[InvalidURL-http://.example.com]"
+   ],
+   "problem_statement_chars": 1428
+  },
+  {
+   "instance_id": "psf__requests-6028",
+   "repo": "psf/requests",
+   "version": "2.27",
+   "difficulty": "15 min - 1 hour",
+   "base_commit": "0192aac24123735b3eaf9b08df46429bb770c283",
+   "created_at": "2022-01-04T15:32:52Z",
+   "gold_files": [
+    "requests/utils.py"
+   ],
+   "gold_hunks": {
+    "requests/utils.py": [
+     [
+      974,
+      979
+     ]
+    ]
+   },
+   "fail_to_pass": [
+    "tests/test_utils.py::test_prepend_scheme_if_needed[http://user:pass@example.com/path?query-http://user:pass@example.com/path?query]",
+    "tests/test_utils.py::test_prepend_scheme_if_needed[http://user@example.com/path?query-http://user@example.com/path?query]"
+   ],
+   "problem_statement_chars": 1268
+  },
+  {
+   "instance_id": "pytest-dev__pytest-5262",
+   "repo": "pytest-dev/pytest",
+   "version": "4.5",
+   "difficulty": "<15 min fix",
+   "base_commit": "58e6a09db49f34886ff13f3b7520dd0bcd7063cd",
+   "created_at": "2019-05-14T21:54:55Z",
+   "gold_files": [
+    "src/_pytest/capture.py"
+   ],
+   "gold_hunks": {
+    "src/_pytest/capture.py": [
+     [
+      447,
+      452
+     ]
+    ]
+   },
+   "fail_to_pass": [
+    "testing/test_capture.py::TestFDCapture::test_capfd_sys_stdout_mode"
+   ],
+   "problem_statement_chars": 4789
+  },
+  {
+   "instance_id": "pytest-dev__pytest-5631",
+   "repo": "pytest-dev/pytest",
+   "version": "5.0",
+   "difficulty": "15 min - 1 hour",
+   "base_commit": "cb828ebe70b4fa35cd5f9a7ee024272237eab351",
+   "created_at": "2019-07-19T20:13:12Z",
+   "gold_files": [
+    "src/_pytest/compat.py"
+   ],
+   "gold_hunks": {
+    "src/_pytest/compat.py": [
+     [
+      64,
+      76
+     ]
+    ]
+   },
+   "fail_to_pass": [
+    "testing/python/integration.py::TestMockDecoration::test_mock_sentinel_check_against_numpy_like"
+   ],
+   "problem_statement_chars": 2306
+  },
+  {
+   "instance_id": "pytest-dev__pytest-5787",
+   "repo": "pytest-dev/pytest",
+   "version": "5.1",
+   "difficulty": "1-4 hours",
+   "base_commit": "955e54221008aba577ecbaefa15679f6777d3bf8",
+   "created_at": "2019-08-26T16:43:31Z",
+   "gold_files": [
+    "src/_pytest/reports.py"
+   ],
+   "gold_hunks": {
+    "src/_pytest/reports.py": [
+     [
+      3,
+      8
+     ],
+     [
+      160,
+      205
+     ],
+     [
+      211,
+      265
+     ],
+     [
+      424,
+      426
+     ]
+    ]
+   },
+   "fail_to_pass": [
+    "testing/test_reports.py::TestReportSerialization::test_chained_exceptions[TestReport]",
+    "testing/test_reports.py::TestReportSerialization::test_chained_exceptions[CollectReport]"
+   ],
+   "problem_statement_chars": 3907
+  },
+  {
+   "instance_id": "pytest-dev__pytest-5809",
+   "repo": "pytest-dev/pytest",
+   "version": "4.6",
+   "difficulty": "<15 min fix",
+   "base_commit": "8aba863a634f40560e25055d179220f0eefabe9a",
+   "created_at": "2019-09-01T04:40:09Z",
+   "gold_files": [
+    "src/_pytest/pastebin.py"
+   ],
+   "gold_hunks": {
+    "src/_pytest/pastebin.py": [
+     [
+      77,
+      87
+     ]
+    ]
+   },
+   "fail_to_pass": [
+    "testing/test_pastebin.py::TestPaste::test_create_new_paste"
+   ],
+   "problem_statement_chars": 971
+  },
+  {
+   "instance_id": "pytest-dev__pytest-5840",
+   "repo": "pytest-dev/pytest",
+   "version": "5.1",
+   "difficulty": "15 min - 1 hour",
+   "base_commit": "73c5b7f4b11a81e971f7d1bb18072e06a87060f4",
+   "created_at": "2019-09-12T01:09:28Z",
+   "gold_files": [
+    "src/_pytest/config/__init__.py",
+    "src/_pytest/pathlib.py"
+   ],
+   "gold_hunks": {
+    "src/_pytest/config/__init__.py": [
+     [
+      30,
+      36
+     ],
+     [
+      367,
+      373
+     ],
+     [
+      406,
+      418
+     ],
+     [
+      432,
+      443
+     ],
+     [
+      454,
+      460
+     ]
+    ],
+    "src/_pytest/pathlib.py": [
+     [
+      11,
+      17
+     ],
+     [
+      335,
+      346
+     ]
+    ]
+   },
+   "fail_to_pass": [
+    "testing/test_conftest.py::test_setinitial_conftest_subdirs[test]",
+    "testing/test_conftest.py::test_setinitial_conftest_subdirs[tests]"
+   ],
+   "problem_statement_chars": 625
+  },
+  {
+   "instance_id": "pytest-dev__pytest-6197",
+   "repo": "pytest-dev/pytest",
+   "version": "5.2",
+   "difficulty": "1-4 hours",
+   "base_commit": "e856638ba086fcf5bebf1bebea32d5cf78de87b4",
+   "created_at": "2019-11-15T16:37:22Z",
+   "gold_files": [
+    "src/_pytest/python.py"
+   ],
+   "gold_hunks": {
+    "src/_pytest/python.py": [
+     [
+      251,
+      271
+     ],
+     [
+      432,
+      445
+     ],
+     [
+      639,
+      645
+     ]
+    ]
+   },
+   "fail_to_pass": [
+    "testing/test_collection.py::test_does_not_eagerly_collect_packages",
+    "testing/test_collection.py::test_does_not_put_src_on_path"
+   ],
+   "problem_statement_chars": 2749
+  },
+  {
+   "instance_id": "pytest-dev__pytest-6202",
+   "repo": "pytest-dev/pytest",
+   "version": "5.2",
+   "difficulty": "<15 min fix",
+   "base_commit": "3a668ea6ff24b0c8f00498c3144c63bac561d925",
+   "created_at": "2019-11-16T07:45:21Z",
+   "gold_files": [
+    "src/_pytest/python.py"
+   ],
+   "gold_hunks": {
+    "src/_pytest/python.py": [
+     [
+      285,
+      292
+     ]
+    ]
+   },
+   "fail_to_pass": [
+    "testing/test_collection.py::Test_genitems::test_example_items1"
+   ],
+   "problem_statement_chars": 2157
+  },
+  {
+   "instance_id": "pytest-dev__pytest-7205",
+   "repo": "pytest-dev/pytest",
+   "version": "5.4",
+   "difficulty": "<15 min fix",
+   "base_commit": "5e7f1ab4bf58e473e5d7f878eb2b499d7deabd29",
+   "created_at": "2020-05-09T11:25:58Z",
+   "gold_files": [
+    "src/_pytest/setuponly.py"
+   ],
+   "gold_hunks": {
+    "src/_pytest/setuponly.py": [
+     [
+      1,
+      4
+     ],
+     [
+      66,
+      72
+     ]
+    ]
+   },
+   "fail_to_pass": [
+    "testing/test_setuponly.py::test_show_fixtures_with_parameters[--setup-only]",
+    "testing/test_setuponly.py::test_show_fixtures_with_parameter_ids[--setup-only]",
+    "testing/test_setuponly.py::test_show_fixtures_with_parameter_ids_function[--setup-only]",
+    "testing/test_setuponly.py::test_show_fixtures_with_parameters[--setup-plan]",
+    "testing/test_setuponly.py::test_show_fixtures_with_parameter_ids[--setup-plan]",
+    "testing/test_setuponly.py::test_show_fixtures_with_parameter_ids_function[--setup-plan]",
+    "testing/test_setuponly.py::test_show_fixtures_with_parameters[--setup-show]",
+    "testing/test_setuponly.py::test_show_fixtures_with_parameter_ids[--setup-show]",
+    "testing/test_setuponly.py::test_show_fixtures_with_parameter_ids_function[--setup-show]",
+    "testing/test_setuponly.py::test_show_fixture_action_with_bytes"
+   ],
+   "problem_statement_chars": 4267
+  },
+  {
+   "instance_id": "pytest-dev__pytest-7236",
+   "repo": "pytest-dev/pytest",
+   "version": "5.4",
+   "difficulty": "15 min - 1 hour",
+   "base_commit": "c98bc4cd3d687fe9b392d8eecd905627191d4f06",
+   "created_at": "2020-05-21T19:53:14Z",
+   "gold_files": [
+    "src/_pytest/unittest.py"
+   ],
+   "gold_hunks": {
+    "src/_pytest/unittest.py": [
+     [
+      41,
+      47
+     ],
+     [
+      89,
+      95
+     ],
+     [
+      220,
+      226
+     ],
+     [
+      301,
+      303
+     ]
+    ]
+   },
+   "fail_to_pass": [
+    "testing/test_unittest.py::test_pdb_teardown_skipped[@unittest.skip]"
+   ],
+   "problem_statement_chars": 2692
+  },
+  {
+   "instance_id": "pytest-dev__pytest-7324",
+   "repo": "pytest-dev/pytest",
+   "version": "5.4",
+   "difficulty": "15 min - 1 hour",
+   "base_commit": "19ad5889353c7f5f2b65cc2acd346b7a9e95dfcd",
+   "created_at": "2020-06-05T13:00:07Z",
+   "gold_files": [
+    "src/_pytest/mark/expression.py"
+   ],
+   "gold_hunks": {
+    "src/_pytest/mark/expression.py": [
+     [
+      127,
+      132
+     ],
+     [
+      161,
+      167
+     ],
+     [
+      172,
+      178
+     ]
+    ]
+   },
+   "fail_to_pass": [
+    "testing/test_mark_expression.py::test_valid_idents[True]",
+    "testing/test_mark_expression.py::test_valid_idents[False]",
+    "testing/test_mark_expression.py::test_valid_idents[None]"
+   ],
+   "problem_statement_chars": 469
+  },
+  {
+   "instance_id": "pytest-dev__pytest-7432",
+   "repo": "pytest-dev/pytest",
+   "version": "5.4",
+   "difficulty": "<15 min fix",
+   "base_commit": "e6e300e729dd33956e5448d8be9a0b1540b4e53a",
+   "created_at": "2020-06-29T21:51:15Z",
+   "gold_files": [
+    "src/_pytest/skipping.py"
+   ],
+   "gold_hunks": {
+    "src/_pytest/skipping.py": [
+     [
+      291,
+      297
+     ]
+    ]
+   },
+   "fail_to_pass": [
+    "testing/test_skipping.py::TestXFail::test_xfail_run_with_skip_mark[test_input1-expected1]"
+   ],
+   "problem_statement_chars": 773
+  },
+  {
+   "instance_id": "pytest-dev__pytest-7490",
+   "repo": "pytest-dev/pytest",
+   "version": "6.0",
+   "difficulty": "15 min - 1 hour",
+   "base_commit": "7f7a36478abe7dd1fa993b115d22606aa0e35e88",
+   "created_at": "2020-07-13T22:20:10Z",
+   "gold_files": [
+    "src/_pytest/skipping.py"
+   ],
+   "gold_hunks": {
+    "src/_pytest/skipping.py": [
+     [
+      231,
+      247
+     ],
+     [
+      250,
+      261
+     ]
+    ]
+   },
+   "fail_to_pass": [
+    "testing/test_skipping.py::TestXFail::test_dynamic_xfail_set_during_runtest_failed",
+    "testing/test_skipping.py::TestXFail::test_dynamic_xfail_set_during_runtest_passed_strict"
+   ],
+   "problem_statement_chars": 22778
+  },
+  {
+   "instance_id": "pytest-dev__pytest-7521",
+   "repo": "pytest-dev/pytest",
+   "version": "6.0",
+   "difficulty": "<15 min fix",
+   "base_commit": "41d211c24a6781843b174379d6d6538f5c17adb9",
+   "created_at": "2020-07-20T15:55:11Z",
+   "gold_files": [
+    "src/_pytest/capture.py"
+   ],
+   "gold_hunks": {
+    "src/_pytest/capture.py": [
+     [
+      388,
+      393
+     ]
+    ]
+   },
+   "fail_to_pass": [
+    "testing/test_capture.py::TestCaptureFixture::test_cafd_preserves_newlines[\\r\\n]",
+    "testing/test_capture.py::TestCaptureFixture::test_cafd_preserves_newlines[\\r]"
+   ],
+   "problem_statement_chars": 3893
+  },
+  {
+   "instance_id": "pytest-dev__pytest-7571",
+   "repo": "pytest-dev/pytest",
+   "version": "6.0",
+   "difficulty": "15 min - 1 hour",
+   "base_commit": "422685d0bdc110547535036c1ff398b5e1c44145",
+   "created_at": "2020-07-29T12:00:47Z",
+   "gold_files": [
+    "src/_pytest/logging.py"
+   ],
+   "gold_hunks": {
+    "src/_pytest/logging.py": [
+     [
+      345,
+      350
+     ],
+     [
+      353,
+      358
+     ],
+     [
+      434,
+      439
+     ]
+    ]
+   },
+   "fail_to_pass": [
+    "testing/logging/test_fixture.py::test_change_level_undos_handler_level"
+   ],
+   "problem_statement_chars": 459
+  },
+  {
+   "instance_id": "pytest-dev__pytest-7982",
+   "repo": "pytest-dev/pytest",
+   "version": "6.2",
+   "difficulty": "<15 min fix",
+   "base_commit": "a7e38c5c61928033a2dc1915cbee8caa8544a4d0",
+   "created_at": "2020-10-31T12:27:03Z",
+   "gold_files": [
+    "src/_pytest/pathlib.py"
+   ],
+   "gold_hunks": {
+    "src/_pytest/pathlib.py": [
+     [
+      558,
+      564
+     ]
+    ]
+   },
+   "fail_to_pass": [
+    "testing/test_collection.py::test_collect_symlink_dir"
+   ],
+   "problem_statement_chars": 451
+  },
+  {
+   "instance_id": "pytest-dev__pytest-8399",
+   "repo": "pytest-dev/pytest",
+   "version": "6.3",
+   "difficulty": "15 min - 1 hour",
+   "base_commit": "6e7dc8bac831cd8cf7a53b08efa366bd84f0c0fe",
+   "created_at": "2021-03-04T17:52:17Z",
+   "gold_files": [
+    "src/_pytest/python.py",
+    "src/_pytest/unittest.py"
+   ],
+   "gold_hunks": {
+    "src/_pytest/python.py": [
+     [
+      528,
+      534
+     ],
+     [
+      557,
+      563
+     ],
+     [
+      809,
+      815
+     ],
+     [
+      838,
+      844
+     ]
+    ],
+    "src/_pytest/unittest.py": [
+     [
+      144,
+      150
+     ]
+    ]
+   },
+   "fail_to_pass": [
+    "testing/test_unittest.py::test_fixtures_setup_setUpClass_issue8394"
+   ],
+   "problem_statement_chars": 1083
+  },
+  {
+   "instance_id": "pytest-dev__pytest-10051",
+   "repo": "pytest-dev/pytest",
+   "version": "7.2",
+   "difficulty": "15 min - 1 hour",
+   "base_commit": "aa55975c7d3f6c9f6d7f68accc41bb7cadf0eb9a",
+   "created_at": "2022-06-15T17:39:53Z",
+   "gold_files": [
+    "src/_pytest/logging.py"
+   ],
+   "gold_hunks": {
+    "src/_pytest/logging.py": [
+     [
+      40,
+      46
+     ],
+     [
+      345,
+      350
+     ],
+     [
+      440,
+      446
+     ]
+    ]
+   },
+   "fail_to_pass": [
+    "testing/logging/test_fixture.py::test_clear_for_call_stage"
+   ],
+   "problem_statement_chars": 1371
+  },
+  {
+   "instance_id": "pytest-dev__pytest-10081",
+   "repo": "pytest-dev/pytest",
+   "version": "7.2",
+   "difficulty": "<15 min fix",
+   "base_commit": "da9a2b584eb7a6c7e924b2621ed0ddaeca0a7bea",
+   "created_at": "2022-06-26T13:53:24Z",
+   "gold_files": [
+    "src/_pytest/unittest.py"
+   ],
+   "gold_hunks": {
+    "src/_pytest/unittest.py": [
+     [
+      316,
+      322
+     ]
+    ]
+   },
+   "fail_to_pass": [
+    "testing/test_unittest.py::test_pdb_teardown_skipped_for_classes[@unittest.skip]"
+   ],
+   "problem_statement_chars": 2905
+  },
+  {
+   "instance_id": "pytest-dev__pytest-10356",
+   "repo": "pytest-dev/pytest",
+   "version": "7.2",
+   "difficulty": "1-4 hours",
+   "base_commit": "3c1534944cbd34e8a41bc9e76818018fadefc9a1",
+   "created_at": "2022-10-08T06:20:42Z",
+   "gold_files": [
+    "src/_pytest/mark/structures.py"
+   ],
+   "gold_hunks": {
+    "src/_pytest/mark/structures.py": [
+     [
+      355,
+      366
+     ],
+     [
+      388,
+      394
+     ]
+    ]
+   },
+   "fail_to_pass": [
+    "testing/test_mark.py::test_mark_mro"
+   ],
+   "problem_statement_chars": 5278
+  },
+  {
+   "instance_id": "mwaskom__seaborn-3069",
+   "repo": "mwaskom/seaborn",
+   "version": "0.12",
+   "difficulty": "15 min - 1 hour",
+   "base_commit": "54cab15bdacfaa05a88fbc5502a5b322d99f148e",
+   "created_at": "2022-10-09T23:31:20Z",
+   "gold_files": [
+    "seaborn/_core/plot.py"
+   ],
+   "gold_hunks": {
+    "seaborn/_core/plot.py": [
+     [
+      25,
+      31
+     ],
+     [
+      1238,
+      1244
+     ],
+     [
+      1631,
+      1636
+     ],
+     [
+      1644,
+      1649
+     ]
+    ]
+   },
+   "fail_to_pass": [
+    "tests/_core/test_plot.py::TestScaling::test_nominal_x_axis_tweaks",
+    "tests/_core/test_plot.py::TestScaling::test_nominal_y_axis_tweaks"
+   ],
+   "problem_statement_chars": 1188
+  },
+  {
+   "instance_id": "mwaskom__seaborn-3187",
+   "repo": "mwaskom/seaborn",
+   "version": "0.12",
+   "difficulty": "15 min - 1 hour",
+   "base_commit": "22cdfb0c93f8ec78492d87edb810f10cb7f57a31",
+   "created_at": "2022-12-18T00:04:22Z",
+   "gold_files": [
+    "seaborn/_core/scales.py",
+    "seaborn/utils.py"
+   ],
+   "gold_hunks": {
+    "seaborn/_core/scales.py": [
+     [
+      378,
+      383
+     ]
+    ],
+    "seaborn/utils.py": [
+     [
+      699,
+      704
+     ]
+    ]
+   },
+   "fail_to_pass": [
+    "tests/_core/test_plot.py::TestLegend::test_legend_has_no_offset",
+    "tests/test_relational.py::TestRelationalPlotter::test_legend_has_no_offset"
+   ],
+   "problem_statement_chars": 1438
+  },
+  {
+   "instance_id": "pylint-dev__pylint-4551",
+   "repo": "pylint-dev/pylint",
+   "version": "2.9",
+   "difficulty": "1-4 hours",
+   "base_commit": "99589b08de8c5a2c6cc61e13a37420a868c80599",
+   "created_at": "2021-06-07T15:14:31Z",
+   "gold_files": [
+    "pylint/pyreverse/diagrams.py",
+    "pylint/pyreverse/inspector.py",
+    "pylint/pyreverse/utils.py",
+    "pylint/pyreverse/writer.py"
+   ],
+   "gold_hunks": {
+    "pylint/pyreverse/diagrams.py": [
+     [
+      122,
+      128
+     ]
+    ],
+    "pylint/pyreverse/inspector.py": [
+     [
+      205,
+      227
+     ],
+     [
+      229,
+      240
+     ]
+    ],
+    "pylint/pyreverse/utils.py": [
+     [
+      19,
+      24
+     ],
+     [
+      213,
+      215
+     ]
+    ],
+    "pylint/pyreverse/writer.py": [
+     [
+      19,
+      25
+     ],
+     [
+      134,
+      144
+     ]
+    ]
+   },
+   "fail_to_pass": [
+    "tests/unittest_pyreverse_writer.py::test_dot_files[packages_No_Name.dot]",
+    "tests/unittest_pyreverse_writer.py::test_dot_files[classes_No_Name.dot]",
+    "tests/unittest_pyreverse_writer.py::test_get_visibility[names0-special]",
+    "tests/unittest_pyreverse_writer.py::test_get_visibility[names1-private]",
+    "tests/unittest_pyreverse_writer.py::test_get_visibility[names2-public]",
+    "tests/unittest_pyreverse_writer.py::test_get_visibility[names3-protected]",
+    "tests/unittest_pyreverse_writer.py::test_get_annotation_annassign[a:",
+    "tests/unittest_pyreverse_writer.py::test_get_annotation_assignattr[def",
+    "tests/unittest_pyreverse_writer.py::test_infer_node_1",
+    "tests/unittest_pyreverse_writer.py::test_infer_node_2"
+   ],
+   "problem_statement_chars": 777
+  },
+  {
+   "instance_id": "pylint-dev__pylint-4604",
+   "repo": "pylint-dev/pylint",
+   "version": "2.9",
+   "difficulty": "15 min - 1 hour",
+   "base_commit": "1e55ae64624d28c5fe8b63ad7979880ee2e6ef3f",
+   "created_at": "2021-06-22T10:44:14Z",
+   "gold_files": [
+    "pylint/checkers/variables.py",
+    "pylint/constants.py"
+   ],
+   "gold_hunks": {
+    "pylint/checkers/variables.py": [
+     [
+      1826,
+      1831
+     ]
+    ],
+    "pylint/constants.py": [
+     [
+      1,
+      6
+     ],
+     [
+      11,
+      16
+     ]
+    ]
+   },
+   "fail_to_pass": [
+    "tests/checkers/unittest_variables.py::TestVariablesChecker::test_bitbucket_issue_78",
+    "tests/checkers/unittest_variables.py::TestVariablesChecker::test_no_name_in_module_skipped",
+    "tests/checkers/unittest_variables.py::TestVariablesChecker::test_all_elements_without_parent",
+    "tests/checkers/unittest_variables.py::TestVariablesChecker::test_redefined_builtin_ignored",
+    "tests/checkers/unittest_variables.py::TestVariablesChecker::test_redefined_builtin_custom_modules",
+    "tests/checkers/unittest_variables.py::TestVariablesChecker::test_redefined_builtin_modname_not_ignored",
+    "tests/checkers/unittest_variables.py::TestVariablesChecker::test_redefined_builtin_in_function",
+    "tests/checkers/unittest_variables.py::TestVariablesChecker::test_unassigned_global",
+    "tests/checkers/unittest_variables.py::TestVariablesChecker::test_listcomp_in_decorator",
+    "tests/checkers/unittest_variables.py::TestVariablesChecker::test_listcomp_in_ancestors",
+    "tests/checkers/unittest_variables.py::TestVariablesChecker::test_return_type_annotation",
+    "tests/checkers/unittest_variables.py::TestVariablesChecker::test_attribute_in_type_comment",
+    "tests/checkers/unittest_variables.py::TestVariablesCheckerWithTearDown::test_custom_callback_string",
+    "tests/checkers/unittest_variables.py::TestVariablesCheckerWithTearDown::test_redefined_builtin_modname_not_ignored",
+    "tests/checkers/unittest_variables.py::TestVariablesCheckerWithTearDown::test_redefined_builtin_in_function",
+    "tests/checkers/unittest_variables.py::TestVariablesCheckerWithTearDown::test_import_as_underscore",
+    "tests/checkers/unittest_variables.py::TestVariablesCheckerWithTearDown::test_lambda_in_classdef",
+    "tests/checkers/unittest_variables.py::TestVariablesCheckerWithTearDown::test_nested_lambda",
+    "tests/checkers/unittest_variables.py::TestVariablesCheckerWithTearDown::test_ignored_argument_names_no_message",
+    "tests/checkers/unittest_variables.py::TestVariablesCheckerWithTearDown::test_ignored_argument_names_starred_args",
+    "tests/checkers/unittest_variables.py::TestMissingSubmodule::test_package_all"
+   ],
+   "problem_statement_chars": 685
+  },
+  {
+   "instance_id": "pylint-dev__pylint-4661",
+   "repo": "pylint-dev/pylint",
+   "version": "2.10",
+   "difficulty": "15 min - 1 hour",
+   "base_commit": "1d1619ef913b99b06647d2030bddff4800abdf63",
+   "created_at": "2021-07-03T00:57:06Z",
+   "gold_files": [
+    "pylint/config/__init__.py",
+    "setup.cfg"
+   ],
+   "gold_hunks": {
+    "pylint/config/__init__.py": [
+     [
+      36,
+      41
+     ],
+     [
+      63,
+      69
+     ]
+    ],
+    "setup.cfg": [
+     [
+      42,
+      47
+     ],
+     [
+      74,
+      80
+     ],
+     [
+      82,
+      87
+     ]
+    ]
+   },
+   "fail_to_pass": [
+    "tests/lint/unittest_lint.py::test_pylint_home"
+   ],
+   "problem_statement_chars": 995
+  },
+  {
+   "instance_id": "pylint-dev__pylint-4970",
+   "repo": "pylint-dev/pylint",
+   "version": "2.10",
+   "difficulty": "<15 min fix",
+   "base_commit": "40cc2ffd7887959157aaf469e09585ec2be7f528",
+   "created_at": "2021-09-05T19:44:07Z",
+   "gold_files": [
+    "pylint/checkers/similar.py"
+   ],
+   "gold_hunks": {
+    "pylint/checkers/similar.py": [
+     [
+      390,
+      395
+     ]
+    ]
+   },
+   "fail_to_pass": [
+    "tests/checkers/unittest_similar.py::test_set_duplicate_lines_to_zero"
+   ],
+   "problem_statement_chars": 618
+  },
+  {
+   "instance_id": "pylint-dev__pylint-6386",
+   "repo": "pylint-dev/pylint",
+   "version": "2.14",
+   "difficulty": "15 min - 1 hour",
+   "base_commit": "754b487f4d892e3d4872b6fc7468a71db4e31c13",
+   "created_at": "2022-04-19T06:34:57Z",
+   "gold_files": [
+    "pylint/config/argument.py",
+    "pylint/config/arguments_manager.py",
+    "pylint/config/utils.py",
+    "pylint/lint/base_options.py"
+   ],
+   "gold_hunks": {
+    "pylint/config/argument.py": [
+     [
+      457,
+      462
+     ],
+     [
+      467,
+      469
+     ]
+    ],
+    "pylint/config/arguments_manager.py": [
+     [
+      218,
+      223
+     ]
+    ],
+    "pylint/config/utils.py": [
+     [
+      71,
+      76
+     ],
+     [
+      207,
+      212
+     ],
+     [
+      218,
+      224
+     ]
+    ],
+    "pylint/lint/base_options.py": [
+     [
+      544,
+      549
+     ],
+     [
+      554,
+      559
+     ]
+    ]
+   },
+   "fail_to_pass": [
+    "tests/config/test_config.py::test_short_verbose"
+   ],
+   "problem_statement_chars": 739
+  },
+  {
+   "instance_id": "pylint-dev__pylint-6528",
+   "repo": "pylint-dev/pylint",
+   "version": "2.14",
+   "difficulty": "15 min - 1 hour",
+   "base_commit": "273a8b25620467c1e5686aa8d2a1dbb8c02c78d0",
+   "created_at": "2022-05-06T21:03:37Z",
+   "gold_files": [
+    "pylint/lint/expand_modules.py",
+    "pylint/lint/pylinter.py"
+   ],
+   "gold_hunks": {
+    "pylint/lint/expand_modules.py": [
+     [
+      46,
+      51
+     ],
+     [
+      61,
+      70
+     ]
+    ],
+    "pylint/lint/pylinter.py": [
+     [
+      31,
+      37
+     ],
+     [
+      564,
+      571
+     ],
+     [
+      579,
+      584
+     ]
+    ]
+   },
+   "fail_to_pass": [
+    "tests/lint/unittest_lint.py::test_recursive_ignore[--ignore-ignored_subdirectory]",
+    "tests/lint/unittest_lint.py::test_recursive_ignore[--ignore-patterns-ignored_*]",
+    "tests/test_self.py::TestRunTC::test_ignore_recursive",
+    "tests/test_self.py::TestRunTC::test_ignore_pattern_recursive"
+   ],
+   "problem_statement_chars": 2359
+  },
+  {
+   "instance_id": "pylint-dev__pylint-6903",
+   "repo": "pylint-dev/pylint",
+   "version": "2.15",
+   "difficulty": "<15 min fix",
+   "base_commit": "ca80f03a43bc39e4cc2c67dc99817b3c9f13b8a6",
+   "created_at": "2022-06-09T19:43:36Z",
+   "gold_files": [
+    "pylint/lint/run.py"
+   ],
+   "gold_hunks": {
+    "pylint/lint/run.py": [
+     [
+      58,
+      63
+     ]
+    ]
+   },
+   "fail_to_pass": [
+    "tests/test_pylint_runners.py::test_pylint_run_jobs_equal_zero_dont_crash_with_cpu_fraction"
+   ],
+   "problem_statement_chars": 2662
+  },
+  {
+   "instance_id": "pylint-dev__pylint-7080",
+   "repo": "pylint-dev/pylint",
+   "version": "2.15",
+   "difficulty": "15 min - 1 hour",
+   "base_commit": "3c5eca2ded3dd2b59ebaf23eb289453b5d2930f0",
+   "created_at": "2022-06-28T17:24:43Z",
+   "gold_files": [
+    "pylint/lint/expand_modules.py"
+   ],
+   "gold_hunks": {
+    "pylint/lint/expand_modules.py": [
+     [
+      52,
+      57
+     ]
+    ]
+   },
+   "fail_to_pass": [
+    "tests/test_self.py::TestRunTC::test_ignore_path_recursive_current_dir"
+   ],
+   "problem_statement_chars": 24770
+  },
+  {
+   "instance_id": "pylint-dev__pylint-7277",
+   "repo": "pylint-dev/pylint",
+   "version": "2.15",
+   "difficulty": "<15 min fix",
+   "base_commit": "684a1d6aa0a6791e20078bc524f97c8906332390",
+   "created_at": "2022-08-08T23:07:49Z",
+   "gold_files": [
+    "pylint/__init__.py"
+   ],
+   "gold_hunks": {
+    "pylint/__init__.py": [
+     [
+      96,
+      104
+     ]
+    ]
+   },
+   "fail_to_pass": [
+    "tests/test_self.py::TestRunTC::test_modify_sys_path"
+   ],
+   "problem_statement_chars": 1087
+  },
+  {
+   "instance_id": "pylint-dev__pylint-8898",
+   "repo": "pylint-dev/pylint",
+   "version": "3.0",
+   "difficulty": "1-4 hours",
+   "base_commit": "1f8c4d9eb185c16a2c1d881c054f015e1c2eb334",
+   "created_at": "2023-07-29T21:53:59Z",
+   "gold_files": [
+    "pylint/config/argument.py",
+    "pylint/utils/__init__.py",
+    "pylint/utils/utils.py"
+   ],
+   "gold_hunks": {
+    "pylint/config/argument.py": [
+     [
+      114,
+      120
+     ]
+    ],
+    "pylint/utils/__init__.py": [
+     [
+      14,
+      19
+     ],
+     [
+      32,
+      37
+     ]
+    ],
+    "pylint/utils/utils.py": [
+     [
+      22,
+      28
+     ],
+     [
+      253,
+      258
+     ]
+    ]
+   },
+   "fail_to_pass": [
+    "tests/config/test_config.py::test_csv_regex_error"
+   ],
+   "problem_statement_chars": 3455
+  }
+ ]
+}

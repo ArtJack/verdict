@@ -53,6 +53,7 @@ import threading
 import time
 from datetime import datetime, timedelta
 from pathlib import Path
+from urllib.parse import urlparse
 
 try:
     from .gate import evaluate
@@ -177,14 +178,41 @@ DEFAULT_PROMPT = (
     "afford.")
 
 
+def limit_kind(output: str) -> str | None:
+    """Which allowance the CLI says is spent: `session` (a window that reopens
+    within hours) or `weekly` (days away), or None.
+
+    The difference decides whether waiting is sensible. A session limit is worth
+    sleeping through; a weekly one is not — the first version knew only the word
+    "session", so a weekly limit read as an ordinary failure, and the runner
+    spent its retry, reported a lost run, and left the operator to find the real
+    reason in the log.
+    """
+    low = output.lower()
+    if "weekly limit" in low:
+        return "weekly"
+    if "session limit" in low or "usage limit" in low:
+        return "session"
+    return None
+
+
+def limit_line(output: str) -> str:
+    """The CLI's own sentence about the limit, for a message that explains itself."""
+    for line in output.splitlines():
+        if "limit" in line.lower() and "reset" in line.lower():
+            return line.strip()[:200]
+    return "the CLI reported a usage limit"
+
+
 def seconds_until_reset(output: str, ceiling_s: int = 10800) -> int | None:
     """Parse 'resets 2:40am' / 'resets 23:15' from a session-limit error.
 
-    None when the output is not a session-limit error at all; a bounded wait
-    when it is but the time cannot be read — the window exists even when its
-    edge is unknown.
+    None when the output is not a limit this runner should wait out — no limit
+    at all, or a weekly one, which reopens in days and must be reported rather
+    than slept through. A bounded wait when the window exists but its edge
+    cannot be read.
     """
-    if "session limit" not in output.lower():
+    if limit_kind(output) != "session":
         return None
     m = re.search(r"resets\s+([0-9]{1,2}:[0-9]{2}(?:am|pm)?)", output, re.I)
     if not m:
@@ -274,6 +302,106 @@ def plugin_root(explicit=None):
         if cand and _has(Path(cand)):
             return Path(cand)
     return None
+
+
+GATEWAY_FLAGS = {
+    # A model that is not Anthropic's behind the base URL rejects the `thinking`
+    # block and any pre-release field, and cannot be named from the CLI's built-in
+    # catalogue. Without these three a gateway run fails with a 400 that names
+    # none of this.
+    "CLAUDE_CODE_DISABLE_ADAPTIVE_THINKING": "1",
+    "CLAUDE_CODE_DISABLE_EXPERIMENTAL_BETAS": "1",
+    "CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY": "1",
+}
+
+
+def is_gateway(url) -> bool:
+    """True only for a base URL that is *not* Anthropic's own.
+
+    `ANTHROPIC_BASE_URL` is routinely set to `https://api.anthropic.com` by
+    tooling that never intended to redirect anything. Treating any value as a
+    gateway sent a run to an empty config directory with no login in it, and the
+    session came back "Not logged in" — the operator's named account ignored
+    because of a variable that changed nothing.
+    """
+    if not url:
+        return False
+    host = urlparse(str(url)).hostname or ""
+    return not (host == "anthropic.com" or host.endswith(".anthropic.com"))
+
+
+def read_env_file(path) -> dict:
+    """`KEY=VALUE` lines from a file the operator owns.
+
+    A nightly should be able to say *which account or endpoint it spends* without
+    that credential appearing in a command line, a crontab, or a log. Blank lines
+    and `#` comments are skipped; surrounding quotes are stripped.
+    """
+    out = {}
+    for line in Path(path).read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, _, value = line.partition("=")
+        out[key.strip()] = value.strip().strip('"').strip("'")
+    return out
+
+
+def seed_config(config_dir, repo) -> None:
+    """Mark `repo` trusted inside a config directory the CLI may never have seen.
+
+    A fresh `CLAUDE_CONFIG_DIR` has accepted neither the trust dialog nor
+    bypass-permissions mode, and this runner always passes
+    `--dangerously-skip-permissions`: the session then exits 0 having done
+    nothing at all — no output, no state — which the gate reports as a lost run
+    while the real cause is configuration. Measured 2026-09-08: identical
+    command, empty config directory silent, seeded one answers.
+    """
+    config_dir = Path(config_dir)
+    doc_path = config_dir / ".claude.json"
+    try:
+        doc = json.loads(doc_path.read_text(encoding="utf-8")) if doc_path.is_file() else {}
+    except (OSError, json.JSONDecodeError):
+        doc = {}
+    if not isinstance(doc, dict):
+        doc = {}
+    doc["bypassPermissionsModeAccepted"] = True
+    projects = doc.setdefault("projects", {})
+    if isinstance(projects, dict):
+        entry = projects.setdefault(str(Path(repo).resolve()), {})
+        if isinstance(entry, dict):
+            entry.update({"hasTrustDialogAccepted": True,
+                          "hasCompletedProjectOnboarding": True})
+    config_dir.mkdir(parents=True, exist_ok=True)
+    doc_path.write_text(json.dumps(doc, indent=1) + "\n", encoding="utf-8")
+
+
+def session_env(env: dict, repo) -> tuple[dict, list]:
+    """Apply the operator's account or endpoint choice → (env, notes).
+
+    `CLAUDE_CONFIG_DIR` chooses *which stored login pays* — a second
+    subscription, a machine account — and is seeded so the headless run is not
+    refused in silence. `ANTHROPIC_BASE_URL` chooses a different endpoint
+    entirely (an LLM gateway, a local model server): the CLI ignores
+    `ANTHROPIC_AUTH_TOKEN` while it has a login of its own to prefer, so a
+    gateway run needs a config directory with no login in it.
+    """
+    notes = []
+    if is_gateway(env.get("ANTHROPIC_BASE_URL")):
+        for key, value in GATEWAY_FLAGS.items():
+            env.setdefault(key, value)
+        if env.get("ANTHROPIC_AUTH_TOKEN") and not env.get("ANTHROPIC_API_KEY"):
+            env["ANTHROPIC_API_KEY"] = env["ANTHROPIC_AUTH_TOKEN"]
+        if not env.get("CLAUDE_CONFIG_DIR"):
+            notes.append("endpoint: ANTHROPIC_BASE_URL is set but CLAUDE_CONFIG_DIR is not — "
+                         "a CLI with a stored login sends that credential instead of the "
+                         "gateway's and the gateway answers 401")
+        notes.append(f"endpoint: {env['ANTHROPIC_BASE_URL']}")
+    config_dir = env.get("CLAUDE_CONFIG_DIR")
+    if config_dir:
+        seed_config(config_dir, repo)
+        notes.append(f"account: CLAUDE_CONFIG_DIR {config_dir} (trust seeded)")
+    return env, notes
 
 
 PROVISION_RECORD = "verdict-provision.json"   # under .claude/, beside what it describes
@@ -622,6 +750,12 @@ def main(argv=None) -> int:
     ap.add_argument("--no-provision", dest="provision", action="store_false",
                     help="do not write .claude/agents/verdict.md or the hook set into "
                          ".claude/settings.local.json before launching")
+    ap.add_argument("--env-file", type=Path, default=None, metavar="PATH",
+                    help="KEY=VALUE file merged into the run's environment: "
+                         "CLAUDE_CONFIG_DIR to spend a chosen account's allowance rather "
+                         "than the ambient login, or ANTHROPIC_BASE_URL (+ "
+                         "ANTHROPIC_AUTH_TOKEN) to run against an LLM gateway or a local "
+                         "model server. Keeps the credential out of the command line")
     ap.add_argument("--plugin-root", default=None,
                     help="where agents/ and hooks/ live (default: CLAUDE_PLUGIN_ROOT, "
                          "this checkout, then the newest plugin-cache version)")
@@ -683,6 +817,14 @@ def main(argv=None) -> int:
         passthrough = [*passthrough, "--dangerously-skip-permissions"]
 
     env = dict(os.environ, VERDICT_STRICT="1", VERDICT_MODEL=args.model)
+    if args.env_file:
+        if not args.env_file.is_file():
+            print(f"verdict-run: --env-file {args.env_file} does not exist", file=sys.stderr)
+            return 2
+        env.update(read_env_file(args.env_file))
+    env, env_notes = session_env(env, repo)
+    for note in env_notes:
+        print(f"verdict-run: {note}", file=sys.stderr)
     # `project,local`: the user-scope plugin stays out (isolation), and the
     # hooks provisioned into settings.local.json come in.
     cmd = [args.claude_cmd, "-p", prompt, "--model", args.model,
@@ -694,6 +836,12 @@ def main(argv=None) -> int:
             print(f"verdict-run: attempt {attempt} timed out after {args.timeout_s}s",
                   file=sys.stderr)
             continue
+        if limit_kind(output) == "weekly":
+            # Days away, not hours: nothing this run can wait for, and a second
+            # attempt would only spend the retry. Say so in the CLI's own words.
+            print(f"verdict-run: {limit_line(output)} — no model run is possible until then; "
+                  "the standing verdict is left as it is", file=sys.stderr)
+            break
         wait = seconds_until_reset(output, args.reset_ceiling_s)
         if wait and attempt == 1:
             print(f"verdict-run: session limit; waiting {wait}s for the window to reset",

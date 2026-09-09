@@ -231,3 +231,53 @@ measurements (`docs/state-schema.md`, "The model-free night").
 ```
 verdict-run myapp --skip-unless-drift --max-age-hours 26 --fail-on risks
 ```
+
+## Which account pays, and which endpoint answers
+
+A scheduled run spends whatever the CLI happens to be signed into. That is rarely what
+you want: a nightly should not eat the allowance you are using to work, and some teams
+would rather it never left the building at all. `verdict-run --env-file <path>` merges a
+`KEY=VALUE` file into the run's environment, so the choice lives in a file you own
+(`chmod 600`) instead of in a command line, a crontab, or a log.
+
+**A dedicated account.** Sign it in once, into its own configuration directory:
+
+```bash
+CLAUDE_CONFIG_DIR=~/.config/claude-verdict claude      # sign in, then /exit
+```
+
+```
+# ~/.config/verdict-run.env
+CLAUDE_CONFIG_DIR=/home/you/.config/claude-verdict
+```
+
+Every `verdict-run --env-file ~/.config/verdict-run.env` then spends that subscription,
+and your interactive sessions are untouched.
+
+**A gateway, or a local model server.** Anything that speaks the Anthropic messages API
+— LiteLLM in front of Ollama, vLLM, a corporate proxy — works the same way:
+
+```
+# ~/.config/verdict-run.env
+ANTHROPIC_BASE_URL=http://gateway:4000
+ANTHROPIC_AUTH_TOKEN=sk-...
+CLAUDE_CONFIG_DIR=/home/you/.config/claude-verdict-gateway
+```
+
+then `verdict-run … --model <the gateway's model name>`.
+
+Two things about that setup are not obvious, and both cost an afternoon to find:
+
+- **A signed-in CLI ignores `ANTHROPIC_AUTH_TOKEN`.** It sends its own stored credential,
+  the gateway rejects a key nobody configured, and the error names a key you have never
+  seen. The config directory must have no login in it — that is what makes the gateway
+  credential the only one available.
+- **A config directory the CLI has never seen refuses bypass-permissions mode, silently.**
+  A headless run there exits 0 having done nothing: no output, no state, no transcript,
+  which the gate reports as a lost run. `verdict-run` seeds the trust flags itself before
+  launching, so this is handled; if you build your own launcher, seed them or you will
+  debug a model that never ran.
+
+The runner prints which account or endpoint it resolved, so a nightly log says what it
+spent. A model served this way is not the model the eval measured — see
+[eval/README.md](../eval/README.md) before trusting a verdict from one.

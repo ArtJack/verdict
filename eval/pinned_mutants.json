@@ -104,8 +104,8 @@
  {
   "label": "H5 F-53: back to the fixed 'minutes ago' phrase",
   "path": "src/verdict_mcp/harness.py",
-  "old": "                \"meaning\": f\"an earlier attempt at this same commit, {_ago(age_h)} — \"\n                           \"this run's own retry, not a lost run. Nothing is missing\",",
-  "new": "                \"meaning\": \"an earlier attempt at this same commit, minutes ago — \"\n                           \"this run's own retry, not a lost run. Nothing is missing\","
+  "old": "                \"meaning\": f\"an earlier attempt at this same commit, {_ago(age_h)} \u2014 \"\n                           \"this run's own retry, not a lost run. Nothing is missing\",",
+  "new": "                \"meaning\": \"an earlier attempt at this same commit, minutes ago \u2014 \"\n                           \"this run's own retry, not a lost run. Nothing is missing\","
  },
  {
   "label": "H6 F-53: _ago reports hours as minutes",
@@ -210,7 +210,7 @@
   "new": "                if False:"
  },
  {
-  "label": "T08 a bare `-` is parsed as an option bundle [EQUIVALENT: yields no operand vs an operand `_target_ok` waves through as a flag — same verdict either way]",
+  "label": "T08 a bare `-` is parsed as an option bundle [EQUIVALENT: yields no operand vs an operand `_target_ok` waves through as a flag \u2014 same verdict either way]",
   "path": "hooks/enforce_bash_scope.py",
   "old": "        elif t.startswith(\"-\") and len(t) > 1:",
   "new": "        elif t.startswith(\"-\"):",
@@ -303,8 +303,8 @@
  {
   "label": "0.77.0 Q6 F-26: the report stops counting what was not run",
   "path": "src/verdict_mcp/harness.py",
-  "old": "                   \"measured but not verifiable\"\n                   + (f\" · {not_run} not run (tests cited in prose only, none declared \"\n                      \"as `verification_test`)\" if not_run else \"\")\n                   + (f\" · {prose_only} measured on a prose citation only — recorded, not \"\n                      \"confirmed; declare `verification_test`\" if prose_only else \"\"))\n",
-  "new": "                   \"measured but not verifiable\"\n                   + (f\" · {prose_only} measured on a prose citation only — recorded, not \"\n                      \"confirmed; declare `verification_test`\" if prose_only else \"\"))\n"
+  "old": "                   \"measured but not verifiable\"\n                   + (f\" \u00b7 {not_run} not run (tests cited in prose only, none declared \"\n                      \"as `verification_test`)\" if not_run else \"\")\n                   + (f\" \u00b7 {prose_only} measured on a prose citation only \u2014 recorded, not \"\n                      \"confirmed; declare `verification_test`\" if prose_only else \"\"))\n",
+  "new": "                   \"measured but not verifiable\"\n                   + (f\" \u00b7 {prose_only} measured on a prose citation only \u2014 recorded, not \"\n                      \"confirmed; declare `verification_test`\" if prose_only else \"\"))\n"
  },
  {
   "label": "0.77.0 Q7 F-60: the bash guard's stderr pin is never called (the text survives)",
@@ -468,7 +468,7 @@
   "old": "errors=\"replace\"",
   "new": "errors=\"strict\"",
   "equivalent": true,
-  "note": "Measured, not assumed: with encoding='utf-8' every character these guards emit is encodable — paths reach the message through !r, which escapes lone surrogates — so no input distinguishes the two. Scoring it would only pressure someone into a test that cannot fail."
+  "note": "Measured, not assumed: with encoding='utf-8' every character these guards emit is encodable \u2014 paths reach the message through !r, which escapes lone surrogates \u2014 so no input distinguishes the two. Scoring it would only pressure someone into a test that cannot fail."
  },
  {
   "label": "0.80.0 C3 qa_paths: VERDICT_HOME loses its default",
@@ -797,8 +797,8 @@
  {
   "label": "0.83.0 L7 facts: the repository path is not recorded, so finalize can anchor nothing",
   "path": "src/verdict_mcp/harness.py",
-  "old": "        # and it runs from the QA root — it has to be told where the code is.\n        \"repo\": str(repo),\n",
-  "new": "        # and it runs from the QA root — it has to be told where the code is.\n"
+  "old": "        # and it runs from the QA root \u2014 it has to be told where the code is.\n        \"repo\": str(repo),\n",
+  "new": "        # and it runs from the QA root \u2014 it has to be told where the code is.\n"
  },
  {
   "label": "0.83.0 L8 finalize: nothing says when it could not anchor",
@@ -845,8 +845,8 @@
  {
   "label": "0.84.0 M4 hook: a file whose id disagrees with its name is accepted",
   "path": "src/verdict_mcp/validate.py",
-  "old": "    if str(data.get(\"id\") or \"\") != fid:\n        bad.append(f\"{where} carries id {data.get('id')!r}, but the filename says {fid!r} — \"\n",
-  "new": "    if False:\n        bad.append(f\"{where} carries id {data.get('id')!r}, but the filename says {fid!r} — \"\n"
+  "old": "    if str(data.get(\"id\") or \"\") != fid:\n        bad.append(f\"{where} carries id {data.get('id')!r}, but the filename says {fid!r} \u2014 \"\n",
+  "new": "    if False:\n        bad.append(f\"{where} carries id {data.get('id')!r}, but the filename says {fid!r} \u2014 \"\n"
  },
  {
   "label": "0.84.0 M5 validate: a second finding filed inside another finding's class passes",
@@ -881,8 +881,8 @@
  {
   "label": "0.84.0 M10 questions: an identical question is minted again instead of deduplicated",
   "path": "src/verdict_mcp/questions.py",
-  "old": "        if key in existing:\n            notes.append(f\"question already on the ledger as {existing[key]} — not re-asked\")\n            continue\n",
-  "new": "        if False:\n            notes.append(f\"question already on the ledger as {existing[key]} — not re-asked\")\n            continue\n"
+  "old": "        if key in existing:\n            notes.append(f\"question already on the ledger as {existing[key]} \u2014 not re-asked\")\n            continue\n",
+  "new": "        if False:\n            notes.append(f\"question already on the ledger as {existing[key]} \u2014 not re-asked\")\n            continue\n"
  },
  {
   "label": "0.84.0 M11 facts: last run's finding files are deleted instead of moved aside",
@@ -1003,5 +1003,53 @@
   "path": "src/verdict_mcp/validate.py",
   "old": "RUN_TYPES = {\"baseline\", \"delta\", \"re-baseline\", \"sweep\"}",
   "new": "RUN_TYPES = {\"baseline\", \"delta\", \"re-baseline\"}"
+ },
+ {
+  "label": "0.87.0 O1 runner: a weekly limit reads as a session one, so the night sleeps for a window that reopens in days",
+  "path": "src/verdict_mcp/runner.py",
+  "old": "    if \"weekly limit\" in low:\n        return \"weekly\"\n",
+  "new": "    if \"weekly limit\" in low:\n        return \"session\"\n"
+ },
+ {
+  "label": "0.87.0 O2 runner: a weekly limit spends the retry instead of stopping",
+  "path": "src/verdict_mcp/runner.py",
+  "old": "        if limit_kind(output) == \"weekly\":",
+  "new": "        if False:"
+ },
+ {
+  "label": "0.87.0 O3 runner: seconds_until_reset waits out any limit, weekly included",
+  "path": "src/verdict_mcp/runner.py",
+  "old": "    if limit_kind(output) != \"session\":\n        return None",
+  "new": "    if limit_kind(output) is None:\n        return None"
+ },
+ {
+  "label": "0.87.0 O4 runner: a named config directory is used without seeding trust, so the run is refused in silence",
+  "path": "src/verdict_mcp/runner.py",
+  "old": "    if config_dir:\n        seed_config(config_dir, repo)",
+  "new": "    if config_dir:\n        pass"
+ },
+ {
+  "label": "0.87.0 O5 runner: a gateway token is not mirrored to ANTHROPIC_API_KEY",
+  "path": "src/verdict_mcp/runner.py",
+  "old": "            env[\"ANTHROPIC_API_KEY\"] = env[\"ANTHROPIC_AUTH_TOKEN\"]",
+  "new": "            pass"
+ },
+ {
+  "label": "0.87.0 O6 runner: the operator's own flag value is overwritten by the gateway defaults",
+  "path": "src/verdict_mcp/runner.py",
+  "old": "        for key, value in GATEWAY_FLAGS.items():\n            env.setdefault(key, value)",
+  "new": "        for key, value in GATEWAY_FLAGS.items():\n            env[key] = value"
+ },
+ {
+  "label": "0.87.0 O7 runner: --env-file silently does nothing when the file is missing",
+  "path": "src/verdict_mcp/runner.py",
+  "old": "        if not args.env_file.is_file():\n            print(f\"verdict-run: --env-file {args.env_file} does not exist\", file=sys.stderr)\n            return 2",
+  "new": "        if not args.env_file.is_file():\n            args.env_file = None"
+ },
+ {
+  "label": "0.87.0 O8 runner: any ANTHROPIC_BASE_URL counts as a gateway, so a plain run loses its named account",
+  "path": "src/verdict_mcp/runner.py",
+  "old": "    return not (host == \"anthropic.com\" or host.endswith(\".anthropic.com\"))",
+  "new": "    return True"
  }
 ]

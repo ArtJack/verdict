@@ -3,6 +3,56 @@
 Plugin and `verdict-mcp` share one version line; `.claude-plugin/plugin.json` and
 `pyproject.toml` are bumped together.
 
+## 0.87.0 — 2026-09-09 · "the harness drives, the model answers"
+
+**Local mode: the harness drives, a small model answers.** `verdict-local` is a
+second way to run: Python does everything deterministic — measure the gates, read
+coverage, slice the source into functions, validate the JSON, assemble the state — and
+the model answers one bounded question at a time about one function, with a few hundred
+tokens of context and a schema it must fill. Nothing accumulates between calls, so the
+context never grows and a weak model is never asked to hold a plan in its head.
+
+Why it exists: the agent shape cannot shrink to a 7B model. Measured on this project's
+own runs, a run is ~38 model turns each re-reading ~53k tokens, of which ~19k is fixed
+preamble before the investigation starts; a 40k-window model has nothing left to think
+with. Measured the other way, on a local `qwen3:8b` behind a LiteLLM gateway: 6 model
+calls, 1,403 input tokens, 3,055 output, two real defects found in the eval's own
+baseline fixture (the `>` that should be `>=`, and `round()` where the spec says
+half-up), scored 4/10 against the same answer key Opus is scored against, with no hard
+failures and the harness chain intact.
+
+What it does not do is in the report, every run: nothing is executed, no counterfactual
+is applied, no history is read, the suite is not judged. Every finding it files is
+`confidence: hypothesis`, and the validator is what writes it — a claim that cannot pass
+the same check the agent's findings pass is never filed.
+
+**Which account pays, and which endpoint answers.** `verdict-run --env-file <path>`
+merges a `KEY=VALUE` file into the run's environment, so a scheduled run can spend a
+dedicated subscription (`CLAUDE_CONFIG_DIR`) or a gateway serving a local model
+(`ANTHROPIC_BASE_URL` + `ANTHROPIC_AUTH_TOKEN`) instead of whatever the CLI happens to
+be signed into — with the credential in a file the operator owns rather than in a
+crontab or a log. Two traps are handled rather than documented away: a signed-in CLI
+sends its own credential and ignores the gateway's, so a gateway needs a config
+directory with no login in it; and a config directory the CLI has never seen refuses
+bypass-permissions mode *in silence*, so a headless run there exits 0 having done
+nothing at all. The runner seeds the trust flags itself and prints what it resolved.
+Both eval harnesses take the same `--env-file`.
+
+**A weekly limit is not a session limit.** The runner knew only the phrase "session
+limit", so an exhausted weekly allowance read as an ordinary failure: it spent its one
+retry on a second identical refusal and reported a lost run, leaving the real reason in
+a log nobody was reading. It now stops on the first refusal and repeats the CLI's own
+sentence, including the reset time; `eval/swebench.py` stops the whole batch rather than
+writing "never ran" against every remaining instance. A session limit is still slept
+through, as before.
+
+**Measurement.** `eval/run_eval.py --pair-model <model>` runs the same fixture and the
+same prompt on two models interleaved, one table, per-row deltas — the model axis beside
+the prompt axis added in 0.84.0. Every run now reports its own token bill, read from the
+session transcript (the main session *and* its subagents, summed per request id, since
+the CLI's result line covers only the last turn). `eval/swebench.py` carries the same
+figures per instance.
+
 ## 0.86.0 — 2026-09-08 · "a night that spends no model"
 
 Step 4 of the work plan (engineering-docs, verdict pack §5a), Measurement: one
