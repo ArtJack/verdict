@@ -34,7 +34,10 @@ import ast
 import json
 import os
 import re
+import shutil
+import subprocess
 import sys
+import tempfile
 import urllib.error
 import urllib.request
 from datetime import date, timedelta
@@ -248,33 +251,232 @@ def examine(model: Model, chunk: Chunk) -> dict | None:
             "impact": str(second.get("impact") or "").strip()}
 
 
-def finding_of(claim: dict, ident: str, chunk_source: str) -> dict:
+UNPROVEN_CEILING = "Minor"
+
+
+def capped(severity: str, proven: bool) -> str:
+    """A claim nobody executed cannot outrank one that was executed.
+
+    Measured on boltons, a real 30-module library: the local model filed 35 findings from
+    reading alone, every one of them `REAL_DEFECT`, 34 of them Major or above, across
+    three modules. A tester whose every finding is Critical has no severity at all, and a
+    reader learns to skip the list. So severity from reading is capped until a
+    counterfactual moves it: prove the line and the model's own severity stands, leave it
+    unproven and it sits below everything the suite actually demonstrated.
+    """
+    return severity if proven else UNPROVEN_CEILING
+
+
+def finding_of(claim: dict, ident: str, chunk_source: str, proof: dict | None = None) -> dict:
     """A claim becomes a finding file — with `confidence: hypothesis`, because nothing
     here was proven by execution. The harness refuses to call it anything else, and a
     small-model run that claimed `proven` would be exactly the flattery this project
     exists to reject."""
     excerpt = "\n".join(chunk_source.splitlines()[:6])
+    proven = bool(proof and proof.get("status") == "proven")
+    evidence = [
+        f"{claim['path']}:{claim['line']} — read against the function's own contract"
+        + ("" if proven else "; not executed, not counterfactually tested"),
+        f"excerpt:\n{excerpt}",
+    ]
+    if proven:
+        evidence.insert(0, (
+            f"COUNTERFACTUAL (scratch copy, PYTHONDONTWRITEBYTECODE=1, __pycache__ swept, "
+            f"import verified inside the scratch): `{proof['expression']}` returns "
+            f"{proof['before']!r} at HEAD; with {claim['path']}:{proof['line']} changed from "
+            f"`{proof['was']}` to `{proof['now']}` it returns {proof['after']!r}. "
+            f"{proof['reason']}."))
+    narrative = f"{claim['mechanism']} {claim['impact']}".strip()
+    narrative += (" Proven by counterfactual, not by reading: the value follows the line."
+                  if proven else
+                  f" Filed by `verdict-local` from a bounded reading of this function "
+                  f"alone, with no execution behind it — so its severity is held at "
+                  f"{UNPROVEN_CEILING} however bad it reads. Confirm before acting.")
     return {
         "id": ident,
         "title": claim["title"],
-        "severity": claim["severity"],
-        "priority": "P2" if claim["severity"] in ("Minor", "Trivial") else "P1",
+        "severity": capped(claim["severity"], proven),
+        "priority": "P1" if proven and claim["severity"] not in ("Minor", "Trivial") else "P2",
         "status": "open",
         "failure_classification": "REAL_DEFECT",
-        "confidence": "hypothesis",
-        "evidence": [
-            f"{claim['path']}:{claim['line']} — read by a small model against the function's "
-            f"own contract; not executed, not counterfactually tested",
-            f"excerpt:\n{excerpt}",
-        ],
+        "confidence": "proven" if proven else "hypothesis",
+        "evidence": evidence,
         "root_cause": {"mechanism": claim["mechanism"],
                        "origin": "not investigated in local mode"},
-        "narrative": (f"{claim['mechanism']} {claim['impact']}".strip() +
-                      " Filed by `verdict-local`: a bounded reading of this function alone, "
-                      "with no execution behind it. Confirm before acting."),
+        "narrative": narrative,
     }
 
 
+
+# ── the counterfactual: the only evidence that separates cause from correlation ──
+
+PROBE_Q = """You said this function is wrong:
+
+File: {path}
+```python
+{source}
+```
+
+Claim: {mechanism}
+
+Give me two things so I can test that claim by running it.
+
+1. One Python expression that calls this code where the claim says it goes wrong. One
+   line, no imports, no side effects. The module is already imported as `m`.
+2. The one line to change, by its number in the left margin, and the whole replacement
+   line with its indentation.
+
+I will run the expression before and after the change myself, so do not tell me what it
+returns — only how to reach it.
+
+Reply with JSON only, and put a real call to `{function}` in the expression:
+{{"expression": "<a one-line call on m that reaches the claim, e.g. m.{function}(...)>",
+  "fix_line": <line number from the left margin>,
+  "fix_replacement": "<the whole replacement line, with its indentation>"}}"""
+
+COPY_SKIP = {".git", ".venv", "venv", "node_modules", "__pycache__", ".tox", ".mypy_cache",
+             ".pytest_cache", ".ruff_cache", "build", "dist", ".idea", ".claude"}
+PROBE_TIMEOUT_S = 60
+MAX_COPY_BYTES = 300 * 1024 * 1024
+
+
+def module_name(repo: Path, rel: str) -> str:
+    """The import path of a file, or "" when it is not importable from the repo root."""
+    parts = list(Path(rel).with_suffix("").parts)
+    if not parts or parts[-1] == "__init__":
+        parts = parts[:-1]
+    if not parts:
+        return ""
+    # `src/pkg/mod.py` imports as `pkg.mod` when `src` is a source root
+    if parts[0] in ("src", "lib") and (repo / parts[0] / "__init__.py").exists() is False:
+        parts = parts[1:]
+    return ".".join(parts)
+
+
+def source_root(repo: Path, rel: str) -> Path:
+    return repo / "src" if rel.startswith("src/") and (repo / "src").is_dir() else repo
+
+
+def scratch_copy(repo: Path, into: Path) -> bool:
+    """A copy of the tree that runs its own code — the discipline §3.5 demands, done by
+    the harness so the model cannot get it wrong. Returns False when the tree is too
+    large to copy, which is a refusal, not a silent skip."""
+    total = 0
+    for path in repo.rglob("*"):
+        if any(part in COPY_SKIP for part in path.parts):
+            continue
+        if path.is_file():
+            try:
+                total += path.stat().st_size
+            except OSError:
+                pass
+            if total > MAX_COPY_BYTES:
+                return False
+    shutil.copytree(repo, into, dirs_exist_ok=True,
+                    ignore=shutil.ignore_patterns(*COPY_SKIP))
+    return True
+
+
+def run_probe(python: str, root: Path, module: str, expression: str) -> tuple:
+    """Evaluate one expression against one tree → (value_json, error).
+
+    The tree is put first on `PYTHONPATH` and the module's resolved file is checked to be
+    inside it before the expression is trusted: a scratch that imports the original source
+    makes every injection read as a no-op, and this project measured 0 of 4 defects caught
+    without that check. Bytecode writing is off and `__pycache__` swept, because CPython
+    validates a cached file on mtime-in-seconds plus size and a same-size edit within one
+    second re-runs the old bytecode.
+    """
+    for cache in root.rglob("__pycache__"):
+        shutil.rmtree(cache, ignore_errors=True)
+    # Compare resolved paths on both sides: on macOS `/var` is a symlink to `/private/var`,
+    # so a correct import fails a naive prefix check and every probe reads as unavailable.
+    resolved = os.path.realpath(str(root))
+    script = (
+        "import json, os, sys\n"
+        f"import {module} as m\n"
+        f"assert os.path.realpath(m.__file__).startswith({resolved!r}), "
+        "'imported ' + m.__file__\n"
+        f"print('<<<' + json.dumps({expression}, default=repr) + '>>>')\n")
+    env = dict(os.environ, PYTHONDONTWRITEBYTECODE="1",
+               PYTHONPATH=str(root) + os.pathsep + os.environ.get("PYTHONPATH", ""))
+    try:
+        proc = subprocess.run([python, "-c", script], cwd=str(root), env=env,
+                              capture_output=True, text=True, timeout=PROBE_TIMEOUT_S)
+    except (OSError, subprocess.SubprocessError) as exc:
+        return None, str(exc)[:200]
+    out = proc.stdout
+    if "<<<" in out and ">>>" in out:
+        try:
+            return json.loads(out.split("<<<", 1)[1].split(">>>", 1)[0]), None
+        except json.JSONDecodeError as exc:
+            return None, f"probe printed unparseable JSON: {exc}"
+    return None, (proc.stderr.strip().splitlines() or ["no output"])[-1][:200]
+
+
+def counterfactual(model: Model, repo: Path, chunk: Chunk, claim: dict,
+                   python: str) -> dict | None:
+    """Flip the suspected line in a scratch copy and watch the value follow.
+
+    Three outcomes, all of them useful: the value flips to what the model predicted
+    (`proven`), the value does not move (`disproven` — the claim is withdrawn before it is
+    ever filed), or the probe cannot run (unchanged, still a hypothesis).
+    """
+    module = module_name(repo, chunk.path)
+    if not module:
+        return {"status": "unavailable",
+                "reason": f"{chunk.path} is not importable from the repository root"}
+    answer = model.ask_json(PROBE_Q.format(path=chunk.path, source=chunk.numbered(),
+                                           mechanism=claim["mechanism"], module=module,
+                                           function=chunk.name), max_tokens=700)
+    if not answer:
+        return {"status": "unavailable", "reason": "the model did not answer with JSON"}
+    expression = str(answer.get("expression") or "").strip()
+    replacement = answer.get("fix_replacement")
+    line = answer.get("fix_line")
+    if not expression or "\n" in expression or not isinstance(replacement, str):
+        return {"status": "unavailable",
+                "reason": "the probe was not one expression and one replacement line"}
+    if chunk.name not in expression:
+        # A small model copies the schema's example instead of writing a call: measured on
+        # boltons, where every probe came back as `m.some_function(1, 2)` and failed on an
+        # attribute that does not exist. The expression must reach the function it is about.
+        return {"status": "unavailable",
+                "reason": f"the probe does not call {chunk.name}: {expression[:80]}"}
+    if not isinstance(line, (int, float)) or not (chunk.start <= int(line) <= chunk.end):
+        return {"status": "unavailable",
+                "reason": f"the line to flip ({line}) is outside {chunk.name}"}
+    line = int(line)
+
+    with tempfile.TemporaryDirectory(prefix="verdict-cf-") as tmp:
+        scratch = Path(tmp) / "tree"
+        if not scratch_copy(repo, scratch):
+            return {"status": "unavailable", "reason": "the tree is too large to copy"}
+        root_before = source_root(repo, chunk.path)
+        before, err = run_probe(python, root_before, module, expression)
+        if err:
+            return {"status": "unavailable", "reason": f"probe failed on the original: {err}"}
+        target = scratch / chunk.path
+        lines = target.read_text(encoding="utf-8", errors="replace").splitlines()
+        if not (1 <= line <= len(lines)):
+            return {"status": "unavailable", "reason": "the line to flip is outside the file"}
+        original_line = lines[line - 1]
+        lines[line - 1] = replacement
+        target.write_text("\n".join(lines) + "\n", encoding="utf-8")
+        after, err = run_probe(python, source_root(scratch, chunk.path), module, expression)
+        if err:
+            return {"status": "unavailable", "reason": f"probe failed on the scratch: {err}"}
+
+    flipped = before != after
+    return {
+        "status": "proven" if flipped else "disproven",
+        "expression": expression, "before": before, "after": after,
+        "line": line, "was": original_line.strip()[:160], "now": replacement.strip()[:160],
+        "reason": ("the value follows the line: flipping it changed the result"
+                   if flipped else
+                   "the value did not move when the line was flipped — the line is not the "
+                   "cause, whatever else may be true"),
+    }
 
 # ── the suite: what execution says, before anything is read ───────────────────
 
@@ -321,8 +523,6 @@ def rerun_failures(repo: Path, command: str, times: int) -> list:
     Flakiness is a property of repetition, and repetition is arithmetic — no model is
     asked whether a test is flaky, because running it twice answers that exactly.
     """
-    import subprocess
-    import tempfile
     sets = []
     for _ in range(max(0, times)):
         with tempfile.TemporaryDirectory(prefix="verdict-local-") as scratch:
@@ -654,20 +854,45 @@ def skip_finding(skip: dict, ident: str) -> dict:
 # ── the run ───────────────────────────────────────────────────────────────────
 
 def file_findings(model: Model, repo: Path, files: list, mint, findings_dir: Path,
-                  filed: list) -> int:
-    """Read the source, one function at a time. Returns how many were examined."""
-    examined = 0
+                  filed: list, python: str, prove: bool) -> tuple:
+    """Read the source, one function at a time, and try to prove each claim by flipping
+    the line in a scratch copy. Returns (examined, proven, disproven)."""
+    examined = proven = disproven = 0
     for rel in files:
         for chunk in chunks_of(repo, rel)[:MAX_FUNCTIONS]:
             examined += 1
             claim = examine(model, chunk)
-            if claim:
-                mint(finding_of(claim, "@", chunk.source), findings_dir, filed)
-    return examined
+            if not claim:
+                continue
+            proof = counterfactual(model, repo, chunk, claim, python) if prove else None
+            if proof and proof.get("status") == "unavailable":
+                print(f"verdict-local: not proven, {chunk.path}:{claim['line']} — "
+                      f"{proof['reason']}", file=sys.stderr)
+            if proof and proof.get("status") == "disproven":
+                # Withdrawn before it was ever filed. The cheapest false positive is the
+                # one the harness catches for the reader.
+                disproven += 1
+                print(f"verdict-local: withdrew a claim in {chunk.path}:{claim['line']} — "
+                      f"{proof['reason']}", file=sys.stderr)
+                continue
+            if proof and proof.get("status") == "proven":
+                proven += 1
+            mint(finding_of(claim, "@", chunk.source, proof), findings_dir, filed)
+    return examined, proven, disproven
+
+
+def interpreter_of(command: str) -> str:
+    """The python the project's own gate uses — a probe run with a different interpreter
+    is measuring a different environment."""
+    for token in command.split():
+        low = token.lower()
+        if low.endswith("python") or low.endswith("python3") or low.endswith("python.exe"):
+            return token
+    return sys.executable
 
 
 def run(repo: Path, qa_root: Path, model: Model, limit: int, gate: str | None,
-        reruns: int) -> int:
+        reruns: int, prove: bool = True) -> int:
     qa_root.mkdir(parents=True, exist_ok=True)
     name, command = gate_of(load_profile_gates(qa_root), gate)
     print(f"verdict-local: measuring {repo} · gate {name}", file=sys.stderr)
@@ -675,7 +900,9 @@ def run(repo: Path, qa_root: Path, model: Model, limit: int, gate: str | None,
     (qa_root / "facts.json").write_text(json.dumps(facts, indent=1), encoding="utf-8")
 
     files = candidates(facts, repo)[:limit]
-    print(f"verdict-local: {len(files)} file(s) to read, model {model.name}", file=sys.stderr)
+    python = interpreter_of(command)
+    print(f"verdict-local: {len(files)} file(s) to read, model {model.name}"
+          + (f", proving with {python}" if prove else ", proving disabled"), file=sys.stderr)
     prefix = str(facts.get("next_finding_id") or "F-1").rsplit("-", 1)[0]
     number = int(str(facts.get("next_finding_id") or "F-1").rsplit("-", 1)[1] or 1)
 
@@ -731,7 +958,8 @@ def run(repo: Path, qa_root: Path, model: Model, limit: int, gate: str | None,
         mint(skip_finding(skip, "@"), findings_dir, filed)
 
     # 3. What reading says, function by function — the source, then the tests.
-    examined = file_findings(model, repo, files, mint, findings_dir, filed)
+    examined, proven, disproven = file_findings(model, repo, files, mint, findings_dir,
+                                                filed, python, prove)
     examined += brittle_findings(model, repo, test_files(repo)[:limit], mint, findings_dir,
                                  filed)
 
@@ -739,8 +967,10 @@ def run(repo: Path, qa_root: Path, model: Model, limit: int, gate: str | None,
         "verdict": verdict_for(filed),
         "findings": [], "still_open": [], "resolved": [],
         "not_tested": [
-            "everything a counterfactual would show: no claim was proven by flipping the "
-            "code and watching the symptom follow, and no commit history was read",
+            "the commit history: no origin was traced, and no `git log -S` was run",
+            ("claims the counterfactual could not reach — a probe that would not run leaves "
+             "its finding a hypothesis" if prove else
+             "everything a counterfactual would show: proving was disabled this run"),
             "any file beyond the "
             f"{len(files)} read this run",
         ],
@@ -763,6 +993,9 @@ def run(repo: Path, qa_root: Path, model: Model, limit: int, gate: str | None,
     (qa_root / "judgment.json").write_text(json.dumps(judgment, indent=1), encoding="utf-8")
     code = finalize_main(["--qa-root", str(qa_root),
                           "--judgment", str(qa_root / "judgment.json")])
+    if proven or disproven:
+        print(f"verdict-local: {proven} claim(s) proven by counterfactual, {disproven} "
+              f"withdrawn before filing", file=sys.stderr)
     print(f"verdict-local: {len(filed)} finding(s) from {examined} function(s) · "
           f"{model.calls} model calls · {model.input_tokens:,} in / "
           f"{model.output_tokens:,} out · {model.retries} retries", file=sys.stderr)
@@ -820,6 +1053,9 @@ def main(argv=None) -> int:
     ap.add_argument("--gate", default=None, metavar="CMD",
                     help="the suite command; `{report}` is rendered to a JUnit path. "
                          "Default: the profile's gate, else pytest")
+    ap.add_argument("--no-prove", dest="prove", action="store_false",
+                    help="do not flip claimed lines in a scratch copy to test them; every "
+                         "finding then stays a hypothesis")
     ap.add_argument("--reruns", type=int, default=2, metavar="N",
                     help="run the suite N more times to find tests that are not stable "
                          "(default 2); flakiness is measured, never asked of the model")
@@ -845,7 +1081,8 @@ def main(argv=None) -> int:
     model = Model(args.model, base_url, token, args.timeout_s)
     print(f"verdict-local: {clock.now():%Y-%m-%dT%H:%M:%SZ} · project {project!r}",
           file=sys.stderr)
-    return run(repo, qa_root, model, args.limit, args.gate, args.reruns)
+    return run(repo, qa_root, model, args.limit, args.gate, args.reruns,
+               args.prove)
 
 
 if __name__ == "__main__":

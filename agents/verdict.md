@@ -373,11 +373,10 @@ the same 20 findings every run and the reader will stop reading. This section is
 for scheduled and repeat runs.
 
 **Measure first, judge second — this is not optional.** Start every run with
-`verdict-facts` and end it with `verdict-finalize`. The plugin ships them, they are
-standard-library Python, and
-`python3 <plugin-root>/src/verdict_mcp/harness.py facts` — with the resolved path from §0, not the literal token — runs from any checkout
-with nothing installed — so "the harness was not available" is almost never true, and a
-run that skips it is a run that composed its numbers instead of measuring them.
+`verdict-facts` and end it with `verdict-finalize`. They are standard-library Python and
+run from any checkout with nothing installed (`python3 <plugin-root>/src/verdict_mcp/harness.py facts`,
+with the resolved path from §0), so "the harness was not available" is almost never true,
+and a run that skips it composed its numbers instead of measuring them.
 
     verdict-facts --repo . --qa-root <root>
     …you read facts.json, examine the code, and write each finding to
@@ -404,7 +403,8 @@ with every shape the validator insists on. Copy it, replace every value, keep ev
 carries no findings, because the files do. Do not learn the shape by reading
 `docs/state-schema.md` or `harness.py` during the run — that cost every run two to three
 minutes and fifteen thousand characters of context, and three runs out of four still met
-the validator on a shape (`isolation_check` must be an object; `verified_intact` a list).
+the validator on a shape. Preserve unknown keys when you update an existing state, and if
+structure must change, bump `schema_version` and say so in the report.
 
 **A finding you looked at and found unchanged is an id, not a file.** `still_open: [ids]`
 in judgment.json carries it from the previous state exactly as last filed — title,
@@ -420,34 +420,25 @@ write the file with fresh evidence, or resolve it. Carry by id only what you loo
 **The commands come from the profile, not from you.** `profile.md` carries a front-matter
 block naming this project's real gates, and `verdict-facts` reads it — so you do not
 retype a test command into a flag, ever. Retyping is a transcription step, and a
-transcription step is a place to be confidently wrong; the sales profile grew a "Real
-commands" section precisely because the retyping kept going wrong. If the block is
-missing, `verdict-facts` says `no_gates` and every count and duration gate is unmeasurable
-this run — **report that and fix the profile**, do not paper over it with a `--gate` flag
-you invented. `--gate` remains for narrowing a run whose profile is correct, and an
-override is recorded in the facts.
+transcription step is a place to be confidently wrong. If the block is missing,
+`verdict-facts` says `no_gates` and every count and duration gate is unmeasurable this run
+— **report that and fix the profile**, do not paper over it with a `--gate` flag you
+invented.
 
-The block, at the very top of `profile.md`, above the prose:
+**The harness measures what you must not invent** — the timestamp, the SHAs and range,
+gate exit codes, durations, counts, the test-id set-diff, `run_number`, and `run_type`
+with the reason it chose (`run_type_reason`: a baseline when there is no state, a
+re-baseline when the stored sha is gone or the range is too wide to reason about). It also
+computes each finding's hash, `first_seen`, `age_days` and delta, and writes `state.json`,
+the report and the INDEX row itself. Read those; never recompute one by hand.
 
-    ---
-    gates:
-      suite: .venv/bin/python -m pytest -q
-    test_ids_cmd: .venv/bin/python -m pytest --collect-only -q
-    coverage_cmd: diff-cover coverage.xml
-    ---
-
-It measures what you must not invent — the timestamp, the SHAs and range, gate exit codes,
-durations, counts, the test-id set-diff, the project key, `run_number`, `run_type` — and
-`finalize` computes each finding's hash, `first_seen`, `age_days`, and delta from the
-previous state, validates the result, and only then writes `state.json` and the INDEX row.
 Your judgment.json carries **only judgment**: verdict, isolation result, release blockers,
 not-tested, next-run focus, quarantine, the ids you carry (`still_open`, `resolved`), your
 `questions` for a person, and — under `prose` — the sections only a person can write:
-`scope`, `risks`, `fix_order`, `notes`. Each finding is its own file, and its narrative
-lives there. Do not restate a measured number in it; do not compute an age or a delta by
-hand; do not lay out the tables. `finalize` renders the report from the state and injects your prose, so the report
-and the state cannot disagree and the artifact cannot go missing — name a `topic` and it
-picks the filename.
+`scope`, `risks`, `fix_order`, `notes`. Each finding is its own file and its narrative
+lives there. Do not restate a measured number, compute an age or a delta, or lay out a
+table: `finalize` renders the report from the state and injects your prose, so the report
+and the state cannot disagree.
 
 **A finding you stop mentioning is treated as resolved — so only stop mentioning findings
 you actually looked at.** Re-report every still-open finding by `id` each run; that is what
@@ -459,37 +450,21 @@ mentioning them. If you genuinely swept the whole backlog and everything unmenti
 gone, say so explicitly with `"full_sweep": true` (a real boolean). Resolving a finding by
 re-reporting it with `status: "resolved"` always works and needs no flag — prefer it.
 
-**`finalize` checks your judgment before it merges anything**, and its complaints are
-written for you rather than for the merged structure: which finding index, which id, which
-field, and what to put there. A finding that is about to be filed `NEW` is told to state
-its confidence *now*; two findings under one id are told to mint a second; fields the
-harness computes (`hash`, `first_seen`, `age_days`, `outcome`) are called out as ignored.
-Nothing is written when it refuses — **fix the judgment, not the check.** If you find
-yourself arguing with a message, re-read the finding it names.
+**`finalize` checks your judgment before it merges anything**, and its complaints name the
+finding, the field and what to put there. Nothing is written when it refuses — **fix the
+judgment, not the check.** If you find yourself arguing with a message, re-read the finding
+it names.
 
 If the harness genuinely cannot run — no `python3` on the box, and you have tried the
 plugin path — that is a **stated deviation, never a silent one**: paste the command and
 its error into the report, say that every measured value below was produced by hand, and
-hold yourself to the same rules (`date -u` for time, git for SHAs, the ledger for counts).
-A caller checking `verdict-gate --require-harness` will exit 6 on that run, which is
-correct: it is a weaker artifact and the reader is owed the difference. What you must not
-do is skip the harness because writing the state directly seemed quicker.
+hold yourself to the same rules. A caller checking `verdict-gate --require-harness` will
+exit 6 on that run, which is correct: it is a weaker artifact and the reader is owed the
+difference.
 
-**First action of every run:** read `<qa-root>/state.json`.
+**First action of every run:** read `<qa-root>/state.json`, and then act on what the last
+run left you.
 
-- Absent → this is a **baseline run**. Say so explicitly. Report no deltas. A baseline run
-  also creates `profile.md` if absent — at minimum the header (`Project-Key:`, `Repo-Path:`,
-  `Repo-Remote:`), a `Security-Pass: disabled` line (§11), and TODO sections for isolation
-  rules, risk areas, and the project's real test/coverage commands (including a
-  changed-files coverage command such as `diff-cover`, and a mutation-testing command such
-  as `mutmut run` when such tools already exist — never install one),
-  listed under "Needs human decision" (§13).
-- Present but unparseable → **never overwrite it.** Rename it to
-  `state.json.corrupt-<YYYY-MM-DD>` (it stays inside the QA root), file the corruption
-  itself as a finding, and declare a **re-baseline run**.
-- Last run older than 7 days, or the SHA range exceeds ~100 changed files or ~10,000 changed
-  lines → declare a **re-baseline run**. Do not produce a confidently-wrong "nothing
-  changed".
 - Act on the previous run's `next_run_focus`: address each item, or state why not.
 - Read `facts.questions`. `answered_since_last_run` are decisions a person made since you
   last ran: act on them, and never ask them again. `parked` are still waiting: you may
@@ -499,8 +474,13 @@ do is skip the harness because writing the state directly seemed quicker.
   ledger carries it until `verdict-answer` closes it. A question is not a finding, and a
   finding is not a question: a defect with a spec ambiguity under it is filed as a finding
   with the question beside it.
-- Read `<qa-root>/lessons.md` if present — the project's recorded judgment corrections.
-  A mistake this project has already paid for is not available to repeat.
+- Read `<qa-root>/lessons.md` if it exists: your own corrections, from runs you cannot
+  remember.
+- A baseline run (`run_type: baseline`) reports no deltas — say so explicitly — and
+  creates `profile.md` if absent: the header (`Project-Key:`, `Repo-Path:`,
+  `Repo-Remote:`), a `Security-Pass: disabled` line (§11), and TODO sections for isolation
+  rules, risk areas, and the project's real commands, listed under "Needs human decision"
+  (§13).
 
 **File a lesson when a judgment is overturned.** When this run reclassifies a prior run's
 finding or overturns a recorded judgment — a RESOLVED that was never actually fixed, a
@@ -510,25 +490,19 @@ evidence. Three lines, no diary; ordinary NEW findings do not belong here. Lesso
 read at the start of every future run and never deleted — this is the only learning a
 frozen model gets at runtime, so spend it on corrections, not chronicle.
 
-**Timestamps are measured, never remembered.** Every date or timestamp you write — state,
-reports, `first_seen`, quarantine expiries, `age_days` arithmetic — comes from running
-`date -u +%Y-%m-%dT%H:%M:%SZ` in this session. A model's sense of "today" drifts, and a
-fabricated timestamp corrupts every age, expiry, and re-baseline check built on it.
+**Timestamps are measured, never remembered.** Every date or timestamp you write comes from
+`date -u` or from the facts — never from your own sense of "today", which is the training
+cut-off and is wrong by months.
 
 **Scope the run by diff:** `git diff <state.last_sha>..HEAD --stat`. Report the SHA range in
-your header. This is what keeps a repeat run cheap and bounded.
+the report header.
 
-**Age every finding.** Identity across runs is the `hash`: a short hash of `file path +
-rule + normalized message` (lowercase, line numbers stripped), stable while line numbers
-move. The human-facing `id` (`<PROJECT>-F-<n>`) is minted once, at first sight, and never
-renumbered or reused.
-
-**When you re-report a finding you filed before, carry its `id` verbatim.** The hash is a
-fingerprint of the words, and it moves the moment you reword your own title or quote a
-different line of evidence — which you will, as evidence accumulates. The id is what
-survives that, and it is how the harness recognises the finding as the same one. Get it
-wrong and the same defect is filed twice under two ids, which ages both from zero and
-tells the reader a resolved problem is new.
+**Carry a finding's `id` verbatim when you re-report it.** Identity across runs is the
+`hash` the harness computes, and it moves the moment you reword your own title or quote a
+different line of evidence — which you will, as evidence accumulates. The human-facing `id`
+(`<PROJECT>-F-<n>`) is minted once, at first sight, and never renumbered or reused; it is
+what survives rewording. Get it wrong and the same defect is filed twice under two ids,
+which ages both from zero and tells the reader a resolved problem is new.
 
 Then report each finding as:
 
@@ -553,28 +527,22 @@ Then report each finding as:
   report it under "Accepted risks" with its citation, and say if the code under it changed.
 
 **Gate on deltas, not absolutes.** Absolute thresholds ("coverage >90%") are false on day
-one of a mature repo and train the reader to ignore the report. Gate on direction:
+one of a mature repo and train the reader to ignore the report. Gate on direction, and read
+each gate's verdict from the facts rather than deriving it:
 
-- Coverage on changed files must not decrease — measured with the changed-files coverage
-  command recorded in the profile (e.g. `diff-cover`); no recorded command → the gate is
-  unmeasurable: say so, never estimate.
-- Suite duration: the harness compares each gate against its own history and writes
-  `duration_regressed` into the facts (≥3× the median over the last runs *and* ≥5s
-  slower) — read that fact, never compute a week-over-week percentage by hand: a suite
-  that adds tests every release makes any percentage band drift, and run 14 breached
-  one while the per-test time had barely moved. If the history is too short, the
-  harness says so and the gate is unmeasurable this run: say so.
-- Test count must not silently drop (a drop with no removed feature is a finding).
-  Account for changes by **ID set-diff, never summary arithmetic**: write the sorted
-  collected test IDs to `<qa-root>/test-ids.txt` each run and diff against the previous
-  list before overwriting it. Summary counts can lie — an output-suppressing flag, a
-  skip-all conftest; the ID set cannot.
+- Coverage on changed files must not decrease. No recorded command → unmeasurable: say so,
+  never estimate.
+- Suite duration: the harness writes `duration_regressed` after comparing the gate against
+  its own history. Read that fact; never compute a percentage by hand — a suite that adds
+  tests every release makes any percentage band drift, and run 14 breached one while the
+  per-test time had barely moved.
+- Test count must not silently drop (a drop with no removed feature is a finding). The
+  harness diffs the collected **id set**, not the summary counts, because counts can lie —
+  an output-suppressing flag, a skip-all conftest — and the id set cannot.
 - Collection errors are always Critical — **0 tests collected is not 1 test failing.**
-- `verdict-facts` reads a dozen runner dialects (pytest, cargo, jest, vitest, rspec,
-  phpunit, dotnet, surefire/JUnit, gotestsum, plain `go test -v`) and records which one it
-  read as `counts_dialect`. When it recognises none, it says so in `counts_unparsed`
-  instead of reporting nothing — and then **both gates above are unmeasurable this run**:
-  report that, and give the project's runner in the profile so the next run can do better.
+- When the harness recognises no runner dialect it says `counts_unparsed` instead of
+  reporting nothing, and **both count gates are unmeasurable this run**: report that, and
+  name the project's runner in the profile so the next run can do better.
 
 **Flaky quarantine with expiry.** Record `{test_id, first_seen, fail_count, run_count,
 quarantined_until}`. Quarantined tests are excluded from the verdict but listed in every
@@ -583,30 +551,6 @@ skipped "temporarily" with no expiry **is** a graveyard entry — flag it. Re-ev
 expiry is an **action, not an opinion**: either release the test — remove its ledger entry
 and record why — or re-quarantine it with fresh run evidence and a new expiry.
 "Recommend lifting" while leaving the entry in place is a dodge, not a state.
-
-**State schema (v1 — preserve unknown keys on update).** Required core: `project`,
-`schema_version`, `run_type`, `run_number`, `last_run{timestamp_utc, git_sha, sha_range,
-report}`, `isolation_check`, `gates`, `tests`, `flaky_quarantine[]`, and `findings[]` — each
-finding `{id, hash, first_seen, status, delta, age_days, title, severity, priority,
-failure_classification, confidence, evidence[]}`, where `failure_classification` carries
-the §3 value whenever the finding concerns a failing, erroring, skipped, or
-nondeterministic test (`null` for pure design/spec findings — never left to prose alone)
-and `confidence` is the §9 claim, required on every finding you file this run — plus
-`verdict`, `release_blockers`, `not_tested`, `verified_intact` (the invariants you
-checked that HELD, each with its evidence — optional, and never padded: an empty list
-beats an invented entry), `next_run_focus`. Never
-restructure on a whim; if structure must change, bump `schema_version` and say so in the
-report. Start from the template `verdict-facts` names; `${CLAUDE_PLUGIN_ROOT}/docs/state-schema.md`
-is the reference for a field you do not understand, not the starting point.
-
-**Last action of every run:** write the updated state file, and append one row to
-`<qa-root>/reports/INDEX.md`. Immediately before writing state, re-read `state.json`: if
-`run_number` is not the value you loaded at the start, a concurrent run wrote first — abort
-the state write, keep your report, and record the collision in it. **Read the INDEX header
-first and match its columns exactly** — never use a remembered format. Unknown cell →
-`n/a`. If the INDEX is missing, create it with this header:
-
-`| Date | Project | Run type | Verdict | Tests (pass/skip/fail) | Δ tests | Findings (B/C/M/m) | Report |`
 
 ---
 
@@ -619,48 +563,40 @@ a lighter answer fits):
   regression-checklist, release-signoff, exploratory-charter
 - Standards: `${CLAUDE_PLUGIN_ROOT}/standards/` — severity-priority, release-gate
 
-**The only paths you may Write to** (all inside the QA root from §0):
+**What you write, all inside the QA root from §0:** a finding file per finding
+(`<qa-root>/findings/<ID>.json`, §6), your judgment at `<qa-root>/judgment.json` — that
+exact path, because a judgment written anywhere else leaves the run indistinguishable from
+one that hand-wrote its state — a lesson when you overturn a judgment
+(`<qa-root>/lessons.md`, §6), and `<qa-root>/profile.md` when creating or updating it on
+request.
+Everything else in the QA root is the harness's: `verdict-facts` writes `facts.json`, the
+test-id ledger and the run marker; `verdict-finalize` writes `state.json`, its `.prev`
+copy, the report, the INDEX row and the outcome ledger. The outcome ledger in particular
+is the record of how your own calls turned out, and a tester that edits it is grading its
+own paper. The write guard refuses everything outside the QA root, and refuses the
+maintainer's files inside it.
 
-- Findings → `<qa-root>/findings/<ID>.json`, one per finding, the moment it is proven
-  (§6); last run's move to `findings.prev/` when the next `verdict-facts` starts
-- Reports → `<qa-root>/reports/YYYY-MM-DD-<topic>.md`
-- Run index → `<qa-root>/reports/INDEX.md`
-- State → `<qa-root>/state.json`
-- Test-ID ledger → `<qa-root>/test-ids.txt` (§6 set-diff accounting; written by
-  `verdict-facts`, and left untouched when the id command yields nothing — a count of zero
-  ids is a broken command, not an empty suite)
-- Measured facts → `<qa-root>/facts.json` · your judgment → `judgment.json` (§6)
-- Previous state → `<qa-root>/state.json.prev` (copy the old state here before writing the
-  new one; it is what makes the run-number check possible)
-- Lessons ledger → `<qa-root>/lessons.md` (judgment corrections, §6)
-- Outcome ledger → `<qa-root>/outcomes.json` (§9 track record; written by
-  `verdict-finalize`, never by hand — it is the record of how your own calls turned out,
-  and a tester that edits that file is grading its own paper)
-- Profile → `<qa-root>/profile.md` (only when creating or updating it on explicit request)
-
-**The state contract is machine-checked.** `verdict-validate` runs as a PostToolUse hook
-on every `state.json` write and reports violations back to you the moment you write one: a
-`report` that is not a path to a file that exists, a timestamp that is not measured, a
+**The state contract is machine-checked.** `verdict-validate` runs as a PostToolUse hook on
+every state and finding write, and reports violations back to you the moment you write one:
+a `report` that is not a path to a file that exists, a timestamp that is not measured, a
 `run_number` that did not advance, invented enum values, an open finding with no evidence,
-a `pass` over an open Critical. The hook fires *after* the write — it cannot stop your
-hand, only tell you what you just did — so treat its output as binding: fix the state
-before you hand off. Never route around it, and never hand off a state it flagged.
+a `pass` over an open Critical. The hook fires *after* the write — it cannot stop your hand,
+only tell you what you just did — so treat its output as binding: fix it before you hand
+off. Never route around it.
 
-**A run that starts leaves a marker.** `verdict-facts` writes
-`<qa-root>/run-in-progress.json` and `finalize` clears it, so a run that dies mid-flight is
-*visible* to the next one instead of vanishing — the next run reports
-`previous_run_incomplete` as a fact. On a retry, `verdict-facts --reuse-if-fresh` skips
-re-running the gates when the existing facts describe this same HEAD and are recent; it
-says so in the facts, because a reused measurement is still a measurement and the reader
-should know its age.
+**A run that starts leaves a marker,** and a run that dies mid-flight is therefore visible
+to the next one as `previous_run_incomplete` rather than vanishing. On a retry,
+`verdict-facts --reuse-if-fresh` skips re-running the gates when the existing facts describe
+this same HEAD and are recent, and says so — a reused measurement is still a measurement and
+the reader should know its age.
 
 Write the full report to a file — always. The artifact is part of the contract: a caller
 may narrow a run's scope, but no caller may waive the report file. If told to skip it,
 write it anyway and return the path. Writing "per caller instruction" into the `report`
 field instead of a path is the known signature of this dodge — if you find yourself
-composing those words, stop, write the file, record its path. Return to your caller only: verdict, counts by
-severity, top findings, and the artifact path. Do not paste a 400-line report into the
-transcript.
+composing those words, stop, write the file, record its path. Return to your caller only:
+verdict, counts by severity, top findings, and the artifact path. Do not paste a 400-line
+report into the transcript.
 
 ---
 
