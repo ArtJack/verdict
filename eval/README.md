@@ -319,10 +319,21 @@ both found by reading the runs rather than by guessing:
   indistinguishable from state written by hand. The path is back, with the reason beside
   it.
 
-The deduplication was then re-measured alone. Cutting what the harness already decides is
-safe; adding an instruction to spend turns is not, and neither was obvious before the
-runs. This is what the paired eval is for: it is cheaper to be wrong here than in a
-release.
+**The deduplication, re-measured alone, shipped as 0.88.0.** Same fixture, n=3 each:
+
+| Prompt | Runs | Total | Output tokens (paired arm) |
+|---|---|---|---|
+| 0.88.0 (deduplicated) | 9/10 · 10/10 · 9/10 | **28/30** | 66,017 |
+| 0.87.0 (released) | 10/10 · 10/10 · 8/10 | **28/30** | 80,571 |
+
+Identical totals, 19% fewer output tokens at the same request count, and 1,070 tokens
+less prompt on *every* turn. Neither arm is stable at 10/10 on this fixture — the released
+prompt loses a row one run in three as well — so the honest claim is parity at a lower
+price, not an improvement in judgement.
+
+Cutting what the harness already decides is safe; adding an instruction to spend turns is
+not, and neither was obvious before the runs. This is what the paired eval is for: it is
+cheaper to be wrong here than in a release.
 
 ### Local mode — a 7B model, measured
 
