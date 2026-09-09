@@ -32,9 +32,15 @@ def _session(base: Path, session_id: str, main_rows, sub_rows=None):
 
 
 def test_project_dir_matches_claude_codes_own_key(tmp_path, monkeypatch):
+    """Every character outside [A-Za-z0-9-] becomes a dash, over the *resolved* path —
+    which on Windows carries a drive letter, so the expectation is derived the same way
+    rather than written out in POSIX."""
+    import re as _re
     monkeypatch.setattr(Path, "home", staticmethod(lambda: tmp_path))
-    got = usage.project_dir("/Users/x/.cache/verdict/psf__requests-1")
-    assert got == tmp_path / ".claude" / "projects" / "-Users-x--cache-verdict-psf--requests-1"
+    cwd = "/Users/x/.cache/verdict/psf__requests-1"
+    key = _re.sub(r"[^A-Za-z0-9-]", "-", str(Path(cwd).resolve()))
+    assert usage.project_dir(cwd) == tmp_path / ".claude" / "projects" / key
+    assert key.endswith("-Users-x--cache-verdict-psf--requests-1")
 
 
 def test_usage_sums_the_subagent_and_counts_a_request_once(tmp_path, monkeypatch):

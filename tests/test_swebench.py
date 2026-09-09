@@ -172,7 +172,10 @@ def test_build_prompt_carries_the_issue_verbatim_and_the_shipped_command(tmp_pat
     row = {"problem_statement": "Symlinked directories are not collected.\n\nSince 6.1.0 ..."}
     prompt = swebench.build_prompt(root, row)
     assert "Symlinked directories are not collected." in prompt
-    assert str(root / "templates" / "bug-report.md") in prompt
+    # The command file writes `${CLAUDE_PLUGIN_ROOT}/templates/...` with a forward slash,
+    # so the rendered path keeps the repository's separator after the root — native on the
+    # left, POSIX on the right. Assert the substitution, not a joined native path.
+    assert f"{root}/templates/bug-report.md" in prompt
     assert "$ARGUMENTS" not in prompt and "${CLAUDE_PLUGIN_ROOT}" not in prompt
     assert "IN THIS SESSION" in prompt and "does not fix" in prompt
 
