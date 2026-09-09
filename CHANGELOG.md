@@ -3,6 +3,37 @@
 Plugin and `verdict-mcp` share one version line; `.claude-plugin/plugin.json` and
 `pyproject.toml` are bumped together.
 
+## 0.88.0 — 2026-09-09 · "prove the line, or hold the severity"
+
+**Local mode proves what it claims.** `verdict-local` now flips the suspected line in a
+scratch copy and watches the value follow: the model proposes one expression and one
+replacement line, and the harness does the rest — a copy without `.git` or the
+virtualenv, its own source first on `PYTHONPATH`, bytecode writing off and `__pycache__`
+swept, and the import verified to resolve inside the copy before anything is believed.
+Three outcomes, all useful: the value moves (`proven`, and the finding says so with the
+before and after), the value does not move (the claim is withdrawn before it is ever
+filed), or the probe cannot run (still a hypothesis, with the reason printed).
+
+**A reading nobody executed cannot outrank a test that ran.** Severity from reading alone
+is held at Minor until a counterfactual moves it. Measured on boltons, a real 30-module
+library: the local model filed 35 findings from reading, every one `REAL_DEFECT`, 34 of
+them Major or above. A tester whose every finding is Critical has no severity at all.
+
+**A smaller prompt, where the harness had already taken the work over.** Section 6
+restated what `verdict-facts` and `verdict-finalize` now decide themselves — the run type
+and why, each finding's age, the state, the report and the INDEX row — and section 7
+listed twelve paths where the agent writes four. That is 1,070 tokens off **every turn**,
+and measured on the root-cause fixture it is 18% fewer output tokens at the same number of
+requests.
+
+Two things did *not* ship, and the eval is why. Turning the class link into an instruction
+to run `grep` bought extra turns and won nothing (37% dearer, no rows gained). And one
+trimmed path was load-bearing: the compressed §7 stopped naming `judgment.json`, a run
+wrote its judgment outside the QA root, and an otherwise correct run — nine findings, a
+`fail` verdict, a full report — scored zero on a hard failure, because a judgment the
+harness cannot find is indistinguishable from state written by hand. Both are in
+[eval/README.md](eval/README.md) with their numbers.
+
 ## 0.87.0 — 2026-09-09 · "the harness drives, the model answers"
 
 **Local mode: the harness drives, a small model answers.** `verdict-local` is a
