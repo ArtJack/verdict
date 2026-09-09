@@ -319,17 +319,18 @@ File: {path}
 
 Claim: {mechanism}
 
-Prove it can be observed. Give a single Python expression that calls this code and returns
-the WRONG value today, the value it returns today, and the value it should return. Then
-give the one line to change and what to change it to.
+Give me two things so I can test that claim by running it.
 
-Rules: the expression must be one line, import nothing but `{module}`, take no arguments
-from outside, and have no side effects. Use the module as `m` — it is already imported.
+1. One Python expression that calls this code where the claim says it goes wrong. One
+   line, no imports, no side effects. The module is already imported as `m`.
+2. The one line to change, by its number in the left margin, and the whole replacement
+   line with its indentation.
+
+I will run the expression before and after the change myself, so do not tell me what it
+returns — only how to reach it.
 
 Reply with JSON only:
 {{"expression": "m.some_function(1, 2)",
-  "actual": <the value it returns today, as JSON>,
-  "expected": <the value it should return, as JSON>,
   "fix_line": <line number from the left margin>,
   "fix_replacement": "<the whole replacement line, with its indentation>"}}"""
 
@@ -464,7 +465,6 @@ def counterfactual(model: Model, repo: Path, chunk: Chunk, claim: dict,
     return {
         "status": "proven" if flipped else "disproven",
         "expression": expression, "before": before, "after": after,
-        "expected": answer.get("expected"),
         "line": line, "was": original_line.strip()[:160], "now": replacement.strip()[:160],
         "reason": ("the value follows the line: flipping it changed the result"
                    if flipped else

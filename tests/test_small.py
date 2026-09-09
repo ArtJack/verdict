@@ -386,3 +386,12 @@ def test_severity_from_reading_is_capped_until_something_is_executed():
     proven = small.finding_of(claim, "P-F-2", "def f(): pass", proof)
     assert proven["severity"] == "Critical" and proven["priority"] == "P1"
     assert small.capped("Trivial", False) == "Minor" and small.capped("Trivial", True) == "Trivial"
+
+
+def test_the_probe_asks_for_only_what_the_harness_cannot_measure():
+    """A small model's JSON parses about half the time, and every field is a chance to
+    fail. The values before and after are measured here, so they are not asked for."""
+    q = small.PROBE_Q
+    assert '"expression"' in q and '"fix_line"' in q and '"fix_replacement"' in q
+    assert '"actual"' not in q and '"expected"' not in q
+    assert "I will run the expression before and after" in q
