@@ -281,7 +281,10 @@ def finding_of(claim: dict, ident: str, chunk_source: str) -> dict:
 GATE_DEFAULT = "python3 -m pytest -q -p no:cacheprovider --junitxml={report}"
 QUARANTINE_DAYS = 14
 SKIP_MARKER = re.compile(
-    r"^[ \t]*(?:@pytest\.mark\.skip(?:if)?\(|pytest\.skip\()(?P<args>[^)]*)", re.M)
+    r"^[ \t]*(?:@(?:pytest\.mark|unittest)\.(?P<marker>skip|skipif)|(?P<call>pytest\.skip))"
+    r"\(\s*(?P<args>[^)]*)", re.M)
+# A condition that is not a constant makes the skip a guard, not a graveyard.
+_ALWAYS = re.compile(r"^\s*(?:True|1)\s*(?:,|$)")
 _DATE = re.compile(r"\b(20\d\d)-(\d\d)-(\d\d)\b")
 
 
@@ -363,6 +366,11 @@ def skips_without_expiry(repo: Path, files: list) -> list:
             continue
         for m in SKIP_MARKER.finditer(text):
             args = m.group("args") or ""
+            if m.group("marker") == "skipif" and not _ALWAYS.match(args):
+                # `skipif(sys.version_info < (3, 9))` is a guard: it runs wherever it can,
+                # and it has no expiry because it needs none. Measured on boltons, where
+                # every version guard came back as a finding until this line existed.
+                continue
             line = text[:m.start()].count("\n") + 1
             if not has_expiry(args):
                 out.append({"path": rel, "line": line, "reason": args.strip()[:200]})

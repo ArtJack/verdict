@@ -240,3 +240,25 @@ def test_ids_from_a_report_use_the_harnesss_own_parser():
     source = (REPO / "src" / "verdict_mcp" / "small.py").read_text(encoding="utf-8")
     assert "read_report(path)" in source, \
         "a second parser gave a second id shape, and every rerun looked unstable"
+
+
+def test_a_version_guard_is_not_an_abandoned_skip(tmp_path):
+    """`skipif(sys.version_info < (3, 9))` runs wherever it can and needs no expiry.
+    Found on boltons, where every version guard came back as a finding."""
+    (tmp_path / "test_x.py").write_text(
+        "import sys, pytest, unittest\n"
+        "@pytest.mark.skipif(sys.version_info < (3, 9), reason='needs 3.9')\n"
+        "def test_guarded(): pass\n"
+        "@pytest.mark.skip(reason='temporarily disabled 2026-05-02')\n"
+        "def test_abandoned(): pass\n"
+        "@pytest.mark.skipif(True, reason='switched off')\n"
+        "def test_always(): pass\n"
+        "@pytest.mark.skip(reason='until 2099-01-01')\n"
+        "def test_dated(): pass\n", encoding="utf-8")
+    found = small.skips_without_expiry(tmp_path, ["test_x.py"])
+    reasons = " ".join(f["reason"] for f in found)
+    assert "temporarily disabled" in reasons, "an unconditional skip with a past date is a graveyard"
+    assert "switched off" in reasons, "skipif(True) is unconditional in disguise"
+    assert "needs 3.9" not in reasons, "a real condition is a guard, not a graveyard"
+    assert "2099" not in reasons, "a future expiry is a decision someone made"
+    assert len(found) == 2
