@@ -395,3 +395,18 @@ def test_the_probe_asks_for_only_what_the_harness_cannot_measure():
     assert '"expression"' in q and '"fix_line"' in q and '"fix_replacement"' in q
     assert '"actual"' not in q and '"expected"' not in q
     assert "I will run the expression before and after" in q
+
+
+def test_a_probe_that_copies_the_example_instead_of_calling_the_function_is_refused(tmp_path):
+    """Measured on boltons: every probe came back as the schema's own example,
+    `m.some_function(1, 2)`, and failed on an attribute that does not exist."""
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    (repo / "m.py").write_text("def real(x):\n    return x\n", encoding="utf-8")
+    chunk = small.Chunk("m.py", "real", 1, 2, "def real(x):\n    return x")
+    proof = small.counterfactual(
+        FakeModel([{"expression": "m.some_function(1, 2)", "fix_line": 2,
+                    "fix_replacement": "    return x + 1"}]),
+        repo, chunk, {"mechanism": "wrong", "line": 2}, sys.executable)
+    assert proof["status"] == "unavailable" and "does not call real" in proof["reason"]
+    assert "some_function" not in small.PROBE_Q, "no copyable placeholder in the schema"

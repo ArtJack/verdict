@@ -329,8 +329,8 @@ Give me two things so I can test that claim by running it.
 I will run the expression before and after the change myself, so do not tell me what it
 returns — only how to reach it.
 
-Reply with JSON only:
-{{"expression": "m.some_function(1, 2)",
+Reply with JSON only, and put a real call to `{function}` in the expression:
+{{"expression": "<a one-line call on m that reaches the claim, e.g. m.{function}(...)>",
   "fix_line": <line number from the left margin>,
   "fix_replacement": "<the whole replacement line, with its indentation>"}}"""
 
@@ -427,8 +427,8 @@ def counterfactual(model: Model, repo: Path, chunk: Chunk, claim: dict,
         return {"status": "unavailable",
                 "reason": f"{chunk.path} is not importable from the repository root"}
     answer = model.ask_json(PROBE_Q.format(path=chunk.path, source=chunk.numbered(),
-                                           mechanism=claim["mechanism"], module=module),
-                            max_tokens=700)
+                                           mechanism=claim["mechanism"], module=module,
+                                           function=chunk.name), max_tokens=700)
     if not answer:
         return {"status": "unavailable", "reason": "the model did not answer with JSON"}
     expression = str(answer.get("expression") or "").strip()
@@ -437,6 +437,12 @@ def counterfactual(model: Model, repo: Path, chunk: Chunk, claim: dict,
     if not expression or "\n" in expression or not isinstance(replacement, str):
         return {"status": "unavailable",
                 "reason": "the probe was not one expression and one replacement line"}
+    if chunk.name not in expression:
+        # A small model copies the schema's example instead of writing a call: measured on
+        # boltons, where every probe came back as `m.some_function(1, 2)` and failed on an
+        # attribute that does not exist. The expression must reach the function it is about.
+        return {"status": "unavailable",
+                "reason": f"the probe does not call {chunk.name}: {expression[:80]}"}
     if not isinstance(line, (int, float)) or not (chunk.start <= int(line) <= chunk.end):
         return {"status": "unavailable",
                 "reason": f"the line to flip ({line}) is outside {chunk.name}"}
