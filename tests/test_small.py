@@ -178,7 +178,7 @@ def test_the_console_script_is_declared():
 def test_the_judgment_says_what_local_mode_did_not_do():
     source = (REPO / "src" / "verdict_mcp" / "small.py").read_text(encoding="utf-8")
     assert '"not_tested"' in source
-    assert "no claim was proven by flipping the" in source, \
+    assert "no origin was traced" in source, \
         "a pass must always name what was not tested; local mode tests almost nothing"
 
 
@@ -262,3 +262,127 @@ def test_a_version_guard_is_not_an_abandoned_skip(tmp_path):
     assert "needs 3.9" not in reasons, "a real condition is a guard, not a graveyard"
     assert "2099" not in reasons, "a future expiry is a decision someone made"
     assert len(found) == 2
+
+
+# ── the counterfactual ────────────────────────────────────────────────────────
+
+def test_module_name_reads_an_import_path_from_a_file(tmp_path):
+    (tmp_path / "src" / "pkg").mkdir(parents=True)
+    (tmp_path / "src" / "pkg" / "__init__.py").write_text("", encoding="utf-8")
+    assert small.module_name(tmp_path, "src/pkg/mod.py") == "pkg.mod", "src is a source root"
+    assert small.module_name(tmp_path, "pricer.py") == "pricer"
+    assert small.module_name(tmp_path, "pkg/__init__.py") == "pkg"
+    assert small.source_root(tmp_path, "src/pkg/mod.py") == tmp_path / "src"
+    assert small.source_root(tmp_path, "pricer.py") == tmp_path
+
+
+def test_a_probe_refuses_a_tree_that_imports_the_original_source(tmp_path):
+    """The scratch must run its own code. Measured on this project: 0 of 4 injected
+    defects were caught without that check, 4 of 4 with it."""
+    real, other = tmp_path / "real", tmp_path / "other"
+    for d in (real, other):
+        d.mkdir()
+    (real / "m.py").write_text("def f():\n    return 1\n", encoding="utf-8")
+    value, err = small.run_probe(sys.executable, real, "m", "m.f()")
+    assert value == 1 and err is None
+    # a tree with no copy of the module: the import escapes, and the assert catches it
+    value, err = small.run_probe(sys.executable, other, "m", "m.f()")
+    assert value is None and err, "an import from outside the tree must not be trusted"
+
+
+def test_the_probe_sweeps_bytecode_before_it_runs(tmp_path):
+    """CPython validates a cached file on mtime-in-seconds plus size, so a same-size edit
+    within one second re-runs the old bytecode — the trap that produced VERDICT-F-50."""
+    root = tmp_path / "t"
+    root.mkdir()
+    src = root / "m.py"
+    src.write_text("def f():\n    return 111\n", encoding="utf-8")
+    assert small.run_probe(sys.executable, root, "m", "m.f()")[0] == 111
+    src.write_text("def f():\n    return 222\n", encoding="utf-8")   # same size
+    assert small.run_probe(sys.executable, root, "m", "m.f()")[0] == 222
+
+
+def test_scratch_copy_leaves_out_what_must_not_be_copied(tmp_path):
+    repo, into = tmp_path / "repo", tmp_path / "into"
+    (repo / ".git").mkdir(parents=True)
+    (repo / ".git" / "HEAD").write_text("ref: x", encoding="utf-8")
+    (repo / ".venv" / "bin").mkdir(parents=True)
+    (repo / ".venv" / "bin" / "python").write_text("x", encoding="utf-8")
+    (repo / "m.py").write_text("x = 1\n", encoding="utf-8")
+    assert small.scratch_copy(repo, into) is True
+    assert (into / "m.py").is_file()
+    assert not (into / ".git").exists() and not (into / ".venv").exists(), \
+        "copying the virtualenv is how a scratch ends up importing the original source"
+
+
+def test_a_counterfactual_that_flips_the_value_proves_the_claim(tmp_path, monkeypatch):
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    (repo / "m.py").write_text("def listable(price, floor):\n    return price > floor\n",
+                               encoding="utf-8")
+    chunk = small.Chunk("m.py", "listable", 1, 2,
+                        "def listable(price, floor):\n    return price > floor")
+    claim = {"mechanism": "returns > where the rule says >=", "line": 2}
+    model = FakeModel([{"expression": "m.listable(5, 5)", "actual": False, "expected": True,
+                        "fix_line": 2, "fix_replacement": "    return price >= floor"}])
+    proof = small.counterfactual(model, repo, chunk, claim, sys.executable)
+    assert proof["status"] == "proven"
+    assert proof["before"] is False and proof["after"] is True
+    entry = small.finding_of({**claim, "path": "m.py", "severity": "Critical", "title": "t",
+                              "impact": "i", "function": "listable"}, "P-F-1",
+                             chunk.source, proof)
+    assert entry["confidence"] == "proven"
+    assert "COUNTERFACTUAL" in entry["evidence"][0]
+    assert validate_finding(entry, "findings/P-F-1.json", set()) == []
+
+
+def test_a_counterfactual_that_changes_nothing_disproves_it(tmp_path):
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    (repo / "m.py").write_text("def f(x):\n    return x + 1\n", encoding="utf-8")
+    chunk = small.Chunk("m.py", "f", 1, 2, "def f(x):\n    return x + 1")
+    model = FakeModel([{"expression": "m.f(1)", "actual": 2, "expected": 3,
+                        "fix_line": 1, "fix_replacement": "def f(x):"}])
+    proof = small.counterfactual(model, repo, chunk, {"mechanism": "off by one", "line": 2},
+                                 sys.executable)
+    assert proof["status"] == "disproven"
+    assert "did not move" in proof["reason"]
+
+
+def test_a_probe_the_model_malformed_is_refused_and_says_why(tmp_path):
+    """A proof that silently does not happen looks exactly like one never attempted, so
+    every refusal carries its reason into the run's output."""
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    (repo / "m.py").write_text("def f():\n    return 1\n", encoding="utf-8")
+    chunk = small.Chunk("m.py", "f", 1, 2, "def f():\n    return 1")
+    claim = {"mechanism": "wrong", "line": 2}
+    for answer in ({"expression": "m.f()\nimport os", "fix_line": 2, "fix_replacement": "x"},
+                   {"expression": "m.f()", "fix_line": 99, "fix_replacement": "x"},
+                   {"expression": "", "fix_line": 2, "fix_replacement": "x"},
+                   {"expression": "m.f()", "fix_line": 2, "fix_replacement": None}):
+        proof = small.counterfactual(FakeModel([answer]), repo, chunk, claim, sys.executable)
+        assert proof["status"] == "unavailable" and proof["reason"]
+    assert small.counterfactual(FakeModel([None]), repo, chunk, claim,
+                                sys.executable)["reason"] == "the model did not answer with JSON"
+
+
+def test_the_interpreter_comes_from_the_projects_own_gate():
+    assert small.interpreter_of("PYTHONDONTWRITEBYTECODE=1 /x/.venv/bin/python -m pytest") \
+        == "/x/.venv/bin/python"
+    assert small.interpreter_of("npm test") == sys.executable
+
+
+def test_severity_from_reading_is_capped_until_something_is_executed():
+    """Measured on boltons: 35 findings from reading alone, 34 of them Major or above.
+    A tester whose every finding is Critical has no severity at all."""
+    claim = {"path": "m.py", "line": 5, "severity": "Critical", "title": "t",
+             "mechanism": "wrong", "impact": "i", "function": "f"}
+    unproven = small.finding_of(claim, "P-F-1", "def f(): pass")
+    assert unproven["severity"] == "Minor" and unproven["priority"] == "P2"
+    assert "held at Minor" in unproven["narrative"]
+    proof = {"status": "proven", "expression": "m.f()", "before": 1, "after": 2,
+             "line": 5, "was": "a", "now": "b", "reason": "the value follows the line"}
+    proven = small.finding_of(claim, "P-F-2", "def f(): pass", proof)
+    assert proven["severity"] == "Critical" and proven["priority"] == "P1"
+    assert small.capped("Trivial", False) == "Minor" and small.capped("Trivial", True) == "Trivial"
