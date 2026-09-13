@@ -277,7 +277,7 @@ Not scored:
 - mwaskom__seaborn-3187: blocked — 
 - pylint-dev__pylint-6528: blocked —
 
-#### The control arm — the same runs without Verdict (not run yet)
+#### The control arm — the same runs without Verdict (measured 2026-09-13)
 
 The rates above say where Verdict's findings land against the gold patch, not that the plugin
 is why: Claude Code handed the same issue might land there too. `swebench.py batch --arm plain`
@@ -327,7 +327,54 @@ Not equal, or not by construction — measured on the Verdict arm's archive befo
 - **Memory.** A plain run refuses to start where Claude Code's auto-memory for the checkout
   path is not empty; every Verdict session started with none.
 
-**Not run yet:** no plain row exists.
+**Measured 2026-09-13 with Claude Code 2.1.263 and Opus (`claude-opus-5`), on all forty instances.**
+
+- **Coverage:** thirty-nine instances ran and were scored. requests-1724 is `env_invalid` in both arms.
+- **Answer material held out:** for the length of the batch, the Verdict arm's archives (`~/.cache/verdict-swebench/runs/`) were packed into a tarball outside the cache. No plain session could read Verdict's findings for its own instance. They were restored afterwards.
+- **Clean runs:** no plain session modified its checkout or reached past its instance (0 of 39).
+
+Over the 37 instances both arms scored:
+
+| Located at … or better | Verdict · any | Plain · any | Verdict · headline | Plain · headline |
+|---|---|---|---|---|
+| `function` | 36/37 (97%) | 35/37 (94%) | 35/37 (94%) | 35/37 (94%) |
+| `hunk` | 36/37 (97%) | 36/37 (97%) | 35/37 (94%) | 36/37 (97%) |
+| `file` | 37/37 (100%) | 37/37 (100%) | 36/37 (97%) | 36/37 (97%) |
+
+| Median per run, over those instances | Verdict | Plain |
+|---|---|---|
+| wall time | 12 min | 1 min |
+| cost (CLI-reported) | $3.41 | $0.45 |
+
+Totals across each arm's scored instances:
+
+| | Plain (39) | Verdict |
+|---|---|---|
+| Output tokens | median 4k, total 205k | total 2,149k |
+| Cost | total $21.91 | total $143.31 |
+| Wall time | total 2h43 (1h52 of it one session-limit wait) | — |
+
+The arms disagree on three instances, and the split goes both ways:
+
+| Instance | Verdict · any | Plain · any | Verdict · headline | Plain · headline |
+|---|---|---|---|---|
+| pytest-dev__pytest-10051 | function | function | none | function |
+| pylint-dev__pylint-4661 | function | hunk | function | hunk |
+| pylint-dev__pylint-7080 | file | file | file | none |
+
+- **pytest-10051:** Verdict found the defect (its F-1, at `function`). Its headline, though, was a Major of equal rank about 22 pre-existing suite failures. A finding about the environment outranked the finding about the code.
+- **pylint-4661:** both arms found the same defect. Verdict's headline cites seven files and reaches `function`; the plain item cites one location and reaches `hunk`. This is the citation asymmetry described above, in Verdict's favour.
+- **pylint-7080:** both arms describe the same mechanism. The plain item names `pylint/lint/pylinter.py`; Verdict names the file the maintainers fixed.
+
+The plain arm also scored the two instances the Verdict agent refused to sign (seaborn-3187 and pylint-6528).
+
+**What it says.** This key asks one thing: locate the defect behind an issue report. On it, the plugin buys no measurable accuracy. The rates agree within one instance at every level. The plain arm takes a twelfth of the time and less than a seventh of the cost.
+
+**What it does not say.** The key exercises one charter: `/verdict:bug` with the issue verbatim. It cannot see what the plugin is built for beyond that: memory across runs, finding lineage, the gate, fix verification and quarantine. And with n=37 across five small repositories, a one-instance difference is noise.
+
+**Harness defects the run exposed** (not fixed, because feature work is paused):
+- `prepare()` cannot delete a workdir that holds `d-w-------` `.pytest_cache` directories. pytest's own `test_cache_failure_warns` and `test_cache_writefail_permissions` leave those behind. Five pytest 5.x instances failed to prepare until the directories were unlocked by hand and the instances retried.
+- `cleanup()` removes `work/<id>/checkout`, which never exists, so every workdir stays on disk.
 
 ### A prompt cut that measured worse — and what it cost to learn
 
