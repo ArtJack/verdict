@@ -876,6 +876,29 @@ def headline_of(findings: list[dict]) -> dict | None:
                                         -findings.index(f)))
 
 
+def score_findings(gold: dict, findings: list[dict], source_of=None) -> dict:
+    """Grade a list of findings against the gold hunks: every finding's best level,
+    the best over all of them, and the headline's. The one scorer both arms use —
+    the Verdict arm hands it the open findings of a QA state, the plain arm the
+    items of its answer block mapped into the same shape."""
+    out = {"findings": len(findings), "any_hit": "none", "headline_hit": "none",
+           "headline": None, "per_finding": []}
+    head = headline_of(findings)
+    for f in findings:
+        level, matched = level_of(cited_refs(f), gold, source_of)
+        row = {"id": f.get("id"), "severity": f.get("severity"), "confidence": f.get("confidence"),
+               "classification": f.get("failure_classification"), "hit": level,
+               "matched": matched, "title": str(f.get("title") or "")[:160],
+               "cited": sorted({p for p, _ in cited_refs(f)})}
+        out["per_finding"].append(row)
+        if LEVELS.index(level) > LEVELS.index(out["any_hit"]):
+            out["any_hit"] = level
+        if head is not None and f is head:
+            out["headline_hit"] = level
+            out["headline"] = row["id"]
+    return out
+
+
 def score_instance(inst: dict, qa_root: Path, source_of=None) -> dict:
     out = {"verdict": None, "findings": 0, "any_hit": "none", "headline_hit": "none",
            "headline": None, "per_finding": [], "harness": None, "run_number": None,
@@ -899,21 +922,7 @@ def score_instance(inst: dict, qa_root: Path, source_of=None) -> dict:
     out["prompt_sha256"] = who.get("provisioned_prompt_sha256") or who.get("prompt_sha256")
     findings = [f for f in state.get("findings") or [] if isinstance(f, dict)
                 and str(f.get("status") or "open") == "open"]
-    out["findings"] = len(findings)
-    gold = inst["gold_hunks"]
-    head = headline_of(findings)
-    for f in findings:
-        level, matched = level_of(cited_refs(f), gold, source_of)
-        row = {"id": f.get("id"), "severity": f.get("severity"), "confidence": f.get("confidence"),
-               "classification": f.get("failure_classification"), "hit": level,
-               "matched": matched, "title": str(f.get("title") or "")[:160],
-               "cited": sorted({p for p, _ in cited_refs(f)})}
-        out["per_finding"].append(row)
-        if LEVELS.index(level) > LEVELS.index(out["any_hit"]):
-            out["any_hit"] = level
-        if head is not None and f is head:
-            out["headline_hit"] = level
-            out["headline"] = row["id"]
+    out.update(score_findings(inst["gold_hunks"], findings, source_of))
     return out
 
 
