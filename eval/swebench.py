@@ -39,6 +39,7 @@ from __future__ import annotations
 
 import argparse
 import ast
+import hashlib
 import json
 import os
 import re
@@ -1056,6 +1057,110 @@ def resolve_root(explicit) -> Path:
     if not versions:
         raise SystemExit("swebench: no installed plugin in the cache — pass --plugin-root")
     return max(versions, key=lambda p: [int(x) if x.isdigit() else -1 for x in p.name.split(".")])
+
+
+# ── the control arm: its prompt, its answer, the mapping ──────────────────────
+#
+# The control arm runs the Verdict arm's instances as Claude Code without the plugin.
+# Its prompt never names Verdict; its answer is one JSON block; each item moves into
+# the fields `cited_refs()` reads, so the one `score_findings()` grades both arms.
+
+PLAIN_TEMPLATE = """\
+You are working in a checkout of {repo} at the commit where the bug report below was filed. The project's tests run with: `{test_command}`.
+
+Find the defect behind this bug report. Do not fix it and do not modify any file in the repository; you may run the tests and write scratch files under {scratch_dir}.
+
+End your reply with one JSON block listing each defect you found, most important first:
+```json
+[{"title": "...", "severity": "Blocker|Critical|Major|Minor|Trivial", "file": "path/relative/to/the/repository", "line": 123, "mechanism": "what the code does wrong, in one or two sentences"}]
+```
+
+## Bug report (verbatim, from the project's issue tracker)
+
+{problem_statement}
+"""
+PLAIN_TEMPLATE_SHA256 = hashlib.sha256(PLAIN_TEMPLATE.encode("utf-8")).hexdigest()
+_PLAIN_SLOT = re.compile(r"\{(repo|test_command|scratch_dir|problem_statement)\}")
+_FENCE_OPEN = re.compile(r"^[ \t]*```[ \t]*json[ \t\r]*$", re.M | re.I)
+_FENCE_CLOSE = re.compile(r"^[ \t]*```[ \t\r]*$", re.M)
+
+
+def build_plain_prompt(inst: dict, row: dict, test_command: str, scratch_dir) -> str:
+    """The control arm's prompt: the template filled in one pass, so text substituted into
+    it — an issue that happens to contain `{repo}` — is never read as a slot. The issue is
+    stripped exactly as `build_prompt` strips it for the Verdict arm."""
+    values = {"repo": inst["repo"], "test_command": test_command, "scratch_dir": str(scratch_dir),
+              "problem_statement": row["problem_statement"].strip()}
+    return _PLAIN_SLOT.sub(lambda m: values[m.group(1)], PLAIN_TEMPLATE)
+
+
+def plain_test_command(profile_text: str) -> str:
+    """The suite gate `write_profile()` wrote for the Verdict arm, read back from the
+    profile rather than rebuilt beside it, as a command a person runs: without
+    `--junitxml={report}`, a placeholder only Verdict's facts step fills (taken literally
+    it writes a file named `{report}` into the checkout)."""
+    m = re.search(r"(?m)^  suite: (.+)$", profile_text)
+    if not m:
+        raise RuntimeError("the generated profile names no suite gate")
+    return m.group(1).replace(" --junitxml={report}", "").strip()
+
+
+def parse_answer(text) -> list | None:
+    """The LAST fenced ```json block of the reply, parsed — None when there is none, it is
+    unterminated, it is not JSON, or it is not a list. An earlier block never stands in for
+    a broken last one: a draft is not the answer."""
+    text = str(text or "")
+    opens = list(_FENCE_OPEN.finditer(text))
+    if not opens:
+        return None
+    start = opens[-1].end()
+    close = _FENCE_CLOSE.search(text, start)
+    if close is None:
+        return None
+    try:
+        doc = json.loads(text[start:close.start()])
+    except ValueError:
+        return None
+    return doc if isinstance(doc, list) else None
+
+
+def _line_number(value) -> int | None:
+    """A positive line number given as an int or an all-digit string, else None."""
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, int):
+        return value if value > 0 else None
+    if isinstance(value, str) and value.strip().isdigit():
+        return int(value.strip()) or None
+    return None
+
+
+def plain_findings(items: list) -> list[dict]:
+    """Each answer item in the shape `cited_refs()` reads, so the one scorer grades it:
+    `file` + `line` as an anchor, and `file:line` again as prose in `root_cause.origin` —
+    the prose reader Verdict findings already go through, which also reads a line written
+    into the file field (`src/x.py:12`) or as a range (`12-14`) — with the title, the
+    mechanism, and the severity in the scale's own spelling. Nothing is graded here; the
+    fields only move. Items that are not objects are dropped (the row counts them)."""
+    out = []
+    for item in items:
+        if not isinstance(item, dict):
+            continue
+        path = str(item.get("file") or "").strip()
+        raw_line = item.get("line")
+        line = _line_number(raw_line)
+        severity = str(item.get("severity") or "").strip()
+        severity = next((s for s in SEVERITY_RANK if s.lower() == severity.lower()),
+                        severity or None)
+        origin = f"{path}:{str(raw_line).strip()}" if path and raw_line not in (None, "") else path
+        out.append({
+            "id": f"PLAIN-{len(out) + 1}", "status": "open", "severity": severity,
+            "title": str(item.get("title") or ""),
+            "anchors": [{"ref": f"{path}:{line}", "path": path, "line": line}] if path and line
+            else [],
+            "root_cause": {"mechanism": str(item.get("mechanism") or ""), "origin": origin},
+        })
+    return out
 
 
 def cmd_prepare(args) -> int:
