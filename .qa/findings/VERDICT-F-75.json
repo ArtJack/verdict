@@ -1,0 +1,34 @@
+{
+ "id": "VERDICT-F-75",
+ "title": "The bash guard reads a git flag or sub-verb name ANYWHERE in the argument list, whatever role it plays there, so one ordinary token disarms the check for every mutating verb: `git commit -m \"--dry-run\"` really commits and `git branch -D <branch> list` really deletes, both with the guard's blessing",
+ "severity": "Critical",
+ "priority": "P1",
+ "status": "resolved",
+ "failure_classification": null,
+ "confidence": "proven",
+ "fix_verified": true,
+ "verification_test": "tests/test_hooks.py::test_the_guard_agrees_with_the_git_that_would_run[commit --allow-empty -m --dry-run]",
+ "evidence": [
+  "FIXED in 0.80.0 (79f313c). hooks/enforce_bash_scope.py:530 `_git_operands` now splits (flags, operands) walking argv as git does — an option value is consumed (`-m`,`--message`,`-F`,`-C` and bundled `-am`), so a token in a value position can no longer be read as a flag. :585 the `--dry-run` exemption is a flag in a flag's position and `--check` only for apply/am; :595 the read-only sub-verb must be operands[0]; :591 a mutating flag outranks a listing flag.",
+  "COUNTERFACTUAL BY EFFECT (scratchpad/probe_f75.py): old hook at 4dc006a vs new hook at HEAD, each piped a PreToolUse Bash event with VERDICT_STRICT=1, plus real git run in a throwaway repo under mktemp (never this checkout). For every acceptance-axis verb the OLD hook ALLOWED (rc 0) and the NEW hook DENIES (rc 2): `git commit -m --dry-run` (git commits [main]--dry-run), `git stash push -m --dry-run`, `git branch -D keepme list` (git deletes keepme), `git tag -d v9 list`, `git worktree remove <wt> list`, `git notes add -m x list`, `git commit -am --dry-run`, `git push origin main --check`, `git branch list`, `git branch -M keepme renamed`.",
+  "CONTROL rows (guard armed, not blanket-denying): plainly-denied mutators still DENY under both hooks — `git commit -am wip`, `git stash`, `git reset --hard HEAD`. And a genuine dry run still ALLOWS under the new hook — `git commit --allow-empty --dry-run -m x` -> rc 0. Zero mismatches across 20 rows.",
+  "GUARD TEST at HEAD: tests/test_hooks.py GIT_SHAPES (:996-1036) asserts each shape against the guard AND against real git in a throwaway checkout in two columns (test_the_guard_agrees_with_the_git_that_would_run + test_real_git_changes_what_this_matrix_claims); both in the 1172-passing suite. Cited param passes at HEAD; the guard test did not exist at 4dc006a (previous_sha), so no harness fail->pass block exists — the fix is verified by the counterfactual above."
+ ],
+ "root_cause": {
+  "mechanism": "_check_git decided read-only-ness by set membership over a flat token list; membership is a property of the string, role is a property of position. 0.80.0 replaced the flat scan with a position-aware operand split.",
+  "class": {
+   "pattern": "role-blind token membership decides a whole command's classification",
+   "sites": [
+    "hooks/enforce_bash_scope.py:487 (was) — now :585 flag-position dry-run",
+    "hooks/enforce_bash_scope.py:511 (was) — now :595 operands[0] sub-verb"
+   ]
+  },
+  "fix_location": "code",
+  "confidence": "proven",
+  "proof": {
+   "method": "counterfactual",
+   "evidence": "old hook allows / new hook denies / real git mutates, across all six mutating verbs; controls deny, real dry-run allows (scratchpad/probe_f75.py, 20 rows, 0 mismatches)"
+  }
+ },
+ "narrative": "RESOLVED and fix-verified by counterfactual. The Critical release blocker of run 14 is closed: the guard now parses git argv positionally, so an allowed token in a value or trailing-operand position no longer stands the authorization decision down. Proven by running the pre-fix hook (4dc006a) and the HEAD hook side by side against the same commands with real-git effect measured in a throwaway repo — old allows every disarm shape, new denies all six mutating verbs, controls still deny and a real --dry-run still passes. No harness verification block: the guarding matrix test postdates the previous SHA, so a fail->pass measurement is structurally unavailable; the counterfactual carries it."
+}

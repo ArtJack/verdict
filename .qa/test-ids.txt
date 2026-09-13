@@ -24,7 +24,6 @@ tests/test_agent_contract.py::test_every_delta_the_harness_computes_is_explained
 tests/test_agent_contract.py::test_every_failure_classification_is_explained
 tests/test_agent_contract.py::test_every_plugin_root_reference_resolves[/docs/ai-authored-code.md]
 tests/test_agent_contract.py::test_every_plugin_root_reference_resolves[/docs/project-key.md]
-tests/test_agent_contract.py::test_every_plugin_root_reference_resolves[/docs/state-schema.md]
 tests/test_agent_contract.py::test_every_plugin_root_reference_resolves[/docs/test-design.md]
 tests/test_agent_contract.py::test_every_plugin_root_reference_resolves[/standards/]
 tests/test_agent_contract.py::test_every_plugin_root_reference_resolves[/standards/severity-priority.md]
@@ -37,12 +36,30 @@ tests/test_agent_contract.py::test_the_prompt_is_where_the_plugin_says_it_is
 tests/test_agent_contract.py::test_the_prompt_names_plugin_root_paths_at_all
 tests/test_agent_contract.py::test_the_prompt_teaches_every_verdict_it_may_return
 tests/test_agent_contract.py::test_the_prompt_teaches_the_confidence_vocabulary_it_requires
+tests/test_anchors.py::test_a_baseline_measures_no_drift_and_finalize_says_when_it_could_not_anchor
+tests/test_anchors.py::test_a_judgment_that_writes_the_measured_fields_is_told
+tests/test_anchors.py::test_a_previous_state_without_anchors_reads_unavailable_not_unchanged
+tests/test_anchors.py::test_a_reference_that_names_nothing_is_recorded_as_such_and_costs_nothing
+tests/test_anchors.py::test_anchors_are_carried_while_the_evidence_is_the_text_they_were_taken_from
+tests/test_anchors.py::test_drift_travels_into_the_state_and_the_report
+tests/test_anchors.py::test_facts_name_the_next_finding_id
+tests/test_anchors.py::test_finalize_anchors_every_cited_line
+tests/test_anchors.py::test_fixed_at_is_the_date_of_the_measured_fix_never_of_a_claim
+tests/test_anchors.py::test_introduced_at_is_the_date_of_the_commit_the_origin_names
+tests/test_anchors.py::test_last_verified_at_is_stamped_only_by_a_measurement
+tests/test_anchors.py::test_references_are_read_the_way_evidence_is_written
+tests/test_anchors.py::test_the_class_sites_and_the_verified_intact_items_are_anchored_too
+tests/test_anchors.py::test_the_code_under_an_accepted_risk_is_measured_in_its_own_bucket
+tests/test_anchors.py::test_the_next_facts_say_where_the_cited_code_went
+tests/test_anchors.py::test_the_report_dates_the_measurement_and_its_result
+tests/test_anchors.py::test_the_report_prints_both_clocks_and_the_ledger_keeps_them
 tests/test_artifact_check.py::test_a_clean_finalize_has_nothing_to_report
 tests/test_artifact_check.py::test_a_history_row_that_does_not_carry_the_signed_link_is_named
 tests/test_artifact_check.py::test_a_missing_history_row_is_named
 tests/test_artifact_check.py::test_a_report_that_went_missing_is_named
 tests/test_artifact_check.py::test_an_index_row_dated_from_the_wrong_clock_is_named
 tests/test_artifact_check.py::test_an_index_row_naming_another_project_is_named
+tests/test_artifact_check.py::test_finalize_actually_runs_the_check_it_documents
 tests/test_artifact_check.py::test_the_cli_says_it_out_loud_and_still_records_the_run
 tests/test_calibration.py::test_a_claim_the_harness_could_not_weigh_still_stands
 tests/test_calibration.py::test_a_decided_outcome_sticks_when_the_finding_changes_state_again
@@ -113,6 +130,7 @@ tests/test_census.py::test_declared_stdlib_and_local_modules_are_never_flagged
 tests/test_census.py::test_js_imports_are_checked_against_package_json
 tests/test_census.py::test_markers_are_counted_with_samples
 tests/test_census.py::test_no_range_falls_back_to_recent_history
+tests/test_census.py::test_prose_that_looks_like_an_import_is_not_a_dependency
 tests/test_census.py::test_the_caveat_travels_with_the_data
 tests/test_census.py::test_the_famous_name_mismatches_do_not_false_positive
 tests/test_census.py::test_the_two_line_swallow_is_caught_only_when_the_lines_are_adjacent
@@ -135,6 +153,14 @@ tests/test_chain.py::test_no_history_file_at_all_is_not_a_failure
 tests/test_chain.py::test_state_must_describe_the_run_the_history_ends_on
 tests/test_chain.py::test_stripping_every_link_but_keeping_the_ledger_is_a_break
 tests/test_chain.py::test_the_chain_extends_over_a_correction_not_around_it
+tests/test_clock.py::test_a_frozen_offset_stamp_is_normalised_to_utc
+tests/test_clock.py::test_an_unparseable_freeze_refuses_loudly
+tests/test_clock.py::test_local_now_is_naive_local_and_only_for_the_runner
+tests/test_clock.py::test_no_module_but_the_clock_asks_the_time
+tests/test_clock.py::test_now_is_timezone_aware_utc
+tests/test_clock.py::test_stamp_formats_any_instant_as_the_state_does
+tests/test_clock.py::test_the_clock_can_be_frozen
+tests/test_clock.py::test_the_clock_module_is_where_the_calls_live
 tests/test_code_drift.py::test_a_complete_clone_missing_the_commit_is_absent_not_unknown
 tests/test_code_drift.py::test_a_shallow_clone_that_cannot_see_the_commit_stays_unknown
 tests/test_code_drift.py::test_banner_is_quiet_when_current
@@ -201,6 +227,20 @@ tests/test_diff_coverage.py::test_the_repository_is_not_written_to_either
 tests/test_diff_coverage.py::test_the_subprocess_context_is_never_read_as_a_test
 tests/test_diff_coverage.py::test_what_counts_as_a_test_file
 tests/test_diff_coverage.py::test_without_a_command_it_is_unmeasurable_and_says_how
+tests/test_filed.py::test_a_finding_carried_by_silence_drops_last_runs_verb
+tests/test_filed.py::test_a_finding_file_is_validated_the_moment_it_is_written
+tests/test_filed.py::test_a_finding_filed_inside_another_findings_class_is_refused
+tests/test_filed.py::test_a_judgment_may_not_write_the_filed_fields
+tests/test_filed.py::test_a_verification_test_must_be_a_collected_id
+tests/test_filed.py::test_archive_is_silent_on_an_empty_or_absent_directory
+tests/test_filed.py::test_facts_move_last_runs_files_aside_and_a_retry_keeps_them
+tests/test_filed.py::test_files_and_inline_findings_together_are_refused
+tests/test_filed.py::test_finding_files_are_assembled_oldest_first_stamped_and_rendered
+tests/test_filed.py::test_load_filed_names_what_it_cannot_read
+tests/test_filed.py::test_still_open_is_refused_where_the_cited_code_changed_and_allowed_where_it_moved
+tests/test_filed.py::test_the_class_rule_reaches_a_finding_carried_by_id
+tests/test_filed.py::test_the_verbs_carry_a_finding_by_id_with_its_evidence_as_filed
+tests/test_filed.py::test_the_verbs_refuse_what_they_cannot_carry
 tests/test_fixture_freshness.py::test_a_green_pair_stays_green
 tests/test_fixture_freshness.py::test_a_mode_change_is_no_longer_invisible
 tests/test_fixture_freshness.py::test_a_symlink_swapped_for_a_regular_file_is_no_longer_invisible
@@ -208,6 +248,7 @@ tests/test_fixture_freshness.py::test_a_tracked_file_missing_from_the_tree_repor
 tests/test_fixture_freshness.py::test_an_untracked_file_planted_in_the_fixture_is_reported
 tests/test_gate.py::test_a_current_verdict_carries_no_stale_note
 tests/test_gate.py::test_a_diverged_verdict_says_so_in_the_pr_comment
+tests/test_gate.py::test_a_path_argument_in_solo_mode_resolves_to_the_derived_key
 tests/test_gate.py::test_an_absent_commit_is_reported_and_gated_like_divergence
 tests/test_gate.py::test_an_open_critical_still_allows_pass_with_risks
 tests/test_gate.py::test_blocked_exits_3
@@ -272,22 +313,38 @@ tests/test_harness.py::test_collect_derives_run_type_and_range_from_previous
 tests/test_harness.py::test_collect_measures_time_key_and_git
 tests/test_harness.py::test_collect_reports_duration_regression_from_history
 tests/test_harness.py::test_collect_runs_gates_and_parses_counts
+tests/test_harness.py::test_colour_codes_do_not_change_which_runner_is_read
+tests/test_harness.py::test_duration_regression_boundaries[6.9-priors3-False]
+tests/test_harness.py::test_duration_regression_boundaries[65.0-priors4-True]
+tests/test_harness.py::test_duration_regression_boundaries[65.0-priors5-False]
+tests/test_harness.py::test_duration_regression_boundaries[65.0-priors6-True]
+tests/test_harness.py::test_duration_regression_boundaries[65.0-priors7-True]
+tests/test_harness.py::test_duration_regression_boundaries[7.0-priors2-True]
+tests/test_harness.py::test_duration_regression_boundaries[8.99-priors1-False]
+tests/test_harness.py::test_duration_regression_boundaries[9.0-priors0-True]
 tests/test_harness.py::test_duration_regression_fires_on_the_reported_case
+tests/test_harness.py::test_duration_regression_needs_a_number
 tests/test_harness.py::test_duration_regression_stays_quiet[0.5-priors1]
 tests/test_harness.py::test_duration_regression_stays_quiet[3.0-priors4]
 tests/test_harness.py::test_duration_regression_stays_quiet[4.0-priors0]
 tests/test_harness.py::test_duration_regression_stays_quiet[65.0-priors2]
 tests/test_harness.py::test_duration_regression_stays_quiet[65.0-priors3]
 tests/test_harness.py::test_each_runner_dialect_is_parsed_and_named[cargo-1]
-tests/test_harness.py::test_each_runner_dialect_is_parsed_and_named[dotnet-7]
-tests/test_harness.py::test_each_runner_dialect_is_parsed_and_named[gotestsum-9]
+tests/test_harness.py::test_each_runner_dialect_is_parsed_and_named[dotnet-12]
+tests/test_harness.py::test_each_runner_dialect_is_parsed_and_named[gotestsum-14]
+tests/test_harness.py::test_each_runner_dialect_is_parsed_and_named[gotestsum-15]
 tests/test_harness.py::test_each_runner_dialect_is_parsed_and_named[jest-2]
-tests/test_harness.py::test_each_runner_dialect_is_parsed_and_named[phpunit-5]
-tests/test_harness.py::test_each_runner_dialect_is_parsed_and_named[phpunit-6]
+tests/test_harness.py::test_each_runner_dialect_is_parsed_and_named[jest-8]
+tests/test_harness.py::test_each_runner_dialect_is_parsed_and_named[phpunit-10]
+tests/test_harness.py::test_each_runner_dialect_is_parsed_and_named[phpunit-11]
 tests/test_harness.py::test_each_runner_dialect_is_parsed_and_named[pytest-0]
-tests/test_harness.py::test_each_runner_dialect_is_parsed_and_named[rspec-4]
-tests/test_harness.py::test_each_runner_dialect_is_parsed_and_named[surefire-8]
+tests/test_harness.py::test_each_runner_dialect_is_parsed_and_named[rspec-9]
+tests/test_harness.py::test_each_runner_dialect_is_parsed_and_named[surefire-13]
 tests/test_harness.py::test_each_runner_dialect_is_parsed_and_named[vitest-3]
+tests/test_harness.py::test_each_runner_dialect_is_parsed_and_named[vitest-4]
+tests/test_harness.py::test_each_runner_dialect_is_parsed_and_named[vitest-5]
+tests/test_harness.py::test_each_runner_dialect_is_parsed_and_named[vitest-6]
+tests/test_harness.py::test_each_runner_dialect_is_parsed_and_named[vitest-7]
 tests/test_harness.py::test_every_finalized_run_appends_one_machine_native_history_line
 tests/test_harness.py::test_executed_nothing_fires_when_every_test_was_skipped
 tests/test_harness.py::test_executed_nothing_is_dialect_agnostic
@@ -295,6 +352,7 @@ tests/test_harness.py::test_executed_nothing_says_nothing_when_counts_were_unpar
 tests/test_harness.py::test_executed_nothing_stays_quiet_on_a_suite_that_ran[===== 3 failed, 5 passed in 2.0s =====]
 tests/test_harness.py::test_executed_nothing_stays_quiet_on_a_suite_that_ran[===== 7 passed in 0.4s =====]
 tests/test_harness.py::test_executed_nothing_stays_quiet_on_a_suite_that_ran[===== 8 passed, 2 skipped in 1.2s =====]
+tests/test_harness.py::test_facts_name_the_harness_that_measured_them
 tests/test_harness.py::test_facts_report_a_skip_all_suite
 tests/test_harness.py::test_facts_reuse_skips_the_gates_only_for_the_same_head
 tests/test_harness.py::test_finalize_clears_the_marker
@@ -311,6 +369,7 @@ tests/test_harness.py::test_merge_ages_from_first_seen
 tests/test_harness.py::test_merge_assigns_deltas_the_model_used_to_guess
 tests/test_harness.py::test_merge_carries_forward_a_finding_this_run_did_not_mention
 tests/test_harness.py::test_merge_preserves_unknown_keys_from_the_previous_state
+tests/test_harness.py::test_one_minute_is_a_minute_not_seconds
 tests/test_harness.py::test_overlapping_vocabularies_do_not_steal_each_others_output
 tests/test_harness.py::test_parametrised_ids_with_spaces_survive_the_ledger_round_trip
 tests/test_harness.py::test_plain_go_test_is_counted_from_its_per_test_lines
@@ -322,8 +381,11 @@ tests/test_harness.py::test_the_model_that_signed_the_verdict_is_measured_not_re
 tests/test_harness.py::test_the_retry_marker_says_the_age_it_recorded[0.0-seconds ago-minute]
 tests/test_harness.py::test_the_retry_marker_says_the_age_it_recorded[0.05-3 minutes ago-hour]
 tests/test_harness.py::test_the_retry_marker_says_the_age_it_recorded[0.75-45 minutes ago-hour]
+tests/test_harness.py::test_the_retry_marker_says_the_age_it_recorded[1.0-1 hour ago-60 minutes]
+tests/test_harness.py::test_the_retry_marker_says_the_age_it_recorded[1.05-1.1 hours ago-1 hour ago]
 tests/test_harness.py::test_the_retry_marker_says_the_age_it_recorded[2.01-2.0 hours ago-minute]
 tests/test_harness.py::test_the_retry_marker_says_the_age_it_recorded[5.9-5.9 hours ago-minute]
+tests/test_harness.py::test_the_run_date_is_the_runs_own_utc_calendar_day
 tests/test_harness.py::test_the_set_diff_count_is_not_capped_by_the_display_list
 tests/test_harness.py::test_verified_intact_is_optional_and_absent_means_no_section
 tests/test_harness.py::test_verified_intact_travels_from_judgment_to_state_and_report
@@ -331,6 +393,11 @@ tests/test_harness.py::test_without_a_recorded_key_the_directory_name_stands
 tests/test_harness.py::test_write_state_refuses_an_invalid_state_and_writes_a_valid_one
 tests/test_harness.py::test_write_state_snapshots_the_previous_state_for_the_run_number_check
 tests/test_harness.py::test_zero_test_ids_is_reported_as_unavailable_not_as_an_empty_suite
+tests/test_hooks.py::test_a_guard_writes_utf8_even_when_the_console_says_otherwise[enforce_bash_scope.py]
+tests/test_hooks.py::test_a_guard_writes_utf8_even_when_the_console_says_otherwise[enforce_write_scope.py]
+tests/test_hooks.py::test_a_mode_operand_is_not_a_path
+tests/test_hooks.py::test_a_scratch_file_that_happens_to_be_named_accepted_json_is_not_the_ledger
+tests/test_hooks.py::test_a_sibling_of_the_solo_root_is_not_the_solo_root
 tests/test_hooks.py::test_a_windows_path_survives_masking_and_target_reading
 tests/test_hooks.py::test_append_update_and_delete_write_the_archive_too
 tests/test_hooks.py::test_bash_allows_copying_the_checkout_out_to_scratch
@@ -491,6 +558,33 @@ tests/test_hooks.py::test_nested_commands_parse_under_windows_tokenization[eval 
 tests/test_hooks.py::test_nested_commands_parse_under_windows_tokenization[eval "rm -rf {repo}/src"-rm]
 tests/test_hooks.py::test_nested_shell_parses_a_quote_wrapped_command
 tests/test_hooks.py::test_nested_shell_recursion_is_bounded
+tests/test_hooks.py::test_real_git_changes_what_this_matrix_claims[branch --list -D keepme]
+tests/test_hooks.py::test_real_git_changes_what_this_matrix_claims[branch --list keepme]
+tests/test_hooks.py::test_real_git_changes_what_this_matrix_claims[branch --list]
+tests/test_hooks.py::test_real_git_changes_what_this_matrix_claims[branch --show-current]
+tests/test_hooks.py::test_real_git_changes_what_this_matrix_claims[branch -D keepme list]
+tests/test_hooks.py::test_real_git_changes_what_this_matrix_claims[branch -m keepme renamed]
+tests/test_hooks.py::test_real_git_changes_what_this_matrix_claims[branch -v]
+tests/test_hooks.py::test_real_git_changes_what_this_matrix_claims[branch list]
+tests/test_hooks.py::test_real_git_changes_what_this_matrix_claims[branch]
+tests/test_hooks.py::test_real_git_changes_what_this_matrix_claims[checkout -b --dry-run]
+tests/test_hooks.py::test_real_git_changes_what_this_matrix_claims[commit --allow-empty --dry-run -m x]
+tests/test_hooks.py::test_real_git_changes_what_this_matrix_claims[commit --allow-empty -m --dry-run]
+tests/test_hooks.py::test_real_git_changes_what_this_matrix_claims[commit -a --message --dry-run]
+tests/test_hooks.py::test_real_git_changes_what_this_matrix_claims[commit -am --dry-run]
+tests/test_hooks.py::test_real_git_changes_what_this_matrix_claims[commit -m --dry-run -a]
+tests/test_hooks.py::test_real_git_changes_what_this_matrix_claims[config --get user.name]
+tests/test_hooks.py::test_real_git_changes_what_this_matrix_claims[config --get-regexp user]
+tests/test_hooks.py::test_real_git_changes_what_this_matrix_claims[config user.name]
+tests/test_hooks.py::test_real_git_changes_what_this_matrix_claims[stash list]
+tests/test_hooks.py::test_real_git_changes_what_this_matrix_claims[stash push -m --dry-run]
+tests/test_hooks.py::test_real_git_changes_what_this_matrix_claims[stash push list]
+tests/test_hooks.py::test_real_git_changes_what_this_matrix_claims[status --porcelain]
+tests/test_hooks.py::test_real_git_changes_what_this_matrix_claims[tag --list v*]
+tests/test_hooks.py::test_real_git_changes_what_this_matrix_claims[tag --list]
+tests/test_hooks.py::test_real_git_changes_what_this_matrix_claims[tag -a v9 -m --dry-run]
+tests/test_hooks.py::test_real_git_changes_what_this_matrix_claims[tag -n]
+tests/test_hooks.py::test_real_git_changes_what_this_matrix_claims[worktree remove list]
 tests/test_hooks.py::test_real_tar_still_behaves_the_way_this_matrix_claims[-c --remove-files -f {scratch}/x.tar {repo}/hooks]
 tests/test_hooks.py::test_real_tar_still_behaves_the_way_this_matrix_claims[-cf {scratch}/x.tar --remove-files -- -C {repo}/hooks]
 tests/test_hooks.py::test_real_tar_still_behaves_the_way_this_matrix_claims[-cf {scratch}/x.tar --remove-files -- {repo}/hooks]
@@ -524,6 +618,34 @@ tests/test_hooks.py::test_real_tar_writes_where_this_matrix_claims[-xf {scratch}
 tests/test_hooks.py::test_real_tar_writes_where_this_matrix_claims[-xf {scratch}/a.tar --direc {repo}]
 tests/test_hooks.py::test_real_tar_writes_where_this_matrix_claims[-xf {scratch}/a.tar --direc {scratch}]
 tests/test_hooks.py::test_real_tar_writes_where_this_matrix_claims[-xf {scratch}/a.tar --directory {repo}]
+tests/test_hooks.py::test_the_first_qa_component_decides_and_a_deeper_one_cannot_rescue_it
+tests/test_hooks.py::test_the_guard_agrees_with_the_git_that_would_run[branch --list -D keepme]
+tests/test_hooks.py::test_the_guard_agrees_with_the_git_that_would_run[branch --list keepme]
+tests/test_hooks.py::test_the_guard_agrees_with_the_git_that_would_run[branch --list]
+tests/test_hooks.py::test_the_guard_agrees_with_the_git_that_would_run[branch --show-current]
+tests/test_hooks.py::test_the_guard_agrees_with_the_git_that_would_run[branch -D keepme list]
+tests/test_hooks.py::test_the_guard_agrees_with_the_git_that_would_run[branch -m keepme renamed]
+tests/test_hooks.py::test_the_guard_agrees_with_the_git_that_would_run[branch -v]
+tests/test_hooks.py::test_the_guard_agrees_with_the_git_that_would_run[branch list]
+tests/test_hooks.py::test_the_guard_agrees_with_the_git_that_would_run[branch]
+tests/test_hooks.py::test_the_guard_agrees_with_the_git_that_would_run[checkout -b --dry-run]
+tests/test_hooks.py::test_the_guard_agrees_with_the_git_that_would_run[commit --allow-empty --dry-run -m x]
+tests/test_hooks.py::test_the_guard_agrees_with_the_git_that_would_run[commit --allow-empty -m --dry-run]
+tests/test_hooks.py::test_the_guard_agrees_with_the_git_that_would_run[commit -a --message --dry-run]
+tests/test_hooks.py::test_the_guard_agrees_with_the_git_that_would_run[commit -am --dry-run]
+tests/test_hooks.py::test_the_guard_agrees_with_the_git_that_would_run[commit -m --dry-run -a]
+tests/test_hooks.py::test_the_guard_agrees_with_the_git_that_would_run[config --get user.name]
+tests/test_hooks.py::test_the_guard_agrees_with_the_git_that_would_run[config --get-regexp user]
+tests/test_hooks.py::test_the_guard_agrees_with_the_git_that_would_run[config user.name]
+tests/test_hooks.py::test_the_guard_agrees_with_the_git_that_would_run[stash list]
+tests/test_hooks.py::test_the_guard_agrees_with_the_git_that_would_run[stash push -m --dry-run]
+tests/test_hooks.py::test_the_guard_agrees_with_the_git_that_would_run[stash push list]
+tests/test_hooks.py::test_the_guard_agrees_with_the_git_that_would_run[status --porcelain]
+tests/test_hooks.py::test_the_guard_agrees_with_the_git_that_would_run[tag --list v*]
+tests/test_hooks.py::test_the_guard_agrees_with_the_git_that_would_run[tag --list]
+tests/test_hooks.py::test_the_guard_agrees_with_the_git_that_would_run[tag -a v9 -m --dry-run]
+tests/test_hooks.py::test_the_guard_agrees_with_the_git_that_would_run[tag -n]
+tests/test_hooks.py::test_the_guard_agrees_with_the_git_that_would_run[worktree remove list]
 tests/test_hooks.py::test_the_guard_agrees_with_the_tar_that_would_run[-c --remove-files -f {scratch}/x.tar {repo}/hooks]
 tests/test_hooks.py::test_the_guard_agrees_with_the_tar_that_would_run[-cf {scratch}/x.tar --remove-files -- -C {repo}/hooks]
 tests/test_hooks.py::test_the_guard_agrees_with_the_tar_that_would_run[-cf {scratch}/x.tar --remove-files -- {repo}/hooks]
@@ -573,10 +695,13 @@ tests/test_hooks.py::test_write_fails_open_on_malformed_input
 tests/test_hooks.py::test_write_honors_verdict_home
 tests/test_interpreter_floor.py::test_new_style_unions_are_lazy[__init__.py]
 tests/test_interpreter_floor.py::test_new_style_unions_are_lazy[accept.py]
+tests/test_interpreter_floor.py::test_new_style_unions_are_lazy[anchors.py]
 tests/test_interpreter_floor.py::test_new_style_unions_are_lazy[census.py]
+tests/test_interpreter_floor.py::test_new_style_unions_are_lazy[clock.py]
 tests/test_interpreter_floor.py::test_new_style_unions_are_lazy[enforce_bash_scope.py]
 tests/test_interpreter_floor.py::test_new_style_unions_are_lazy[enforce_run_contract.py]
 tests/test_interpreter_floor.py::test_new_style_unions_are_lazy[enforce_write_scope.py]
+tests/test_interpreter_floor.py::test_new_style_unions_are_lazy[filed.py]
 tests/test_interpreter_floor.py::test_new_style_unions_are_lazy[fixture_freshness.py]
 tests/test_interpreter_floor.py::test_new_style_unions_are_lazy[gate.py]
 tests/test_interpreter_floor.py::test_new_style_unions_are_lazy[harness.py]
@@ -586,20 +711,29 @@ tests/test_interpreter_floor.py::test_new_style_unions_are_lazy[pin_check.py]
 tests/test_interpreter_floor.py::test_new_style_unions_are_lazy[profile.py]
 tests/test_interpreter_floor.py::test_new_style_unions_are_lazy[project_key.py]
 tests/test_interpreter_floor.py::test_new_style_unions_are_lazy[qa_paths.py]
+tests/test_interpreter_floor.py::test_new_style_unions_are_lazy[questions.py]
 tests/test_interpreter_floor.py::test_new_style_unions_are_lazy[report_open_findings.py]
+tests/test_interpreter_floor.py::test_new_style_unions_are_lazy[reports.py]
 tests/test_interpreter_floor.py::test_new_style_unions_are_lazy[run_eval.py]
 tests/test_interpreter_floor.py::test_new_style_unions_are_lazy[run_mutation.py]
 tests/test_interpreter_floor.py::test_new_style_unions_are_lazy[runner.py]
 tests/test_interpreter_floor.py::test_new_style_unions_are_lazy[score.py]
 tests/test_interpreter_floor.py::test_new_style_unions_are_lazy[server.py]
+tests/test_interpreter_floor.py::test_new_style_unions_are_lazy[small.py]
 tests/test_interpreter_floor.py::test_new_style_unions_are_lazy[state.py]
+tests/test_interpreter_floor.py::test_new_style_unions_are_lazy[swebench.py]
+tests/test_interpreter_floor.py::test_new_style_unions_are_lazy[sweep.py]
+tests/test_interpreter_floor.py::test_new_style_unions_are_lazy[usage.py]
 tests/test_interpreter_floor.py::test_new_style_unions_are_lazy[validate.py]
 tests/test_interpreter_floor.py::test_no_syntax_the_floor_cannot_parse[__init__.py]
 tests/test_interpreter_floor.py::test_no_syntax_the_floor_cannot_parse[accept.py]
+tests/test_interpreter_floor.py::test_no_syntax_the_floor_cannot_parse[anchors.py]
 tests/test_interpreter_floor.py::test_no_syntax_the_floor_cannot_parse[census.py]
+tests/test_interpreter_floor.py::test_no_syntax_the_floor_cannot_parse[clock.py]
 tests/test_interpreter_floor.py::test_no_syntax_the_floor_cannot_parse[enforce_bash_scope.py]
 tests/test_interpreter_floor.py::test_no_syntax_the_floor_cannot_parse[enforce_run_contract.py]
 tests/test_interpreter_floor.py::test_no_syntax_the_floor_cannot_parse[enforce_write_scope.py]
+tests/test_interpreter_floor.py::test_no_syntax_the_floor_cannot_parse[filed.py]
 tests/test_interpreter_floor.py::test_no_syntax_the_floor_cannot_parse[fixture_freshness.py]
 tests/test_interpreter_floor.py::test_no_syntax_the_floor_cannot_parse[gate.py]
 tests/test_interpreter_floor.py::test_no_syntax_the_floor_cannot_parse[harness.py]
@@ -609,13 +743,19 @@ tests/test_interpreter_floor.py::test_no_syntax_the_floor_cannot_parse[pin_check
 tests/test_interpreter_floor.py::test_no_syntax_the_floor_cannot_parse[profile.py]
 tests/test_interpreter_floor.py::test_no_syntax_the_floor_cannot_parse[project_key.py]
 tests/test_interpreter_floor.py::test_no_syntax_the_floor_cannot_parse[qa_paths.py]
+tests/test_interpreter_floor.py::test_no_syntax_the_floor_cannot_parse[questions.py]
 tests/test_interpreter_floor.py::test_no_syntax_the_floor_cannot_parse[report_open_findings.py]
+tests/test_interpreter_floor.py::test_no_syntax_the_floor_cannot_parse[reports.py]
 tests/test_interpreter_floor.py::test_no_syntax_the_floor_cannot_parse[run_eval.py]
 tests/test_interpreter_floor.py::test_no_syntax_the_floor_cannot_parse[run_mutation.py]
 tests/test_interpreter_floor.py::test_no_syntax_the_floor_cannot_parse[runner.py]
 tests/test_interpreter_floor.py::test_no_syntax_the_floor_cannot_parse[score.py]
 tests/test_interpreter_floor.py::test_no_syntax_the_floor_cannot_parse[server.py]
+tests/test_interpreter_floor.py::test_no_syntax_the_floor_cannot_parse[small.py]
 tests/test_interpreter_floor.py::test_no_syntax_the_floor_cannot_parse[state.py]
+tests/test_interpreter_floor.py::test_no_syntax_the_floor_cannot_parse[swebench.py]
+tests/test_interpreter_floor.py::test_no_syntax_the_floor_cannot_parse[sweep.py]
+tests/test_interpreter_floor.py::test_no_syntax_the_floor_cannot_parse[usage.py]
 tests/test_interpreter_floor.py::test_no_syntax_the_floor_cannot_parse[validate.py]
 tests/test_interpreter_floor.py::test_the_floor_is_written_down
 tests/test_interpreter_floor.py::test_the_future_import_detector_reads_the_statement_not_the_text
@@ -635,6 +775,13 @@ tests/test_issues.py::test_labels_and_repo_reach_gh_verbatim
 tests/test_issues.py::test_limit_files_the_worst_and_defers_the_rest
 tests/test_issues.py::test_no_state_is_exit_4
 tests/test_issues.py::test_the_same_regression_is_not_filed_twice_in_later_runs
+tests/test_limits.py::test_a_weekly_limit_is_never_slept_through
+tests/test_limits.py::test_limit_kind_separates_the_two_windows_and_ignores_everything_else
+tests/test_limits.py::test_limit_line_returns_the_clis_own_sentence
+tests/test_limits.py::test_the_external_key_batch_stops_when_the_week_is_spent
+tests/test_limits.py::test_the_fixture_eval_refuses_rather_than_retries_on_a_weekly_limit
+tests/test_limits.py::test_the_runner_still_waits_out_a_session_limit
+tests/test_limits.py::test_the_runner_stops_on_a_weekly_limit_instead_of_spending_its_retry
 tests/test_mcp_tools.py::test_findings_delta_filter_and_all
 tests/test_mcp_tools.py::test_findings_open_orders_regressed_first
 tests/test_mcp_tools.py::test_findings_unknown_status
@@ -679,11 +826,19 @@ tests/test_pin_check.py::test_a_collection_error_is_not_a_kill
 tests/test_pin_check.py::test_a_failed_test_is_a_kill
 tests/test_pin_check.py::test_a_failing_exit_without_a_summary_is_not_a_kill
 tests/test_pin_check.py::test_a_green_suite_is_a_survivor
+tests/test_pin_check.py::test_a_mutation_is_written_atomically
+tests/test_pin_check.py::test_a_scratch_that_runs_the_original_checkout_is_refused
 tests/test_pin_check.py::test_a_usage_error_is_not_a_kill
 tests/test_pin_check.py::test_an_errored_test_is_a_kill
 tests/test_pin_check.py::test_no_tests_ran_is_not_a_kill
 tests/test_pin_check.py::test_only_the_final_summary_line_counts
+tests/test_pin_check.py::test_runs_its_own_code_reads_the_resolved_path
+tests/test_pin_check.py::test_the_default_campaign_never_touches_the_tree
+tests/test_pin_check.py::test_the_in_tree_campaign_swaps_and_restores_the_file_it_mutates
 tests/test_pin_check.py::test_the_readme_badge_states_the_catalogue_size
+tests/test_pin_check.py::test_the_restorer_is_constructible_where_a_signal_is_missing
+tests/test_pin_check.py::test_the_restorer_puts_a_file_back_whole
+tests/test_pin_check.py::test_the_scratch_copy_is_the_working_tree_not_the_last_commit
 tests/test_profile.py::test_a_broken_profile_stops_the_run_instead_of_measuring_nothing
 tests/test_profile.py::test_a_file_with_no_block_is_not_an_error
 tests/test_profile.py::test_a_missing_profile_is_reported_and_is_not_fatal
@@ -706,19 +861,43 @@ tests/test_project_key.py::test_non_git_directory_falls_back_to_basename
 tests/test_project_key.py::test_normal_repo_uses_lowercased_basename
 tests/test_project_key.py::test_sanitize
 tests/test_project_key.py::test_subdirectory_of_repo_resolves_to_repo_key
+tests/test_questions.py::test_a_judgment_question_needs_a_sentence_and_a_known_finding
+tests/test_questions.py::test_a_project_that_never_asked_has_no_questions_fact
+tests/test_questions.py::test_dismiss_needs_a_reason_and_records_it
+tests/test_questions.py::test_finalize_mints_the_id_writes_the_ledger_and_renders_the_section
+tests/test_questions.py::test_the_banner_the_gate_and_the_server_say_what_is_waiting
+tests/test_questions.py::test_the_guards_refuse_the_answers_ledger_to_the_tester
+tests/test_questions.py::test_the_next_run_reads_the_answer_and_nobody_asks_again
+tests/test_questions.py::test_the_same_question_asked_again_is_not_minted_twice
+tests/test_questions.py::test_verdict_answer_writes_its_own_ledger_and_refuses_what_it_should
+tests/test_reading_map.py::test_a_baseline_measures_the_map_least_covered_first_and_test_files_apart
+tests/test_reading_map.py::test_a_judgment_may_not_write_the_exercised_by_field
+tests/test_reading_map.py::test_a_tracked_script_outside_the_suites_roots_is_not_a_module_to_read
+tests/test_reading_map.py::test_exercised_by_names_the_tests_whose_contexts_executed_the_cited_lines
+tests/test_reading_map.py::test_the_map_names_the_findings_that_cite_each_module
 tests/test_release_notes.py::test_a_version_without_a_section_is_refused
 tests/test_release_notes.py::test_every_tag_shaped_heading_parses
 tests/test_release_notes.py::test_the_body_stops_at_the_next_heading
 tests/test_release_notes.py::test_the_cli_prints_body_or_title
 tests/test_release_notes.py::test_the_newest_changelog_entry_is_readable
 tests/test_release_workflow.py::test_a_registry_failure_is_visible
+tests/test_release_workflow.py::test_the_comment_filter_is_what_every_test_reads
 tests/test_release_workflow.py::test_the_download_is_checksummed_before_it_runs
 tests/test_release_workflow.py::test_the_job_holds_no_more_than_it_needs
 tests/test_release_workflow.py::test_the_publisher_is_pinned_to_a_release_not_to_latest
+tests/test_report_names.py::test_a_retry_of_the_same_run_reuses_its_own_file
+tests/test_report_names.py::test_a_second_run_on_the_same_day_keeps_the_first_runs_report
+tests/test_reports.py::test_a_ctrf_report_is_read_the_same_way
+tests/test_reports.py::test_a_junit_report_outranks_the_summary_line_and_feeds_the_ledger
+tests/test_reports.py::test_an_explicit_id_command_outranks_the_reports_ids
+tests/test_reports.py::test_an_unwritten_report_falls_back_to_the_dialect_and_says_so
+tests/test_reports.py::test_the_reader_names_what_it_cannot_read
 tests/test_runner.py::test_a_bare_checkout_is_provisioned_and_launched_headless
 tests/test_runner.py::test_a_completed_run_gates_green_with_the_model_measured
+tests/test_runner.py::test_a_path_argument_in_solo_mode_names_the_checkout_not_a_key
 tests/test_runner.py::test_a_session_that_writes_no_state_exits_5_not_yesterdays_verdict
 tests/test_runner.py::test_a_tracked_settings_json_is_not_touched
+tests/test_runner.py::test_an_edited_provision_is_the_operators_and_is_kept
 tests/test_runner.py::test_an_operators_agent_file_and_hooks_are_kept_not_replaced
 tests/test_runner.py::test_an_operators_permission_flag_is_not_doubled
 tests/test_runner.py::test_arguments_after_the_bare_dashes_reach_the_cli_verbatim
@@ -730,9 +909,12 @@ tests/test_runner.py::test_session_limit_reset_time_is_parsed_not_guessed
 tests/test_runner.py::test_skip_unchanged_runs_when_a_quarantine_expired
 tests/test_runner.py::test_skip_unchanged_runs_when_head_moved
 tests/test_runner.py::test_skip_unchanged_spends_no_model_run
+tests/test_runner.py::test_the_default_prompt_forbids_the_outer_session_an_offer_to_fix
+tests/test_runner.py::test_the_runners_own_provision_follows_the_plugin_root
 tests/test_runner.py::test_without_the_flag_unchanged_head_still_runs
 tests/test_score.py::test_a_broad_row_cannot_steal_the_finding_a_later_row_needs
 tests/test_score.py::test_a_row_starved_by_a_true_conflict_says_so
+tests/test_score.py::test_a_source_checkouts_harness_counts_as_current
 tests/test_score.py::test_delta_changelog_trap_misclassification_drops_row
 tests/test_score.py::test_delta_counts_line_after_heading_is_not_a_ranking_violation
 tests/test_score.py::test_delta_live_skips_unreachable_rows
@@ -757,6 +939,22 @@ tests/test_score.py::test_report_contains_row_with_alternatives
 tests/test_score.py::test_report_contains_row_without_alternatives_is_unchanged
 tests/test_score.py::test_report_forbids_row
 tests/test_score.py::test_stale_without_citation_drops_row
+tests/test_score.py::test_state_rows_score_files_verbs_anchors_and_the_class
+tests/test_score.py::test_the_questions_row_reads_the_ledger
+tests/test_score.py::test_two_rows_of_one_class_may_share_a_finding
+tests/test_session_env.py::test_a_gateway_gets_the_three_flags_and_the_token_as_api_key
+tests/test_session_env.py::test_a_gateway_keeps_the_config_directory_the_operator_named
+tests/test_session_env.py::test_a_gateway_without_an_isolated_config_is_warned_about
+tests/test_session_env.py::test_a_named_account_is_seeded_and_named
+tests/test_session_env.py::test_an_operators_own_flag_value_is_never_overwritten
+tests/test_session_env.py::test_anthropics_own_base_url_is_not_a_gateway
+tests/test_session_env.py::test_anthropics_own_base_url_leaves_the_named_account_alone
+tests/test_session_env.py::test_read_env_file_skips_comments_and_strips_quotes
+tests/test_session_env.py::test_seed_config_creates_the_directory_and_survives_a_broken_file
+tests/test_session_env.py::test_seed_config_marks_the_repo_trusted_and_keeps_what_is_there
+tests/test_session_env.py::test_the_ambient_login_is_left_alone
+tests/test_session_env.py::test_the_env_file_reaches_the_child_and_seeds_its_config
+tests/test_session_env.py::test_the_runner_refuses_a_missing_env_file
 tests/test_session_start.py::test_a_clean_project_says_so_in_one_line
 tests/test_session_start.py::test_a_finding_already_named_as_a_blocker_is_not_repeated
 tests/test_session_start.py::test_a_repo_with_no_qa_state_prints_nothing
@@ -767,6 +965,49 @@ tests/test_session_start.py::test_findings_are_offered_as_findings_not_as_orders
 tests/test_session_start.py::test_resolved_findings_are_not_reported_as_outstanding
 tests/test_session_start.py::test_stale_memory_is_flagged_rather_than_served_as_current
 tests/test_session_start.py::test_the_blocker_comes_first_and_the_counts_follow
+tests/test_skills.py::test_agents_md_names_the_test_command_and_the_doctrine
+tests/test_skills.py::test_every_skill_shares_the_contracts_doctrine_and_routes_claude_code_to_the_agent
+tests/test_skills.py::test_llms_txt_lists_files_that_exist
+tests/test_skills.py::test_the_five_skills_exist_and_are_named_by_their_directory
+tests/test_skills.py::test_the_skills_use_the_harness_the_package_ships
+tests/test_small.py::test_a_counterfactual_that_changes_nothing_disproves_it
+tests/test_small.py::test_a_counterfactual_that_flips_the_value_proves_the_claim
+tests/test_small.py::test_a_finding_from_local_mode_is_a_hypothesis_and_validates
+tests/test_small.py::test_a_line_outside_the_function_falls_back_to_its_first_line[1]
+tests/test_small.py::test_a_line_outside_the_function_falls_back_to_its_first_line[999]
+tests/test_small.py::test_a_line_outside_the_function_falls_back_to_its_first_line[None]
+tests/test_small.py::test_a_line_outside_the_function_falls_back_to_its_first_line[five]
+tests/test_small.py::test_a_probe_refuses_a_tree_that_imports_the_original_source
+tests/test_small.py::test_a_probe_that_copies_the_example_instead_of_calling_the_function_is_refused
+tests/test_small.py::test_a_probe_the_model_malformed_is_refused_and_says_why
+tests/test_small.py::test_a_quarantine_entry_uses_the_key_the_validator_reads
+tests/test_small.py::test_a_skip_expires_only_on_a_future_date
+tests/test_small.py::test_a_version_guard_is_not_an_abandoned_skip
+tests/test_small.py::test_an_error_class_the_interpreter_names_needs_no_model
+tests/test_small.py::test_an_unknown_severity_is_not_trusted
+tests/test_small.py::test_ask_json_retries_then_gives_up
+tests/test_small.py::test_candidates_follow_the_reading_map_then_fall_back
+tests/test_small.py::test_chunks_carry_the_files_own_line_numbers
+tests/test_small.py::test_chunks_clamp_a_huge_function_and_survive_a_broken_file
+tests/test_small.py::test_examine_files_a_claim_only_when_both_answers_agree
+tests/test_small.py::test_examine_refuses_an_empty_mechanism_and_a_denied_second_opinion
+tests/test_small.py::test_examine_stops_at_the_first_answer_when_the_code_matches
+tests/test_small.py::test_extract_json_survives_prose_and_fences
+tests/test_small.py::test_finding_json_is_written_only_after_the_validator_accepts_it
+tests/test_small.py::test_ids_from_a_report_use_the_harnesss_own_parser
+tests/test_small.py::test_module_name_reads_an_import_path_from_a_file
+tests/test_small.py::test_read_env_file_and_a_missing_one
+tests/test_small.py::test_scratch_copy_leaves_out_what_must_not_be_copied
+tests/test_small.py::test_severity_from_reading_is_capped_until_something_is_executed
+tests/test_small.py::test_the_console_script_is_declared
+tests/test_small.py::test_the_interpreter_comes_from_the_projects_own_gate
+tests/test_small.py::test_the_judgment_says_what_local_mode_did_not_do
+tests/test_small.py::test_the_probe_asks_for_only_what_the_harness_cannot_measure
+tests/test_small.py::test_the_probe_sweeps_bytecode_before_it_runs
+tests/test_small.py::test_the_run_refuses_without_an_endpoint
+tests/test_small.py::test_the_verdict_is_arithmetic_over_the_findings
+tests/test_small.py::test_unstable_is_the_symmetric_difference_across_runs
+tests/test_small.py::test_words_split_identifiers_so_a_changelog_can_be_found
 tests/test_stop_hook.py::test_a_freshly_checked_out_repo_says_nothing
 tests/test_stop_hook.py::test_a_harness_state_whose_scratch_is_elsewhere_does_not_block
 tests/test_stop_hook.py::test_a_harness_written_state_says_nothing
@@ -778,6 +1019,43 @@ tests/test_stop_hook.py::test_every_broken_input_fails_open
 tests/test_stop_hook.py::test_hand_written_state_written_this_turn_blocks_the_stop
 tests/test_stop_hook.py::test_it_never_blocks_twice
 tests/test_stop_hook.py::test_the_block_names_a_durable_signal_before_promising_exit_6
+tests/test_swebench.py::test_build_prompt_carries_the_issue_verbatim_and_the_shipped_command
+tests/test_swebench.py::test_cited_refs_takes_anchors_first_and_prose_second
+tests/test_swebench.py::test_enclosing_picks_the_innermost_definition
+tests/test_swebench.py::test_gold_of_empty[]
+tests/test_swebench.py::test_gold_of_empty[no patch here]
+tests/test_swebench.py::test_gold_of_reads_the_base_side_ranges_and_anchors_insertions
+tests/test_swebench.py::test_level_of_grades_file_hunk_and_function
+tests/test_swebench.py::test_level_of_survives_a_file_that_does_not_parse
+tests/test_swebench.py::test_outcomes_are_read_from_the_short_summary_with_spaces_and_messages
+tests/test_swebench.py::test_result_line_finds_the_cli_result_in_the_runner_relay
+tests/test_swebench.py::test_same_file_needs_a_directory_qualified_suffix
+tests/test_swebench.py::test_score_instance_reads_state_and_grades_the_headline
+tests/test_swebench.py::test_score_instance_without_state_is_missing
+tests/test_swebench.py::test_select_takes_every_instance_of_the_small_repositories
+tests/test_swebench.py::test_status_of_reads_swebench_ids_cut_at_whitespace_as_prefixes
+tests/test_swebench.py::test_table_counts_levels_and_survives_unscored_rows
+tests/test_swebench.py::test_test_files_come_from_the_test_patch
+tests/test_sweep.py::test_a_commit_that_touches_a_cited_file_runs_the_model_and_says_why
+tests/test_sweep.py::test_a_commit_that_touches_nothing_cited_is_swept_without_a_model
+tests/test_sweep.py::test_every_blocker_is_a_measurement
+tests/test_sweep.py::test_the_synthetic_judgment_carries_every_open_finding_by_id_and_nothing_else
+tests/test_sweep.py::test_the_unchanged_head_path_still_applies
+tests/test_template.py::test_facts_name_the_template_and_the_prompt_that_judged
+tests/test_template.py::test_the_handoff_is_capped_at_ten_lines
+tests/test_template.py::test_the_prompt_points_at_the_template_not_the_schema_doc
+tests/test_template.py::test_the_template_carries_every_shape_the_validator_has_refused
+tests/test_template.py::test_the_templates_are_the_ones_shipped_in_the_package
+tests/test_template.py::test_the_templates_finalize_into_a_valid_state_through_a_finding_file
+tests/test_template.py::test_the_validator_accepts_the_template
+tests/test_usage.py::test_a_second_accounts_transcripts_are_read_from_its_own_config
+tests/test_usage.py::test_add_totals_two_arms_and_tolerates_a_missing_one
+tests/test_usage.py::test_brief_reads_as_a_bill
+tests/test_usage.py::test_project_dir_matches_claude_codes_own_key
+tests/test_usage.py::test_usage_covers_every_session_recorded_for_the_checkout
+tests/test_usage.py::test_usage_is_none_when_there_is_no_transcript
+tests/test_usage.py::test_usage_sums_the_subagent_and_counts_a_request_once
+tests/test_usage.py::test_usage_survives_a_truncated_transcript
 tests/test_validate.py::test_a_clean_judgment_passes
 tests/test_validate.py::test_a_failing_run_may_leave_not_tested_empty
 tests/test_validate.py::test_a_finding_that_will_be_new_is_told_so_before_the_merge
@@ -853,23 +1131,28 @@ tests/test_validate.py::test_two_findings_may_not_share_one_hash
 tests/test_validate.py::test_two_findings_under_one_id_are_named_as_such
 tests/test_validate.py::test_verified_intact_must_be_a_list
 tests/test_validate.py::test_well_formed_evidence_stays_clean
+tests/test_verification.py::test_a_clean_verification_writes_no_notes_and_leaves_no_scratch
 tests/test_verification.py::test_a_conftest_the_commit_did_not_touch_is_not_reported_as_copied
-tests/test_verification.py::test_a_fail_to_pass_on_a_prose_citation_is_recorded_not_confirmed
+tests/test_verification.py::test_a_failing_test_refuses_only_a_resolution
+tests/test_verification.py::test_a_finding_that_cites_nothing_is_counted_once_and_said_once
 tests/test_verification.py::test_a_fix_is_verified_when_the_cited_test_fails_before_and_passes_after
 tests/test_verification.py::test_a_measured_fix_still_reads_as_verified
 tests/test_verification.py::test_a_missing_previous_commit_still_measures_head
 tests/test_verification.py::test_a_node_id_scraped_from_prose_is_never_run
 tests/test_verification.py::test_a_prose_pick_among_several_is_not_run_at_all
+tests/test_verification.py::test_a_prose_pick_that_arrives_by_hand_still_confirms_nothing
 tests/test_verification.py::test_a_regression_test_appended_to_an_existing_file_verifies
 tests/test_verification.py::test_a_regression_test_that_lands_with_its_fixture_verifies
 tests/test_verification.py::test_a_resolution_is_refused_while_the_cited_test_still_fails
 tests/test_verification.py::test_a_setup_error_at_the_old_commit_never_reads_as_fail
 tests/test_verification.py::test_a_single_cited_test_that_fails_at_head_still_refuses
+tests/test_verification.py::test_a_single_prose_citation_is_not_run_either
 tests/test_verification.py::test_a_stale_cache_planted_in_the_scratch_does_not_survive_the_run
 tests/test_verification.py::test_a_test_file_the_fix_did_not_touch_is_not_reported_as_copied
 tests/test_verification.py::test_a_test_the_fix_added_is_carried_back_to_the_old_commit
 tests/test_verification.py::test_a_test_the_fix_added_is_preferred_over_one_merely_mentioned
 tests/test_verification.py::test_an_error_beside_a_failure_is_still_an_error
+tests/test_verification.py::test_an_explicit_citation_counts_when_it_resolves_to_the_collected_form
 tests/test_verification.py::test_an_explicit_citation_leads_whatever_the_prose_says
 tests/test_verification.py::test_cited_tests_reads_ids_not_line_references
 tests/test_verification.py::test_pass_at_both_commits_verifies_nothing
@@ -881,7 +1164,8 @@ tests/test_verification.py::test_the_judgment_may_not_claim_a_verification
 tests/test_verification.py::test_the_old_source_is_put_ahead_of_any_installed_copy
 tests/test_verification.py::test_the_report_counts_the_measurement_not_the_claim
 tests/test_verification.py::test_verification_is_bounded
-tests/test_verification.py::test_without_a_ledger_a_citation_is_still_tried
+tests/test_verification.py::test_without_a_ledger_a_declared_citation_is_still_tried
+tests/test_verification.py::test_without_a_previous_commit_the_note_says_so
 tests/test_verification.py::test_without_test_one_cmd_nothing_runs_and_the_note_says_how
 tests/test_versions.py::test_the_check_can_fail
 tests/test_versions.py::test_the_three_manifests_carry_one_version

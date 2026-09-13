@@ -1,0 +1,22 @@
+{
+ "id": "VERDICT-F-60",
+ "title": "Eleven rules shipped in 0.74.0 survive mutation against the whole suite, including the only call site of the `__pycache__` sweep, the whole UTF-8 stderr fix, both `_ago` boundaries and `run_date`'s offset normalisation",
+ "severity": "Minor",
+ "priority": "P2",
+ "status": "resolved",
+ "failure_classification": null,
+ "confidence": "proven",
+ "fix_verified": true,
+ "verification_test": "tests/test_harness.py::test_one_minute_is_a_minute_not_seconds",
+ "evidence": [
+  "The two real survivors run 14 named ((8) one-minute, (9) age_h==1.05) now have guarding tests: tests/test_harness.py:1037 test_one_minute_is_a_minute_not_seconds and :1023 test_the_retry_marker_says_the_age_it_recorded[1.05-1.1 hours ago-1 hour ago]; (8) is also pinned in eval/pinned_mutants.json ('0.80.2 S4 sweep, F-60 (8): one minute reads as seconds').",
+  "RE-INJECTION BY EFFECT (scratchpad/reinject_f60.sh, isolated: git-archive HEAD scratch tree, PYTHONPATH ahead of the editable install verified via harness.__file__ inside the scratch, PYTHONDONTWRITEBYTECODE=1, __pycache__ swept between arms). CONTROL clean = 8 passed. Inject `minutes < 1`->`minutes < 2`: test_one_minute_is_a_minute_not_seconds FAILS (1 min reads as seconds). RESTORE clean, re-run = 8 passed (the corrected §3 control direction). Inject `age_h >= 1.05`->`age_h > 1.05`: test_the_retry_marker_says_the_age_it_recorded[1.05-...] FAILS.",
+  "The remaining survivors are correctly disposed of per run 14's lesson: (10) run_date's `.replace(\"Z\",...)` is an EQUIVALENT mutant (datetime.fromisoformat parses naive stamps; a -07:00 stamp has no Z), struck from the survivor list; (6) and (7) are the UTF-8 stderr / Windows-only behaviour a macOS suite structurally cannot observe (not_tested this run)."
+ ],
+ "root_cause": {
+  "mechanism": "the 0.74.0 rules were pinned by a hand-written catalogue that missed these lines; the two real boundaries now have tests and (8) is a pinned mutant. (10) is equivalent; (6)(7) are platform-unmeasurable here.",
+  "fix_location": "test",
+  "confidence": "proven"
+ },
+ "narrative": "RESOLVED. The two survivors worth a test — the _ago one-minute and 1.05-hour boundaries — now have guarding tests, fix-verified by isolated re-injection of both (clean control passes, each mutation flips its test, clean-source re-run passes again). The equivalent mutant (10) is struck; the Windows-only (6)(7) are recorded as platform-unmeasurable."
+}
