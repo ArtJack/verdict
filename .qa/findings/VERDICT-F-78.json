@@ -1,0 +1,22 @@
+{
+ "id": "VERDICT-F-78",
+ "title": "Two of the four release-workflow tests read the job text including COMMENTS, so the sha256 check that VERDICT-F-73's fix rests on can be deleted and replaced by a comment that merely names it, and all four tests stay green",
+ "severity": "Major",
+ "priority": "P2",
+ "status": "resolved",
+ "failure_classification": "BRITTLE_TEST",
+ "confidence": "proven",
+ "fix_verified": true,
+ "verification_test": "tests/test_release_workflow.py::test_the_download_is_checksummed_before_it_runs",
+ "evidence": [
+  "FIXED in this range. tests/test_release_workflow.py: all four tests now read `_commands(_registry_job())` (the comment-stripping filter) — three changed from raw `_registry_job()` (git diff 4dc006a..HEAD shows test_the_download_is_checksummed_before_it_runs:40, test_a_registry_failure_is_visible:52, test_the_job_holds_no_more_than_it_needs:67). A new instrument-control test_the_comment_filter_is_what_every_test_reads (:57) asserts a commented check satisfies none of them.",
+  "RE-INJECTION BY EFFECT: copied release.yml + the test to a scratch tree, commented out the real `sha256sum -c -` line (line 144) leaving a comment that still NAMES the check, ran `pytest test_the_download_is_checksummed_before_it_runs` -> 1 failed: `AssertionError: the checksum is declared but never checked`. At run 14 (4dc006a) that same mutation left all four tests green.",
+  "GUARD: test_the_comment_filter_is_what_every_test_reads and the four hardened tests are in the 1172-passing suite."
+ ],
+ "root_cause": {
+  "mechanism": "`_commands()` (comment filter) existed but was applied by only the `latest` test; the two security-relevant assertions read the raw job, so a commented line satisfied `\"sha256sum -c\" in job`. Fix: every test reads `_commands()`, plus an instrument-control test.",
+  "fix_location": "test",
+  "confidence": "proven"
+ },
+ "narrative": "RESOLVED, fix-verified by re-injection. The supply-chain check (F-73) is now genuinely guarded: commenting the checksum makes the guarding test fail, which it did not at run 14."
+}

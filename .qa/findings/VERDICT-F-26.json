@@ -1,0 +1,23 @@
+{
+ "id": "VERDICT-F-26",
+ "title": "Fix verification picks its test by scraping any pytest node id out of a finding's prose evidence, so a mis-scraped id that fails at HEAD force-reopens a correctly-resolved finding over the tester's judgment",
+ "severity": "Minor",
+ "priority": "P2",
+ "status": "resolved",
+ "failure_classification": null,
+ "confidence": "proven",
+ "fix_verified": false,
+ "verification_test": "tests/test_verification.py::test_a_node_id_scraped_from_prose_is_never_run",
+ "evidence": [
+  "FIXED in 0.84.0 by redesign: a prose-scraped node id is NEVER run. src/verdict_mcp/harness.py:645-657 marks a `first_cited` (prose) pick `selected_by:'unselectable'` and runs nothing; :761-772 a fail at HEAD refuses a resolution only for a CHOSEN test; :773-784 a fail->pass on a prose-only test is `not_weighed`. Only an explicit `verification_test` (or added_this_run) is weighed (:462).",
+  "DEMONSTRATED by this run's own facts.json: F-26 cites test_the_state_validator_keeps_checking_after_a_malformed_entry only in prose; facts.verification['VERDICT-F-26'] = selected_by 'unselectable', at_previous/at_head 'unavailable', 'not run: 1 test cited in prose, none declared as verification_test'. The mis-scrape can no longer reopen a finding because prose ids are never executed.",
+  "GUARD: tests/test_verification.py at HEAD has six tests for this — test_a_node_id_scraped_from_prose_is_never_run, test_a_single_prose_citation_is_not_run_either, test_the_collected_citation_wins_over_the_scraped_one, test_an_explicit_citation_leads_whatever_the_prose_says, test_a_prose_pick_among_several_is_not_run_at_all, test_a_prose_pick_that_arrives_by_hand_still_confirms_nothing; all in the 1172 suite.",
+  "Verified by reading + the facts demonstration, not by re-injection (fix_verified: false). The next_run_focus[3] decision was taken: prose is no longer authoritative for selection."
+ ],
+ "root_cause": {
+  "mechanism": "selection scraped any node id from prose and ran it; 0.84.0 makes prose citations unselectable (nothing runs) and weighs only an explicitly-declared verification_test.",
+  "fix_location": "code",
+  "confidence": "proven"
+ },
+ "narrative": "RESOLVED by the 0.84.0 verification redesign. A node id merely quoted in prose is never run, so it can no longer force-reopen a correctly-resolved finding — demonstrated on F-26 itself in this run's facts. Verified by reading the harness and six guard tests; not re-injected."
+}

@@ -1,0 +1,21 @@
+{
+ "id": "VERDICT-F-58",
+ "title": "The instrument control §3 prescribes for the stale-bytecode fault cannot fire in the ordering that produced VERDICT-F-50: re-running an injection you already watched fail reads FAIL while the shadowed bytecode is still what runs",
+ "severity": "Major",
+ "priority": "P2",
+ "status": "resolved",
+ "failure_classification": null,
+ "confidence": "proven",
+ "fix_verified": false,
+ "evidence": [
+  "FIXED in the agent contract (0.87.0/0.88.0 rewrite of §3). agents/verdict.md:242-248: 'the check that can is an instrument control, and its DIRECTION is the whole check: put the original source back and re-run. If the failure you injected persists on clean source, you are measuring the cache. Re-running an injection you have already watched fail proves nothing in the ordering that produced VERDICT-F-50 — the stale bytecode IS that injection, so it fails again on it and the control cannot fail. A control that passed because the fault was excluded by other means (subprocess arms, the cache already swept) has not been exercised; say which it was.'",
+  "The fix reverses the control direction (clean-source re-run, not injection re-run) and names the subprocess/cache-swept exclusion — exactly the datum run-14 next_run_focus[5] said to supply.",
+  "LIVE DEMONSTRATION this run: the corrected control was exercised in the F-60 re-injection (scratchpad/reinject_f60.sh step 3) — after watching the injected mutation fail, I restored clean source, swept cache, re-ran, and the suite passed (8/8), which is the direction that can actually fail if the instrument is stale. Verified by reading + this exercise; no unit test guards contract prose (fix_verified: false)."
+ ],
+ "root_cause": {
+  "mechanism": "§3's prescribed control ('re-run the injection you watched fail') cannot fail because stale bytecode re-runs the same injection. The contract now prescribes the opposite direction (restore clean source and re-run) and requires naming when the fault was excluded by other means.",
+  "fix_location": "spec",
+  "confidence": "proven"
+ },
+ "narrative": "RESOLVED. The agent contract's §3 instrument control now runs in the direction that can fail — restore clean source and re-run — and requires the tester to say when a control passed only because the fault was excluded by other means. Confirmed by reading the corrected prose and by exercising the corrected control in this run's F-60 re-injection."
+}

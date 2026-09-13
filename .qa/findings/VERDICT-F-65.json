@@ -1,0 +1,21 @@
+{
+ "id": "VERDICT-F-65",
+ "title": "The pinned-mutant catalogue is assembled from the finding list, not from the code, so its kill rate is a rate over the rules somebody remembered to list",
+ "severity": "Minor",
+ "priority": "P2",
+ "status": "resolved",
+ "failure_classification": null,
+ "confidence": "proven",
+ "fix_verified": false,
+ "evidence": [
+  "FIXED in 0.80.2 by building the code-enumerated view F-65 asked for. eval/sweep.py (new, commit 5612e9d 'a code-enumerated sweep for F-65') docstring: 'A code-enumerated mutation sweep over named functions... take every line of a named function, break it every way eval/mutate.py's operators know, run the whole suite, and list what survives — so the denominator is the code, not a memory of it.' It cites VERDICT-F-65 by name.",
+  "RUN and acted upon: eval/sweeps/2026-09-06-f65.json holds 155 enumerated mutants; commit cd1ddcc '0.80.2: the first sweep's survivors — 22 real, judged one by one, seven pinned'. The code-enumerated denominator found 22 real survivors the hand-written catalogue could not have, which is precisely F-65's point.",
+  "Nuance recorded: eval/pinned_mutants.json (175 entries, all finding-labelled) remains a regression PIN-list by design; the resolution is that the code-enumerated MEASUREMENT (sweep.py) now exists alongside it. Verified by reading the tool + artifact + commits; the sweep was not re-run this run (a full campaign is the standing not_tested), so fix_verified: false."
+ ],
+ "root_cause": {
+  "mechanism": "pin_check.py's catalogue is hand-written from findings, so its kill rate measured only remembered rules. 0.80.2 adds eval/sweep.py, a code-enumerated campaign whose denominator is the function's lines.",
+  "fix_location": "code",
+  "confidence": "proven"
+ },
+ "narrative": "RESOLVED. The code-enumerated sweep F-65 named as missing was built (eval/sweep.py), run over 155 mutants, and its 22 real survivors judged and partly pinned. The regression catalogue stays finding-derived by design; the measurement that answers 'would a test notice a change anywhere in this function' now exists. Read, not re-run."
+}

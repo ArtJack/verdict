@@ -1,0 +1,22 @@
+{
+ "id": "VERDICT-F-76",
+ "title": "The same role-blind membership test denies read-only git commands the sub-verb set was written to allow: `git branch --show-current`, `git branch -v`, `git tag --list` and `git config --get-regexp` are all refused as checkout mutations",
+ "severity": "Minor",
+ "priority": "P2",
+ "status": "resolved",
+ "failure_classification": null,
+ "confidence": "proven",
+ "fix_verified": true,
+ "verification_test": "tests/test_hooks.py::test_the_guard_agrees_with_the_git_that_would_run[branch --show-current]",
+ "evidence": [
+  "FIXED in 0.80.0. _GIT_READONLY_FLAGS (hooks/enforce_bash_scope.py:116-126) now holds the dashed read-only spellings per verb, checked at :597-598 after mutating flags are ruled out.",
+  "COUNTERFACTUAL (scratchpad/probe_f75.py): OLD hook at 4dc006a DENIED and NEW hook ALLOWS: `git branch --show-current`, `git branch -v`, `git tag --list`, `git config --get-regexp user`, `git branch --list keepme`. `git stash list` allowed under both. Real-git effect: all no-op (read-only), confirming these are genuine false positives the fix removed.",
+  "GUARD: the same GIT_SHAPES matrix asserts these five shapes as denied=False (must ALLOW) in the same table as the F-75 deny rows (tests/test_hooks.py:1022-1033); green in the 1172 suite."
+ ],
+ "root_cause": {
+  "mechanism": "read-only spellings were stored as sub-verbs matched anywhere; 0.80.0 split them into position-checked sub-verbs and per-verb read-only FLAG sets.",
+  "fix_location": "code",
+  "confidence": "proven"
+ },
+ "narrative": "RESOLVED, fix-verified by counterfactual — the friction side of F-75. The read-only spellings the old membership test wrongly refused now pass, while the mutating forms are still denied (verified in the same probe as F-75)."
+}

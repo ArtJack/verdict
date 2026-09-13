@@ -1,0 +1,21 @@
+{
+ "id": "VERDICT-F-66",
+ "title": "The 'class that did not exist before' is two of three, not three: the catalogue's third call-site mutant shares its anchor line with H3 and produces H3's behaviour with an unused call bolted on",
+ "severity": "Minor",
+ "priority": "P3",
+ "status": "resolved",
+ "failure_classification": null,
+ "confidence": "proven",
+ "fix_verified": false,
+ "evidence": [
+  "FIXED in 0.80.0. CHANGELOG.md:632-638: 'VERDICT-F-66 — the mislabelled call-site entry is gone. Of the three catalogue entries presented as \"a class that did not exist before\", one was another entry's behaviour with a discarded call bolted on. It is replaced by a real one: verdict-finalize's only call to check_artifacts, whose deletion left all eight of that check's tests green. The call site now has a test of its own.'",
+  "eval/pinned_mutants.json now carries the legitimate replacement '0.80.0 C18 F-66: the post-finalize artifact check is never called (its body...)' alongside the two genuine F-57 call-site mutants ('the bytecode sweep's only call site is deleted', 'the UTF-8 stderr pin is never called by the bash guard'); the H3-duplicating entry is gone.",
+  "Verified by reading CHANGELOG + the catalogue; the campaign was not re-run this run (fix_verified: false)."
+ ],
+ "root_cause": {
+  "mechanism": "one of three 'call-site class' catalogue entries duplicated H3's anchor with a discarded call; 0.80.0 removed it and added a real call-site mutant (check_artifacts) with its own test.",
+  "fix_location": "code",
+  "confidence": "proven"
+ },
+ "narrative": "RESOLVED. The mislabelled call-site catalogue entry is gone and replaced by a genuine one (verdict-finalize's only call to check_artifacts) that has its own test. Read, not re-run."
+}

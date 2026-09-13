@@ -1,0 +1,36 @@
+{
+ "schema_version": 1,
+ "questions": {
+  "VERDICT-Q-1": {
+   "question": "VERDICT-F-74 (Minor): fix the single-keyword `trigger-separated-from-cause` scorer row, or record its acceptance with verdict-accept? It has been 'scorer work owed' since 0.79.0 and is the only single-keyword report_contains row across the seven answer keys.",
+   "status": "parked",
+   "asked_on": "2026-09-13",
+   "asked_at_run": 15,
+   "finding": "VERDICT-F-74",
+   "options": [
+    "change eval/expected-cause.json:43-49 to assert the discipline (e.g. terms that require trigger AND cause named distinctly)",
+    "verdict-accept it as a known instance, not a pattern"
+   ]
+  },
+  "VERDICT-Q-2": {
+   "question": "The re-baseline surface (~2,300 new/changed lines across src/verdict_mcp/small.py +1089, questions.py +326, anchors.py +169, clock.py +72, filed.py +99, reports.py +132, runner.py +470, harness.py +903, validate.py +314, plus eval/swebench.py +1311) was NOT audited this scoped run (caller scope was F-75 + run-14 next_run_focus). Schedule a dedicated baseline run over these modules before the next release that touches them?",
+   "status": "parked",
+   "asked_on": "2026-09-13",
+   "asked_at_run": 15,
+   "options": [
+    "yes — a baseline run over the new modules next",
+    "no — accept them as covered by the 1172-test suite and CI"
+   ]
+  },
+  "VERDICT-Q-3": {
+   "question": "The profile's isolation check part (1) grep now matches the verdict-local local-model client (small.py) and will always 'fail' while that feature exists. Refine it to exclude the declared local-model client, or scope it to the test-execution path only?",
+   "status": "parked",
+   "asked_on": "2026-09-13",
+   "asked_at_run": 15,
+   "options": [
+    "narrow the grep to exclude src/verdict_mcp/small.py's declared client",
+    "assert no live call via a suite-level check instead of a source grep"
+   ]
+  }
+ }
+}

@@ -1,0 +1,21 @@
+{
+ "id": "VERDICT-F-79",
+ "title": "The import census matches `from`/`import` as text over added lines, so prose in a module docstring is reported as an undeclared dependency - this range's only census lead is a sentence",
+ "severity": "Minor",
+ "priority": "P3",
+ "status": "resolved",
+ "failure_classification": null,
+ "confidence": "proven",
+ "fix_verified": true,
+ "evidence": [
+  "FIXED in 0.80.0. src/verdict_mcp/census.py:_PY_IMPORT is now anchored `^[ \\t]{0,8}(?:from|import)[ \\t]+([A-Za-z_]\\w*)(?=[ \\t]*(?:$|[.,;]|\\bimport\\b|\\bas\\b|#))` with a comment naming VERDICT-F-79.",
+  "REGEX DIFFERENTIAL BY EFFECT (python, both regexes over the docstring line): OLD `^\\s*(?:from|import)\\s+([A-Za-z_]\\w*)` matched the English word 'a' from `from a `releases/latest` URL, ...` and `from a module we downloaded`; NEW regex matches neither, while both still catch real imports (import os -> os; from pathlib import Path -> pathlib; import re,sys -> re; indented import json -> json; from collections.abc import Mapping -> collections).",
+  "No unit test cited: this is a census heuristic; verified by the regex differential rather than by a collected test."
+ ],
+ "root_cause": {
+  "mechanism": "the import census matched from/import as loose text; docstring prose beginning 'from a ...' scored the article 'a' as a dependency. 0.80.0 anchors the pattern and requires a real import tail.",
+  "fix_location": "code",
+  "confidence": "proven"
+ },
+ "narrative": "RESOLVED, fix-verified by regex differential. The census no longer reads docstring prose as an undeclared dependency; real imports are still detected."
+}

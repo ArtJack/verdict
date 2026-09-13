@@ -1,31 +1,35 @@
 {
   "project": "verdict",
   "schema_version": 1,
-  "run_type": "delta",
-  "run_number": 14,
+  "run_type": "re-baseline",
+  "run_number": 15,
   "last_run": {
-    "timestamp_utc": "2026-09-05T17:17:30Z",
-    "git_sha": "4dc006ad4bda31a5548de01648ad4e4a5d7a0427",
-    "git_branch": "qa/run-14",
-    "sha_range": "0892869b19ecc2a972241ce1e3cd22efd0eac336..4dc006ad4bda31a5548de01648ad4e4a5d7a0427",
-    "diff_stat": "23 files changed, 2224 insertions(+), 685 deletions(-)",
-    "model": "opus",
-    "report": "reports/2026-09-05-delta-run14.md",
-    "chain": "90deebabb1a5d04a289fe97998e37ef5b70fba5fd06e575283ed7f1b4d0a8f86"
+    "timestamp_utc": "2026-09-13T04:44:37Z",
+    "git_sha": "4a918d8b4b786991cdbe45bde13bd9f3a8e9dc7e",
+    "git_branch": "claude/new-session-bab9af",
+    "sha_range": "4dc006ad4bda31a5548de01648ad4e4a5d7a0427..4a918d8b4b786991cdbe45bde13bd9f3a8e9dc7e",
+    "diff_stat": "88 files changed, 16835 insertions(+), 1727 deletions(-)",
+    "harness": {
+      "version": "0.88.0",
+      "path": "/Users/artjack/Projects/verdict/.claude/worktrees/new-session-bab9af/src/verdict_mcp/harness.py",
+      "prompt_sha256": "451a01dbac29215bd6627652d83faa26c9fbe3ac8c2cec5534bd89d83e226825"
+    },
+    "report": "reports/2026-09-13-run15-rebaseline.md",
+    "chain": "726222512fa9dcfb914945fbb736670113f65fff81e1e9d5e496595a1a48f6c8"
   },
   "isolation_check": {
     "result": "pass",
-    "detail": "Profile's three-part check, all three measured this run. (1) `grep -rlE \"requests\\.|httpx|urlopen|boto3|psycopg|DATABASE_URL\" tests/ src/` -> no matches. (2) pyproject.toml:91 `testpaths = [\"tests\"]`, so the seeded-defect fixtures under eval/fixtures/ are not collected: all 888 collected ids are under tests/. (3) The suite writes only to pytest tmp_path and hook-guarded roots \u2014 after the 888-test gate run `git status --porcelain` showed only `M .qa/test-ids.txt` (written by verdict-facts itself) and the pre-existing untracked `.claude/agents/verdict.md`. CONTROL that the guard was armed rather than absent: the live bash guard denied four of this run's own commands (`mkdir -p $SC/base` unresolved-variable, `git branch --show-current`, `chmod +x <scratch>/run_arm.sh`, `git -C <throwaway> commit --allow-empty -m wip`) while allowing `rm <temp>/x.sh` and the pytest gates."
+    "method": "Profile 3-part check + guard-armed control, all measured this run. (1) `grep -rlE \"requests\\.|httpx|urlopen|boto3|psycopg|DATABASE_URL\" tests/ src/` NOW matches src/verdict_mcp/small.py:89 and tests/test_small.py:195 \u2014 both non-live: small.py:89 is the new verdict-local local-model HTTP client (Model.ask), and tests inject FakeModel (test_small.py:74) / Flaky(small.Model) (:143) instead of calling it, while test_the_run_refuses_without_an_endpoint (:166) proves the run refuses with no endpoint; test_small.py:195 is the string literal 'httpx' inside a deterministic_kind assertion, not a call. So the suite makes no real network/DB/credential call. (2) pyproject.toml:93 testpaths=[\"tests\"] \u2014 eval/fixtures seeded defects not collected; all 1172 ids under tests/. (3) After the facts gate run, `git status --porcelain` shows only `M .qa/test-ids.txt` (written by verdict-facts) and `?? .qa/findings/` (this run's finding files) \u2014 the checkout was never written to. CONTROL the guard is armed: live bash guard (VERDICT_STRICT=1) DENIES `git commit -am wip` (rc 2, names the checkout) and ALLOWS `cat README.md` (rc 0). NOTE: the profile's part-(1) grep heuristic is now stale \u2014 it flags the intentional verdict-local client; it needs scoping (see questions)."
   },
   "gates": {
     "suite": {
       "command": "uv run --group dev python -m pytest tests/",
       "exit_code": 0,
       "result": "pass",
-      "duration_s": 80.6,
-      "summary": "888 passed in 80.18s (0:01:20)",
+      "duration_s": 139.47,
+      "summary": "1172 passed in 138.99s (0:02:18)",
       "counts": {
-        "passed": 888
+        "passed": 1172
       },
       "counts_dialect": "pytest"
     },
@@ -33,388 +37,467 @@
       "command": "python3 eval/fixture_freshness.py",
       "exit_code": 0,
       "result": "pass",
-      "duration_s": 0.06,
+      "duration_s": 0.1,
       "summary": "fixture_freshness: OK \u2014 pricer-delta.diff still describes the fixture pair (78 lines)",
       "counts_unparsed": "no recognised runner summary \u2014 the count-drop gate and the id set-diff cannot fire for this gate"
     }
   },
   "verification_notes": [
-    "8 open finding(s) cite no test id, so the harness cannot fix-verify them",
-    "cited test is not in the collected id ledger, so nothing was run for VERDICT-F-72 (tests/test_unrelated.py::test_something_else) \u2014 a node id in prose is text, not a citation",
-    "1 finding(s) verified on a test cited only in prose (VERDICT-F-26): a fail\u2192pass there is recorded, not confirmed \u2014 declare `verification_test` to make a confirmation count"
+    "10 open finding(s) cite no test id, so the harness cannot fix-verify them",
+    "nothing was run for VERDICT-F-26: each cites tests only in prose and declares none as `verification_test` \u2014 a node id in prose is text, not a citation; declare it to make the measurement count"
   ],
   "findings": [
     {
-      "id": "VERDICT-F-70",
-      "status": "resolved",
-      "severity": "Major",
-      "priority": "P1",
-      "confidence": "proven",
-      "failure_classification": null,
-      "fix_verified": true,
-      "verification_test": "tests/test_hooks.py::test_the_guard_agrees_with_where_tar_writes",
-      "title": "The bash guard never checks where tar writes its archive, so `tar -cf <checkout>/hooks/a.py ...` creates or overwrites any file inside the protected checkout - including the maintainer's accepted.json, which the same guard refuses to `cp`",
-      "evidence": [
-        "FIXED in 0.79.0. hooks/enforce_bash_scope.py:618-624 now binds `archive` from the `-f`/`--file` value, resolved against the SHELL's cwd rather than `here`, with `-f -` read as stdout; :640-649 yields it as `tar -f (writes the archive)` for every mode that is not extract, list or compare.",
-        "RE-INJECTION, not absence. Isolated scratch copy of HEAD (git archive HEAD into /private/tmp/.../scratchpad/base, PYTHONPATH=<scratch>/src ahead of the editable install, PYTHONDONTWRITEBYTECODE=1, __pycache__ swept). `import verdict_mcp` printed <scratch>/src/verdict_mcp/__init__.py, so the copy ran its own code. GREEN CONTROL FIRST: `pytest tests/test_hooks.py -k tar` -> 76 passed, 164 deselected in 3.07s.",
-        "ARM: the yield disabled (`if False and archive and not _mode(...)`) -> 6 failed, 70 passed. The failures are the six write shapes: `-cf {repo}/hooks/a.py -C {scratch} junk`, `-cf{repo}/hooks/a.py ...`, `--file={repo}/hooks/a.py -c ...`, `-c -f {repo}/hooks/a.py ...`, `-C {scratch}/junk -cf ../repo/hooks/loot.tar c.py`, `-cf {repo}/hooks/loot.tar {scratch}/junk`.",
-        "INSTRUMENT CONTROL: after the F-71 arm was run and reverted, this same injection was applied again and failed identically (6 failed, 70 passed) - so the arms are not all reading the same way and no stale bytecode is in play.",
-        "The acceptance evidence run 13 asked for is present and is by EFFECT, not by spelling: TAR_WRITE_SHAPES (tests/test_hooks.py:958-980) carries 15 rows, each asserted twice - once against the guard (test_the_guard_agrees_with_where_tar_writes) and once by running real GNU tar and diffing the checkout (test_real_tar_writes_where_this_matrix_claims). Five rows are ALLOWs that must survive, including `-C {repo}/src -cf ../scratch/y.tar b.py`, the row that distinguishes 'resolve against -C' from 'resolve against the cwd'. `_gnu_tar()` resolved to /opt/homebrew/bin/gtar (GNU tar 1.35) here, so the real-tar half ran rather than skipping.",
-        "Also pinned: eval/pinned_mutants.json entries `0.79.0 S2` and `0.79.0 S3`, both re-run independently this run against the whole 888-test suite and both KILLED (7 failed and 2 failed respectively)."
-      ],
-      "hash": "84489daa",
-      "first_seen": "2026-09-05",
-      "age_days": 0,
-      "delta": "RESOLVED",
-      "outcome": "confirmed",
-      "outcome_basis": "claimed",
-      "outcome_reason": "fix-verified: claimed by the tester, and no harness measurement contradicts it"
-    },
-    {
-      "id": "VERDICT-F-71",
-      "status": "resolved",
-      "severity": "Major",
-      "priority": "P1",
-      "confidence": "proven",
-      "failure_classification": null,
-      "fix_verified": true,
-      "verification_test": "tests/test_hooks.py::test_the_guard_agrees_with_where_tar_writes",
-      "title": "An abbreviated long option that takes a value is parsed as valueless, so `tar -xf a.tar --direc <checkout>` extracts into the checkout and the guard reports the shell's cwd instead: `_tar_parse` matches the option table exactly while `_check_tar` matches the same options by abbreviation",
-      "evidence": [
-        "FIXED in 0.79.0. hooks/enforce_bash_scope.py:537-552 adds `_tar_takes_value`, and :582 changes the parser's `elif name in _TAR_LONG_WITH_ARG:` to `elif _tar_takes_value(name):` - the two halves of the module now agree about what an option name is.",
-        "RE-INJECTION in the same isolated scratch, after a green control. ARM: `_tar_takes_value` reverted to `return name in _TAR_LONG_WITH_ARG` -> 3 failed, 73 passed. The three failures are exactly the abbreviation rungs: `-xf {scratch}/a.tar --dir {repo}`, `--direc {repo}`, and `--extract --file {scratch}/a.tar --dir {repo}`.",
-        "The `--directory` full spelling row still passes in the arm, which is the differential that identifies the mechanism: the rule reached the two spellings nobody uses and none of the abbreviations everybody does.",
-        "Both directions are covered: `-xf {scratch}/a.tar --direc {scratch}` is an ALLOW row in the same matrix, and the real-tar half confirms nothing under the repository changes for it.",
-        "Also pinned as `0.79.0 S1`, re-run independently this run against the whole 888-test suite: KILLED (3 failed, 885 passed in 89.03s)."
-      ],
-      "hash": "234ca8cd",
-      "first_seen": "2026-09-05",
-      "age_days": 0,
-      "delta": "RESOLVED",
-      "outcome": "confirmed",
-      "outcome_basis": "claimed",
-      "outcome_reason": "fix-verified: claimed by the tester, and no harness measurement contradicts it"
-    },
-    {
-      "id": "VERDICT-F-72",
-      "status": "resolved",
-      "severity": "Major",
-      "priority": "P1",
-      "confidence": "proven",
-      "failure_classification": null,
-      "fix_verified": true,
-      "verification_test": "tests/test_verification.py::test_a_fail_to_pass_on_a_prose_citation_is_recorded_not_confirmed",
-      "title": "The harness refuses to let an arbitrarily-picked test REFUSE a resolution but still lets one CONFIRM it: a pytest id merely quoted in a finding's prose can write `fix_verified: true` and a 'verification (measured)' evidence line into the state, and thence a confirmed row into the track record that grades the tester",
-      "evidence": [
-        "FIXED in 0.79.0, and fixed on the granting side rather than by moving the dead branch. src/verdict_mcp/harness.py:357-369 adds `_chosen(rec)` (`selected_by in ('explicit', 'added_this_run')`); :668-679 refuses to set `fix_verified` on an unchosen pick and stamps `not_weighed` instead; :1272-1275 makes `_stamp_outcome`'s `shows_fix` read the same mark, so the ledger cannot record `confirmed`/`measured` either; :2136 makes the report count it separately. The dead `arbitrary` branch run 13 named at :637 is gone.",
-        "RE-INJECTION after a green control (115 passed across test_verification, test_calibration, test_accept and test_release_workflow in the isolated scratch). ARM: `_chosen` forced to `return True` -> 2 failed, 89 passed: tests/test_verification.py::test_a_fail_to_pass_on_a_prose_citation_is_recorded_not_confirmed and tests/test_calibration.py::test_a_measurement_on_a_prose_quoted_test_settles_nothing. The calibration failure reads `- unknown / + confirmed`, which is the exact self-issued grade this finding was about.",
-        "The regression tests carry their own control: the prose-only case asserts `outcome != 'confirmed'` and `not any('verification (measured)' in e ...)`, and the SAME setup with `verification_test` declared asserts `fix_verified is True`. One test, both arms.",
-        "Also pinned as `0.79.0 S4` and `0.79.0 S5`. S4 re-run independently this run against the whole 888-test suite: KILLED (2 failed, 886 passed).",
-        "Observed live in this run's own facts.json: `verification_notes` now says '1 finding(s) verified on a test cited only in prose (VERDICT-F-26): a fail->pass there is recorded, not confirmed'. The disclosure fires on real data, not only in tests."
-      ],
-      "hash": "c9d44c7b",
-      "first_seen": "2026-09-05",
-      "age_days": 0,
-      "delta": "RESOLVED",
-      "outcome": "confirmed",
-      "outcome_basis": "claimed",
-      "outcome_reason": "fix-verified: claimed by the tester, and no harness measurement contradicts it"
-    },
-    {
-      "id": "VERDICT-F-73",
-      "status": "resolved",
-      "severity": "Major",
-      "priority": "P2",
-      "confidence": "probable",
-      "failure_classification": null,
-      "fix_verified": true,
-      "verification_test": "tests/test_release_workflow.py::test_the_publisher_is_pinned_to_a_release_not_to_latest",
-      "title": "The release workflow downloads and executes an unpinned third-party binary from a `releases/latest` URL, with no checksum, in a job holding `id-token: write` for the MCP registry - and `continue-on-error: true` means a tampered publish would not fail the release",
-      "evidence": [
-        ".github/workflows/release.yml:126-146 - the download is pinned to MCP_PUBLISHER_VERSION v1.8.1, `sha256sum -c -` runs against MCP_PUBLISHER_SHA256 before `tar xzf` and before `./mcp-publisher --version`, `continue-on-error: true` is gone from the job, and the PyPI wait now `echo \"::error::...\"; exit 1` instead of warning and publishing anyway.",
-        "RE-INJECTION in the isolated scratch, after a green control (4 passed). ARM: the run block reverted to the `releases/latest` piped-to-tar form with no checksum -> 2 failed, 2 passed: test_the_publisher_is_pinned_to_a_release_not_to_latest and test_the_download_is_checksummed_before_it_runs.",
-        "Also pinned as `0.79.0 S8` and `0.79.0 S9`.",
-        "RESIDUAL, filed separately as VERDICT-F-78: two of the four workflow tests read the job text INCLUDING comments, so the checksum line can be deleted and replaced by a comment that merely names it, and all four stay green. The pin half of F-73 is guarded; the checksum half is not.",
-        "NOT VERIFIED, and stated in not_tested: the sha256 value itself (a06c9096dcb9727c13555b6be26c7effa707b01f06a4c561ba7a3635443cf2cc) was not checked against the upstream artifact. Security-Pass is disabled for this project and the profile forbids running the workflow, so the pin's shape is verified and its value is taken on trust."
-      ],
-      "hash": "1a40c23c",
-      "first_seen": "2026-09-05",
-      "age_days": 0,
-      "delta": "RESOLVED",
-      "outcome": "confirmed",
-      "outcome_basis": "claimed",
-      "outcome_reason": "fix-verified: claimed by the tester, and no harness measurement contradicts it"
-    },
-    {
       "id": "VERDICT-F-75",
-      "status": "open",
+      "title": "The bash guard reads a git flag or sub-verb name ANYWHERE in the argument list, whatever role it plays there, so one ordinary token disarms the check for every mutating verb: `git commit -m \"--dry-run\"` really commits and `git branch -D <branch> list` really deletes, both with the guard's blessing",
       "severity": "Critical",
       "priority": "P1",
-      "confidence": "proven",
+      "status": "resolved",
       "failure_classification": null,
-      "title": "The bash guard reads a git flag or sub-verb name ANYWHERE in the argument list, whatever role it plays there, so one ordinary token disarms the check for every mutating verb: `git commit -m \"--dry-run\"` really commits and `git branch -D <branch> list` really deletes, both with the guard's blessing",
+      "confidence": "proven",
+      "fix_verified": true,
+      "verification_test": "tests/test_hooks.py::test_the_guard_agrees_with_the_git_that_would_run[commit --allow-empty -m --dry-run]",
       "evidence": [
-        "SITE 1 - hooks/enforce_bash_scope.py:487 `if any(t in (\"--dry-run\", \"--check\") for t in args): return`. The scan runs before the verb is even identified and matches a token in ANY role, including an option's VALUE. `git commit -m \"--dry-run\"` therefore returns early and yields no target at all.",
-        "SITE 2 - hooks/enforce_bash_scope.py:511 `if any(t in _GIT_READONLY_SUBVERBS.get(verb, set()) for t in rest): return`. For `branch` and `tag` the read-only name is `list`, but for those verbs a bare positional is the NAME TO CREATE, so the token that proves read-only intent for `stash` is an operand for `branch`.",
-        "PROVEN, guard half, with a control. Asked of the live hook (VERDICT_STRICT=1, cwd = this checkout) by piping the PreToolUse event to hooks/enforce_bash_scope.py: DENY `git commit -am wip`, DENY `git stash`, DENY `git stash push -m wip`, DENY `git checkout -- .`, DENY `git reset --hard HEAD list` - the instrument is not waving everything through. Then: ALLOW `git commit -am \"--dry-run\"`, ALLOW `git commit -m --dry-run`, ALLOW `git stash push -m \"--dry-run\"`, ALLOW `git tag -a v9 -m --dry-run`, ALLOW `git push origin main --check`, ALLOW `git branch list`, ALLOW `git branch -D main list`, ALLOW `git branch -M evil list`, ALLOW `git tag list`, ALLOW `git tag -d v0.79.0 list`, ALLOW `git worktree remove /tmp/x list`, ALLOW `git notes add -m x list`.",
-        "PROVEN, effect half, in a throwaway git repository under the scratch directory - never this checkout. (a) `git -C <victim> branch -D keepme list` -> the guard allowed it, git printed \"error: branch 'list' not found\" AND \"Deleted branch keepme (was ebcdfcd)\"; `for-each-ref refs/heads` went from {keepme, main} to {main}. The trailing token errors after the deletion has already happened. (b) CONTROL: `git -C <victim> commit --allow-empty -m wip` -> DENIED by the guard, reason \"git commit (mutates the checkout) targets '<victim>' (a git checkout under /private/tmp)\". (c) ARM: the identical command with the message changed to the literal `--dry-run` -> the guard allowed it and git answered `[main a2f5313] --dry-run`, rc=0. One word of a commit message is the whole difference between deny and commit.",
-        "MECHANISM: `_check_git` decides read-only-ness by SET MEMBERSHIP over a flat token list. Membership is a property of the string; being a flag, a sub-verb or a value is a property of its POSITION. The function never reads position, so any command may claim either property by carrying the word.",
-        "CLASS - searched, and the permitting direction is exactly these two lines: `grep -n 'for t in args|for t in rest|in args\\b|in rest\\b' hooks/enforce_bash_scope.py` returns 11 hits; nine are in the OVER-yielding direction (`\"-delete\" in args`, `\"--remove-source-files\" in args`, the sed/perl and awk scans), which can only add a candidate target. Only :487 and :511 return early, and both are in `_check_git`. Same mechanism, same fix, one finding.",
-        "LATENT CONDITION: tests/test_hooks.py's git coverage asserts spellings that SHOULD be denied and spellings that SHOULD be allowed, but never a denied command with an allowed token appended. The 888-test suite is green with this hole open, and `git commit` is the first entry on this project's own forbidden-commands list (.qa/profile.md).",
-        "SEVERITY, held honestly. Critical because the guard IS this product's authorization control - the profile names it risk area 1, 'a bypass silently removes the product's core safety guarantee' - and this is a proven bypass reaching `git commit`, `git stash push` (which destroys uncommitted work) and `git branch -D`. P1 rather than P0 because nothing is presently breaking: the guard is documented defence-in-depth whose model already excludes interpreter escapes (`sh script.sh`, `python -c`), so this lowers the bar for a determined agent rather than granting a capability it lacked, and an accidental trigger needs a literal `--dry-run` token in a value. Run 13 filed comparable tar bypasses as Major; I depart because those needed an unusual command shape aimed at one effect, while this disarms EVERY mutating git verb through an ordinary token. What would make it P0: evidence that a realistic agent command shape hits it without intent, or a decision to state the guard as an adversarial control."
+        "FIXED in 0.80.0 (79f313c). hooks/enforce_bash_scope.py:530 `_git_operands` now splits (flags, operands) walking argv as git does \u2014 an option value is consumed (`-m`,`--message`,`-F`,`-C` and bundled `-am`), so a token in a value position can no longer be read as a flag. :585 the `--dry-run` exemption is a flag in a flag's position and `--check` only for apply/am; :595 the read-only sub-verb must be operands[0]; :591 a mutating flag outranks a listing flag.",
+        "COUNTERFACTUAL BY EFFECT (scratchpad/probe_f75.py): old hook at 4dc006a vs new hook at HEAD, each piped a PreToolUse Bash event with VERDICT_STRICT=1, plus real git run in a throwaway repo under mktemp (never this checkout). For every acceptance-axis verb the OLD hook ALLOWED (rc 0) and the NEW hook DENIES (rc 2): `git commit -m --dry-run` (git commits [main]--dry-run), `git stash push -m --dry-run`, `git branch -D keepme list` (git deletes keepme), `git tag -d v9 list`, `git worktree remove <wt> list`, `git notes add -m x list`, `git commit -am --dry-run`, `git push origin main --check`, `git branch list`, `git branch -M keepme renamed`.",
+        "CONTROL rows (guard armed, not blanket-denying): plainly-denied mutators still DENY under both hooks \u2014 `git commit -am wip`, `git stash`, `git reset --hard HEAD`. And a genuine dry run still ALLOWS under the new hook \u2014 `git commit --allow-empty --dry-run -m x` -> rc 0. Zero mismatches across 20 rows.",
+        "GUARD TEST at HEAD: tests/test_hooks.py GIT_SHAPES (:996-1036) asserts each shape against the guard AND against real git in a throwaway checkout in two columns (test_the_guard_agrees_with_the_git_that_would_run + test_real_git_changes_what_this_matrix_claims); both in the 1172-passing suite. Cited param passes at HEAD; the guard test did not exist at 4dc006a (previous_sha), so no harness fail->pass block exists \u2014 the fix is verified by the counterfactual above."
       ],
       "root_cause": {
-        "mechanism": "`_check_git` establishes 'this command only reads' by testing set membership over a flat token list (:487 for `--dry-run`/`--check`, :511 for the per-verb read-only sub-verbs). Membership is a property of the string; flag-vs-sub-verb-vs-value is a property of position, which the function never reads. Both tests `return` early, so a matching token suppresses the yield that would have produced a target.",
-        "origin": "Both lines predate this range. :509-510's own comment records why the sub-verb set exists - `git config --get user.name` was being denied - so the set was widened to fix a false positive and the widening was written as an unpositioned membership test.",
+        "mechanism": "_check_git decided read-only-ness by set membership over a flat token list; membership is a property of the string, role is a property of position. 0.80.0 replaced the flat scan with a position-aware operand split.",
         "class": {
           "pattern": "role-blind token membership decides a whole command's classification",
           "sites": [
-            "hooks/enforce_bash_scope.py:487",
-            "hooks/enforce_bash_scope.py:511"
+            "hooks/enforce_bash_scope.py:487 (was) \u2014 now :585 flag-position dry-run",
+            "hooks/enforce_bash_scope.py:511 (was) \u2014 now :595 operands[0] sub-verb"
           ]
         },
-        "trigger": "Nothing in this range. Found by a QA session probing the guard's git handling after `git branch --show-current` was refused (VERDICT-F-76, the same mechanism seen from the other side).",
-        "latent_condition": "No test in the suite appends an allowed token to a denied command. Every git assertion is a whole spelling that is either denied or allowed, so the axis 'what else is on the line' has no row - the same blind spot run 13's lesson identified in the tar matrix, one function above it.",
         "fix_location": "code",
+        "confidence": "proven",
         "proof": {
           "method": "counterfactual",
-          "evidence": "Identical `git -C <victim> commit --allow-empty` denied with message `wip` and allowed - and executed, `[main a2f5313] --dry-run` - with message `--dry-run`; `git -C <victim> branch -D keepme list` allowed and `keepme` gone from refs/heads."
-        },
-        "confidence": "proven"
+          "evidence": "old hook allows / new hook denies / real git mutates, across all six mutating verbs; controls deny, real dry-run allows (scratchpad/probe_f75.py, 20 rows, 0 mismatches)"
+        }
       },
+      "filed_at": "2026-09-13T05:06:48Z",
       "hash": "a097556c",
       "first_seen": "2026-09-05",
-      "age_days": 0,
-      "delta": "NEW",
-      "outcome": "unknown",
-      "outcome_reason": "still open; nothing has settled it"
+      "age_days": 8,
+      "delta": "RESOLVED",
+      "anchors": [
+        {
+          "ref": "hooks/enforce_bash_scope.py:530",
+          "path": "hooks/enforce_bash_scope.py",
+          "line": 530,
+          "blob": "83445f633c5f",
+          "line_sha": "df0e009b42c41e88"
+        },
+        {
+          "ref": "hooks/enforce_bash_scope.py:487",
+          "path": "hooks/enforce_bash_scope.py",
+          "line": 487,
+          "blob": "83445f633c5f",
+          "line_sha": "2eb0c198a9ab8cb6"
+        },
+        {
+          "ref": "hooks/enforce_bash_scope.py:511",
+          "path": "hooks/enforce_bash_scope.py",
+          "line": 511,
+          "blob": "83445f633c5f",
+          "line_sha": "ca0926c1ca211605"
+        }
+      ],
+      "anchored_at_run": 15,
+      "outcome": "confirmed",
+      "outcome_basis": "claimed",
+      "outcome_reason": "fix-verified: claimed by the tester, and no harness measurement contradicts it"
     },
     {
       "id": "VERDICT-F-76",
-      "status": "open",
+      "title": "The same role-blind membership test denies read-only git commands the sub-verb set was written to allow: `git branch --show-current`, `git branch -v`, `git tag --list` and `git config --get-regexp` are all refused as checkout mutations",
       "severity": "Minor",
       "priority": "P2",
-      "confidence": "proven",
+      "status": "resolved",
       "failure_classification": null,
-      "title": "The same role-blind membership test denies read-only git commands the sub-verb set was written to allow: `git branch --show-current`, `git branch -v`, `git tag --list` and `git config --get-regexp` are all refused as checkout mutations",
+      "confidence": "proven",
+      "fix_verified": true,
+      "verification_test": "tests/test_hooks.py::test_the_guard_agrees_with_the_git_that_would_run[branch --show-current]",
       "evidence": [
-        "hooks/enforce_bash_scope.py:511 matches the LITERAL strings in `_GIT_READONLY_SUBVERBS`. For `branch`, `tag`, `worktree`, `notes` and `sparse-checkout` the set holds bare words (`list`, `status`, `show`), so the dashed spellings git actually uses miss. `config` is the only verb whose set carries both forms (`get`, `list`, `--get`, `--list`, `--get-all`, `-l`) - and it is the one the comment at :509 says the set was written for.",
-        "MEASURED against the live hook, with a control: DENY `git branch --show-current`, DENY `git branch -v`, DENY `git branch --list`, DENY `git tag --list`, DENY `git config --get-regexp user`; ALLOW `git worktree list --porcelain`, ALLOW `git submodule status`, ALLOW `git config --get user.name` - the three whose read-only word happens to be bare.",
-        "COST MEASURED THIS SESSION, not hypothesised: `git branch --show-current` was refused during this run and had to be worked around with `git rev-parse --abbrev-ref HEAD`. The guard's own comment at :509-510 states the stake: 'Denying `git config --get user.name` would be the kind of false positive that gets strict mode switched off.'",
-        "Minor rather than Major because a read-only workaround exists for every case (`rev-parse`, `for-each-ref`, `config --get`), so the cost is friction rather than lost capability. What would raise it: a report that strict mode was disabled because of it."
+        "FIXED in 0.80.0. _GIT_READONLY_FLAGS (hooks/enforce_bash_scope.py:116-126) now holds the dashed read-only spellings per verb, checked at :597-598 after mutating flags are ruled out.",
+        "COUNTERFACTUAL (scratchpad/probe_f75.py): OLD hook at 4dc006a DENIED and NEW hook ALLOWS: `git branch --show-current`, `git branch -v`, `git tag --list`, `git config --get-regexp user`, `git branch --list keepme`. `git stash list` allowed under both. Real-git effect: all no-op (read-only), confirming these are genuine false positives the fix removed.",
+        "GUARD: the same GIT_SHAPES matrix asserts these five shapes as denied=False (must ALLOW) in the same table as the F-75 deny rows (tests/test_hooks.py:1022-1033); green in the 1172 suite."
       ],
+      "root_cause": {
+        "mechanism": "read-only spellings were stored as sub-verbs matched anywhere; 0.80.0 split them into position-checked sub-verbs and per-verb read-only FLAG sets.",
+        "fix_location": "code",
+        "confidence": "proven"
+      },
+      "filed_at": "2026-09-13T05:06:48Z",
       "hash": "12aede62",
       "first_seen": "2026-09-05",
-      "age_days": 0,
-      "delta": "NEW",
-      "outcome": "unknown",
-      "outcome_reason": "still open; nothing has settled it"
+      "age_days": 8,
+      "delta": "RESOLVED",
+      "anchors": [
+        {
+          "ref": "hooks/enforce_bash_scope.py:116",
+          "path": "hooks/enforce_bash_scope.py",
+          "line": 116,
+          "blob": "83445f633c5f",
+          "line_sha": "58f61e77bb0fc1e9"
+        },
+        {
+          "ref": "tests/test_hooks.py:1022",
+          "path": "tests/test_hooks.py",
+          "line": 1022,
+          "blob": "9a613940d77d",
+          "line_sha": "530aa93d22e2b3b4"
+        }
+      ],
+      "anchored_at_run": 15,
+      "outcome": "confirmed",
+      "outcome_basis": "claimed",
+      "outcome_reason": "fix-verified: claimed by the tester, and no harness measurement contradicts it"
     },
     {
       "id": "VERDICT-F-77",
-      "status": "open",
+      "title": "Every non-dash argument of a generic mutator is treated as a path, so a mode or owner operand is resolved against the cwd: `chmod +x <scratch>/x.sh` is denied because `+x` resolves to `<checkout>/+x` - and so is `chmod +x .qa/x.sh`, inside the QA root the agent may write",
       "severity": "Minor",
       "priority": "P3",
-      "confidence": "proven",
+      "status": "resolved",
       "failure_classification": null,
-      "title": "Every non-dash argument of a generic mutator is treated as a path, so a mode or owner operand is resolved against the cwd: `chmod +x <scratch>/x.sh` is denied because `+x` resolves to `<checkout>/+x` - and so is `chmod +x .qa/x.sh`, inside the QA root the agent may write",
+      "confidence": "proven",
+      "fix_verified": true,
+      "verification_test": "tests/test_hooks.py::test_a_mode_operand_is_not_a_path",
       "evidence": [
-        "hooks/enforce_bash_scope.py:727-730 - the `_MUTATORS` fallback is `for t in args: if not t.startswith(\"-\"): yield head, t`. `chmod`, `chown`, `truncate` and `install` all take a non-path first operand (mode, owner, size), and none of those start with `-`.",
-        "MEASURED against the live hook, with a control: DENY `chmod +x /private/tmp/claude-501/x.sh`, DENY `chmod 755 /private/tmp/claude-501/x.sh`, DENY `chown artjack /private/tmp/claude-501/x.sh`, DENY `truncate -s 0 /private/tmp/claude-501/x.txt`, DENY `chmod +x .qa/x.sh`; ALLOW `rm /private/tmp/claude-501/x.sh` - the same temp path, so the denial is the mode operand and not the file.",
-        "COST MEASURED THIS SESSION: `chmod +x <scratch>/run_arm.sh` was refused, with the reason \"chmod targets '<checkout>/+x'\", and the whole compound Bash call - including the heredoc that had already been written into it - was blocked before anything ran.",
-        "`.qa/x.sh` being denied is the sharper half: the guard refuses to chmod a file inside the one directory it exists to permit.",
-        "P3 because `bash script.sh` avoids it entirely and no safety property is weakened - this is the over-yielding, conservative direction of the same role-blindness as VERDICT-F-75."
+        "FIXED in 0.80.0. _MODE_FIRST = {chmod,chown,chgrp,install} (hooks/enforce_bash_scope.py:68); the _MUTATORS branch (:817-823) drops the first operand for these before treating the rest as paths.",
+        "COUNTERFACTUAL (scratchpad/probe_f77.py): OLD hook at 4dc006a DENIED all of `chmod +x <scratch>/x.sh`, `chmod +x <checkout>/.qa/x.sh`, `chmod 755 <scratch>/x.sh`, `chown nobody <scratch>/x.sh`; NEW hook ALLOWS all four. CONTROL: `chmod 777 <checkout>/src/verdict_mcp/state.py` still DENIES under both \u2014 the file behind the mode is still a target.",
+        "GUARD: tests/test_hooks.py::test_a_mode_operand_is_not_a_path (:1101) asserts the four allows incl. `.qa/x.sh`, and that a chmod of src/ still denies; green in the 1172 suite."
       ],
+      "root_cause": {
+        "mechanism": "chmod/chown's first operand is a mode/owner, not a path; the generic mutator loop resolved it against the cwd. 0.80.0 skips the first operand for _MODE_FIRST commands.",
+        "fix_location": "code",
+        "confidence": "proven"
+      },
+      "filed_at": "2026-09-13T05:06:48Z",
       "hash": "b6a94334",
       "first_seen": "2026-09-05",
-      "age_days": 0,
-      "delta": "NEW",
-      "outcome": "unknown",
-      "outcome_reason": "still open; nothing has settled it"
+      "age_days": 8,
+      "delta": "RESOLVED",
+      "anchors": [
+        {
+          "ref": "hooks/enforce_bash_scope.py:68",
+          "path": "hooks/enforce_bash_scope.py",
+          "line": 68,
+          "blob": "83445f633c5f",
+          "line_sha": "691ac9e7df79f29f"
+        }
+      ],
+      "anchored_at_run": 15,
+      "outcome": "confirmed",
+      "outcome_basis": "claimed",
+      "outcome_reason": "fix-verified: claimed by the tester, and no harness measurement contradicts it"
     },
     {
       "id": "VERDICT-F-78",
-      "status": "open",
+      "title": "Two of the four release-workflow tests read the job text including COMMENTS, so the sha256 check that VERDICT-F-73's fix rests on can be deleted and replaced by a comment that merely names it, and all four tests stay green",
       "severity": "Major",
       "priority": "P2",
-      "confidence": "proven",
+      "status": "resolved",
       "failure_classification": "BRITTLE_TEST",
-      "title": "Two of the four release-workflow tests read the job text including COMMENTS, so the sha256 check that VERDICT-F-73's fix rests on can be deleted and replaced by a comment that merely names it, and all four tests stay green",
+      "confidence": "proven",
+      "fix_verified": true,
+      "verification_test": "tests/test_release_workflow.py::test_the_download_is_checksummed_before_it_runs",
       "evidence": [
-        "tests/test_release_workflow.py:22-25 defines `_commands(job)` - 'The lines that run - comments explaining what NOT to do are not evidence' - and only two of the four tests use it. `test_the_download_is_checksummed_before_it_runs` (:33-41) and `test_a_registry_failure_is_visible` (:44-49) both call `_registry_job()` raw.",
-        "PROVEN by injection in an isolated scratch copy of HEAD, after a green control (4 passed). The line `echo \"${MCP_PUBLISHER_SHA256}  mcp-publisher.tar.gz\" | sha256sum -c -` was replaced by the comment `# sha256sum -c - runs in CI hardening, see below`. Result: 4 passed in 0.01s. The workflow no longer verifies anything and the suite says the supply chain is pinned.",
-        "DIFFERENTIAL that names the mechanism: the catalogue's own mutant `0.79.0 S9` deletes the same line OUTRIGHT (new: \"\") and is KILLED. The kill therefore measures 'the string is absent', not 'the check runs' - which is the distinction `_commands` was written to make.",
-        "The same weakness applies to `test_a_registry_failure_is_visible`, which accepts `::error::` and `exit 1` found in a comment.",
-        "CLASS - this is the third time this shape has been filed in this repository: VERDICT-F-64 (the 3.9 floor test asked whether a string appeared anywhere in the file) and VERDICT-F-60's utf8_stderr pair (an AST check that watches the call, not the behaviour). A test that greps a file for the name of the thing it wants is this project's most repeated assertion defect.",
-        "FIX: change both tests to read `_commands(_registry_job())`, and add the comment-only variant above as a regression row - the injection is already written. Two words plus one test.",
-        "Major by the fix-today bar: it is a two-word change, and until it lands the supply-chain control the release just shipped has no guard against silent removal."
+        "FIXED in this range. tests/test_release_workflow.py: all four tests now read `_commands(_registry_job())` (the comment-stripping filter) \u2014 three changed from raw `_registry_job()` (git diff 4dc006a..HEAD shows test_the_download_is_checksummed_before_it_runs:40, test_a_registry_failure_is_visible:52, test_the_job_holds_no_more_than_it_needs:67). A new instrument-control test_the_comment_filter_is_what_every_test_reads (:57) asserts a commented check satisfies none of them.",
+        "RE-INJECTION BY EFFECT: copied release.yml + the test to a scratch tree, commented out the real `sha256sum -c -` line (line 144) leaving a comment that still NAMES the check, ran `pytest test_the_download_is_checksummed_before_it_runs` -> 1 failed: `AssertionError: the checksum is declared but never checked`. At run 14 (4dc006a) that same mutation left all four tests green.",
+        "GUARD: test_the_comment_filter_is_what_every_test_reads and the four hardened tests are in the 1172-passing suite."
       ],
+      "root_cause": {
+        "mechanism": "`_commands()` (comment filter) existed but was applied by only the `latest` test; the two security-relevant assertions read the raw job, so a commented line satisfied `\"sha256sum -c\" in job`. Fix: every test reads `_commands()`, plus an instrument-control test.",
+        "fix_location": "test",
+        "confidence": "proven"
+      },
+      "filed_at": "2026-09-13T05:06:48Z",
       "hash": "02d33fe8",
       "first_seen": "2026-09-05",
-      "age_days": 0,
-      "delta": "NEW",
-      "outcome": "unknown",
-      "outcome_reason": "still open; nothing has settled it"
+      "age_days": 8,
+      "delta": "RESOLVED",
+      "anchors": [],
+      "anchored_at_run": 15,
+      "outcome": "confirmed",
+      "outcome_basis": "claimed",
+      "outcome_reason": "fix-verified: claimed by the tester, and no harness measurement contradicts it"
     },
     {
       "id": "VERDICT-F-79",
-      "status": "open",
+      "title": "The import census matches `from`/`import` as text over added lines, so prose in a module docstring is reported as an undeclared dependency - this range's only census lead is a sentence",
       "severity": "Minor",
       "priority": "P3",
-      "confidence": "proven",
+      "status": "resolved",
       "failure_classification": null,
-      "title": "The import census matches `from`/`import` as text over added lines, so prose in a module docstring is reported as an undeclared dependency - this range's only census lead is a sentence",
+      "confidence": "proven",
+      "fix_verified": true,
       "evidence": [
-        "src/verdict_mcp/census.py:47 `_PY_IMPORT = re.compile(r\"^\\s*(?:from|import)\\s+([A-Za-z_][A-Za-z0-9_]*)\")`, applied line by line to the added lines of a diff with no notion of strings or comments.",
-        "MEASURED in this run's own .qa/facts.json: `code_census.imports.undeclared = {\"a\": [\"tests/test_release_workflow.py:4\"]}`. Line 4 of that file is inside the module docstring and reads 'from a `releases/latest` URL, with no checksum, in a job holding an OIDC'. The census reported the English word 'a' as an undeclared import root.",
-        "That is the ONLY import lead this range produced, so the channel's signal this run is 0 of 1.",
-        "The module discloses the risk ('candidates, not convictions'), which is why this is Minor and not Major - but a lead channel whose leads are prose is a channel a reader learns to skip, and \u00a74.5 of the agent contract tells the agent to spend reading budget on it.",
-        "FIX: require the rest of the line to look like an import - `^\\s*(?:from\\s+([\\w.]+)\\s+import\\b|import\\s+([\\w.]+))` - or parse the added file with `ast` and read `Import`/`ImportFrom` nodes, which also removes comments and strings for free."
+        "FIXED in 0.80.0. src/verdict_mcp/census.py:_PY_IMPORT is now anchored `^[ \\t]{0,8}(?:from|import)[ \\t]+([A-Za-z_]\\w*)(?=[ \\t]*(?:$|[.,;]|\\bimport\\b|\\bas\\b|#))` with a comment naming VERDICT-F-79.",
+        "REGEX DIFFERENTIAL BY EFFECT (python, both regexes over the docstring line): OLD `^\\s*(?:from|import)\\s+([A-Za-z_]\\w*)` matched the English word 'a' from `from a `releases/latest` URL, ...` and `from a module we downloaded`; NEW regex matches neither, while both still catch real imports (import os -> os; from pathlib import Path -> pathlib; import re,sys -> re; indented import json -> json; from collections.abc import Mapping -> collections).",
+        "No unit test cited: this is a census heuristic; verified by the regex differential rather than by a collected test."
       ],
+      "root_cause": {
+        "mechanism": "the import census matched from/import as loose text; docstring prose beginning 'from a ...' scored the article 'a' as a dependency. 0.80.0 anchors the pattern and requires a real import tail.",
+        "fix_location": "code",
+        "confidence": "proven"
+      },
+      "filed_at": "2026-09-13T05:06:48Z",
       "hash": "ef27939e",
       "first_seen": "2026-09-05",
-      "age_days": 0,
-      "delta": "NEW",
-      "outcome": "unknown",
-      "outcome_reason": "still open; nothing has settled it"
-    },
-    {
-      "id": "VERDICT-F-26",
-      "status": "open",
-      "severity": "Minor",
-      "priority": "P2",
-      "confidence": "proven",
-      "failure_classification": null,
-      "title": "Fix verification picks its test by scraping any pytest node id out of a finding's prose evidence, so a mis-scraped id that fails at HEAD force-reopens a correctly-resolved finding over the tester's judgment",
-      "evidence": [
-        "THE FLATTERING HALF IS CLOSED by 0.79.0 (VERDICT-F-72): a `first_cited` pick can no longer write `fix_verified`, a 'verification (measured)' evidence line, or a confirmed/measured row in the ledger. Verified by re-injection this run.",
-        "THE REMAINING HALF IS NOW A STATED DESIGN POSITION, not an oversight. src/verdict_mcp/harness.py:537 still reads `if how == 'first_cited' and len(tests) > 1:`, so ONE prose id is still run and may still refuse a resolution; harness.py:651-657 says so in a comment and CHANGELOG 0.79.0 says so in prose ('A single prose-cited test may still refuse - a finding held open costs a re-read').",
-        "IT MIS-SELECTED AGAIN THIS RUN, the sixth consecutive run. This run's own .qa/facts.json: `verification.VERDICT-F-26 = {test: 'tests/test_validate.py::test_the_state_validator_keeps_checking_after_a_malformed_entry', selected_by: 'first_cited', candidates: 1, at_previous: 'pass', at_head: 'pass'}`. That test is about the state validator continuing past a malformed entry and has nothing to do with the selector; it is in this finding's evidence only because run 12 quoted it AS the example of a mis-scrape.",
-        "WHAT IS ACTUALLY LEFT, stated precisely, because the severity turns on it: (a) a record naming an unrelated test is attached to this finding in state.json every run - now disclosed, since `verification_notes` this run reads '1 finding(s) verified on a test cited only in prose (VERDICT-F-26)'; (b) a single unrelated test that FAILS at HEAD can still force a correctly-resolved finding back to open with a `resolution_refused` sentence that is false about that finding. (b) has never actually happened in 14 runs.",
-        "SEVERITY LOWERED Major -> Minor this run, deliberately and with the id and first_seen unchanged. The half that corrupted the track record is gone; the half that remains errs toward holding findings open, which is the safe direction, and the maintainer has documented it as the intended trade. What would raise it back to Major: one real run in which an unrelated cited test force-reopens a finding that was genuinely fixed.",
-        "TWO WAYS TO CLOSE IT, and the second is not a code change: (1) apply `unselectable` at any candidate count - change `len(tests) > 1` to `len(tests) >= 1` at harness.py:537, which is the whole fix; or (2) if the maintainer stands by the design, record it with `verdict-accept` so it stops carrying as an open finding for a seventh run. This project built an accepted-risk mechanism in 0.78.0 for exactly this situation."
-      ],
-      "hash": "f6c0bdc3",
-      "first_seen": "2026-09-02",
-      "age_days": 3,
-      "delta": "STILL_OPEN",
-      "verification": {
-        "test": "tests/test_validate.py::test_the_state_validator_keeps_checking_after_a_malformed_entry",
-        "selected_by": "first_cited",
-        "candidates": 1,
-        "previous_sha": "0892869b19ecc2a972241ce1e3cd22efd0eac336",
-        "at_previous": "pass",
-        "at_head": "pass",
-        "pythonpath": [
-          "/var/folders/95/670m4j2n4738g9pq1tq1mq8c0000gn/T/verdict-verify-nqzlvkc7/src",
-          "/var/folders/95/670m4j2n4738g9pq1tq1mq8c0000gn/T/verdict-verify-nqzlvkc7"
-        ],
-        "summary": "1 passed in 0.04s \u2192 1 passed in 0.89s"
-      },
-      "outcome": "unknown",
-      "outcome_reason": "still open; nothing has settled it"
-    },
-    {
-      "id": "VERDICT-F-58",
-      "status": "open",
-      "severity": "Major",
-      "priority": "P2",
-      "confidence": "proven",
-      "failure_classification": null,
-      "title": "The instrument control \u00a73 prescribes for the stale-bytecode fault cannot fire in the ordering that produced VERDICT-F-50: re-running an injection you already watched fail reads FAIL while the shadowed bytecode is still what runs",
-      "evidence": [
-        "Untouched by this range, and confirmed rather than assumed: `git diff --stat 0892869..4dc006a -- agents/ standards/ templates/ commands/` returns nothing. CHANGELOG 0.79.0 states it explicitly: 'the prompt is byte-identical' and 'F-58 and the one-sentence `accepted` teaching remain the queued, eval-paid prompt release'.",
-        "The queue behind the single eval payment is unchanged at two items: F-58's instrument-control clause, and 0.78.0's admission that the model meets `status: accepted` and delta `ACCEPTED` untaught.",
-        "This run supplies a datum the prompt release should use. The contract's control ('re-run an injection you have already watched fail, and if it now passes, you are measuring the cache') was exercised for real here: F-70's injection was re-applied after the F-71 arm and failed identically (6 failed, 70 passed). It worked because the arms are subprocess-executed hook scripts under PYTHONDONTWRITEBYTECODE=1 with __pycache__ swept between arms - i.e. the control passed because the fault was already excluded by other means, which is exactly the blind spot this finding names.",
-        "Not re-reproduced this run. Run 12 reproduced it at HEAD in F-50's exact ordering and nothing in the range touches the mechanism. Held as unchanged, not as re-measured."
-      ],
-      "hash": "240d7a02",
-      "first_seen": "2026-09-03",
-      "age_days": 2,
-      "delta": "STILL_OPEN",
-      "outcome": "unknown",
-      "outcome_reason": "still open; nothing has settled it"
+      "age_days": 8,
+      "delta": "RESOLVED",
+      "anchors": [],
+      "anchored_at_run": 15,
+      "outcome": "confirmed",
+      "outcome_basis": "claimed",
+      "outcome_reason": "fix-verified: claimed by the tester, and no harness measurement contradicts it"
     },
     {
       "id": "VERDICT-F-60",
-      "status": "open",
+      "title": "Eleven rules shipped in 0.74.0 survive mutation against the whole suite, including the only call site of the `__pycache__` sweep, the whole UTF-8 stderr fix, both `_ago` boundaries and `run_date`'s offset normalisation",
       "severity": "Minor",
       "priority": "P2",
-      "confidence": "proven",
+      "status": "resolved",
       "failure_classification": null,
-      "title": "Eleven rules shipped in 0.74.0 survive mutation against the whole suite, including the only call site of the `__pycache__` sweep, the whole UTF-8 stderr fix, both `_ago` boundaries and `run_date`'s offset normalisation",
+      "confidence": "proven",
+      "fix_verified": true,
+      "verification_test": "tests/test_harness.py::test_one_minute_is_a_minute_not_seconds",
       "evidence": [
-        "RE-MEASURED AT RUN-14 HEAD, against 888 tests rather than 850. Isolated scratch copy of HEAD, PYTHONPATH ahead of the editable install, PYTHONDONTWRITEBYTECODE=1, __pycache__ swept, 1.1s between same-size edits, green control first: 888 passed in 89.51s. All five sampled survivors SURVIVE again: (6) utf8_stderr body -> pass: 888 passed in 88.16s. (7) errors='replace' -> 'strict': 888 passed in 90.22s. (8) _ago `minutes < 60` -> `<= 60`: 888 passed in 89.72s. (9) _ago `age_h >= 1.05` -> `> 1.05`: 888 passed in 89.01s. (10) run_date `stamp.replace('Z','+00:00')` -> `stamp.replace('Z','')`: 888 passed in 88.92s. The range added 38 tests and not one of them touches these lines.",
-        "CORRECTION TO RUN 13, and it changes the work this finding asks for. Run 13 put survivor (10) at the top of the next-run focus, reasoning that 'dropping the offset makes a timestamped-with-offset run fall back to datetime.now(timezone.utc).date() silently'. That is wrong. (10) IS AN EQUIVALENT MUTANT. Driven directly over nine stamps, the two versions return the same date for every well-formed input: '2026-09-05T23:30:00Z' -> 2026-09-05 both ways; '2026-09-05T23:30:00-07:00' -> 2026-09-06 both ways (the mutant does not touch a `-07:00` string at all); '' and 'garbage' -> the now() fallback both ways. They differ on exactly one input, the malformed '2026-09-05T23:30:00Z+01:00'. `datetime.fromisoformat` parses a naive stamp happily, so the ValueError branch run 13's reasoning depends on is never reached. No test can be written for a difference that does not exist.",
-        "THE HONEST READING OF THE FIVE, which is what the next run should act on: 1 is equivalent - (10); 2 are Windows-only behaviour this macOS suite structurally cannot observe - (6) and (7), the utf8_stderr pair, whose AST check watches the CALL and not the BEHAVIOUR; and 2 are genuine unpinned boundaries - (8) at exactly 60 minutes ('60 minutes ago' vs '1 hour ago') and (9) at exactly age_h == 1.05 ('1.1 hours ago' vs '1 hour ago'). Two of eleven are cheap, real and testable today; one is not testable at all; one is not a defect.",
-        "NOT re-measured: the tar-area survivors (2), (3), (4) and the quoting one (5) sit on lines 0.76.0 rewrote wholesale, so their anchors no longer exist and no equivalent was constructed. Six of eleven remain unre-measured at HEAD."
+        "The two real survivors run 14 named ((8) one-minute, (9) age_h==1.05) now have guarding tests: tests/test_harness.py:1037 test_one_minute_is_a_minute_not_seconds and :1023 test_the_retry_marker_says_the_age_it_recorded[1.05-1.1 hours ago-1 hour ago]; (8) is also pinned in eval/pinned_mutants.json ('0.80.2 S4 sweep, F-60 (8): one minute reads as seconds').",
+        "RE-INJECTION BY EFFECT (scratchpad/reinject_f60.sh, isolated: git-archive HEAD scratch tree, PYTHONPATH ahead of the editable install verified via harness.__file__ inside the scratch, PYTHONDONTWRITEBYTECODE=1, __pycache__ swept between arms). CONTROL clean = 8 passed. Inject `minutes < 1`->`minutes < 2`: test_one_minute_is_a_minute_not_seconds FAILS (1 min reads as seconds). RESTORE clean, re-run = 8 passed (the corrected \u00a73 control direction). Inject `age_h >= 1.05`->`age_h > 1.05`: test_the_retry_marker_says_the_age_it_recorded[1.05-...] FAILS.",
+        "The remaining survivors are correctly disposed of per run 14's lesson: (10) run_date's `.replace(\"Z\",...)` is an EQUIVALENT mutant (datetime.fromisoformat parses naive stamps; a -07:00 stamp has no Z), struck from the survivor list; (6) and (7) are the UTF-8 stderr / Windows-only behaviour a macOS suite structurally cannot observe (not_tested this run)."
       ],
+      "root_cause": {
+        "mechanism": "the 0.74.0 rules were pinned by a hand-written catalogue that missed these lines; the two real boundaries now have tests and (8) is a pinned mutant. (10) is equivalent; (6)(7) are platform-unmeasurable here.",
+        "fix_location": "test",
+        "confidence": "proven"
+      },
+      "filed_at": "2026-09-13T05:06:48Z",
       "hash": "407239c9",
       "first_seen": "2026-09-03",
-      "age_days": 2,
-      "delta": "STILL_OPEN",
+      "age_days": 10,
+      "delta": "RESOLVED",
+      "anchors": [
+        {
+          "ref": "tests/test_harness.py:1037",
+          "path": "tests/test_harness.py",
+          "line": 1037,
+          "blob": "485ed9c49258",
+          "line_sha": "9d7b2139f30f99b9"
+        }
+      ],
+      "anchored_at_run": 15,
+      "outcome": "confirmed",
+      "outcome_basis": "claimed",
+      "outcome_reason": "fix-verified: claimed by the tester, and no harness measurement contradicts it"
+    },
+    {
+      "id": "VERDICT-F-26",
+      "title": "Fix verification picks its test by scraping any pytest node id out of a finding's prose evidence, so a mis-scraped id that fails at HEAD force-reopens a correctly-resolved finding over the tester's judgment",
+      "severity": "Minor",
+      "priority": "P2",
+      "status": "resolved",
+      "failure_classification": null,
+      "confidence": "proven",
+      "fix_verified": false,
+      "verification_test": "tests/test_verification.py::test_a_node_id_scraped_from_prose_is_never_run",
+      "evidence": [
+        "FIXED in 0.84.0 by redesign: a prose-scraped node id is NEVER run. src/verdict_mcp/harness.py:645-657 marks a `first_cited` (prose) pick `selected_by:'unselectable'` and runs nothing; :761-772 a fail at HEAD refuses a resolution only for a CHOSEN test; :773-784 a fail->pass on a prose-only test is `not_weighed`. Only an explicit `verification_test` (or added_this_run) is weighed (:462).",
+        "DEMONSTRATED by this run's own facts.json: F-26 cites test_the_state_validator_keeps_checking_after_a_malformed_entry only in prose; facts.verification['VERDICT-F-26'] = selected_by 'unselectable', at_previous/at_head 'unavailable', 'not run: 1 test cited in prose, none declared as verification_test'. The mis-scrape can no longer reopen a finding because prose ids are never executed.",
+        "GUARD: tests/test_verification.py at HEAD has six tests for this \u2014 test_a_node_id_scraped_from_prose_is_never_run, test_a_single_prose_citation_is_not_run_either, test_the_collected_citation_wins_over_the_scraped_one, test_an_explicit_citation_leads_whatever_the_prose_says, test_a_prose_pick_among_several_is_not_run_at_all, test_a_prose_pick_that_arrives_by_hand_still_confirms_nothing; all in the 1172 suite.",
+        "Verified by reading + the facts demonstration, not by re-injection (fix_verified: false). The next_run_focus[3] decision was taken: prose is no longer authoritative for selection."
+      ],
+      "root_cause": {
+        "mechanism": "selection scraped any node id from prose and ran it; 0.84.0 makes prose citations unselectable (nothing runs) and weighs only an explicitly-declared verification_test.",
+        "fix_location": "code",
+        "confidence": "proven"
+      },
+      "filed_at": "2026-09-13T05:06:48Z",
+      "hash": "f6c0bdc3",
+      "first_seen": "2026-09-02",
+      "age_days": 11,
+      "delta": "RESOLVED",
+      "verification": {
+        "test": null,
+        "selected_by": "unselectable",
+        "candidates": 1,
+        "candidate_tests": [
+          "tests/test_validate.py::test_the_state_validator_keeps_checking_after_a_malformed_entry"
+        ],
+        "previous_sha": "4dc006ad4bda31a5548de01648ad4e4a5d7a0427",
+        "at_previous": "unavailable",
+        "at_head": "unavailable",
+        "summary": "not run: 1 test cited in prose, none declared as verification_test"
+      },
+      "anchors": [
+        {
+          "ref": "src/verdict_mcp/harness.py:645",
+          "path": "src/verdict_mcp/harness.py",
+          "line": 645,
+          "blob": "6552db886d3d",
+          "line_sha": "f5b658bd17559050"
+        }
+      ],
+      "anchored_at_run": 15,
       "outcome": "unknown",
-      "outcome_reason": "still open; nothing has settled it"
+      "outcome_reason": "resolved but not fix-verified \u2014 absence is not proof"
+    },
+    {
+      "id": "VERDICT-F-58",
+      "title": "The instrument control \u00a73 prescribes for the stale-bytecode fault cannot fire in the ordering that produced VERDICT-F-50: re-running an injection you already watched fail reads FAIL while the shadowed bytecode is still what runs",
+      "severity": "Major",
+      "priority": "P2",
+      "status": "resolved",
+      "failure_classification": null,
+      "confidence": "proven",
+      "fix_verified": false,
+      "evidence": [
+        "FIXED in the agent contract (0.87.0/0.88.0 rewrite of \u00a73). agents/verdict.md:242-248: 'the check that can is an instrument control, and its DIRECTION is the whole check: put the original source back and re-run. If the failure you injected persists on clean source, you are measuring the cache. Re-running an injection you have already watched fail proves nothing in the ordering that produced VERDICT-F-50 \u2014 the stale bytecode IS that injection, so it fails again on it and the control cannot fail. A control that passed because the fault was excluded by other means (subprocess arms, the cache already swept) has not been exercised; say which it was.'",
+        "The fix reverses the control direction (clean-source re-run, not injection re-run) and names the subprocess/cache-swept exclusion \u2014 exactly the datum run-14 next_run_focus[5] said to supply.",
+        "LIVE DEMONSTRATION this run: the corrected control was exercised in the F-60 re-injection (scratchpad/reinject_f60.sh step 3) \u2014 after watching the injected mutation fail, I restored clean source, swept cache, re-ran, and the suite passed (8/8), which is the direction that can actually fail if the instrument is stale. Verified by reading + this exercise; no unit test guards contract prose (fix_verified: false)."
+      ],
+      "root_cause": {
+        "mechanism": "\u00a73's prescribed control ('re-run the injection you watched fail') cannot fail because stale bytecode re-runs the same injection. The contract now prescribes the opposite direction (restore clean source and re-run) and requires naming when the fault was excluded by other means.",
+        "fix_location": "spec",
+        "confidence": "proven"
+      },
+      "filed_at": "2026-09-13T05:06:48Z",
+      "hash": "240d7a02",
+      "first_seen": "2026-09-03",
+      "age_days": 10,
+      "delta": "RESOLVED",
+      "anchors": [
+        {
+          "ref": "agents/verdict.md:242",
+          "path": "agents/verdict.md",
+          "line": 242,
+          "blob": "598c4c7b3e58",
+          "line_sha": "1347f767d410c420"
+        }
+      ],
+      "anchored_at_run": 15,
+      "outcome": "unknown",
+      "outcome_reason": "resolved but not fix-verified \u2014 absence is not proof"
     },
     {
       "id": "VERDICT-F-65",
-      "status": "open",
+      "title": "The pinned-mutant catalogue is assembled from the finding list, not from the code, so its kill rate is a rate over the rules somebody remembered to list",
       "severity": "Minor",
       "priority": "P2",
-      "confidence": "proven",
+      "status": "resolved",
       "failure_classification": null,
-      "title": "The pinned-mutant catalogue is assembled from the finding list, not from the code, so its kill rate is a rate over the rules somebody remembered to list",
+      "confidence": "proven",
+      "fix_verified": false,
       "evidence": [
-        "STILL TRUE, with fresh evidence from this range. eval/pinned_mutants.json grew 68 -> 77. All nine new entries are labelled by the release's own fix list - `0.79.0 S1 F-71`, `S2 F-70`, `S3 F-70`, `S4 F-72`, `S5 F-72`, `S6`/`S7` the accepted block, `S8 F-73`, `S9 F-73` - which is precisely the enumeration this finding names. Counting back, 24 of the last 24 additions (0.78.0's 15 and 0.79.0's 9) came from a fix list; the only code-enumerated block in the catalogue remains 0.76.0's T01-T17.",
-        "THE PROOF IT STILL COSTS SOMETHING, re-measured this run rather than restated: F-60's five survivors were re-run at HEAD and five of five survive the whole 888-test suite. None of the five is in the catalogue. A code-enumerated pass over hooks/qa_paths.py and harness.py's date handling would have listed all five - and would also have caught that one of them, (10), is equivalent, which is a thing a catalogue built from findings can never notice.",
-        "The arithmetic is sound where it is claimed. I re-ran the nine 0.79.0 mutants in an isolated scratch copy with my own runner rather than eval/pin_check.py, against the whole 888-test suite, after a green control (888 passed in 86.71s). The finding is about what the denominator omits, not about the numerator.",
-        "Deferred for a fourth release. CHANGELOG 0.79.0: 'F-60/F-65/F-66 remain the catalogue-honesty release'."
+        "FIXED in 0.80.2 by building the code-enumerated view F-65 asked for. eval/sweep.py (new, commit 5612e9d 'a code-enumerated sweep for F-65') docstring: 'A code-enumerated mutation sweep over named functions... take every line of a named function, break it every way eval/mutate.py's operators know, run the whole suite, and list what survives \u2014 so the denominator is the code, not a memory of it.' It cites VERDICT-F-65 by name.",
+        "RUN and acted upon: eval/sweeps/2026-09-06-f65.json holds 155 enumerated mutants; commit cd1ddcc '0.80.2: the first sweep's survivors \u2014 22 real, judged one by one, seven pinned'. The code-enumerated denominator found 22 real survivors the hand-written catalogue could not have, which is precisely F-65's point.",
+        "Nuance recorded: eval/pinned_mutants.json (175 entries, all finding-labelled) remains a regression PIN-list by design; the resolution is that the code-enumerated MEASUREMENT (sweep.py) now exists alongside it. Verified by reading the tool + artifact + commits; the sweep was not re-run this run (a full campaign is the standing not_tested), so fix_verified: false."
       ],
+      "root_cause": {
+        "mechanism": "pin_check.py's catalogue is hand-written from findings, so its kill rate measured only remembered rules. 0.80.2 adds eval/sweep.py, a code-enumerated campaign whose denominator is the function's lines.",
+        "fix_location": "code",
+        "confidence": "proven"
+      },
+      "filed_at": "2026-09-13T05:06:48Z",
       "hash": "c1fe9c44",
       "first_seen": "2026-09-03",
-      "age_days": 2,
-      "delta": "STILL_OPEN",
+      "age_days": 10,
+      "delta": "RESOLVED",
+      "anchors": [],
+      "anchored_at_run": 15,
       "outcome": "unknown",
-      "outcome_reason": "still open; nothing has settled it"
+      "outcome_reason": "resolved but not fix-verified \u2014 absence is not proof"
     },
     {
       "id": "VERDICT-F-66",
-      "status": "open",
+      "title": "The 'class that did not exist before' is two of three, not three: the catalogue's third call-site mutant shares its anchor line with H3 and produces H3's behaviour with an unused call bolted on",
       "severity": "Minor",
       "priority": "P3",
-      "confidence": "proven",
+      "status": "resolved",
       "failure_classification": null,
-      "title": "The 'class that did not exist before' is two of three, not three: the catalogue's third call-site mutant shares its anchor line with H3 and produces H3's behaviour with an unused call bolted on",
+      "confidence": "proven",
+      "fix_verified": false,
       "evidence": [
-        "Untouched by this range: `git diff 0892869..4dc006a -- eval/pinned_mutants.json` shows the three `F-57:`-labelled entries unchanged, and CHANGELOG.md 0.75.0 still reads 'it carries a class that did not exist before: mutants that delete a call site while leaving the code correct'.",
-        "Deferred a third time. 0.77.0 listed F-60/F-65/F-66 as 'the catalogue-honesty release after that'; 0.78.0 did not mention them; 0.79.0 names them again as still owed. The mislabelled claim is still in the published changelog while it waits.",
-        "Re-confirmed by reading only; no new measurement this run."
+        "FIXED in 0.80.0. CHANGELOG.md:632-638: 'VERDICT-F-66 \u2014 the mislabelled call-site entry is gone. Of the three catalogue entries presented as \"a class that did not exist before\", one was another entry's behaviour with a discarded call bolted on. It is replaced by a real one: verdict-finalize's only call to check_artifacts, whose deletion left all eight of that check's tests green. The call site now has a test of its own.'",
+        "eval/pinned_mutants.json now carries the legitimate replacement '0.80.0 C18 F-66: the post-finalize artifact check is never called (its body...)' alongside the two genuine F-57 call-site mutants ('the bytecode sweep's only call site is deleted', 'the UTF-8 stderr pin is never called by the bash guard'); the H3-duplicating entry is gone.",
+        "Verified by reading CHANGELOG + the catalogue; the campaign was not re-run this run (fix_verified: false)."
       ],
+      "root_cause": {
+        "mechanism": "one of three 'call-site class' catalogue entries duplicated H3's anchor with a discarded call; 0.80.0 removed it and added a real call-site mutant (check_artifacts) with its own test.",
+        "fix_location": "code",
+        "confidence": "proven"
+      },
+      "filed_at": "2026-09-13T05:06:48Z",
       "hash": "16e324f7",
       "first_seen": "2026-09-03",
-      "age_days": 2,
-      "delta": "STILL_OPEN",
+      "age_days": 10,
+      "delta": "RESOLVED",
+      "anchors": [
+        {
+          "ref": "CHANGELOG.md:632",
+          "path": "CHANGELOG.md",
+          "line": 632,
+          "blob": "a437d7d9c1ec",
+          "line_sha": "5ecc0282d5f71a1b"
+        }
+      ],
+      "anchored_at_run": 15,
       "outcome": "unknown",
-      "outcome_reason": "still open; nothing has settled it"
+      "outcome_reason": "resolved but not fix-verified \u2014 absence is not proof"
     },
     {
       "id": "VERDICT-F-74",
-      "status": "open",
+      "title": "The `trigger-separated-from-cause` eval row scores the presence of the single word 'trigger', so a report that never separates trigger from cause earns the point - the same shape run 12 filed against the bytecode row",
       "severity": "Minor",
       "priority": "P2",
-      "confidence": "proven",
+      "status": "open",
       "failure_classification": null,
-      "title": "The `trigger-separated-from-cause` eval row scores the presence of the single word 'trigger', so a report that never separates trigger from cause earns the point - the same shape run 12 filed against the bytecode row",
+      "confidence": "proven",
+      "fix_verified": false,
       "evidence": [
-        "Untouched by this range: eval/expected-cause.json and the whole eval/ answer-key and corpus set are absent from `git diff --stat 0892869..4dc006a` (only eval/pinned_mutants.json changed under eval/). The row is still `{\"key\": \"trigger-separated-from-cause\", \"type\": \"report_contains\", \"terms_all\": [\"trigger\"]}`.",
-        "CHANGELOG 0.79.0 states the deferral in the right words: 'F-74 ... is scorer work owed to the eval'.",
-        "Still the only single-keyword `report_contains` row across all seven answer keys (50 rows). An instance, not a pattern, which is why it is Minor.",
-        "HELD HONESTLY: reasoned from the answer key, not from a scored run. No model was run this session."
+        "STILL OPEN at HEAD (fresh evidence, this range changed eval/expected-cause.json but not this row's mechanism). eval/expected-cause.json:43-49 the row is `{\"key\":\"trigger-separated-from-cause\",\"type\":\"report_contains\",\"terms_all\":[\"trigger\"]}` \u2014 a single keyword.",
+        "eval/score.py:371-387 scores report_contains by plain substring: `missing = [t for t in terms if t.lower() not in lowered]`, point if none missing. With terms_all == ['trigger'], any report containing the word 'trigger' anywhere earns the point without separating trigger from cause.",
+        "CHANGELOG 0.79.0 still records this as owed ('F-74 ... is scorer work owed to the eval'); the eval corpus was not run this run (no live API), so this is verified by reading the key + scorer, not by scoring a report."
       ],
+      "root_cause": {
+        "mechanism": "the row asserts presence of one keyword rather than the discipline (a report that names a trigger without distinguishing it from the cause still scores). Scorer work owed.",
+        "fix_location": "code",
+        "confidence": "proven",
+        "class": {
+          "pattern": "single-keyword report_contains row scores vocabulary not discipline",
+          "sites": [
+            "eval/expected-cause.json:43-49 \u2014 the only single-keyword report_contains row across the seven answer keys"
+          ]
+        }
+      },
+      "filed_at": "2026-09-13T05:06:48Z",
       "hash": "af135905",
       "first_seen": "2026-09-05",
-      "age_days": 0,
+      "age_days": 8,
       "delta": "STILL_OPEN",
+      "anchors": [
+        {
+          "ref": "eval/expected-cause.json:43",
+          "path": "eval/expected-cause.json",
+          "line": 43,
+          "blob": "f86b64ed539d",
+          "line_sha": "0d3d2f5a8b2fc178"
+        },
+        {
+          "ref": "eval/score.py:371",
+          "path": "eval/score.py",
+          "line": 371,
+          "blob": "c2237f63c0f5",
+          "line_sha": "8cae5af14857f154"
+        }
+      ],
+      "anchored_at_run": 15,
       "outcome": "unknown",
       "outcome_reason": "still open; nothing has settled it"
     },
@@ -446,69 +529,1266 @@
     }
   ],
   "verdict": "pass with risks",
-  "release_blockers": [
-    "VERDICT-F-75 (Critical/P1) blocks the NEXT release, not what is already published: the bash guard's authorization decision can be disarmed for every mutating git verb by one ordinary token. It is not Critical/P0, so it does not trip this project's release-gate item (`No Blocker/P0 or Critical/P0 issue remains open`) \u2014 but 0.80.0 should not ship over it."
-  ],
+  "release_blockers": [],
   "not_tested": [
-    "The Windows half of the CI matrix (ubuntu + windows x py3.10 + py3.13). Not testable on this machine. Everything Windows-specific in the guard and the harness \u2014 the `os.name == 'nt'` quoting branch in `_one_test_cmd`, the backslash handling in `_tokens`, the utf8_stderr reconfigure \u2014 was read, not run.",
-    "The pinned sha256 in .github/workflows/release.yml (`a06c9096dcb9727c13555b6be26c7effa707b01f06a4c561ba7a3635443cf2cc` for mcp-publisher v1.8.1) was NOT verified against the upstream artifact. The changelog says it was checked against an independent download; I did not repeat that, because Security-Pass is disabled for this project and the profile forbids running the release workflow. The pin's SHAPE is verified; its VALUE is taken on trust.",
-    "A code-enumerated mutmut campaign over src/verdict_mcp/harness.py, owed since run 11 and now four runs old. Substituted again with hand-enumerated arms (9 catalogue mutants + 5 F-60 survivors, 14 whole-suite runs). What changed this run: the scratch-copy runner run 13 asked for now exists and is proven (scratchpad/pin_arms.py, 60 lines: git archive HEAD, PYTHONPATH ahead of the editable install, PYTHONDONTWRITEBYTECODE, __pycache__ swept, a 1.1s gap between same-size edits, green control first). Adopting it into eval/ is a maintainer decision, not a QA one \u2014 see Needs human decision.",
-    "The 68 catalogue mutants outside the 0.79.0 block (M/H/P/T/Q/0.78.0). Only the 9 new ones were re-run; '45 of 45' for the 0.76.0 tar block and '15 of 15' for 0.78.0 are quoted from earlier runs, not measured here.",
-    "Six of VERDICT-F-60's eleven survivors \u2014 (1) through (5) except the quoting one \u2014 whose anchors 0.76.0 rewrote. No equivalent mutant was constructed for them, so the honest count remains 5 of 5 sampled.",
-    "The Action's `run` mode (--dangerously-skip-permissions, bot commit) and both publish workflows end to end. Forbidden by the profile; reviewed by reading only. No network call was made to PyPI or to the MCP registry.",
-    "The eval corpus and every prompt-scored row, including VERDICT-F-74's. No model was run: the eval needs live API calls, which this environment excludes.",
-    "`git push` reachability through the `--dry-run` prescan hole (VERDICT-F-75). The other verbs were proven in a throwaway repository; push was not, because there is no remote to push to and pushing is forbidden. Whether a literal `--dry-run` token can be smuggled into a real `git push` is unknown, not cleared.",
-    "bsdtar. `_gnu_tar()` resolves to Homebrew /opt/homebrew/bin/gtar here, so the 15 real-tar rows ran against GNU tar 1.35. macOS's stock /usr/bin/tar (bsdtar 3.5.3) was not re-swept this run; run 13's VERDICT-F-67 covered that ground and is resolved.",
-    "The `_tar_takes_value` prefix rule against the full GNU tar option set. I enumerated it against the 34-name value-taking table by reading (see Risks: `--list` becomes value-taking via `listed-incremental`), not by running every abbreviation through real tar."
+    "The re-baseline code surface: ~2,300 new/changed lines across src/verdict_mcp/small.py (+1089, verdict-local), questions.py (+326), anchors.py (+169), clock.py (+72), filed.py (+99), reports.py (+132), runner.py (+470), harness.py (+903), validate.py (+314), and eval/swebench.py (+1311). The caller scoped this run to F-75 + run-14's next_run_focus; these modules were read only where a carried finding pointed into them (harness verification logic, census.py, small.py's isolation match). They are covered by the 1172-test suite and CI but were NOT independently QA-audited for new defects this run.",
+    "The Windows half of the CI matrix (ubuntu + windows x py3.10 + py3.13). Not testable on this machine. VERDICT-F-60's (6)/(7) UTF-8-stderr/Windows behaviour is structurally unobservable here and was read, not run.",
+    "The eval corpus and every prompt-scored row, including VERDICT-F-74's. No model was run: the eval needs live API calls this environment excludes. F-74 is verified by reading the key + scorer, not by scoring a report.",
+    "A code-enumerated mutmut/sweep campaign over src/verdict_mcp/harness.py (owed since run 11). eval/sweep.py now exists (F-65) but a full campaign is hours and was not run; the F-60 boundaries were re-injected individually instead.",
+    "The 155-mutant code-enumerated sweep (eval/sweeps/2026-09-06-f65.json) was read, not re-run; F-65's resolution rests on the tool + artifact + commits, not a fresh sweep.",
+    "The pinned sha256 in .github/workflows/release.yml (mcp-publisher v1.8.1) was NOT verified against the upstream artifact \u2014 Security-Pass is disabled and the profile forbids running the release workflow. Shape verified; value taken on trust.",
+    "The Action's `run` mode (--dangerously-skip-permissions, bot commit) and both publish workflows end to end. Forbidden by the profile; reviewed by reading only.",
+    "`git push` reachability through a smuggled `--dry-run` token \u2014 no remote to push to and pushing is forbidden; the other five verbs were proven in a throwaway repo. NOTE: at HEAD `git push origin main --check` is denied by the guard (probe_f75.py), so the 0.80.0 fix closes the shape run 14 left open.",
+    "bsdtar: `_gnu_tar()` resolves to Homebrew gtar here; macOS stock /usr/bin/tar (bsdtar) was not swept this run (run 13's F-67 covered it, resolved)."
   ],
   "verified_intact": [
-    "All four of run 13's Majors are closed, and each was verified by putting the defect back in an isolated scratch copy of HEAD rather than by noting its absence. Green control first (76 tar tests passed, then 115 verification/calibration/accept/release tests passed) with `import verdict_mcp` resolving inside the scratch and PYTHONDONTWRITEBYTECODE=1. F-70 arm: 6 failed. F-71 arm: 3 failed. F-72 arm: 2 failed. F-73 arm: 2 failed. INSTRUMENT CONTROL: F-70 was re-injected after the F-71 arm and failed identically (6 failed) \u2014 the arms are not all reading the same way.",
-    "The agent contract is byte-identical over this range, as 0.79.0 claims: `git diff --stat 0892869..4dc006a -- agents/ standards/ templates/ commands/` returns nothing.",
-    "The version line is consistent across all three files at 0.79.0: .claude-plugin/plugin.json:3, pyproject.toml:8, server.json:10 and :15.",
-    "Tamper-evidence holds: `python3 eval/fixture_freshness.py` exits 0 \u2014 pricer-delta.diff still describes the fixture pair (78 lines) \u2014 and eval/expected*.json and eval/corpus are untouched by this range.",
-    "The 0.79.0 pinned-mutant claim reproduces on an independent instrument. Re-run in a second scratch copy with my own 60-line runner rather than eval/pin_check.py: CONTROL rc=0 :: 888 passed in 86.71s (0:01:26) ; TOTAL killed=9 survived=0 broken=0",
-    "The new `_tar_takes_value` prefix rule does not blind the deletion rules it sits beside: no name in `_TAR_LONG_WITH_ARG` begins with `rem`, `ext`, `get`, `del`, `dif` or `com`, so `--remove-files` and every mode abbreviation still reach `_check_tar` with their operands intact (enumerated by driving `_tar_takes_value` over 43 valueless option names; only `list` collides, via `listed-incremental`)."
+    "The full suite is green at HEAD: `uv run --group dev python -m pytest tests/` -> 1172 passed in 138.99s (facts.json gates.suite, exit 0). Test count rose 888->1172 (+284; id set-diff +293/-9, the 9 removals are renamed/renumbered parametrizations, not feature loss).",
+    "The fixture-freshness gate holds: python3 eval/fixture_freshness.py -> OK, pricer-delta.diff still describes the fixture pair (facts.json gates.fixture_freshness, exit 0).",
+    "The bash guard is armed and correctly scoped at HEAD: DENIES `git commit -am wip` / `git stash` / `git reset --hard HEAD` and ALLOWS `cat README.md` and a genuine `git commit --dry-run` (scratchpad/probe_f75.py control rows).",
+    "The corrected \u00a73 instrument control (F-58's fix) is operable: in the F-60 re-injection I restored clean source, swept cache, re-ran, and the suite passed (8/8) \u2014 the control direction that can actually fail on a stale instrument (scratchpad/reinject_f60.sh step 3).",
+    "The suite makes no live network/DB/credential call despite the new verdict-local HTTP client: tests inject FakeModel/Flaky and the run refuses without an endpoint (test_small.py:74,143,166)."
   ],
   "next_run_focus": [
-    "VERDICT-F-75 first, and it is one function. `_check_git` decides read-only-ness by asking whether a WORD is present; it must ask what ROLE the word plays. Concretely: (a) drop the blanket `--dry-run`/`--check` prescan at :487 and let each verb declare which of its own flags are non-mutating, checked after the verb is known and never against a token that follows an option that takes a value (`-m`, `-F`, `--message`, `-o`); (b) at :511, match the read-only sub-verb only at the FIRST positional after the verb, and hold both spellings (`list` and `--list`) as `config` already does. The acceptance evidence is not another list of spellings - run 13's lesson applies here verbatim: enumerate by EFFECT and add the axis no row has, which is 'a denied command with an allowed token appended'. One row per verb: `git commit -m \"--dry-run\"`, `git stash push -m \"--dry-run\"`, `git branch -D x list`, `git tag -d v9 list`, `git worktree remove /tmp/x list`, `git notes add -m x list`, each asserted DENY, and the read-only forms of VERDICT-F-76 each asserted ALLOW in the same table.",
-    "VERDICT-F-78 in the same sitting as F-75, because it is two words and it guards the supply-chain control this release just shipped: `test_the_download_is_checksummed_before_it_runs` and `test_a_registry_failure_is_visible` must read `_commands(_registry_job())`, not the raw job. Add the comment-only variant as a regression row - the injection is written in this run's report and takes one line. Then ask the wider question the catalogue cannot: `0.79.0 S9` deletes the checksum line outright and is KILLED, so the pin measures 'the string is absent'; a mutant that replaces a command with a comment naming it belongs in the catalogue as its own class, the way call-site mutants were added in 0.75.0.",
-    "VERDICT-F-60 is now two lines of work, not eleven. (8) and (9) are unpinned boundaries with a one-line test each: `_ago` at exactly 60 minutes ('60 minutes ago' vs '1 hour ago') and at exactly age_h == 1.05. (10) is an EQUIVALENT MUTANT and should be struck from the survivor list rather than tested - run 13 put it first on the strength of a fallback that `datetime.fromisoformat` never takes. (6) and (7) are Windows-only behaviour that no macOS suite can observe; either they are asserted in the Windows CI leg or they are recorded as platform-unmeasurable, and either way the utf8_stderr AST check should stop being described as coverage of the behaviour.",
-    "VERDICT-F-26 needs a decision, not another re-read. It has mis-selected on six consecutive runs and half of it is now the maintainer's stated design. Either change `len(tests) > 1` to `len(tests) >= 1` at harness.py:537 - the whole fix - or record the position with `verdict-accept`, which is what 0.78.0 built the ledger for. Carrying it open for a seventh run is the one option that costs something and settles nothing.",
-    "The mutmut debt is now four runs old and it is no longer blocked on tooling: this run's scratch-copy runner works and is 60 lines (git archive HEAD, PYTHONPATH ahead of the editable install, PYTHONDONTWRITEBYTECODE, __pycache__ swept, a 1.1s gap between same-size edits, a green control before the first arm). It is a maintainer decision whether that lands in eval/ beside pin_check.py or whether mutmut over harness.py is accepted as maintainer-only work - and VERDICT-F-65 should say which, instead of waiting a fifth time. A campaign over harness.py at ~90s a mutant is hours, not minutes; scope it to the date, verification and outcome functions or it will not be run again either.",
-    "VERDICT-F-58 and the `accepted` teaching are still two prompt changes behind one eval payment, and VERDICT-F-74 still says one row of the key they would be scored against cannot fail. Fix the row first. This run added a datum for F-58: the prescribed control passed here, but only because the arms were subprocess hook scripts with bytecode writing disabled - i.e. it passed because the fault it screens for had already been excluded by other means.",
-    "VERDICT-F-77 and VERDICT-F-76 are the friction pair and can ride along with F-75: they are the same role-blindness pointing the other way. F-77 is a shape rule for the generic `_MUTATORS` branch (a mode, an owner or a size is not a path); F-76 is the dashed spellings missing from the read-only sets."
+    "Baseline the re-baseline surface: a dedicated run over src/verdict_mcp/small.py (verdict-local), questions.py, anchors.py, clock.py, filed.py, reports.py, and eval/swebench.py \u2014 none has had an independent QA pass. Weight small.py (the local-model client with a real urlopen and env-file reading) and questions.py (a new second-pen control surface) first.",
+    "Settle VERDICT-F-74: change eval/expected-cause.json:43-49 to score the discipline, or verdict-accept it. Carrying it a run longer is the one option that costs something and settles nothing (the same logic that closed F-26 this run).",
+    "Run the code-enumerated campaign over harness.py via eval/sweep.py (now proven) \u2014 scope it to the date/verification/outcome functions, ~90s/mutant, or it will not be run again.",
+    "Refine the profile's isolation part-(1) grep so it stops flagging the verdict-local client (small.py) as a network dependency, or replace it with a suite-level no-live-call assertion."
   ],
+  "flaky_quarantine": [],
+  "verified_intact_anchors": [
+    [],
+    [],
+    [],
+    [],
+    [
+      {
+        "ref": "test_small.py:74",
+        "status": "unresolvable",
+        "reason": "no such file in the repository"
+      }
+    ]
+  ],
+  "evidence_anchors": {
+    "status": "measured",
+    "refs": 13,
+    "unresolvable": 1
+  },
+  "evidence_drift": {
+    "status": "unavailable",
+    "reason": "the previous state carries no evidence anchors \u2014 it was written by a verdict-finalize older than 0.83.0; this run anchors, the next measures"
+  },
+  "reading_map": {
+    "status": "measured",
+    "modules": 62,
+    "overall_percent": 83,
+    "lowest": [
+      {
+        "path": "eval/corpus/pricer-baseline-sonnet-20260828/probe.py",
+        "percent": 0,
+        "statements": null,
+        "missed": null,
+        "never_imported": true,
+        "open_findings": 0,
+        "last_cited_run": null
+      },
+      {
+        "path": "eval/fixtures/liar/qstats.py",
+        "percent": 0,
+        "statements": null,
+        "missed": null,
+        "never_imported": true,
+        "open_findings": 0,
+        "last_cited_run": null
+      },
+      {
+        "path": "eval/fixtures/pricer/pricer.py",
+        "percent": 0,
+        "statements": null,
+        "missed": null,
+        "never_imported": true,
+        "open_findings": 0,
+        "last_cited_run": null
+      },
+      {
+        "path": "eval/fixtures/pricer_clean/pricer.py",
+        "percent": 0,
+        "statements": null,
+        "missed": null,
+        "never_imported": true,
+        "open_findings": 0,
+        "last_cited_run": null
+      },
+      {
+        "path": "eval/fixtures/pricer_clean/probe.py",
+        "percent": 0,
+        "statements": null,
+        "missed": null,
+        "never_imported": true,
+        "open_findings": 0,
+        "last_cited_run": null
+      },
+      {
+        "path": "eval/fixtures/pricer_rev_b/pricer.py",
+        "percent": 0,
+        "statements": null,
+        "missed": null,
+        "never_imported": true,
+        "open_findings": 0,
+        "last_cited_run": null
+      },
+      {
+        "path": "eval/fixtures/rates/commits/01-initial/invoice.py",
+        "percent": 0,
+        "statements": null,
+        "missed": null,
+        "never_imported": true,
+        "open_findings": 0,
+        "last_cited_run": null
+      },
+      {
+        "path": "eval/fixtures/rates/commits/01-initial/money.py",
+        "percent": 0,
+        "statements": null,
+        "missed": null,
+        "never_imported": true,
+        "open_findings": 0,
+        "last_cited_run": null
+      },
+      {
+        "path": "eval/fixtures/rates/commits/01-initial/rates.py",
+        "percent": 0,
+        "statements": null,
+        "missed": null,
+        "never_imported": true,
+        "open_findings": 0,
+        "last_cited_run": null
+      },
+      {
+        "path": "eval/fixtures/rates/commits/01-initial/report.py",
+        "percent": 0,
+        "statements": null,
+        "missed": null,
+        "never_imported": true,
+        "open_findings": 0,
+        "last_cited_run": null
+      },
+      {
+        "path": "eval/fixtures/rates/commits/01-initial/zones.py",
+        "percent": 0,
+        "statements": null,
+        "missed": null,
+        "never_imported": true,
+        "open_findings": 0,
+        "last_cited_run": null
+      },
+      {
+        "path": "eval/fixtures/rates/commits/02-cache-zone-lookups/zones.py",
+        "percent": 0,
+        "statements": null,
+        "missed": null,
+        "never_imported": true,
+        "open_findings": 0,
+        "last_cited_run": null
+      },
+      {
+        "path": "eval/fixtures/slop/commits/01/rates.py",
+        "percent": 0,
+        "statements": null,
+        "missed": null,
+        "never_imported": true,
+        "open_findings": 0,
+        "last_cited_run": null
+      },
+      {
+        "path": "eval/fixtures/slop/commits/01/sync.py",
+        "percent": 0,
+        "statements": null,
+        "missed": null,
+        "never_imported": true,
+        "open_findings": 0,
+        "last_cited_run": null
+      },
+      {
+        "path": "eval/fixtures/slop/commits/02/helpers.py",
+        "percent": 0,
+        "statements": null,
+        "missed": null,
+        "never_imported": true,
+        "open_findings": 0,
+        "last_cited_run": null
+      },
+      {
+        "path": "eval/fixtures/slop/commits/02/rates.py",
+        "percent": 0,
+        "statements": null,
+        "missed": null,
+        "never_imported": true,
+        "open_findings": 0,
+        "last_cited_run": null
+      },
+      {
+        "path": "eval/fixtures/slop/commits/02/sync.py",
+        "percent": 0,
+        "statements": null,
+        "missed": null,
+        "never_imported": true,
+        "open_findings": 0,
+        "last_cited_run": null
+      },
+      {
+        "path": "eval/run_eval.py",
+        "percent": 0,
+        "statements": null,
+        "missed": null,
+        "never_imported": true,
+        "open_findings": 0,
+        "last_cited_run": null
+      },
+      {
+        "path": "eval/run_mutation.py",
+        "percent": 0,
+        "statements": null,
+        "missed": null,
+        "never_imported": true,
+        "open_findings": 0,
+        "last_cited_run": null
+      },
+      {
+        "path": "eval/sweep.py",
+        "percent": 0,
+        "statements": null,
+        "missed": null,
+        "never_imported": true,
+        "open_findings": 0,
+        "last_cited_run": null
+      },
+      {
+        "path": "src/verdict_mcp/__init__.py",
+        "percent": 27,
+        "statements": 11,
+        "missed": 8,
+        "open_findings": 0,
+        "last_cited_run": null
+      },
+      {
+        "path": "eval/swebench.py",
+        "percent": 37,
+        "statements": 823,
+        "missed": 516,
+        "open_findings": 0,
+        "last_cited_run": null
+      },
+      {
+        "path": "src/verdict_mcp/small.py",
+        "percent": 59,
+        "statements": 518,
+        "missed": 213,
+        "open_findings": 0,
+        "last_cited_run": null
+      },
+      {
+        "path": "eval/mutate.py",
+        "percent": 71,
+        "statements": 92,
+        "missed": 27,
+        "open_findings": 0,
+        "last_cited_run": null
+      },
+      {
+        "path": "eval/pin_check.py",
+        "percent": 81,
+        "statements": 200,
+        "missed": 38,
+        "open_findings": 0,
+        "last_cited_run": null
+      }
+    ],
+    "never_examined": [
+      "eval/corpus/pricer-baseline-sonnet-20260828/probe.py",
+      "eval/fixtures/liar/qstats.py",
+      "eval/fixtures/pricer/pricer.py",
+      "eval/fixtures/pricer_clean/pricer.py",
+      "eval/fixtures/pricer_clean/probe.py",
+      "eval/fixtures/pricer_rev_b/pricer.py",
+      "eval/fixtures/rates/commits/01-initial/invoice.py",
+      "eval/fixtures/rates/commits/01-initial/money.py",
+      "eval/fixtures/rates/commits/01-initial/rates.py",
+      "eval/fixtures/rates/commits/01-initial/report.py"
+    ],
+    "findings_by_module": {},
+    "duration_s": 174.38,
+    "suite_exit_code": 0
+  },
   "coverage": {
     "status": "measured",
     "tool": "coverage.py dynamic contexts",
     "command": "uv run --group dev python -m coverage run -m pytest tests/ -q -o addopts=",
-    "sha_range": "0892869b19ecc2a972241ce1e3cd22efd0eac336..4dc006ad4bda31a5548de01648ad4e4a5d7a0427",
+    "sha_range": "4dc006ad4bda31a5548de01648ad4e4a5d7a0427..4a918d8b4b786991cdbe45bde13bd9f3a8e9dc7e",
     "suite_exit_code": 0,
-    "duration_s": 122.75,
-    "changed_files": 8,
-    "changed_lines": 134,
-    "changed_lines_executed": 113,
-    "changed_lines_executed_in_subprocess": 11,
+    "duration_s": 174.38,
+    "changed_files": 51,
+    "changed_lines": 5656,
+    "changed_lines_executed": 3710,
+    "changed_lines_executed_in_subprocess": 379,
     "subprocess_coverage": "measured",
     "by_kind": {
       "production": {
-        "changed_lines": 26,
-        "changed_lines_executed": 26,
-        "percent": 100
+        "changed_lines": 3538,
+        "changed_lines_executed": 1971,
+        "percent": 56
       },
       "tests": {
-        "changed_lines": 108,
-        "changed_lines_executed": 87,
-        "percent": 81
+        "changed_lines": 2118,
+        "changed_lines_executed": 1739,
+        "percent": 82
       }
     },
-    "percent": 84,
+    "percent": 66,
     "per_file": {
+      "eval/pin_check.py": {
+        "changed": 162,
+        "measured": 83,
+        "executed": 66,
+        "unexercised_ranges": [
+          [
+            59,
+            59
+          ],
+          [
+            72,
+            72
+          ],
+          [
+            78,
+            78
+          ],
+          [
+            80,
+            80
+          ],
+          [
+            84,
+            84
+          ],
+          [
+            109,
+            109
+          ],
+          [
+            117,
+            117
+          ],
+          [
+            121,
+            121
+          ],
+          [
+            150,
+            150
+          ],
+          [
+            158,
+            158
+          ],
+          [
+            170,
+            171
+          ],
+          [
+            258,
+            259
+          ],
+          [
+            279,
+            279
+          ],
+          [
+            287,
+            288
+          ]
+        ],
+        "tests": [
+          "test_pin_check.test_a_mutation_is_written_atomically",
+          "test_pin_check.test_a_scratch_that_runs_the_original_checkout_is_refused",
+          "test_pin_check.test_runs_its_own_code_reads_the_resolved_path",
+          "test_pin_check.test_the_default_campaign_never_touches_the_tree",
+          "test_pin_check.test_the_in_tree_campaign_swaps_and_restores_the_file_it_mutates",
+          "test_pin_check.test_the_restorer_is_constructible_where_a_signal_is_missing",
+          "test_pin_check.test_the_restorer_puts_a_file_back_whole",
+          "test_pin_check.test_the_scratch_copy_is_the_working_tree_not_the_last_commit"
+        ],
+        "unexercised_functions": []
+      },
+      "eval/run_eval.py": {
+        "changed": 259,
+        "measured": 259,
+        "executed": 0,
+        "unexercised_ranges": [
+          [
+            48,
+            48
+          ],
+          [
+            59,
+            59
+          ],
+          [
+            64,
+            66
+          ],
+          [
+            148,
+            261
+          ],
+          [
+            294,
+            303
+          ],
+          [
+            305,
+            308
+          ],
+          [
+            338,
+            344
+          ],
+          [
+            385,
+            392
+          ],
+          [
+            396,
+            396
+          ],
+          [
+            398,
+            406
+          ],
+          [
+            422,
+            422
+          ],
+          [
+            428,
+            428
+          ],
+          [
+            434,
+            434
+          ],
+          [
+            459,
+            459
+          ],
+          [
+            470,
+            475
+          ],
+          [
+            481,
+            527
+          ],
+          [
+            545,
+            559
+          ],
+          [
+            570,
+            573
+          ],
+          [
+            575,
+            583
+          ],
+          [
+            585,
+            586
+          ],
+          [
+            594,
+            607
+          ]
+        ],
+        "tests": [],
+        "note": "no test executed it, and no subprocess the suite spawned recorded a line of it"
+      },
+      "eval/score.py": {
+        "changed": 158,
+        "measured": 92,
+        "executed": 88,
+        "executed_in_subprocess": 88,
+        "unexercised_ranges": [
+          [
+            215,
+            215
+          ],
+          [
+            243,
+            243
+          ],
+          [
+            280,
+            281
+          ]
+        ],
+        "tests": [],
+        "unexercised_functions": []
+      },
+      "eval/swebench.py": {
+        "changed": 1311,
+        "measured": 823,
+        "executed": 203,
+        "unexercised_ranges": [
+          [
+            38,
+            38
+          ],
+          [
+            40,
+            51
+          ],
+          [
+            53,
+            58
+          ],
+          [
+            60,
+            63
+          ],
+          [
+            65,
+            66
+          ],
+          [
+            68,
+            69
+          ],
+          [
+            74,
+            74
+          ],
+          [
+            86,
+            86
+          ],
+          [
+            94,
+            94
+          ],
+          [
+            100,
+            100
+          ],
+          [
+            113,
+            114
+          ],
+          [
+            117,
+            117
+          ],
+          [
+            119,
+            119
+          ],
+          [
+            121,
+            123
+          ],
+          [
+            125,
+            125
+          ],
+          [
+            131,
+            131
+          ],
+          [
+            138,
+            139
+          ],
+          [
+            141,
+            142
+          ],
+          [
+            144,
+            144
+          ],
+          [
+            147,
+            148
+          ],
+          [
+            151,
+            152
+          ],
+          [
+            157,
+            157
+          ],
+          [
+            159,
+            170
+          ],
+          [
+            173,
+            177
+          ],
+          [
+            180,
+            180
+          ],
+          [
+            183,
+            183
+          ],
+          [
+            191,
+            191
+          ],
+          [
+            200,
+            200
+          ],
+          [
+            226,
+            230
+          ],
+          [
+            235,
+            242
+          ],
+          [
+            245,
+            248
+          ],
+          [
+            253,
+            258
+          ],
+          [
+            261,
+            262
+          ],
+          [
+            265,
+            270
+          ],
+          [
+            272,
+            272
+          ],
+          [
+            275,
+            275
+          ],
+          [
+            279,
+            287
+          ],
+          [
+            290,
+            290
+          ],
+          [
+            292,
+            300
+          ],
+          [
+            303,
+            308
+          ],
+          [
+            311,
+            312
+          ],
+          [
+            315,
+            315
+          ],
+          [
+            320,
+            320
+          ],
+          [
+            323,
+            323
+          ],
+          [
+            329,
+            330
+          ],
+          [
+            332,
+            336
+          ],
+          [
+            338,
+            350
+          ],
+          [
+            352,
+            352
+          ],
+          [
+            360,
+            363
+          ],
+          [
+            365,
+            371
+          ],
+          [
+            373,
+            373
+          ],
+          [
+            375,
+            379
+          ],
+          [
+            381,
+            382
+          ],
+          [
+            386,
+            386
+          ],
+          [
+            388,
+            388
+          ],
+          [
+            390,
+            390
+          ],
+          [
+            393,
+            393
+          ],
+          [
+            396,
+            396
+          ],
+          [
+            409,
+            409
+          ],
+          [
+            413,
+            413
+          ],
+          [
+            427,
+            427
+          ],
+          [
+            433,
+            435
+          ],
+          [
+            438,
+            439
+          ],
+          [
+            441,
+            441
+          ],
+          [
+            443,
+            444
+          ],
+          [
+            447,
+            447
+          ],
+          [
+            452,
+            474
+          ],
+          [
+            479,
+            479
+          ],
+          [
+            481,
+            481
+          ],
+          [
+            484,
+            489
+          ],
+          [
+            492,
+            496
+          ],
+          [
+            499,
+            499
+          ],
+          [
+            501,
+            504
+          ],
+          [
+            506,
+            508
+          ],
+          [
+            511,
+            511
+          ],
+          [
+            559,
+            560
+          ],
+          [
+            563,
+            564
+          ],
+          [
+            567,
+            567
+          ],
+          [
+            579,
+            580
+          ],
+          [
+            583,
+            588
+          ],
+          [
+            590,
+            600
+          ],
+          [
+            602,
+            604
+          ],
+          [
+            607,
+            614
+          ],
+          [
+            617,
+            619
+          ],
+          [
+            621,
+            631
+          ],
+          [
+            636,
+            636
+          ],
+          [
+            640,
+            642
+          ],
+          [
+            644,
+            647
+          ],
+          [
+            649,
+            668
+          ],
+          [
+            670,
+            673
+          ],
+          [
+            676,
+            676
+          ],
+          [
+            678,
+            684
+          ],
+          [
+            686,
+            687
+          ],
+          [
+            690,
+            690
+          ],
+          [
+            698,
+            699
+          ],
+          [
+            705,
+            705
+          ],
+          [
+            709,
+            716
+          ],
+          [
+            719,
+            719
+          ],
+          [
+            721,
+            728
+          ],
+          [
+            733,
+            734
+          ],
+          [
+            738,
+            739
+          ],
+          [
+            741,
+            746
+          ],
+          [
+            761,
+            761
+          ],
+          [
+            778,
+            778
+          ],
+          [
+            786,
+            786
+          ],
+          [
+            790,
+            790
+          ],
+          [
+            801,
+            801
+          ],
+          [
+            821,
+            821
+          ],
+          [
+            829,
+            829
+          ],
+          [
+            832,
+            832
+          ],
+          [
+            834,
+            837
+          ],
+          [
+            840,
+            840
+          ],
+          [
+            872,
+            872
+          ],
+          [
+            874,
+            874
+          ],
+          [
+            879,
+            879
+          ],
+          [
+            888,
+            890
+          ],
+          [
+            922,
+            932
+          ],
+          [
+            935,
+            935
+          ],
+          [
+            938,
+            940
+          ],
+          [
+            943,
+            957
+          ],
+          [
+            960,
+            964
+          ],
+          [
+            968,
+            973
+          ],
+          [
+            975,
+            978
+          ],
+          [
+            980,
+            983
+          ],
+          [
+            985,
+            987
+          ],
+          [
+            989,
+            990
+          ],
+          [
+            992,
+            994
+          ],
+          [
+            996,
+            1003
+          ],
+          [
+            1006,
+            1007
+          ],
+          [
+            1009,
+            1016
+          ],
+          [
+            1019,
+            1024
+          ],
+          [
+            1027,
+            1032
+          ],
+          [
+            1035,
+            1035
+          ],
+          [
+            1039,
+            1045
+          ],
+          [
+            1047,
+            1049
+          ],
+          [
+            1052,
+            1052
+          ],
+          [
+            1055,
+            1061
+          ],
+          [
+            1064,
+            1073
+          ],
+          [
+            1076,
+            1076
+          ],
+          [
+            1079,
+            1079
+          ],
+          [
+            1081,
+            1081
+          ],
+          [
+            1083,
+            1084
+          ],
+          [
+            1088,
+            1088
+          ],
+          [
+            1092,
+            1116
+          ],
+          [
+            1119,
+            1123
+          ],
+          [
+            1126,
+            1142
+          ],
+          [
+            1145,
+            1145
+          ],
+          [
+            1147,
+            1149
+          ],
+          [
+            1152,
+            1152
+          ],
+          [
+            1157,
+            1166
+          ],
+          [
+            1169,
+            1169
+          ],
+          [
+            1173,
+            1173
+          ],
+          [
+            1177,
+            1177
+          ],
+          [
+            1198,
+            1198
+          ],
+          [
+            1234,
+            1234
+          ],
+          [
+            1236,
+            1236
+          ],
+          [
+            1249,
+            1255
+          ],
+          [
+            1258,
+            1268
+          ],
+          [
+            1270,
+            1273
+          ],
+          [
+            1276,
+            1277
+          ],
+          [
+            1281,
+            1307
+          ],
+          [
+            1310,
+            1311
+          ]
+        ],
+        "tests": [
+          "test_swebench.test_build_prompt_carries_the_issue_verbatim_and_the_shipped_command",
+          "test_swebench.test_cited_refs_takes_anchors_first_and_prose_second",
+          "test_swebench.test_enclosing_picks_the_innermost_definition",
+          "test_swebench.test_gold_of_empty",
+          "test_swebench.test_gold_of_reads_the_base_side_ranges_and_anchors_insertions",
+          "test_swebench.test_level_of_grades_file_hunk_and_function",
+          "test_swebench.test_level_of_survives_a_file_that_does_not_parse",
+          "test_swebench.test_outcomes_are_read_from_the_short_summary_with_spaces_and_messages",
+          "test_swebench.test_result_line_finds_the_cli_result_in_the_runner_relay",
+          "test_swebench.test_same_file_needs_a_directory_qualified_suffix"
+        ],
+        "unexercised_functions": [
+          "sh",
+          "git",
+          "now_utc",
+          "dataset_rows",
+          "row_for",
+          "cmd_select",
+          "instances",
+          "spec_for",
+          "workdir",
+          "mirror_of"
+        ]
+      },
+      "eval/sweep.py": {
+        "changed": 225,
+        "measured": 225,
+        "executed": 0,
+        "unexercised_ranges": [
+          [
+            1,
+            225
+          ]
+        ],
+        "tests": [],
+        "note": "no test executed it, and no subprocess the suite spawned recorded a line of it"
+      },
+      "eval/usage.py": {
+        "changed": 107,
+        "measured": 64,
+        "executed": 51,
+        "unexercised_ranges": [
+          [
+            19,
+            19
+          ],
+          [
+            21,
+            24
+          ],
+          [
+            26,
+            26
+          ],
+          [
+            30,
+            30
+          ],
+          [
+            37,
+            37
+          ],
+          [
+            42,
+            42
+          ],
+          [
+            60,
+            60
+          ],
+          [
+            80,
+            80
+          ],
+          [
+            90,
+            90
+          ],
+          [
+            102,
+            102
+          ]
+        ],
+        "tests": [
+          "test_usage.test_a_second_accounts_transcripts_are_read_from_its_own_config",
+          "test_usage.test_add_totals_two_arms_and_tolerates_a_missing_one",
+          "test_usage.test_brief_reads_as_a_bill",
+          "test_usage.test_project_dir_matches_claude_codes_own_key",
+          "test_usage.test_usage_covers_every_session_recorded_for_the_checkout",
+          "test_usage.test_usage_is_none_when_there_is_no_transcript",
+          "test_usage.test_usage_sums_the_subagent_and_counts_a_request_once",
+          "test_usage.test_usage_survives_a_truncated_transcript"
+        ],
+        "unexercised_functions": []
+      },
       "hooks/enforce_bash_scope.py": {
-        "changed": 42,
-        "measured": 11,
-        "executed": 11,
-        "executed_in_subprocess": 10,
+        "changed": 113,
+        "measured": 48,
+        "executed": 48,
+        "executed_in_subprocess": 37,
         "unexercised_ranges": [],
         "tests": [
           "test_hooks.test_nested_commands_parse_under_windows_tokenization",
@@ -516,130 +1796,1292 @@
         ],
         "unexercised_functions": []
       },
-      "src/verdict_mcp/harness.py": {
-        "changed": 52,
-        "measured": 13,
-        "executed": 13,
+      "hooks/enforce_write_scope.py": {
+        "changed": 5,
+        "measured": 1,
+        "executed": 1,
         "executed_in_subprocess": 1,
         "unexercised_ranges": [],
+        "tests": [],
+        "unexercised_functions": []
+      },
+      "hooks/qa_paths.py": {
+        "changed": 11,
+        "measured": 4,
+        "executed": 4,
+        "executed_in_subprocess": 1,
+        "unexercised_ranges": [],
+        "tests": [
+          "test_hooks.test_nested_shell_parses_a_quote_wrapped_command"
+        ],
+        "unexercised_functions": []
+      },
+      "hooks/report_open_findings.py": {
+        "changed": 19,
+        "measured": 11,
+        "executed": 9,
+        "executed_in_subprocess": 9,
+        "unexercised_ranges": [
+          [
+            44,
+            45
+          ]
+        ],
+        "tests": [],
+        "unexercised_functions": []
+      },
+      "src/verdict_mcp/__init__.py": {
+        "changed": 11,
+        "measured": 8,
+        "executed": 0,
+        "unexercised_ranges": [
+          [
+            15,
+            15
+          ],
+          [
+            19,
+            25
+          ]
+        ],
+        "tests": [],
+        "unexercised_functions": []
+      },
+      "src/verdict_mcp/accept.py": {
+        "changed": 3,
+        "measured": 3,
+        "executed": 1,
+        "unexercised_ranges": [
+          [
+            48,
+            48
+          ],
+          [
+            52,
+            52
+          ]
+        ],
+        "tests": [
+          "test_accept.test_accept_refuses_a_duplicate_and_revoke_reverses_it",
+          "test_accept.test_accept_refuses_an_unknown_or_closed_finding",
+          "test_accept.test_accept_refuses_without_a_real_citation_or_reason",
+          "test_accept.test_accept_writes_the_ledger_and_the_finding_leaves_the_open_counts",
+          "test_accept.test_list_prints_the_ledger",
+          "test_accept.test_the_banner_counts_accepted_risks_apart",
+          "test_accept.test_the_gate_keeps_an_accepted_finding_out_of_the_open_list",
+          "test_accept.test_the_mcp_server_serves_accepted_apart",
+          "test_accept.test_verdict_issues_does_not_file_an_accepted_finding"
+        ],
+        "unexercised_functions": []
+      },
+      "src/verdict_mcp/anchors.py": {
+        "changed": 169,
+        "measured": 94,
+        "executed": 90,
+        "executed_in_subprocess": 16,
+        "unexercised_ranges": [
+          [
+            72,
+            73
+          ],
+          [
+            104,
+            104
+          ],
+          [
+            154,
+            154
+          ]
+        ],
+        "tests": [
+          "test_accept.test_the_tester_cannot_decorate_a_finding_with_an_acceptance",
+          "test_accept.test_the_tester_cannot_write_the_status",
+          "test_anchors.test_a_judgment_that_writes_the_measured_fields_is_told",
+          "test_anchors.test_a_previous_state_without_anchors_reads_unavailable_not_unchanged",
+          "test_anchors.test_a_reference_that_names_nothing_is_recorded_as_such_and_costs_nothing",
+          "test_anchors.test_anchors_are_carried_while_the_evidence_is_the_text_they_were_taken_from",
+          "test_anchors.test_drift_travels_into_the_state_and_the_report",
+          "test_anchors.test_facts_name_the_next_finding_id",
+          "test_anchors.test_finalize_anchors_every_cited_line",
+          "test_anchors.test_fixed_at_is_the_date_of_the_measured_fix_never_of_a_claim"
+        ],
+        "unexercised_functions": []
+      },
+      "src/verdict_mcp/census.py": {
+        "changed": 9,
+        "measured": 1,
+        "executed": 1,
+        "executed_in_subprocess": 1,
+        "unexercised_ranges": [],
+        "tests": [],
+        "unexercised_functions": []
+      },
+      "src/verdict_mcp/clock.py": {
+        "changed": 72,
+        "measured": 27,
+        "executed": 27,
+        "unexercised_ranges": [],
+        "tests": [
+          "test_accept.test_accept_refuses_a_duplicate_and_revoke_reverses_it",
+          "test_accept.test_an_accepted_critical_does_not_block_a_pass",
+          "test_accept.test_state_requires_a_citation_on_an_accepted_finding",
+          "test_accept.test_the_gate_keeps_an_accepted_finding_out_of_the_open_list",
+          "test_anchors.test_a_baseline_measures_no_drift_and_finalize_says_when_it_could_not_anchor",
+          "test_anchors.test_a_previous_state_without_anchors_reads_unavailable_not_unchanged",
+          "test_anchors.test_a_reference_that_names_nothing_is_recorded_as_such_and_costs_nothing",
+          "test_anchors.test_anchors_are_carried_while_the_evidence_is_the_text_they_were_taken_from",
+          "test_anchors.test_drift_travels_into_the_state_and_the_report",
+          "test_anchors.test_facts_name_the_next_finding_id"
+        ],
+        "unexercised_functions": []
+      },
+      "src/verdict_mcp/filed.py": {
+        "changed": 99,
+        "measured": 57,
+        "executed": 55,
+        "executed_in_subprocess": 18,
+        "unexercised_ranges": [
+          [
+            90,
+            91
+          ]
+        ],
+        "tests": [
+          "test_artifact_check.test_finalize_actually_runs_the_check_it_documents",
+          "test_filed.test_a_finding_carried_by_silence_drops_last_runs_verb",
+          "test_filed.test_a_finding_file_is_validated_the_moment_it_is_written",
+          "test_filed.test_a_verification_test_must_be_a_collected_id",
+          "test_filed.test_archive_is_silent_on_an_empty_or_absent_directory",
+          "test_filed.test_facts_move_last_runs_files_aside_and_a_retry_keeps_them",
+          "test_filed.test_files_and_inline_findings_together_are_refused",
+          "test_filed.test_finding_files_are_assembled_oldest_first_stamped_and_rendered",
+          "test_filed.test_load_filed_names_what_it_cannot_read",
+          "test_filed.test_still_open_is_refused_where_the_cited_code_changed_and_allowed_where_it_moved"
+        ],
+        "unexercised_functions": []
+      },
+      "src/verdict_mcp/gate.py": {
+        "changed": 34,
+        "measured": 22,
+        "executed": 19,
+        "executed_in_subprocess": 4,
+        "unexercised_ranges": [
+          [
+            45,
+            46
+          ],
+          [
+            52,
+            52
+          ]
+        ],
+        "tests": [
+          "test_accept.test_the_gate_keeps_an_accepted_finding_out_of_the_open_list",
+          "test_gate.test_drift_note_says_only_what_is_actionable",
+          "test_questions.test_the_banner_the_gate_and_the_server_say_what_is_waiting"
+        ],
+        "unexercised_functions": []
+      },
+      "src/verdict_mcp/harness.py": {
+        "changed": 822,
+        "measured": 456,
+        "executed": 429,
+        "executed_in_subprocess": 47,
+        "unexercised_ranges": [
+          [
+            894,
+            894
+          ],
+          [
+            926,
+            926
+          ],
+          [
+            966,
+            966
+          ],
+          [
+            993,
+            993
+          ],
+          [
+            996,
+            996
+          ],
+          [
+            1000,
+            1000
+          ],
+          [
+            1003,
+            1003
+          ],
+          [
+            1039,
+            1039
+          ],
+          [
+            1045,
+            1045
+          ],
+          [
+            1052,
+            1052
+          ],
+          [
+            1100,
+            1100
+          ],
+          [
+            1113,
+            1113
+          ],
+          [
+            1118,
+            1118
+          ],
+          [
+            1544,
+            1544
+          ],
+          [
+            1601,
+            1604
+          ],
+          [
+            2380,
+            2381
+          ],
+          [
+            2398,
+            2401
+          ],
+          [
+            2444,
+            2444
+          ],
+          [
+            2496,
+            2496
+          ],
+          [
+            2498,
+            2498
+          ]
+        ],
         "tests": [
           "test_accept.test_a_revoked_acceptance_reopens_the_finding_at_the_next_run",
           "test_accept.test_accepted_findings_do_not_count_toward_the_silence_guardrail",
           "test_accept.test_finalize_folds_the_ledger_whatever_the_tester_says",
+          "test_accept.test_the_report_lists_accepted_risks_apart",
           "test_accept.test_the_tester_cannot_decorate_a_finding_with_an_acceptance",
-          "test_artifact_check.test_a_clean_finalize_has_nothing_to_report",
-          "test_artifact_check.test_a_history_row_that_does_not_carry_the_signed_link_is_named",
-          "test_artifact_check.test_a_missing_history_row_is_named",
-          "test_artifact_check.test_a_report_that_went_missing_is_named",
-          "test_artifact_check.test_an_index_row_dated_from_the_wrong_clock_is_named",
-          "test_artifact_check.test_an_index_row_naming_another_project_is_named"
+          "test_anchors.test_a_baseline_measures_no_drift_and_finalize_says_when_it_could_not_anchor",
+          "test_anchors.test_a_previous_state_without_anchors_reads_unavailable_not_unchanged",
+          "test_anchors.test_a_reference_that_names_nothing_is_recorded_as_such_and_costs_nothing",
+          "test_anchors.test_anchors_are_carried_while_the_evidence_is_the_text_they_were_taken_from",
+          "test_anchors.test_drift_travels_into_the_state_and_the_report"
         ],
-        "unexercised_functions": []
+        "unexercised_functions": [
+          "measure_diff_coverage"
+        ]
       },
-      "src/verdict_mcp/validate.py": {
-        "changed": 4,
+      "src/verdict_mcp/issues.py": {
+        "changed": 3,
         "measured": 2,
-        "executed": 2,
-        "unexercised_ranges": [],
-        "tests": [
-          "test_accept.test_the_tester_cannot_decorate_a_finding_with_an_acceptance",
-          "test_accept.test_the_tester_cannot_write_the_status",
-          "test_validate.test_a_clean_judgment_passes",
-          "test_validate.test_a_failing_run_may_leave_not_tested_empty",
-          "test_validate.test_a_finding_that_will_be_new_is_told_so_before_the_merge",
-          "test_validate.test_computed_fields_in_a_judgment_are_called_out",
-          "test_validate.test_empty_not_tested_is_refused_on_a_shipping_verdict",
-          "test_validate.test_evidence_entries_must_be_strings",
-          "test_validate.test_full_sweep_must_be_a_real_boolean",
-          "test_validate.test_judgment_allows_a_pass_with_nothing_open"
-        ],
-        "unexercised_functions": []
-      },
-      "tests/test_accept.py": {
-        "changed": 14,
-        "measured": 7,
-        "executed": 6,
+        "executed": 1,
+        "executed_in_subprocess": 1,
         "unexercised_ranges": [
           [
-            176,
-            176
+            44,
+            44
+          ]
+        ],
+        "tests": [],
+        "unexercised_functions": []
+      },
+      "src/verdict_mcp/questions.py": {
+        "changed": 326,
+        "measured": 225,
+        "executed": 198,
+        "executed_in_subprocess": 1,
+        "unexercised_ranges": [
+          [
+            56,
+            56
+          ],
+          [
+            70,
+            70
+          ],
+          [
+            96,
+            98
+          ],
+          [
+            105,
+            106
+          ],
+          [
+            120,
+            120
+          ],
+          [
+            169,
+            169
+          ],
+          [
+            173,
+            173
+          ],
+          [
+            201,
+            203
+          ],
+          [
+            214,
+            214
+          ],
+          [
+            260,
+            260
+          ],
+          [
+            282,
+            283
+          ],
+          [
+            302,
+            303
+          ],
+          [
+            311,
+            312
+          ],
+          [
+            314,
+            315
+          ],
+          [
+            318,
+            320
+          ],
+          [
+            326,
+            326
           ]
         ],
         "tests": [
-          "test_accept.test_the_tester_cannot_decorate_a_finding_with_an_acceptance"
+          "test_accept.test_the_gate_keeps_an_accepted_finding_out_of_the_open_list",
+          "test_anchors.test_a_baseline_measures_no_drift_and_finalize_says_when_it_could_not_anchor",
+          "test_anchors.test_a_previous_state_without_anchors_reads_unavailable_not_unchanged",
+          "test_anchors.test_a_reference_that_names_nothing_is_recorded_as_such_and_costs_nothing",
+          "test_anchors.test_anchors_are_carried_while_the_evidence_is_the_text_they_were_taken_from",
+          "test_anchors.test_drift_travels_into_the_state_and_the_report",
+          "test_anchors.test_facts_name_the_next_finding_id",
+          "test_anchors.test_finalize_anchors_every_cited_line",
+          "test_anchors.test_fixed_at_is_the_date_of_the_measured_fix_never_of_a_claim",
+          "test_anchors.test_introduced_at_is_the_date_of_the_commit_the_origin_names"
         ],
         "unexercised_functions": []
       },
-      "tests/test_calibration.py": {
-        "changed": 15,
-        "measured": 6,
+      "src/verdict_mcp/reports.py": {
+        "changed": 132,
+        "measured": 92,
+        "executed": 79,
+        "executed_in_subprocess": 9,
+        "unexercised_ranges": [
+          [
+            40,
+            41
+          ],
+          [
+            47,
+            47
+          ],
+          [
+            67,
+            68
+          ],
+          [
+            93,
+            94
+          ],
+          [
+            104,
+            104
+          ],
+          [
+            111,
+            112
+          ],
+          [
+            122,
+            123
+          ],
+          [
+            125,
+            125
+          ]
+        ],
+        "tests": [
+          "test_reports.test_a_ctrf_report_is_read_the_same_way",
+          "test_reports.test_a_junit_report_outranks_the_summary_line_and_feeds_the_ledger",
+          "test_reports.test_an_explicit_id_command_outranks_the_reports_ids",
+          "test_reports.test_an_unwritten_report_falls_back_to_the_dialect_and_says_so",
+          "test_reports.test_the_reader_names_what_it_cannot_read"
+        ],
+        "unexercised_functions": []
+      },
+      "src/verdict_mcp/runner.py": {
+        "changed": 443,
+        "measured": 247,
+        "executed": 222,
+        "executed_in_subprocess": 106,
+        "unexercised_ranges": [
+          [
+            62,
+            63
+          ],
+          [
+            367,
+            367
+          ],
+          [
+            448,
+            449
+          ],
+          [
+            451,
+            451
+          ],
+          [
+            492,
+            492
+          ],
+          [
+            539,
+            540
+          ],
+          [
+            565,
+            565
+          ],
+          [
+            589,
+            589
+          ],
+          [
+            593,
+            593
+          ],
+          [
+            600,
+            600
+          ],
+          [
+            607,
+            607
+          ],
+          [
+            612,
+            612
+          ],
+          [
+            661,
+            662
+          ],
+          [
+            664,
+            664
+          ],
+          [
+            667,
+            667
+          ],
+          [
+            670,
+            670
+          ],
+          [
+            673,
+            675
+          ],
+          [
+            690,
+            690
+          ],
+          [
+            692,
+            692
+          ]
+        ],
+        "tests": [
+          "test_limits.test_a_weekly_limit_is_never_slept_through",
+          "test_limits.test_limit_kind_separates_the_two_windows_and_ignores_everything_else",
+          "test_limits.test_limit_line_returns_the_clis_own_sentence",
+          "test_limits.test_the_runner_still_waits_out_a_session_limit",
+          "test_limits.test_the_runner_stops_on_a_weekly_limit_instead_of_spending_its_retry",
+          "test_runner.test_session_limit_reset_time_is_parsed_not_guessed",
+          "test_session_env.test_a_gateway_gets_the_three_flags_and_the_token_as_api_key",
+          "test_session_env.test_a_gateway_keeps_the_config_directory_the_operator_named",
+          "test_session_env.test_a_gateway_without_an_isolated_config_is_warned_about",
+          "test_session_env.test_a_named_account_is_seeded_and_named"
+        ],
+        "unexercised_functions": []
+      },
+      "src/verdict_mcp/server.py": {
+        "changed": 17,
+        "measured": 10,
         "executed": 5,
         "unexercised_ranges": [
           [
-            385,
-            385
+            30,
+            31
+          ],
+          [
+            153,
+            154
+          ],
+          [
+            159,
+            159
           ]
         ],
         "tests": [
-          "test_calibration.test_a_measurement_on_a_prose_quoted_test_settles_nothing"
+          "test_mcp_tools.test_quarantine_expired_flag",
+          "test_questions.test_the_banner_the_gate_and_the_server_say_what_is_waiting"
         ],
         "unexercised_functions": []
       },
-      "tests/test_hooks.py": {
-        "changed": 92,
-        "measured": 33,
-        "executed": 25,
+      "src/verdict_mcp/small.py": {
+        "changed": 1089,
+        "measured": 518,
+        "executed": 222,
         "unexercised_ranges": [
           [
-            958,
+            30,
+            30
+          ],
+          [
+            32,
+            44
+          ],
+          [
+            46,
+            62
+          ],
+          [
+            64,
+            66
+          ],
+          [
+            71,
+            71
+          ],
+          [
+            78,
+            78
+          ],
+          [
+            82,
+            83
+          ],
+          [
+            85,
+            85
+          ],
+          [
+            89,
+            95
+          ],
+          [
+            98,
+            98
+          ],
+          [
+            107,
+            108
+          ],
+          [
+            116,
+            116
+          ],
+          [
+            128,
+            129
+          ],
+          [
+            137,
+            137
+          ],
+          [
+            140,
+            140
+          ],
+          [
+            143,
+            143
+          ],
+          [
+            148,
+            148
+          ],
+          [
+            172,
+            172
+          ],
+          [
+            196,
+            196
+          ],
+          [
+            213,
+            213
+          ],
+          [
+            229,
+            229
+          ],
+          [
+            254,
+            254
+          ],
+          [
+            257,
+            257
+          ],
+          [
+            270,
+            270
+          ],
+          [
+            313,
+            313
+          ],
+          [
+            337,
+            337
+          ],
+          [
+            339,
+            340
+          ],
+          [
+            343,
+            343
+          ],
+          [
+            349,
+            349
+          ],
+          [
+            356,
+            356
+          ],
+          [
+            360,
+            360
+          ],
+          [
+            371,
+            372
+          ],
+          [
+            374,
+            374
+          ],
+          [
+            380,
+            380
+          ],
+          [
+            391,
+            391
+          ],
+          [
+            406,
+            407
+          ],
+          [
+            412,
+            413
+          ],
+          [
+            417,
+            417
+          ],
+          [
+            427,
+            427
+          ],
+          [
+            454,
+            454
+          ],
+          [
+            458,
+            458
+          ],
+          [
+            462,
+            462
+          ],
+          [
+            468,
+            468
+          ],
+          [
+            483,
+            485
+          ],
+          [
+            489,
+            490
+          ],
+          [
+            493,
+            493
+          ],
+          [
+            495,
+            501
+          ],
+          [
+            504,
+            504
+          ],
+          [
+            510,
+            515
+          ],
+          [
+            517,
+            517
+          ],
+          [
+            520,
+            520
+          ],
+          [
+            526,
+            532
+          ],
+          [
+            534,
+            535
+          ],
+          [
+            538,
+            538
+          ],
+          [
+            545,
+            546
+          ],
+          [
+            549,
+            549
+          ],
+          [
+            558,
+            558
+          ],
+          [
+            565,
+            566
+          ],
+          [
+            580,
+            580
+          ],
+          [
+            598,
+            606
+          ],
+          [
+            609,
+            609
+          ],
+          [
+            629,
+            629
+          ],
+          [
+            633,
+            639
+          ],
+          [
+            641,
+            647
+          ],
+          [
+            649,
+            649
+          ],
+          [
+            660,
+            660
+          ],
+          [
+            663,
+            663
+          ],
+          [
+            689,
+            689
+          ],
+          [
+            692,
+            697
+          ],
+          [
+            700,
+            700
+          ],
+          [
+            707,
+            712
+          ],
+          [
+            714,
+            716
+          ],
+          [
+            719,
+            719
+          ],
+          [
+            725,
+            725
+          ],
+          [
+            739,
+            739
+          ],
+          [
+            756,
+            761
+          ],
+          [
+            771,
+            774
+          ],
+          [
+            777,
+            785
+          ],
+          [
+            792,
+            792
+          ],
+          [
+            796,
+            799
+          ],
+          [
+            801,
+            801
+          ],
+          [
+            814,
+            814
+          ],
+          [
+            836,
+            837
+          ],
+          [
+            856,
+            856
+          ],
+          [
+            860,
+            869
+          ],
+          [
+            871,
+            871
+          ],
+          [
+            874,
+            875
+          ],
+          [
+            877,
+            881
+          ],
+          [
+            884,
+            884
+          ],
+          [
+            894,
+            894
+          ],
+          [
+            896,
+            900
+          ],
+          [
+            902,
+            904
+          ],
+          [
+            906,
+            907
+          ],
+          [
+            909,
+            911
+          ],
+          [
+            913,
+            913
+          ],
+          [
+            915,
+            923
+          ],
+          [
+            926,
+            926
+          ],
+          [
+            929,
+            933
+          ],
+          [
+            935,
+            937
+          ],
+          [
+            947,
+            954
+          ],
+          [
+            957,
             958
+          ],
+          [
+            961,
+            961
           ],
           [
             963,
             963
           ],
           [
-            988,
-            988
+            966,
+            966
           ],
           [
-            990,
-            990
+            993,
+            994
           ],
           [
-            1008,
-            1008
+            996,
+            997
           ],
           [
-            1010,
-            1010
+            999,
+            999
           ],
           [
-            1015,
-            1015
+            1002,
+            1002
           ],
           [
-            1026,
-            1026
+            1005,
+            1005
+          ],
+          [
+            1014,
+            1014
+          ],
+          [
+            1016,
+            1025
+          ],
+          [
+            1028,
+            1028
+          ],
+          [
+            1039,
+            1039
+          ],
+          [
+            1070,
+            1070
+          ],
+          [
+            1078,
+            1082
+          ],
+          [
+            1084,
+            1084
+          ],
+          [
+            1088,
+            1089
           ]
         ],
         "tests": [
-          "test_hooks.test_append_update_and_delete_write_the_archive_too",
-          "test_hooks.test_real_tar_still_behaves_the_way_this_matrix_claims",
-          "test_hooks.test_real_tar_writes_where_this_matrix_claims",
-          "test_hooks.test_the_guard_agrees_with_the_tar_that_would_run",
-          "test_hooks.test_the_guard_agrees_with_where_tar_writes",
-          "test_hooks.test_the_tar_rules_reach_every_spelling_of_tar"
+          "test_small.test_a_counterfactual_that_changes_nothing_disproves_it",
+          "test_small.test_a_counterfactual_that_flips_the_value_proves_the_claim",
+          "test_small.test_a_finding_from_local_mode_is_a_hypothesis_and_validates",
+          "test_small.test_a_line_outside_the_function_falls_back_to_its_first_line",
+          "test_small.test_a_probe_refuses_a_tree_that_imports_the_original_source",
+          "test_small.test_a_probe_that_copies_the_example_instead_of_calling_the_function_is_refused",
+          "test_small.test_a_probe_the_model_malformed_is_refused_and_says_why",
+          "test_small.test_a_quarantine_entry_uses_the_key_the_validator_reads",
+          "test_small.test_a_skip_expires_only_on_a_future_date",
+          "test_small.test_a_version_guard_is_not_an_abandoned_skip"
+        ],
+        "unexercised_functions": [
+          "Model.ask",
+          "gate_of",
+          "failures_of",
+          "rerun_failures",
+          "ids_in_report",
+          "test_files",
+          "brittle_findings",
+          "source_of_test",
+          "changelog_excerpt",
+          "classify"
+        ]
+      },
+      "src/verdict_mcp/state.py": {
+        "changed": 7,
+        "measured": 0,
+        "executed": 0,
+        "unexercised_ranges": [],
+        "tests": [],
+        "unexercised_functions": []
+      },
+      "src/verdict_mcp/validate.py": {
+        "changed": 255,
+        "measured": 166,
+        "executed": 152,
+        "executed_in_subprocess": 40,
+        "unexercised_ranges": [
+          [
+            273,
+            273
+          ],
+          [
+            304,
+            304
+          ],
+          [
+            323,
+            323
+          ],
+          [
+            376,
+            376
+          ],
+          [
+            381,
+            382
+          ],
+          [
+            391,
+            391
+          ],
+          [
+            393,
+            393
+          ],
+          [
+            744,
+            745
+          ],
+          [
+            777,
+            778
+          ],
+          [
+            780,
+            780
+          ],
+          [
+            782,
+            782
+          ]
+        ],
+        "tests": [
+          "test_accept.test_an_accepted_critical_does_not_block_a_pass",
+          "test_accept.test_state_requires_a_citation_on_an_accepted_finding",
+          "test_accept.test_the_tester_cannot_decorate_a_finding_with_an_acceptance",
+          "test_accept.test_the_tester_cannot_write_the_status",
+          "test_anchors.test_a_judgment_that_writes_the_measured_fields_is_told",
+          "test_anchors.test_a_previous_state_without_anchors_reads_unavailable_not_unchanged",
+          "test_anchors.test_a_reference_that_names_nothing_is_recorded_as_such_and_costs_nothing",
+          "test_anchors.test_anchors_are_carried_while_the_evidence_is_the_text_they_were_taken_from",
+          "test_anchors.test_drift_travels_into_the_state_and_the_report",
+          "test_anchors.test_facts_name_the_next_finding_id"
         ],
         "unexercised_functions": []
       },
-      "tests/test_release_workflow.py": {
-        "changed": 56,
-        "measured": 31,
-        "executed": 22,
+      "tests/test_anchors.py": {
+        "changed": 316,
+        "measured": 192,
+        "executed": 162,
         "unexercised_ranges": [
           [
-            10,
+            11,
+            12
+          ],
+          [
+            14,
+            18
+          ],
+          [
+            20,
+            20
+          ],
+          [
+            23,
+            23
+          ],
+          [
+            31,
+            31
+          ],
+          [
+            36,
+            36
+          ],
+          [
+            46,
+            46
+          ],
+          [
+            52,
+            52
+          ],
+          [
+            60,
+            60
+          ],
+          [
+            74,
+            74
+          ],
+          [
+            84,
+            84
+          ],
+          [
+            96,
+            96
+          ],
+          [
+            114,
+            114
+          ],
+          [
+            151,
+            151
+          ],
+          [
+            165,
+            165
+          ],
+          [
+            177,
+            177
+          ],
+          [
+            191,
+            191
+          ],
+          [
+            206,
+            206
+          ],
+          [
+            231,
+            231
+          ],
+          [
+            241,
+            241
+          ],
+          [
+            261,
+            261
+          ],
+          [
+            277,
+            277
+          ],
+          [
+            291,
+            291
+          ],
+          [
+            302,
+            302
+          ],
+          [
+            308,
+            308
+          ]
+        ],
+        "tests": [
+          "test_anchors.test_a_baseline_measures_no_drift_and_finalize_says_when_it_could_not_anchor",
+          "test_anchors.test_a_judgment_that_writes_the_measured_fields_is_told",
+          "test_anchors.test_a_previous_state_without_anchors_reads_unavailable_not_unchanged",
+          "test_anchors.test_a_reference_that_names_nothing_is_recorded_as_such_and_costs_nothing",
+          "test_anchors.test_anchors_are_carried_while_the_evidence_is_the_text_they_were_taken_from",
+          "test_anchors.test_drift_travels_into_the_state_and_the_report",
+          "test_anchors.test_facts_name_the_next_finding_id",
+          "test_anchors.test_finalize_anchors_every_cited_line",
+          "test_anchors.test_fixed_at_is_the_date_of_the_measured_fix_never_of_a_claim",
+          "test_anchors.test_introduced_at_is_the_date_of_the_commit_the_origin_names"
+        ],
+        "unexercised_functions": []
+      },
+      "tests/test_artifact_check.py": {
+        "changed": 25,
+        "measured": 10,
+        "executed": 9,
+        "unexercised_ranges": [
+          [
+            91,
+            91
+          ]
+        ],
+        "tests": [
+          "test_artifact_check.test_finalize_actually_runs_the_check_it_documents"
+        ],
+        "unexercised_functions": []
+      },
+      "tests/test_census.py": {
+        "changed": 37,
+        "measured": 11,
+        "executed": 10,
+        "unexercised_ranges": [
+          [
+            149,
+            149
+          ]
+        ],
+        "tests": [
+          "test_census.test_prose_that_looks_like_an_import_is_not_a_dependency"
+        ],
+        "unexercised_functions": []
+      },
+      "tests/test_clock.py": {
+        "changed": 93,
+        "measured": 57,
+        "executed": 40,
+        "unexercised_ranges": [
+          [
+            9,
             11
           ],
           [
@@ -647,12 +3089,453 @@
             13
           ],
           [
-            16,
+            15,
+            15
+          ],
+          [
+            17,
+            18
+          ],
+          [
+            21,
+            21
+          ],
+          [
+            37,
+            37
+          ],
+          [
+            44,
+            44
+          ],
+          [
+            48,
+            48
+          ],
+          [
+            54,
+            54
+          ],
+          [
+            60,
+            60
+          ],
+          [
+            72,
+            72
+          ],
+          [
+            78,
+            78
+          ],
+          [
+            84,
+            84
+          ],
+          [
+            90,
+            90
+          ]
+        ],
+        "tests": [
+          "test_clock.test_a_frozen_offset_stamp_is_normalised_to_utc",
+          "test_clock.test_an_unparseable_freeze_refuses_loudly",
+          "test_clock.test_local_now_is_naive_local_and_only_for_the_runner",
+          "test_clock.test_no_module_but_the_clock_asks_the_time",
+          "test_clock.test_now_is_timezone_aware_utc",
+          "test_clock.test_stamp_formats_any_instant_as_the_state_does",
+          "test_clock.test_the_clock_can_be_frozen",
+          "test_clock.test_the_clock_module_is_where_the_calls_live"
+        ],
+        "unexercised_functions": []
+      },
+      "tests/test_filed.py": {
+        "changed": 315,
+        "measured": 216,
+        "executed": 183,
+        "unexercised_ranges": [
+          [
+            11,
             16
           ],
           [
+            18,
+            21
+          ],
+          [
             23,
-            23
+            24
+          ],
+          [
+            27,
+            27
+          ],
+          [
+            30,
+            30
+          ],
+          [
+            40,
+            40
+          ],
+          [
+            45,
+            45
+          ],
+          [
+            56,
+            56
+          ],
+          [
+            61,
+            61
+          ],
+          [
+            69,
+            69
+          ],
+          [
+            79,
+            79
+          ],
+          [
+            96,
+            96
+          ],
+          [
+            105,
+            105
+          ],
+          [
+            124,
+            124
+          ],
+          [
+            140,
+            140
+          ],
+          [
+            153,
+            153
+          ],
+          [
+            160,
+            160
+          ],
+          [
+            186,
+            186
+          ],
+          [
+            202,
+            202
+          ],
+          [
+            237,
+            237
+          ],
+          [
+            251,
+            251
+          ],
+          [
+            268,
+            268
+          ],
+          [
+            292,
+            292
+          ],
+          [
+            298,
+            298
+          ]
+        ],
+        "tests": [
+          "test_filed.test_a_finding_carried_by_silence_drops_last_runs_verb",
+          "test_filed.test_a_finding_file_is_validated_the_moment_it_is_written",
+          "test_filed.test_a_finding_filed_inside_another_findings_class_is_refused",
+          "test_filed.test_a_judgment_may_not_write_the_filed_fields",
+          "test_filed.test_a_verification_test_must_be_a_collected_id",
+          "test_filed.test_archive_is_silent_on_an_empty_or_absent_directory",
+          "test_filed.test_facts_move_last_runs_files_aside_and_a_retry_keeps_them",
+          "test_filed.test_files_and_inline_findings_together_are_refused",
+          "test_filed.test_finding_files_are_assembled_oldest_first_stamped_and_rendered",
+          "test_filed.test_load_filed_names_what_it_cannot_read"
+        ],
+        "unexercised_functions": []
+      },
+      "tests/test_gate.py": {
+        "changed": 17,
+        "measured": 11,
+        "executed": 10,
+        "unexercised_ranges": [
+          [
+            530,
+            530
+          ]
+        ],
+        "tests": [
+          "test_gate.test_a_path_argument_in_solo_mode_resolves_to_the_derived_key"
+        ],
+        "unexercised_functions": []
+      },
+      "tests/test_harness.py": {
+        "changed": 141,
+        "measured": 39,
+        "executed": 31,
+        "unexercised_ranges": [
+          [
+            11,
+            11
+          ],
+          [
+            551,
+            551
+          ],
+          [
+            569,
+            569
+          ],
+          [
+            803,
+            803
+          ],
+          [
+            819,
+            819
+          ],
+          [
+            824,
+            824
+          ],
+          [
+            978,
+            978
+          ],
+          [
+            1037,
+            1037
+          ]
+        ],
+        "tests": [
+          "test_harness.test_colour_codes_do_not_change_which_runner_is_read",
+          "test_harness.test_duration_regression_boundaries",
+          "test_harness.test_duration_regression_needs_a_number",
+          "test_harness.test_facts_name_the_harness_that_measured_them",
+          "test_harness.test_one_minute_is_a_minute_not_seconds",
+          "test_harness.test_the_run_date_is_the_runs_own_utc_calendar_day"
+        ],
+        "unexercised_functions": []
+      },
+      "tests/test_hooks.py": {
+        "changed": 231,
+        "measured": 81,
+        "executed": 67,
+        "unexercised_ranges": [
+          [
+            89,
+            89
+          ],
+          [
+            109,
+            109
+          ],
+          [
+            124,
+            124
+          ],
+          [
+            860,
+            860
+          ],
+          [
+            877,
+            878
+          ],
+          [
+            996,
+            996
+          ],
+          [
+            1039,
+            1039
+          ],
+          [
+            1058,
+            1058
+          ],
+          [
+            1066,
+            1066
+          ],
+          [
+            1068,
+            1068
+          ],
+          [
+            1087,
+            1087
+          ],
+          [
+            1089,
+            1089
+          ],
+          [
+            1101,
+            1101
+          ]
+        ],
+        "tests": [
+          "test_hooks.test_a_guard_writes_utf8_even_when_the_console_says_otherwise",
+          "test_hooks.test_a_mode_operand_is_not_a_path",
+          "test_hooks.test_a_scratch_file_that_happens_to_be_named_accepted_json_is_not_the_ledger",
+          "test_hooks.test_a_sibling_of_the_solo_root_is_not_the_solo_root",
+          "test_hooks.test_real_git_changes_what_this_matrix_claims",
+          "test_hooks.test_the_first_qa_component_decides_and_a_deeper_one_cannot_rescue_it",
+          "test_hooks.test_the_guard_agrees_with_the_git_that_would_run"
+        ],
+        "unexercised_functions": []
+      },
+      "tests/test_limits.py": {
+        "changed": 112,
+        "measured": 65,
+        "executed": 46,
+        "unexercised_ranges": [
+          [
+            10,
+            12
+          ],
+          [
+            14,
+            18
+          ],
+          [
+            20,
+            21
+          ],
+          [
+            24,
+            24
+          ],
+          [
+            31,
+            31
+          ],
+          [
+            37,
+            37
+          ],
+          [
+            42,
+            42
+          ],
+          [
+            54,
+            54
+          ],
+          [
+            61,
+            61
+          ],
+          [
+            87,
+            87
+          ],
+          [
+            100,
+            100
+          ],
+          [
+            109,
+            109
+          ]
+        ],
+        "tests": [
+          "test_limits.test_a_weekly_limit_is_never_slept_through",
+          "test_limits.test_limit_kind_separates_the_two_windows_and_ignores_everything_else",
+          "test_limits.test_limit_line_returns_the_clis_own_sentence",
+          "test_limits.test_the_external_key_batch_stops_when_the_week_is_spent",
+          "test_limits.test_the_fixture_eval_refuses_rather_than_retries_on_a_weekly_limit",
+          "test_limits.test_the_runner_still_waits_out_a_session_limit",
+          "test_limits.test_the_runner_stops_on_a_weekly_limit_instead_of_spending_its_retry"
+        ],
+        "unexercised_functions": []
+      },
+      "tests/test_pin_check.py": {
+        "changed": 218,
+        "measured": 130,
+        "executed": 118,
+        "unexercised_ranges": [
+          [
+            11,
+            13
+          ],
+          [
+            94,
+            94
+          ],
+          [
+            113,
+            113
+          ],
+          [
+            143,
+            143
+          ],
+          [
+            162,
+            162
+          ],
+          [
+            175,
+            175
+          ],
+          [
+            207,
+            207
+          ],
+          [
+            246,
+            246
+          ],
+          [
+            270,
+            270
+          ],
+          [
+            282,
+            282
+          ]
+        ],
+        "tests": [
+          "test_pin_check.test_a_mutation_is_written_atomically",
+          "test_pin_check.test_a_scratch_that_runs_the_original_checkout_is_refused",
+          "test_pin_check.test_runs_its_own_code_reads_the_resolved_path",
+          "test_pin_check.test_the_default_campaign_never_touches_the_tree",
+          "test_pin_check.test_the_in_tree_campaign_swaps_and_restores_the_file_it_mutates",
+          "test_pin_check.test_the_restorer_is_constructible_where_a_signal_is_missing",
+          "test_pin_check.test_the_restorer_puts_a_file_back_whole",
+          "test_pin_check.test_the_scratch_copy_is_the_working_tree_not_the_last_commit"
+        ],
+        "unexercised_functions": []
+      },
+      "tests/test_questions.py": {
+        "changed": 209,
+        "measured": 137,
+        "executed": 109,
+        "unexercised_ranges": [
+          [
+            11,
+            15
+          ],
+          [
+            17,
+            21
+          ],
+          [
+            23,
+            25
           ],
           [
             28,
@@ -663,126 +3546,1082 @@
             34
           ],
           [
-            44,
-            44
+            39,
+            39
           ],
           [
-            52,
-            52
+            47,
+            47
+          ],
+          [
+            57,
+            57
+          ],
+          [
+            64,
+            64
+          ],
+          [
+            79,
+            79
+          ],
+          [
+            87,
+            87
+          ],
+          [
+            100,
+            100
+          ],
+          [
+            121,
+            121
+          ],
+          [
+            132,
+            132
+          ],
+          [
+            156,
+            156
+          ],
+          [
+            164,
+            164
+          ],
+          [
+            171,
+            171
+          ],
+          [
+            187,
+            187
+          ]
+        ],
+        "tests": [
+          "test_questions.test_a_judgment_question_needs_a_sentence_and_a_known_finding",
+          "test_questions.test_a_project_that_never_asked_has_no_questions_fact",
+          "test_questions.test_dismiss_needs_a_reason_and_records_it",
+          "test_questions.test_finalize_mints_the_id_writes_the_ledger_and_renders_the_section",
+          "test_questions.test_the_banner_the_gate_and_the_server_say_what_is_waiting",
+          "test_questions.test_the_guards_refuse_the_answers_ledger_to_the_tester",
+          "test_questions.test_the_next_run_reads_the_answer_and_nobody_asks_again",
+          "test_questions.test_the_same_question_asked_again_is_not_minted_twice",
+          "test_questions.test_verdict_answer_writes_its_own_ledger_and_refuses_what_it_should"
+        ],
+        "unexercised_functions": []
+      },
+      "tests/test_reading_map.py": {
+        "changed": 135,
+        "measured": 94,
+        "executed": 76,
+        "unexercised_ranges": [
+          [
+            12,
+            14
+          ],
+          [
+            16,
+            18
+          ],
+          [
+            20,
+            23
+          ],
+          [
+            27,
+            27
+          ],
+          [
+            32,
+            32
+          ],
+          [
+            47,
+            47
+          ],
+          [
+            55,
+            55
+          ],
+          [
+            73,
+            73
+          ],
+          [
+            87,
+            87
+          ],
+          [
+            121,
+            121
+          ],
+          [
+            126,
+            126
+          ]
+        ],
+        "tests": [
+          "test_reading_map.test_a_baseline_measures_the_map_least_covered_first_and_test_files_apart",
+          "test_reading_map.test_a_judgment_may_not_write_the_exercised_by_field",
+          "test_reading_map.test_a_tracked_script_outside_the_suites_roots_is_not_a_module_to_read",
+          "test_reading_map.test_exercised_by_names_the_tests_whose_contexts_executed_the_cited_lines",
+          "test_reading_map.test_the_map_names_the_findings_that_cite_each_module"
+        ],
+        "unexercised_functions": []
+      },
+      "tests/test_release_workflow.py": {
+        "changed": 18,
+        "measured": 7,
+        "executed": 6,
+        "unexercised_ranges": [
+          [
+            57,
+            57
           ]
         ],
         "tests": [
           "test_release_workflow.test_a_registry_failure_is_visible",
+          "test_release_workflow.test_the_comment_filter_is_what_every_test_reads",
           "test_release_workflow.test_the_download_is_checksummed_before_it_runs",
-          "test_release_workflow.test_the_job_holds_no_more_than_it_needs",
-          "test_release_workflow.test_the_publisher_is_pinned_to_a_release_not_to_latest"
+          "test_release_workflow.test_the_job_holds_no_more_than_it_needs"
         ],
         "unexercised_functions": []
       },
-      "tests/test_verification.py": {
-        "changed": 50,
-        "measured": 31,
-        "executed": 29,
+      "tests/test_report_names.py": {
+        "changed": 48,
+        "measured": 30,
+        "executed": 23,
         "unexercised_ranges": [
+          [
+            9,
+            9
+          ],
+          [
+            11,
+            12
+          ],
+          [
+            15,
+            15
+          ],
+          [
+            21,
+            21
+          ],
+          [
+            30,
+            30
+          ],
+          [
+            41,
+            41
+          ]
+        ],
+        "tests": [
+          "test_report_names.test_a_retry_of_the_same_run_reuses_its_own_file",
+          "test_report_names.test_a_second_run_on_the_same_day_keeps_the_first_runs_report"
+        ],
+        "unexercised_functions": []
+      },
+      "tests/test_reports.py": {
+        "changed": 81,
+        "measured": 46,
+        "executed": 34,
+        "unexercised_ranges": [
+          [
+            9,
+            10
+          ],
+          [
+            12,
+            13
+          ],
+          [
+            15,
+            15
+          ],
+          [
+            21,
+            21
+          ],
+          [
+            27,
+            27
+          ],
+          [
+            34,
+            34
+          ],
           [
             50,
             50
           ],
           [
-            103,
-            103
+            57,
+            57
+          ],
+          [
+            64,
+            64
+          ],
+          [
+            70,
+            70
           ]
         ],
         "tests": [
-          "test_verification.test_a_conftest_the_commit_did_not_touch_is_not_reported_as_copied",
-          "test_verification.test_a_fail_to_pass_on_a_prose_citation_is_recorded_not_confirmed",
-          "test_verification.test_a_fix_is_verified_when_the_cited_test_fails_before_and_passes_after",
-          "test_verification.test_a_measured_fix_still_reads_as_verified",
+          "test_reports.test_a_ctrf_report_is_read_the_same_way",
+          "test_reports.test_a_junit_report_outranks_the_summary_line_and_feeds_the_ledger",
+          "test_reports.test_an_explicit_id_command_outranks_the_reports_ids",
+          "test_reports.test_an_unwritten_report_falls_back_to_the_dialect_and_says_so",
+          "test_reports.test_the_reader_names_what_it_cannot_read"
+        ],
+        "unexercised_functions": []
+      },
+      "tests/test_runner.py": {
+        "changed": 107,
+        "measured": 63,
+        "executed": 57,
+        "unexercised_ranges": [
+          [
+            371,
+            371
+          ],
+          [
+            394,
+            394
+          ],
+          [
+            411,
+            411
+          ],
+          [
+            424,
+            424
+          ],
+          [
+            432,
+            432
+          ],
+          [
+            460,
+            460
+          ]
+        ],
+        "tests": [
+          "test_runner.test_a_path_argument_in_solo_mode_names_the_checkout_not_a_key",
+          "test_runner.test_an_edited_provision_is_the_operators_and_is_kept",
+          "test_runner.test_the_default_prompt_forbids_the_outer_session_an_offer_to_fix",
+          "test_runner.test_the_runners_own_provision_follows_the_plugin_root"
+        ],
+        "unexercised_functions": []
+      },
+      "tests/test_score.py": {
+        "changed": 105,
+        "measured": 65,
+        "executed": 59,
+        "unexercised_ranges": [
+          [
+            454,
+            454
+          ],
+          [
+            460,
+            460
+          ],
+          [
+            465,
+            465
+          ],
+          [
+            501,
+            501
+          ],
+          [
+            520,
+            520
+          ],
+          [
+            536,
+            536
+          ]
+        ],
+        "tests": [
+          "test_score.test_a_source_checkouts_harness_counts_as_current",
+          "test_score.test_delta_live_skips_unreachable_rows",
+          "test_score.test_state_rows_score_files_verbs_anchors_and_the_class",
+          "test_score.test_the_questions_row_reads_the_ledger",
+          "test_score.test_two_rows_of_one_class_may_share_a_finding"
+        ],
+        "unexercised_functions": []
+      },
+      "tests/test_session_env.py": {
+        "changed": 169,
+        "measured": 109,
+        "executed": 87,
+        "unexercised_ranges": [
+          [
+            11,
+            13
+          ],
+          [
+            15,
+            19
+          ],
+          [
+            22,
+            22
+          ],
+          [
+            26,
+            26
+          ],
+          [
+            34,
+            34
+          ],
+          [
+            47,
+            47
+          ],
+          [
+            58,
+            58
+          ],
+          [
+            67,
+            67
+          ],
+          [
+            80,
+            80
+          ],
+          [
+            91,
+            91
+          ],
+          [
+            99,
+            99
+          ],
+          [
+            106,
+            106
+          ],
+          [
+            114,
+            114
+          ],
+          [
+            140,
+            140
+          ],
+          [
+            153,
+            153
+          ],
+          [
+            163,
+            163
+          ]
+        ],
+        "tests": [
+          "test_session_env.test_a_gateway_gets_the_three_flags_and_the_token_as_api_key",
+          "test_session_env.test_a_gateway_keeps_the_config_directory_the_operator_named",
+          "test_session_env.test_a_gateway_without_an_isolated_config_is_warned_about",
+          "test_session_env.test_a_named_account_is_seeded_and_named",
+          "test_session_env.test_an_operators_own_flag_value_is_never_overwritten",
+          "test_session_env.test_anthropics_own_base_url_is_not_a_gateway",
+          "test_session_env.test_anthropics_own_base_url_leaves_the_named_account_alone",
+          "test_session_env.test_read_env_file_skips_comments_and_strips_quotes",
+          "test_session_env.test_seed_config_creates_the_directory_and_survives_a_broken_file",
+          "test_session_env.test_seed_config_marks_the_repo_trusted_and_keeps_what_is_there"
+        ],
+        "unexercised_functions": []
+      },
+      "tests/test_skills.py": {
+        "changed": 75,
+        "measured": 47,
+        "executed": 36,
+        "unexercised_ranges": [
+          [
+            10,
+            11
+          ],
+          [
+            13,
+            15
+          ],
+          [
+            19,
+            19
+          ],
+          [
+            29,
+            29
+          ],
+          [
+            37,
+            37
+          ],
+          [
+            45,
+            45
+          ],
+          [
+            61,
+            61
+          ],
+          [
+            68,
+            68
+          ]
+        ],
+        "tests": [
+          "test_skills.test_agents_md_names_the_test_command_and_the_doctrine",
+          "test_skills.test_every_skill_shares_the_contracts_doctrine_and_routes_claude_code_to_the_agent",
+          "test_skills.test_llms_txt_lists_files_that_exist",
+          "test_skills.test_the_five_skills_exist_and_are_named_by_their_directory",
+          "test_skills.test_the_skills_use_the_harness_the_package_ships"
+        ],
+        "unexercised_functions": []
+      },
+      "tests/test_small.py": {
+        "changed": 412,
+        "measured": 242,
+        "executed": 194,
+        "unexercised_ranges": [
+          [
+            9,
+            10
+          ],
+          [
+            12,
+            12
+          ],
+          [
+            14,
+            17
+          ],
+          [
+            19,
+            19
+          ],
+          [
+            34,
+            34
+          ],
+          [
+            42,
+            42
+          ],
+          [
+            53,
+            53
+          ],
+          [
+            63,
+            63
+          ],
+          [
+            74,
+            74
+          ],
+          [
+            77,
+            77
+          ],
+          [
+            80,
+            80
+          ],
+          [
+            85,
+            85
+          ],
+          [
+            89,
+            89
+          ],
+          [
+            103,
+            103
+          ],
+          [
+            109,
+            109
+          ],
+          [
+            116,
+            117
+          ],
+          [
+            124,
+            124
+          ],
+          [
+            130,
+            130
+          ],
+          [
+            142,
+            142
+          ],
+          [
+            158,
+            158
+          ],
+          [
+            166,
+            166
+          ],
+          [
+            173,
+            173
+          ],
+          [
+            178,
+            178
+          ],
+          [
+            185,
+            185
+          ],
+          [
+            191,
+            191
+          ],
+          [
+            201,
+            201
+          ],
+          [
+            210,
+            210
+          ],
+          [
+            216,
+            216
+          ],
+          [
+            223,
+            223
+          ],
+          [
+            232,
+            232
+          ],
+          [
+            239,
+            239
+          ],
+          [
+            245,
+            245
+          ],
+          [
+            269,
+            269
+          ],
+          [
+            279,
+            279
+          ],
+          [
+            293,
+            293
+          ],
+          [
+            305,
+            305
+          ],
+          [
+            318,
+            318
+          ],
+          [
+            339,
+            339
+          ],
+          [
+            352,
+            352
+          ],
+          [
+            370,
+            370
+          ],
+          [
+            376,
+            376
+          ],
+          [
+            391,
+            391
+          ],
+          [
+            400,
+            400
+          ]
+        ],
+        "tests": [
+          "test_small.test_a_counterfactual_that_changes_nothing_disproves_it",
+          "test_small.test_a_counterfactual_that_flips_the_value_proves_the_claim",
+          "test_small.test_a_finding_from_local_mode_is_a_hypothesis_and_validates",
+          "test_small.test_a_line_outside_the_function_falls_back_to_its_first_line",
+          "test_small.test_a_probe_refuses_a_tree_that_imports_the_original_source",
+          "test_small.test_a_probe_that_copies_the_example_instead_of_calling_the_function_is_refused",
+          "test_small.test_a_probe_the_model_malformed_is_refused_and_says_why",
+          "test_small.test_a_quarantine_entry_uses_the_key_the_validator_reads",
+          "test_small.test_a_skip_expires_only_on_a_future_date",
+          "test_small.test_a_version_guard_is_not_an_abandoned_skip"
+        ],
+        "unexercised_functions": []
+      },
+      "tests/test_swebench.py": {
+        "changed": 248,
+        "measured": 116,
+        "executed": 90,
+        "unexercised_ranges": [
+          [
+            10,
+            12
+          ],
+          [
+            14,
+            14
+          ],
+          [
+            16,
+            18
+          ],
+          [
+            20,
+            20
+          ],
+          [
+            39,
+            39
+          ],
+          [
+            48,
+            48
+          ],
+          [
+            53,
+            53
+          ],
+          [
+            62,
+            62
+          ],
+          [
+            69,
+            69
+          ],
+          [
+            87,
+            87
+          ],
+          [
+            94,
+            94
+          ],
+          [
+            104,
+            104
+          ],
+          [
+            134,
+            134
+          ],
+          [
+            139,
+            139
+          ],
+          [
+            154,
+            154
+          ],
+          [
+            165,
+            165
+          ],
+          [
+            183,
+            183
+          ],
+          [
+            211,
+            212
+          ],
+          [
+            216,
+            216
+          ],
+          [
+            232,
+            232
+          ],
+          [
+            236,
+            236
+          ]
+        ],
+        "tests": [
+          "test_swebench.test_build_prompt_carries_the_issue_verbatim_and_the_shipped_command",
+          "test_swebench.test_cited_refs_takes_anchors_first_and_prose_second",
+          "test_swebench.test_enclosing_picks_the_innermost_definition",
+          "test_swebench.test_gold_of_empty",
+          "test_swebench.test_gold_of_reads_the_base_side_ranges_and_anchors_insertions",
+          "test_swebench.test_level_of_grades_file_hunk_and_function",
+          "test_swebench.test_level_of_survives_a_file_that_does_not_parse",
+          "test_swebench.test_outcomes_are_read_from_the_short_summary_with_spaces_and_messages",
+          "test_swebench.test_result_line_finds_the_cli_result_in_the_runner_relay",
+          "test_swebench.test_same_file_needs_a_directory_qualified_suffix"
+        ],
+        "unexercised_functions": []
+      },
+      "tests/test_sweep.py": {
+        "changed": 158,
+        "measured": 107,
+        "executed": 86,
+        "unexercised_ranges": [
+          [
+            10,
+            15
+          ],
+          [
+            17,
+            19
+          ],
+          [
+            21,
+            23
+          ],
+          [
+            26,
+            26
+          ],
+          [
+            31,
+            31
+          ],
+          [
+            60,
+            60
+          ],
+          [
+            72,
+            72
+          ],
+          [
+            76,
+            76
+          ],
+          [
+            98,
+            98
+          ],
+          [
+            110,
+            110
+          ],
+          [
+            117,
+            117
+          ],
+          [
+            148,
+            148
+          ]
+        ],
+        "tests": [
+          "test_sweep.test_a_commit_that_touches_a_cited_file_runs_the_model_and_says_why",
+          "test_sweep.test_a_commit_that_touches_nothing_cited_is_swept_without_a_model",
+          "test_sweep.test_every_blocker_is_a_measurement",
+          "test_sweep.test_the_synthetic_judgment_carries_every_open_finding_by_id_and_nothing_else",
+          "test_sweep.test_the_unchanged_head_path_still_applies"
+        ],
+        "unexercised_functions": []
+      },
+      "tests/test_template.py": {
+        "changed": 115,
+        "measured": 75,
+        "executed": 62,
+        "unexercised_ranges": [
+          [
+            10,
+            12
+          ],
+          [
+            14,
+            14
+          ],
+          [
+            16,
+            16
+          ],
+          [
+            18,
+            18
+          ],
+          [
+            21,
+            21
+          ],
+          [
+            27,
+            27
+          ],
+          [
+            35,
+            35
+          ],
+          [
+            58,
+            58
+          ],
+          [
+            82,
+            82
+          ],
+          [
+            100,
+            100
+          ],
+          [
+            110,
+            110
+          ]
+        ],
+        "tests": [
+          "test_template.test_facts_name_the_template_and_the_prompt_that_judged",
+          "test_template.test_the_handoff_is_capped_at_ten_lines",
+          "test_template.test_the_prompt_points_at_the_template_not_the_schema_doc",
+          "test_template.test_the_template_carries_every_shape_the_validator_has_refused",
+          "test_template.test_the_templates_are_the_ones_shipped_in_the_package",
+          "test_template.test_the_templates_finalize_into_a_valid_state_through_a_finding_file",
+          "test_template.test_the_validator_accepts_the_template"
+        ],
+        "unexercised_functions": []
+      },
+      "tests/test_usage.py": {
+        "changed": 124,
+        "measured": 75,
+        "executed": 59,
+        "unexercised_ranges": [
+          [
+            11,
+            13
+          ],
+          [
+            15,
+            17
+          ],
+          [
+            20,
+            20
+          ],
+          [
+            25,
+            25
+          ],
+          [
+            34,
+            34
+          ],
+          [
+            46,
+            46
+          ],
+          [
+            66,
+            66
+          ],
+          [
+            80,
+            80
+          ],
+          [
+            85,
+            85
+          ],
+          [
+            96,
+            96
+          ],
+          [
+            106,
+            106
+          ],
+          [
+            112,
+            112
+          ]
+        ],
+        "tests": [
+          "test_usage.test_a_second_accounts_transcripts_are_read_from_its_own_config",
+          "test_usage.test_add_totals_two_arms_and_tolerates_a_missing_one",
+          "test_usage.test_brief_reads_as_a_bill",
+          "test_usage.test_project_dir_matches_claude_codes_own_key",
+          "test_usage.test_usage_covers_every_session_recorded_for_the_checkout",
+          "test_usage.test_usage_is_none_when_there_is_no_transcript",
+          "test_usage.test_usage_sums_the_subagent_and_counts_a_request_once",
+          "test_usage.test_usage_survives_a_truncated_transcript"
+        ],
+        "unexercised_functions": []
+      },
+      "tests/test_verification.py": {
+        "changed": 143,
+        "measured": 93,
+        "executed": 85,
+        "unexercised_ranges": [
+          [
+            103,
+            103
+          ],
+          [
+            129,
+            129
+          ],
+          [
+            139,
+            139
+          ],
+          [
+            154,
+            154
+          ],
+          [
+            173,
+            173
+          ],
+          [
+            183,
+            183
+          ],
+          [
+            217,
+            217
+          ],
+          [
+            478,
+            478
+          ]
+        ],
+        "tests": [
+          "test_verification.test_a_clean_verification_writes_no_notes_and_leaves_no_scratch",
+          "test_verification.test_a_failing_test_refuses_only_a_resolution",
+          "test_verification.test_a_finding_that_cites_nothing_is_counted_once_and_said_once",
           "test_verification.test_a_missing_previous_commit_still_measures_head",
-          "test_verification.test_a_node_id_scraped_from_prose_is_never_run",
-          "test_verification.test_a_prose_pick_among_several_is_not_run_at_all",
-          "test_verification.test_a_regression_test_appended_to_an_existing_file_verifies",
-          "test_verification.test_a_regression_test_that_lands_with_its_fixture_verifies",
-          "test_verification.test_a_resolution_is_refused_while_the_cited_test_still_fails"
+          "test_verification.test_a_prose_pick_that_arrives_by_hand_still_confirms_nothing",
+          "test_verification.test_a_resolution_is_refused_while_the_cited_test_still_fails",
+          "test_verification.test_a_setup_error_at_the_old_commit_never_reads_as_fail",
+          "test_verification.test_a_single_cited_test_that_fails_at_head_still_refuses",
+          "test_verification.test_a_single_prose_citation_is_not_run_either",
+          "test_verification.test_a_stale_cache_planted_in_the_scratch_does_not_survive_the_run"
         ],
         "unexercised_functions": []
       }
     },
     "tests_touching_diff": [
       "test_accept.test_a_revoked_acceptance_reopens_the_finding_at_the_next_run",
+      "test_accept.test_accept_refuses_a_duplicate_and_revoke_reverses_it",
+      "test_accept.test_accept_refuses_an_unknown_or_closed_finding",
+      "test_accept.test_accept_refuses_without_a_real_citation_or_reason",
+      "test_accept.test_accept_writes_the_ledger_and_the_finding_leaves_the_open_counts",
       "test_accept.test_accepted_findings_do_not_count_toward_the_silence_guardrail",
+      "test_accept.test_an_accepted_critical_does_not_block_a_pass",
       "test_accept.test_finalize_folds_the_ledger_whatever_the_tester_says",
+      "test_accept.test_list_prints_the_ledger",
+      "test_accept.test_state_requires_a_citation_on_an_accepted_finding",
+      "test_accept.test_the_banner_counts_accepted_risks_apart",
+      "test_accept.test_the_gate_keeps_an_accepted_finding_out_of_the_open_list",
+      "test_accept.test_the_mcp_server_serves_accepted_apart",
+      "test_accept.test_the_report_lists_accepted_risks_apart",
       "test_accept.test_the_tester_cannot_decorate_a_finding_with_an_acceptance",
       "test_accept.test_the_tester_cannot_write_the_status",
+      "test_accept.test_verdict_issues_does_not_file_an_accepted_finding",
+      "test_anchors.test_a_baseline_measures_no_drift_and_finalize_says_when_it_could_not_anchor",
+      "test_anchors.test_a_judgment_that_writes_the_measured_fields_is_told",
+      "test_anchors.test_a_previous_state_without_anchors_reads_unavailable_not_unchanged",
+      "test_anchors.test_a_reference_that_names_nothing_is_recorded_as_such_and_costs_nothing",
+      "test_anchors.test_anchors_are_carried_while_the_evidence_is_the_text_they_were_taken_from",
+      "test_anchors.test_drift_travels_into_the_state_and_the_report",
+      "test_anchors.test_facts_name_the_next_finding_id",
+      "test_anchors.test_finalize_anchors_every_cited_line",
+      "test_anchors.test_fixed_at_is_the_date_of_the_measured_fix_never_of_a_claim",
+      "test_anchors.test_introduced_at_is_the_date_of_the_commit_the_origin_names",
+      "test_anchors.test_last_verified_at_is_stamped_only_by_a_measurement",
+      "test_anchors.test_references_are_read_the_way_evidence_is_written",
+      "test_anchors.test_the_class_sites_and_the_verified_intact_items_are_anchored_too",
+      "test_anchors.test_the_code_under_an_accepted_risk_is_measured_in_its_own_bucket",
+      "test_anchors.test_the_next_facts_say_where_the_cited_code_went",
+      "test_anchors.test_the_report_dates_the_measurement_and_its_result",
+      "test_anchors.test_the_report_prints_both_clocks_and_the_ledger_keeps_them",
       "test_artifact_check.test_a_clean_finalize_has_nothing_to_report",
       "test_artifact_check.test_a_history_row_that_does_not_carry_the_signed_link_is_named",
       "test_artifact_check.test_a_missing_history_row_is_named",
       "test_artifact_check.test_a_report_that_went_missing_is_named",
       "test_artifact_check.test_an_index_row_dated_from_the_wrong_clock_is_named",
       "test_artifact_check.test_an_index_row_naming_another_project_is_named",
-      "test_calibration.test_a_claim_the_harness_could_not_weigh_still_stands",
+      "test_artifact_check.test_finalize_actually_runs_the_check_it_documents",
+      "test_artifact_check.test_the_cli_says_it_out_loud_and_still_records_the_run",
       "test_calibration.test_a_decided_outcome_sticks_when_the_finding_changes_state_again",
       "test_calibration.test_a_finding_that_never_came_back_carries_no_marker",
-      "test_calibration.test_a_measured_re_injection_confirms",
-      "test_calibration.test_a_measurement_on_a_prose_quoted_test_settles_nothing",
-      "test_calibration.test_a_measurement_that_contradicts_the_claim_still_settles_nothing",
-      "test_calibration.test_a_measurement_the_harness_declined_to_weigh_does_not_deny_the_row",
-      "test_calibration.test_a_measurement_the_harness_did_weigh_still_denies_it",
       "test_calibration.test_a_new_findings_first_seen_is_the_runs_own_utc_date",
       "test_calibration.test_a_regression_is_recorded_on_the_finding_and_carried",
-      "test_calibration.test_a_resolution_with_neither_is_still_undecided",
       "test_calibration.test_a_resolution_without_re_injection_settles_nothing",
       "test_calibration.test_a_torn_write_cannot_leave_a_half_written_state",
       "test_calibration.test_a_withdrawal_is_the_one_thing_that_refutes",
-      "test_calibration.test_a_withdrawal_overrides_an_earlier_confirmation",
-      "test_calibration.test_a_withdrawn_finding_stops_counting_as_open",
-      "test_calibration.test_a_withdrawn_finding_survives_a_run_that_does_not_mention_it",
-      "test_calibration.test_age_days_counts_from_the_runs_utc_date_too",
-      "test_calibration.test_an_inconclusive_measurement_is_silence_not_evidence",
-      "test_calibration.test_an_unreadable_run_timestamp_falls_back_to_utc_now",
-      "test_calibration.test_confidence_cannot_be_revised_after_the_fact",
-      "test_calibration.test_confidence_survives_being_carried_forward_unmentioned",
-      "test_calibration.test_internal_keys_never_reach_the_written_state",
-      "test_calibration.test_merge_normalizes_status_so_downstream_counts_are_right",
-      "test_calibration.test_regression_confirms_a_finding_because_it_came_back",
-      "test_calibration.test_the_basis_says_which_of_the_two_it_was",
-      "test_calibration.test_the_ledger_is_folded_once_not_twice",
-      "test_calibration.test_the_ledger_keeps_outcomes_after_findings_leave_state",
-      "test_calibration.test_the_model_cannot_mark_its_own_finding_correct",
-      "test_calibration.test_the_report_shows_counts_before_it_has_earned_a_rate",
-      "test_calibration.test_the_report_stays_silent_until_something_has_been_settled",
-      "test_diff_coverage.test_changed_lines_are_split_into_executed_and_unexercised",
-      "test_diff_coverage.test_measured_coverage_outranks_a_written_block",
-      "test_diff_coverage.test_the_report_reads_production_first",
-      "test_harness.test_a_correction_appended_after_a_rollback_outranks_the_row_it_corrects",
-      "test_harness.test_a_held_backlog_is_a_state_the_pipeline_will_write",
-      "test_harness.test_a_reworded_re_report_is_the_same_finding_not_a_new_one",
-      "test_harness.test_a_scoped_run_does_not_resolve_the_backlog_it_never_looked_at",
-      "test_harness.test_a_state_whose_hashes_predate_the_harness_still_merges"
+      "test_calibration.test_a_withdrawal_overrides_an_earlier_confirmation"
     ],
-    "unexercised_functions": []
+    "unexercised_functions": [
+      "eval/swebench.py:sh",
+      "eval/swebench.py:git",
+      "eval/swebench.py:now_utc",
+      "eval/swebench.py:dataset_rows",
+      "eval/swebench.py:row_for",
+      "eval/swebench.py:cmd_select",
+      "eval/swebench.py:instances",
+      "eval/swebench.py:spec_for",
+      "eval/swebench.py:workdir",
+      "eval/swebench.py:mirror_of",
+      "eval/swebench.py:checkout_base",
+      "eval/swebench.py:uv_python",
+      "eval/swebench.py:is_dated",
+      "eval/swebench.py:base_date",
+      "eval/swebench.py:build_env",
+      "eval/swebench.py:temproot",
+      "eval/swebench.py:run_test_files",
+      "eval/swebench.py:validate_env",
+      "eval/swebench.py:tests_target",
+      "eval/swebench.py:write_profile"
+    ]
   },
   "tests": {
-    "passed": 888,
-    "duration_s": 80.6,
-    "collected": 888
+    "passed": 1172,
+    "duration_s": 139.47,
+    "collected": 1172
   },
   "calibration": {
     "min_sample": 30,
     "findings_tracked": 78,
-    "decided_outcomes": 54,
-    "undecided_outcomes": 24,
+    "decided_outcomes": 60,
+    "undecided_outcomes": 18,
     "by_confidence": {
       "proven": {
-        "confirmed": 48,
+        "confirmed": 54,
         "confirmed_measured": 0,
-        "confirmed_claimed": 30,
+        "confirmed_claimed": 36,
         "confirmed_accepted": 0,
         "refuted": 0,
-        "unknown": 23,
-        "decided": 48,
+        "unknown": 17,
+        "decided": 54,
         "precision": 1.0,
-        "reading": "48 of 48 held up (0 measured, 30 on the tester's word)"
+        "reading": "54 of 54 held up (0 measured, 36 on the tester's word)"
       },
       "probable": {
         "confirmed": 3,
@@ -809,15 +4648,15 @@
     },
     "by_proof_method": {
       "counterfactual": {
-        "confirmed": 0,
+        "confirmed": 1,
         "confirmed_measured": 0,
-        "confirmed_claimed": 0,
+        "confirmed_claimed": 1,
         "confirmed_accepted": 0,
         "refuted": 0,
-        "unknown": 1,
-        "decided": 0,
+        "unknown": 0,
+        "decided": 1,
         "precision": null,
-        "reading": "0 of 0 decided so far \u2014 too few for a rate (needs 30)"
+        "reading": "1 of 1 decided so far \u2014 too few for a rate (needs 30)"
       }
     },
     "caveats": [
@@ -830,55 +4669,102 @@
   },
   "test_ids": {
     "status": "measured",
-    "count": 888,
-    "added_count": 39,
-    "removed_count": 1,
+    "count": 1172,
+    "added_count": 293,
+    "removed_count": 9,
     "added": [
-      "tests/test_accept.py::test_the_tester_cannot_decorate_a_finding_with_an_acceptance",
-      "tests/test_calibration.py::test_a_measurement_on_a_prose_quoted_test_settles_nothing",
-      "tests/test_hooks.py::test_append_update_and_delete_write_the_archive_too",
-      "tests/test_hooks.py::test_bash_second_sweep_has_no_false_positives[tar -cf - src]",
-      "tests/test_hooks.py::test_real_tar_writes_where_this_matrix_claims[--extract --file {scratch}/a.tar --dir {repo}]",
-      "tests/test_hooks.py::test_real_tar_writes_where_this_matrix_claims[--file={repo}/hooks/a.py -c -C {scratch} junk]",
-      "tests/test_hooks.py::test_real_tar_writes_where_this_matrix_claims[-C {repo}/src -cf ../scratch/y.tar b.py]",
-      "tests/test_hooks.py::test_real_tar_writes_where_this_matrix_claims[-C {scratch}/junk -cf ../repo/hooks/loot.tar c.py]",
-      "tests/test_hooks.py::test_real_tar_writes_where_this_matrix_claims[-c -f {repo}/hooks/a.py -C {scratch} junk]",
-      "tests/test_hooks.py::test_real_tar_writes_where_this_matrix_claims[-cf - -C {repo} src]",
-      "tests/test_hooks.py::test_real_tar_writes_where_this_matrix_claims[-cf {repo}/hooks/a.py -C {scratch} junk]",
-      "tests/test_hooks.py::test_real_tar_writes_where_this_matrix_claims[-cf {repo}/hooks/loot.tar {scratch}/junk]",
-      "tests/test_hooks.py::test_real_tar_writes_where_this_matrix_claims[-cf {scratch}/x.tar {repo}/src]",
-      "tests/test_hooks.py::test_real_tar_writes_where_this_matrix_claims[-cf{repo}/hooks/a.py -C {scratch} junk]",
-      "tests/test_hooks.py::test_real_tar_writes_where_this_matrix_claims[-tf {scratch}/a.tar]",
-      "tests/test_hooks.py::test_real_tar_writes_where_this_matrix_claims[-xf {scratch}/a.tar --dir {repo}]",
-      "tests/test_hooks.py::test_real_tar_writes_where_this_matrix_claims[-xf {scratch}/a.tar --direc {repo}]",
-      "tests/test_hooks.py::test_real_tar_writes_where_this_matrix_claims[-xf {scratch}/a.tar --direc {scratch}]",
-      "tests/test_hooks.py::test_real_tar_writes_where_this_matrix_claims[-xf {scratch}/a.tar --directory {repo}]",
-      "tests/test_hooks.py::test_the_guard_agrees_with_where_tar_writes[--extract --file {scratch}/a.tar --dir {repo}]",
-      "tests/test_hooks.py::test_the_guard_agrees_with_where_tar_writes[--file={repo}/hooks/a.py -c -C {scratch} junk]",
-      "tests/test_hooks.py::test_the_guard_agrees_with_where_tar_writes[-C {repo}/src -cf ../scratch/y.tar b.py]",
-      "tests/test_hooks.py::test_the_guard_agrees_with_where_tar_writes[-C {scratch}/junk -cf ../repo/hooks/loot.tar c.py]",
-      "tests/test_hooks.py::test_the_guard_agrees_with_where_tar_writes[-c -f {repo}/hooks/a.py -C {scratch} junk]",
-      "tests/test_hooks.py::test_the_guard_agrees_with_where_tar_writes[-cf - -C {repo} src]",
-      "tests/test_hooks.py::test_the_guard_agrees_with_where_tar_writes[-cf {repo}/hooks/a.py -C {scratch} junk]",
-      "tests/test_hooks.py::test_the_guard_agrees_with_where_tar_writes[-cf {repo}/hooks/loot.tar {scratch}/junk]",
-      "tests/test_hooks.py::test_the_guard_agrees_with_where_tar_writes[-cf {scratch}/x.tar {repo}/src]",
-      "tests/test_hooks.py::test_the_guard_agrees_with_where_tar_writes[-cf{repo}/hooks/a.py -C {scratch} junk]",
-      "tests/test_hooks.py::test_the_guard_agrees_with_where_tar_writes[-tf {scratch}/a.tar]",
-      "tests/test_hooks.py::test_the_guard_agrees_with_where_tar_writes[-xf {scratch}/a.tar --dir {repo}]",
-      "tests/test_hooks.py::test_the_guard_agrees_with_where_tar_writes[-xf {scratch}/a.tar --direc {repo}]",
-      "tests/test_hooks.py::test_the_guard_agrees_with_where_tar_writes[-xf {scratch}/a.tar --direc {scratch}]",
-      "tests/test_hooks.py::test_the_guard_agrees_with_where_tar_writes[-xf {scratch}/a.tar --directory {repo}]",
-      "tests/test_release_workflow.py::test_a_registry_failure_is_visible",
-      "tests/test_release_workflow.py::test_the_download_is_checksummed_before_it_runs",
-      "tests/test_release_workflow.py::test_the_job_holds_no_more_than_it_needs",
-      "tests/test_release_workflow.py::test_the_publisher_is_pinned_to_a_release_not_to_latest",
-      "tests/test_verification.py::test_a_fail_to_pass_on_a_prose_citation_is_recorded_not_confirmed"
+      "tests/test_anchors.py::test_a_baseline_measures_no_drift_and_finalize_says_when_it_could_not_anchor",
+      "tests/test_anchors.py::test_a_judgment_that_writes_the_measured_fields_is_told",
+      "tests/test_anchors.py::test_a_previous_state_without_anchors_reads_unavailable_not_unchanged",
+      "tests/test_anchors.py::test_a_reference_that_names_nothing_is_recorded_as_such_and_costs_nothing",
+      "tests/test_anchors.py::test_anchors_are_carried_while_the_evidence_is_the_text_they_were_taken_from",
+      "tests/test_anchors.py::test_drift_travels_into_the_state_and_the_report",
+      "tests/test_anchors.py::test_facts_name_the_next_finding_id",
+      "tests/test_anchors.py::test_finalize_anchors_every_cited_line",
+      "tests/test_anchors.py::test_fixed_at_is_the_date_of_the_measured_fix_never_of_a_claim",
+      "tests/test_anchors.py::test_introduced_at_is_the_date_of_the_commit_the_origin_names",
+      "tests/test_anchors.py::test_last_verified_at_is_stamped_only_by_a_measurement",
+      "tests/test_anchors.py::test_references_are_read_the_way_evidence_is_written",
+      "tests/test_anchors.py::test_the_class_sites_and_the_verified_intact_items_are_anchored_too",
+      "tests/test_anchors.py::test_the_code_under_an_accepted_risk_is_measured_in_its_own_bucket",
+      "tests/test_anchors.py::test_the_next_facts_say_where_the_cited_code_went",
+      "tests/test_anchors.py::test_the_report_dates_the_measurement_and_its_result",
+      "tests/test_anchors.py::test_the_report_prints_both_clocks_and_the_ledger_keeps_them",
+      "tests/test_artifact_check.py::test_finalize_actually_runs_the_check_it_documents",
+      "tests/test_census.py::test_prose_that_looks_like_an_import_is_not_a_dependency",
+      "tests/test_clock.py::test_a_frozen_offset_stamp_is_normalised_to_utc",
+      "tests/test_clock.py::test_an_unparseable_freeze_refuses_loudly",
+      "tests/test_clock.py::test_local_now_is_naive_local_and_only_for_the_runner",
+      "tests/test_clock.py::test_no_module_but_the_clock_asks_the_time",
+      "tests/test_clock.py::test_now_is_timezone_aware_utc",
+      "tests/test_clock.py::test_stamp_formats_any_instant_as_the_state_does",
+      "tests/test_clock.py::test_the_clock_can_be_frozen",
+      "tests/test_clock.py::test_the_clock_module_is_where_the_calls_live",
+      "tests/test_filed.py::test_a_finding_carried_by_silence_drops_last_runs_verb",
+      "tests/test_filed.py::test_a_finding_file_is_validated_the_moment_it_is_written",
+      "tests/test_filed.py::test_a_finding_filed_inside_another_findings_class_is_refused",
+      "tests/test_filed.py::test_a_judgment_may_not_write_the_filed_fields",
+      "tests/test_filed.py::test_a_verification_test_must_be_a_collected_id",
+      "tests/test_filed.py::test_archive_is_silent_on_an_empty_or_absent_directory",
+      "tests/test_filed.py::test_facts_move_last_runs_files_aside_and_a_retry_keeps_them",
+      "tests/test_filed.py::test_files_and_inline_findings_together_are_refused",
+      "tests/test_filed.py::test_finding_files_are_assembled_oldest_first_stamped_and_rendered",
+      "tests/test_filed.py::test_load_filed_names_what_it_cannot_read",
+      "tests/test_filed.py::test_still_open_is_refused_where_the_cited_code_changed_and_allowed_where_it_moved",
+      "tests/test_filed.py::test_the_class_rule_reaches_a_finding_carried_by_id",
+      "tests/test_filed.py::test_the_verbs_carry_a_finding_by_id_with_its_evidence_as_filed",
+      "tests/test_filed.py::test_the_verbs_refuse_what_they_cannot_carry",
+      "tests/test_gate.py::test_a_path_argument_in_solo_mode_resolves_to_the_derived_key",
+      "tests/test_harness.py::test_colour_codes_do_not_change_which_runner_is_read",
+      "tests/test_harness.py::test_duration_regression_boundaries[6.9-priors3-False]",
+      "tests/test_harness.py::test_duration_regression_boundaries[65.0-priors4-True]",
+      "tests/test_harness.py::test_duration_regression_boundaries[65.0-priors5-False]",
+      "tests/test_harness.py::test_duration_regression_boundaries[65.0-priors6-True]",
+      "tests/test_harness.py::test_duration_regression_boundaries[65.0-priors7-True]",
+      "tests/test_harness.py::test_duration_regression_boundaries[7.0-priors2-True]",
+      "tests/test_harness.py::test_duration_regression_boundaries[8.99-priors1-False]"
     ],
     "removed": [
-      "tests/test_hooks.py::test_bash_second_sweep_has_no_false_positives[tar -cf archive.tar src]"
+      "tests/test_agent_contract.py::test_every_plugin_root_reference_resolves[/docs/state-schema.md]",
+      "tests/test_harness.py::test_each_runner_dialect_is_parsed_and_named[dotnet-7]",
+      "tests/test_harness.py::test_each_runner_dialect_is_parsed_and_named[gotestsum-9]",
+      "tests/test_harness.py::test_each_runner_dialect_is_parsed_and_named[phpunit-5]",
+      "tests/test_harness.py::test_each_runner_dialect_is_parsed_and_named[phpunit-6]",
+      "tests/test_harness.py::test_each_runner_dialect_is_parsed_and_named[rspec-4]",
+      "tests/test_harness.py::test_each_runner_dialect_is_parsed_and_named[surefire-8]",
+      "tests/test_verification.py::test_a_fail_to_pass_on_a_prose_citation_is_recorded_not_confirmed",
+      "tests/test_verification.py::test_without_a_ledger_a_citation_is_still_tried"
     ],
-    "truncated": false,
+    "truncated": true,
     "source": "id set-diff, not summary arithmetic"
   },
-  "flaky_quarantine": []
+  "questions": {
+    "parked": [
+      {
+        "id": "VERDICT-Q-1",
+        "question": "VERDICT-F-74 (Minor): fix the single-keyword `trigger-separated-from-cause` scorer row, or record its acceptance with verdict-accept? It has been 'scorer work owed' since 0.79.0 and is the only single-keyword report_contains row across the seven answer keys.",
+        "finding": "VERDICT-F-74",
+        "asked_on": "2026-09-13",
+        "asked_at_run": 15,
+        "age_days": 0
+      },
+      {
+        "id": "VERDICT-Q-2",
+        "question": "The re-baseline surface (~2,300 new/changed lines across src/verdict_mcp/small.py +1089, questions.py +326, anchors.py +169, clock.py +72, filed.py +99, reports.py +132, runner.py +470, harness.py +903, validate.py +314, plus eval/swebench.py +1311) was NOT audited this scoped run (caller scope was F-75 + run-14 next_run_focus). Schedule a dedicated baseline run over these modules before the next release that touches them?",
+        "finding": null,
+        "asked_on": "2026-09-13",
+        "asked_at_run": 15,
+        "age_days": 0
+      },
+      {
+        "id": "VERDICT-Q-3",
+        "question": "The profile's isolation check part (1) grep now matches the verdict-local local-model client (small.py) and will always 'fail' while that feature exists. Refine it to exclude the declared local-model client, or scope it to the test-execution path only?",
+        "finding": null,
+        "asked_on": "2026-09-13",
+        "asked_at_run": 15,
+        "age_days": 0
+      }
+    ],
+    "answered_since_last_run": []
+  }
 }
