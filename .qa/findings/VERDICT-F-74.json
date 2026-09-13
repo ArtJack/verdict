@@ -1,0 +1,27 @@
+{
+ "id": "VERDICT-F-74",
+ "title": "The `trigger-separated-from-cause` eval row scores the presence of the single word 'trigger', so a report that never separates trigger from cause earns the point - the same shape run 12 filed against the bytecode row",
+ "severity": "Minor",
+ "priority": "P2",
+ "status": "open",
+ "failure_classification": null,
+ "confidence": "proven",
+ "fix_verified": false,
+ "evidence": [
+  "STILL OPEN at HEAD (fresh evidence, this range changed eval/expected-cause.json but not this row's mechanism). eval/expected-cause.json:43-49 the row is `{\"key\":\"trigger-separated-from-cause\",\"type\":\"report_contains\",\"terms_all\":[\"trigger\"]}` — a single keyword.",
+  "eval/score.py:371-387 scores report_contains by plain substring: `missing = [t for t in terms if t.lower() not in lowered]`, point if none missing. With terms_all == ['trigger'], any report containing the word 'trigger' anywhere earns the point without separating trigger from cause.",
+  "CHANGELOG 0.79.0 still records this as owed ('F-74 ... is scorer work owed to the eval'); the eval corpus was not run this run (no live API), so this is verified by reading the key + scorer, not by scoring a report."
+ ],
+ "root_cause": {
+  "mechanism": "the row asserts presence of one keyword rather than the discipline (a report that names a trigger without distinguishing it from the cause still scores). Scorer work owed.",
+  "fix_location": "code",
+  "confidence": "proven",
+  "class": {
+   "pattern": "single-keyword report_contains row scores vocabulary not discipline",
+   "sites": [
+    "eval/expected-cause.json:43-49 — the only single-keyword report_contains row across the seven answer keys"
+   ]
+  }
+ },
+ "narrative": "STILL_OPEN. The scorer row is unchanged in mechanism at HEAD — one keyword, plain substring — so a report that never separates trigger from cause still earns the point. An instance, not a pattern (the only single-keyword report_contains row), hence Minor. Verified by reading; the eval was not run (no live API here)."
+}
