@@ -32,6 +32,10 @@ Usage:
   python3 eval/swebench.py batch [--limit N]      # every pending instance, in order, resumable
   python3 eval/swebench.py table                  # eval/swebench/results.jsonl → markdown
 
+  python3 eval/swebench.py batch --arm plain      # the control: the same runs, no plugin
+  python3 eval/swebench.py table --arm plain      # eval/swebench/results-plain.jsonl → markdown
+  python3 eval/swebench.py table --compare        # both arms, over the instances scored in both
+
 Model runs cost real tokens; this is never a CI job.
 """
 
@@ -39,6 +43,8 @@ from __future__ import annotations
 
 import argparse
 import ast
+import contextlib
+import hashlib
 import json
 import os
 import re
@@ -55,12 +61,15 @@ REPO = EVAL_DIR.parent
 OUT_DIR = EVAL_DIR / "swebench"
 INSTANCES = OUT_DIR / "instances.json"
 RESULTS = OUT_DIR / "results.jsonl"
+RESULTS_PLAIN = OUT_DIR / "results-plain.jsonl"   # the control arm's ledger — see `one_plain`
 SPECS = OUT_DIR / "specs.json"
+ARMS = ("verdict", "plain")
 
 sys.path.insert(0, str(REPO / "src"))
 from verdict_mcp.anchors import refs_in  # noqa: E402
 from verdict_mcp.project_key import derive_key  # noqa: E402
 from verdict_mcp.runner import limit_kind, plugin_root, seconds_until_reset  # noqa: E402
+from verdict_mcp.runner import _run_streaming, limit_line, session_env  # noqa: E402
 
 DATASET = "princeton-nlp/SWE-bench_Verified"
 ROWS_URL = ("https://datasets-server.huggingface.co/rows?dataset=princeton-nlp%2FSWE-bench_Verified"
@@ -876,6 +885,29 @@ def headline_of(findings: list[dict]) -> dict | None:
                                         -findings.index(f)))
 
 
+def score_findings(gold: dict, findings: list[dict], source_of=None) -> dict:
+    """Grade a list of findings against the gold hunks: every finding's best level,
+    the best over all of them, and the headline's. The one scorer both arms use —
+    the Verdict arm hands it the open findings of a QA state, the plain arm the
+    items of its answer block mapped into the same shape."""
+    out = {"findings": len(findings), "any_hit": "none", "headline_hit": "none",
+           "headline": None, "per_finding": []}
+    head = headline_of(findings)
+    for f in findings:
+        level, matched = level_of(cited_refs(f), gold, source_of)
+        row = {"id": f.get("id"), "severity": f.get("severity"), "confidence": f.get("confidence"),
+               "classification": f.get("failure_classification"), "hit": level,
+               "matched": matched, "title": str(f.get("title") or "")[:160],
+               "cited": sorted({p for p, _ in cited_refs(f)})}
+        out["per_finding"].append(row)
+        if LEVELS.index(level) > LEVELS.index(out["any_hit"]):
+            out["any_hit"] = level
+        if head is not None and f is head:
+            out["headline_hit"] = level
+            out["headline"] = row["id"]
+    return out
+
+
 def score_instance(inst: dict, qa_root: Path, source_of=None) -> dict:
     out = {"verdict": None, "findings": 0, "any_hit": "none", "headline_hit": "none",
            "headline": None, "per_finding": [], "harness": None, "run_number": None,
@@ -899,31 +931,18 @@ def score_instance(inst: dict, qa_root: Path, source_of=None) -> dict:
     out["prompt_sha256"] = who.get("provisioned_prompt_sha256") or who.get("prompt_sha256")
     findings = [f for f in state.get("findings") or [] if isinstance(f, dict)
                 and str(f.get("status") or "open") == "open"]
-    out["findings"] = len(findings)
-    gold = inst["gold_hunks"]
-    head = headline_of(findings)
-    for f in findings:
-        level, matched = level_of(cited_refs(f), gold, source_of)
-        row = {"id": f.get("id"), "severity": f.get("severity"), "confidence": f.get("confidence"),
-               "classification": f.get("failure_classification"), "hit": level,
-               "matched": matched, "title": str(f.get("title") or "")[:160],
-               "cited": sorted({p for p, _ in cited_refs(f)})}
-        out["per_finding"].append(row)
-        if LEVELS.index(level) > LEVELS.index(out["any_hit"]):
-            out["any_hit"] = level
-        if head is not None and f is head:
-            out["headline_hit"] = level
-            out["headline"] = row["id"]
+    out.update(score_findings(inst["gold_hunks"], findings, source_of))
     return out
 
 
 # ── one instance, end to end ──────────────────────────────────────────────────
 
-def done_ids() -> set[str]:
-    if not RESULTS.is_file():
+def done_ids(path: Path | None = None) -> set[str]:
+    ledger = path or RESULTS
+    if not ledger.is_file():
         return set()
     ids = set()
-    for line in RESULTS.read_text(encoding="utf-8").splitlines():
+    for line in ledger.read_text(encoding="utf-8").splitlines():
         if line.strip():
             try:
                 ids.add(json.loads(line)["instance_id"])
@@ -932,11 +951,13 @@ def done_ids() -> set[str]:
     return ids
 
 
-def append_result(row: dict) -> None:
+def append_result(row: dict, path: Path | None = None) -> None:
     """Append; a retried instance keeps its earlier rows too, and `load_results`
-    reads the latest — the ledger is a history, the table is the present."""
-    OUT_DIR.mkdir(parents=True, exist_ok=True)
-    with RESULTS.open("a", encoding="utf-8") as fh:
+    reads the latest — the ledger is a history, the table is the present. `path`
+    names another ledger (the control arm's); the default is the Verdict arm's."""
+    ledger = path or RESULTS
+    ledger.parent.mkdir(parents=True, exist_ok=True)
+    with ledger.open("a", encoding="utf-8") as fh:
         fh.write(json.dumps(row, sort_keys=True) + "\n")
 
 
@@ -1049,6 +1070,512 @@ def resolve_root(explicit) -> Path:
     return max(versions, key=lambda p: [int(x) if x.isdigit() else -1 for x in p.name.split(".")])
 
 
+# ── the control arm: Claude Code without the plugin ───────────────────────────
+#
+# The external key says where Verdict's findings land; it cannot say the plugin is why.
+# The control that can differs from the Verdict arm in the plugin and the prompt only:
+# the same instances and `prepare()`, the same model, timeout and account handling, and
+# the launch `verdict-run` makes — its argv, its streaming call, its retry rules — with
+# nothing of Verdict's provisioned and a prompt that never names it. The runner itself is
+# not called: with `--no-provision` it would still retry every run for want of a state
+# file and gate a verdict that cannot exist. The answer is one JSON block; each item moves
+# into the fields `cited_refs()` reads and is graded by the same `score_findings()`. Its
+# own ledger and archive — `results.jsonl` is never written.
+
+CLAUDE_CMD = "claude"               # a test seam: a stub stands in for the CLI
+
+PLAIN_TEMPLATE = """\
+You are working in a checkout of {repo} at the commit where the bug report below was filed. The project's tests run with: `{test_command}`.
+
+Find the defect behind this bug report. Do not fix it and do not modify any file in the repository; you may run the tests and write scratch files under {scratch_dir}.
+
+End your reply with one JSON block listing each defect you found, most important first:
+```json
+[{"title": "...", "severity": "Blocker|Critical|Major|Minor|Trivial", "file": "path/relative/to/the/repository", "line": 123, "mechanism": "what the code does wrong, in one or two sentences"}]
+```
+
+## Bug report (verbatim, from the project's issue tracker)
+
+{problem_statement}
+"""
+PLAIN_TEMPLATE_SHA256 = hashlib.sha256(PLAIN_TEMPLATE.encode("utf-8")).hexdigest()
+_PLAIN_SLOT = re.compile(r"\{(repo|test_command|scratch_dir|problem_statement)\}")
+_FENCE_OPEN = re.compile(r"^[ \t]*```[ \t]*json[ \t\r]*$", re.M | re.I)
+_FENCE_CLOSE = re.compile(r"^[ \t]*```[ \t\r]*$", re.M)
+
+
+def build_plain_prompt(inst: dict, row: dict, test_command: str, scratch_dir) -> str:
+    """The control arm's prompt: the template filled in one pass, so text substituted into
+    it — an issue that happens to contain `{repo}` — is never read as a slot. The issue is
+    stripped exactly as `build_prompt` strips it for the Verdict arm."""
+    values = {"repo": inst["repo"], "test_command": test_command, "scratch_dir": str(scratch_dir),
+              "problem_statement": row["problem_statement"].strip()}
+    return _PLAIN_SLOT.sub(lambda m: values[m.group(1)], PLAIN_TEMPLATE)
+
+
+def plain_test_command(profile_text: str) -> str:
+    """The suite gate `write_profile()` wrote for the Verdict arm, read back from the
+    profile rather than rebuilt beside it, as a command a person runs: without
+    `--junitxml={report}`, a placeholder only Verdict's facts step fills (taken literally
+    it writes a file named `{report}` into the checkout)."""
+    m = re.search(r"(?m)^  suite: (.+)$", profile_text)
+    if not m:
+        raise RuntimeError("the generated profile names no suite gate")
+    return m.group(1).replace(" --junitxml={report}", "").strip()
+
+
+def parse_answer(text) -> list | None:
+    """The LAST fenced ```json block of the reply, parsed — None when there is none, it is
+    unterminated, it is not JSON, or it is not a list. An earlier block never stands in for
+    a broken last one: a draft is not the answer."""
+    text = str(text or "")
+    opens = list(_FENCE_OPEN.finditer(text))
+    if not opens:
+        return None
+    start = opens[-1].end()
+    close = _FENCE_CLOSE.search(text, start)
+    if close is None:
+        return None
+    try:
+        doc = json.loads(text[start:close.start()])
+    except ValueError:
+        return None
+    return doc if isinstance(doc, list) else None
+
+
+def _line_number(value) -> int | None:
+    """A positive line number given as an int or an all-digit string, else None."""
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, int):
+        return value if value > 0 else None
+    if isinstance(value, str) and value.strip().isdigit():
+        return int(value.strip()) or None
+    return None
+
+
+def plain_findings(items: list) -> list[dict]:
+    """Each answer item in the shape `cited_refs()` reads, so the one scorer grades it:
+    `file` + `line` as an anchor, and `file:line` again as prose in `root_cause.origin` —
+    the prose reader Verdict findings already go through, which also reads a line written
+    into the file field (`src/x.py:12`) or as a range (`12-14`) — with the title, the
+    mechanism, and the severity in the scale's own spelling. Nothing is graded here; the
+    fields only move. Items that are not objects are dropped (the row counts them)."""
+    out = []
+    for item in items:
+        if not isinstance(item, dict):
+            continue
+        path = str(item.get("file") or "").strip()
+        raw_line = item.get("line")
+        line = _line_number(raw_line)
+        severity = str(item.get("severity") or "").strip()
+        severity = next((s for s in SEVERITY_RANK if s.lower() == severity.lower()),
+                        severity or None)
+        origin = f"{path}:{str(raw_line).strip()}" if path and raw_line not in (None, "") else path
+        out.append({
+            "id": f"PLAIN-{len(out) + 1}", "status": "open", "severity": severity,
+            "title": str(item.get("title") or ""),
+            "anchors": [{"ref": f"{path}:{line}", "path": path, "line": line}] if path and line
+            else [],
+            "root_cause": {"mechanism": str(item.get("mechanism") or ""), "origin": origin},
+        })
+    return out
+
+
+def plain_argv(prompt: str, model: str) -> list[str]:
+    """The argv `verdict-run` hands the claude CLI on a swebench run — `cmd` in
+    `runner.main`, plus the `-- --output-format json` passthrough `run_instance` gives it
+    and the permission flag the runner appends — carrying the plain arm's prompt."""
+    return [CLAUDE_CMD, "-p", prompt, "--model", model, "--setting-sources", "project,local",
+            "--output-format", "json", "--dangerously-skip-permissions"]
+
+
+def plain_env(base: dict, extra_env: dict | None, checkout: Path) -> tuple[dict, list[str]]:
+    """The environment the Verdict arm's CLI process gets, less Verdict. As there: the
+    batch's environment with the `--env-file` merged, `CLAUDE_PLUGIN_ROOT` dropped, trust
+    seeded into a named config directory (`run_instance`), then the runner's
+    `session_env()` (gateway flags; the directory seeded again). Not there: `VERDICT_HOME`,
+    `VERDICT_STRICT`, `VERDICT_MODEL` — only Verdict's hooks, agent and harness read them —
+    nor any other `VERDICT_*` the batch inherited, in which a model running `env` would
+    read the plugin's name."""
+    env = dict(base, **(extra_env or {}))
+    env.pop("CLAUDE_PLUGIN_ROOT", None)
+    stripped = sorted(k for k in env if k.startswith("VERDICT_"))
+    for key in stripped:
+        del env[key]
+    notes = [f"not passed to the CLI: {', '.join(stripped)}"] if stripped else []
+    if env.get("CLAUDE_CONFIG_DIR"):
+        seed_config(Path(env["CLAUDE_CONFIG_DIR"]), checkout)
+    env, env_notes = session_env(env, checkout.resolve())
+    return env, notes + env_notes
+
+
+def plain_session(cmd: list, cwd: Path, env: dict, timeout_s: int, log: Path, notes=(),
+                  reset_ceiling_s: int = 10800) -> dict:
+    """The CLI launched the way `runner.main` launches it: the runner's own streaming call
+    (output echoed live into the log, a heartbeat while it is quiet, killed at the timeout)
+    and its retry rules — a timed-out attempt goes again, a weekly limit is not waited for,
+    a session limit on the first attempt is slept through — with "attempt 1 wrote no state"
+    read as "attempt 1 returned no answer block", retried once. Returns the whole output,
+    these notes included (so `limit_kind` reads it as it reads the runner's relay), the
+    attempts made and the last exit code (None on a timeout)."""
+    parts: list[str] = []
+    rc, attempt = None, 0
+    with log.open("w", encoding="utf-8") as fh, contextlib.redirect_stderr(fh):
+        def note(text: str) -> None:
+            parts.append(f"swebench-plain: {text}\n")
+            fh.write(parts[-1])
+            fh.flush()
+
+        shown = [*cmd[:2], f"<prompt: {len(cmd[2])} chars>", *cmd[3:]]
+        note(f"cwd {cwd} · {' '.join(map(str, shown))}")
+        for line in notes:
+            note(line)
+        for attempt in (1, 2):
+            rc, output = _run_streaming(cmd, cwd, env, timeout_s)
+            parts.append(output)
+            if rc is None:
+                note(f"attempt {attempt} timed out after {timeout_s}s")
+                continue
+            if limit_kind(output) == "weekly":
+                note(f"{limit_line(output)} — no model run is possible until then")
+                break
+            wait = seconds_until_reset(output, reset_ceiling_s)
+            if wait and attempt == 1:
+                note(f"session limit; waiting {wait}s for the window to reset")
+                time.sleep(wait)
+                continue
+            if attempt == 1 and parse_answer(result_line(output).get("result")) is None:
+                note("attempt 1 returned no answer block — retrying once")
+                continue
+            break
+    return {"output": "".join(parts), "attempts": attempt, "exit": rc}
+
+
+def run_plain_instance(info: dict, prompt: str, model: str, timeout_s: int, attempt: int,
+                       extra_env: dict | None = None) -> dict:
+    """One launch of the control arm, in `run_instance`'s shape: the prompt kept beside the
+    logs, the environment built, the CLI run, the CLI's own result line read."""
+    work, checkout = Path(info["work"]), Path(info["checkout"])
+    (work / "prompt.md").write_text(prompt, encoding="utf-8")
+    log = work / "logs" / f"run{attempt}.log"
+    log.parent.mkdir(parents=True, exist_ok=True)
+    env, notes = plain_env(dict(os.environ), extra_env, checkout)
+    started = time.monotonic()
+    # The runner resolves `--repo` before it launches; the CLI's cwd is that path.
+    session = plain_session(plain_argv(prompt, model), checkout.resolve(), env, timeout_s, log,
+                            notes)
+    wall = time.monotonic() - started
+    output = session["output"]
+    res = result_line(output)
+    usage = res.get("usage") or {}
+    final = res.get("result") if isinstance(res.get("result"), str) else None
+    models = res.get("modelUsage")
+    return {
+        "cli_exit": session["exit"], "wall_s": round(wall), "log": str(log),
+        "cost_usd": res.get("total_cost_usd"), "duration_api_ms": res.get("duration_api_ms"),
+        "num_turns": res.get("num_turns"), "session_id": res.get("session_id"),
+        "tokens": {k: usage.get(k) for k in ("input_tokens", "output_tokens",
+                                             "cache_creation_input_tokens",
+                                             "cache_read_input_tokens")} if usage else None,
+        "models": sorted(models) if isinstance(models, dict) and models else None,
+        "session_attempts": session["attempts"],
+        "session_limited": limit_kind(output) == "session",
+        "limit": limit_kind(output),
+        "output": output, "final_text": final, "answer": parse_answer(final),
+    }
+
+
+def claude_version(env: dict | None = None) -> str | None:
+    """`claude --version`, read before each session: the CLI updates itself, and every
+    transcript of the Verdict rows says 2.1.263."""
+    try:
+        proc = subprocess.run([CLAUDE_CMD, "--version"], capture_output=True, text=True,
+                              errors="replace", env=env, timeout=60)
+    except (OSError, subprocess.SubprocessError):
+        return None
+    text = (proc.stdout or "").strip()
+    return text[:120] if proc.returncode == 0 and text else None
+
+
+def _project_dir(cwd: Path, config_dir=None) -> Path:
+    """Where Claude Code keeps a working directory's transcripts and auto-memory — the key
+    `transcript_usage` computes."""
+    key = re.sub(r"[^A-Za-z0-9-]", "-", str(cwd))
+    named = config_dir or os.environ.get("CLAUDE_CONFIG_DIR")
+    return (Path(named).expanduser() if named else Path.home() / ".claude") / "projects" / key
+
+
+def auto_memory_files(cwd: Path, config_dir=None) -> list[str]:
+    """What Claude Code's auto-memory holds for this working directory. Every Verdict-arm
+    session started with none (their memory directories exist and are empty); a control
+    that starts from an earlier session's notes is not the same run."""
+    memory = _project_dir(cwd, config_dir) / "memory"
+    if not memory.is_dir():
+        return []
+    return sorted(p.relative_to(memory).as_posix() for p in memory.rglob("*") if p.is_file())
+
+
+def instruction_files(cwd: Path, session_id, config_dir=None) -> list[str] | None:
+    """The instruction files Claude Code attached to the session (main and subagents), read
+    from its transcript. A checkout under the home directory is given `~/.claude/CLAUDE.md`
+    as a project file whatever `--setting-sources` says — it reached 34 of the Verdict
+    arm's 41 sessions — so each plain row says what its session got. None when no
+    transcript is found."""
+    if not session_id:
+        return None
+    base = _project_dir(cwd, config_dir)
+    files = [base / f"{session_id}.jsonl"]
+    sub = base / str(session_id) / "subagents"
+    files += sorted(sub.glob("*.jsonl")) if sub.is_dir() else []
+    found, seen = set(), False
+    for f in files:
+        if not f.is_file():
+            continue
+        seen = True
+        for line in f.read_text(encoding="utf-8", errors="replace").splitlines():
+            if '"instructions"' not in line:
+                continue
+            try:
+                doc = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            att = doc.get("attachment") if isinstance(doc, dict) else None
+            if isinstance(att, dict) and att.get("type") == "instructions":
+                found |= {str(x["path"]) for x in att.get("files") or []
+                          if isinstance(x, dict) and x.get("path")}
+    return sorted(found) if seen else None
+
+
+_HEREDOC = re.compile(r"<<-?[ \t]*(['\"]?)([A-Za-z_]\w*)\1[^\n]*\n.*?^[ \t]*\2[ \t]*$",
+                      re.S | re.M)
+_INSTANCE_ID = re.compile("(?:" + "|".join(re.escape(r.replace("/", "__")) for r in REPO_ORDER)
+                          + r")-\d+")
+_NETWORK = ("git clone", "git fetch", "git pull", "github.com", "pip install", "pip download")
+
+
+def reach_of(name: str, args: dict, instance_id: str) -> list[str]:
+    """Why one tool call reached past its instance, or [] — read from what the call names: a
+    write's path (never its content), a shell command, any other tool's input. A dataset,
+    mirror, archive or other-instance path counts wherever it appears, a heredoc'd script
+    included; a network command only outside heredoc bodies, where it is far more often prose
+    being written to a file than a call — and `curl` or `wget` only beside a URL (the one call
+    the first version flagged in the Verdict arm's 41 sessions was `curl --version`)."""
+    if name in ("Write", "Edit", "MultiEdit", "NotebookEdit"):
+        text = str(args.get("file_path") or args.get("notebook_path") or "")
+    elif name == "Bash":
+        text = str(args.get("command") or "")
+    else:
+        text = json.dumps(args, ensure_ascii=False)
+    why = []
+    if "verified.json" in text:
+        why.append("dataset")
+    if f"{CACHE.name}/mirrors" in text or "../mirrors" in text:
+        why.append("mirrors")
+    if f"{CACHE.name}/runs" in text or re.search(r"\.\./runs(?:-plain)?\b", text):
+        why.append("archive")
+    why += [f"instance {i}" for i in sorted(set(_INSTANCE_ID.findall(text)) - {instance_id})]
+    if name == "Bash":
+        shell = _HEREDOC.sub("", text)
+        why += [f"network {tool}" for tool in ("curl", "wget")
+                if re.search(rf"\b{tool}\b", shell) and "://" in shell]
+        why += [f"network {m}" for m in _NETWORK if m in shell]
+    if name in ("WebFetch", "WebSearch"):
+        why.append(name)
+    return why
+
+
+def outside_references(cwd: Path, session_id, instance_id: str,
+                       config_dir=None) -> list[dict] | None:
+    """Tool calls in the session's transcript (main and subagents) that reached past the
+    instance: the dataset file (every gold patch), a repository mirror (every fix commit),
+    either arm's archive (the plain arm runs second, so the Verdict findings for this very
+    instance are on disk), another instance, or the network. The checkout sits inside the
+    cache, so any session can reach all of it and nothing stops one; this says whether it
+    did. A heuristic over what the calls name: a relative path that names none of these is
+    not seen. None when no transcript is found."""
+    if not session_id:
+        return None
+    base = _project_dir(cwd, config_dir)
+    files = [base / f"{session_id}.jsonl"]
+    sub = base / str(session_id) / "subagents"
+    files += sorted(sub.glob("*.jsonl")) if sub.is_dir() else []
+    hits, seen = [], False
+    for f in files:
+        if not f.is_file():
+            continue
+        seen = True
+        for line in f.read_text(encoding="utf-8", errors="replace").splitlines():
+            if '"tool_use"' not in line:
+                continue
+            try:
+                doc = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            message = doc.get("message") if isinstance(doc, dict) else None
+            content = message.get("content") if isinstance(message, dict) else None
+            for call in content if isinstance(content, list) else []:
+                if not isinstance(call, dict) or call.get("type") != "tool_use":
+                    continue
+                name = str(call.get("name"))
+                args = call.get("input") if isinstance(call.get("input"), dict) else {}
+                why = reach_of(name, args, instance_id)
+                if why:
+                    shown = args.get("command") or args.get("file_path") or json.dumps(args)
+                    hits.append({"tool": name, "why": why, "input": str(shown)[:200]})
+    return hits[:50] if seen else None
+
+
+def scrub_for_plain(info: dict) -> list[str]:
+    """Remove what the workdir holds for the Verdict arm, before the plain session: the QA
+    root with the profile `prepare()` generated, a rendered prompt, run logs (a reused
+    workdir's hold the Verdict agent's handoff), and an untracked `.claude/` the runner
+    provisioned into the checkout. Returns what held something, relative to the workdir."""
+    work, checkout = Path(info["work"]), Path(info["checkout"])
+    removed = []
+    for target in (Path(info["qa_home"]), work / "prompt.md", work / "logs"):
+        if target.is_dir():
+            held = any(target.iterdir())
+            shutil.rmtree(target)
+        elif target.exists():
+            held = True
+            target.unlink()
+        else:
+            continue
+        if held:
+            removed.append(target.relative_to(work).as_posix())
+    dot = checkout / ".claude"
+    if dot.exists() and not sh(["git", "ls-files", "--", ".claude"], cwd=checkout).stdout.strip():
+        shutil.rmtree(dot, ignore_errors=True)
+        removed.append(dot.relative_to(work).as_posix())
+    (work / "logs").mkdir(parents=True, exist_ok=True)
+    return removed
+
+
+def porcelain(checkout: Path) -> list[str]:
+    """`git status --porcelain`, line by line — what a session left in the checkout."""
+    proc = sh(["git", "status", "--porcelain"], cwd=checkout)
+    if proc.returncode != 0:
+        return [f"git status failed: {(proc.stderr or '').strip()[-200:]}"]
+    return [ln for ln in proc.stdout.splitlines() if ln.strip()]
+
+
+def archive_plain(inst: dict, info: dict, final_text, answer) -> Path:
+    """The control arm's archive: logs, the prompt, the final reply as the CLI returned it,
+    and the parsed answer — beside the Verdict arm's archive, never inside it."""
+    dest = CACHE / "runs-plain" / inst["instance_id"]
+    if dest.exists():
+        shutil.rmtree(dest)
+    dest.mkdir(parents=True)
+    work = Path(info["work"])
+    if (work / "logs").is_dir():
+        shutil.copytree(work / "logs", dest / "logs")
+    if (work / "prompt.md").is_file():
+        shutil.copyfile(work / "prompt.md", dest / "prompt.md")
+    (dest / "final.txt").write_text(final_text or "", encoding="utf-8")
+    if answer is not None:
+        (dest / "answer.json").write_text(json.dumps(answer, indent=1) + "\n", encoding="utf-8")
+    return dest
+
+
+def one_plain(inst: dict, args) -> dict:
+    """`one()` for the control arm: the same preparation and bookkeeping, the plain launch
+    in place of `verdict-run`, the answer block in place of the QA state."""
+    iid = inst["instance_id"]
+    print(f"== {iid} ({inst['repo']} {inst['version']}, {inst['difficulty']}) — plain arm",
+          file=sys.stderr)
+    row = row_for(iid)
+    extra_env = dict(getattr(args, "_env", None) or {})
+    config_dir = extra_env.get("CLAUDE_CONFIG_DIR")
+    result = {"instance_id": iid, "repo": inst["repo"], "version": inst["version"],
+              "difficulty": inst["difficulty"], "gold_files": inst["gold_files"], "arm": "plain",
+              "model": args.model, "prompt_template_sha256": PLAIN_TEMPLATE_SHA256,
+              "started_at": now_utc(), "status": "pending"}
+    cwd = (workdir(iid) / iid).resolve()
+    memory = auto_memory_files(cwd, config_dir)
+    if memory:
+        result.update(status="prepare_failed", note=(
+            f"Claude Code's auto-memory for this checkout path already holds {len(memory)} "
+            f"file(s) ({_project_dir(cwd, config_dir) / 'memory'}); every Verdict-arm session "
+            "started with none — move them aside, then --retry prepare_failed"))
+        return result
+    try:
+        info = prepare(inst, row, keep_existing=False)     # always fresh: see plain_preflight
+    except Exception as exc:                        # noqa: BLE001 — published, not hidden
+        result.update(status="prepare_failed", note=str(exc)[-600:])
+        return result
+    result["env"] = {"valid": info["env_valid"], "check": info["env_check"],
+                     "notes": info["env_notes"], "base_date": info.get("base_date")}
+    if not info["env_valid"]:
+        result.update(status="env_invalid", note=info["env_check"])
+        cleanup(info, args.keep)
+        return result
+    work, checkout = Path(info["work"]), Path(info["checkout"])
+    try:
+        test_command = plain_test_command(
+            (Path(info["qa_home"]) / info["key"] / "profile.md").read_text(encoding="utf-8"))
+    except (OSError, RuntimeError) as exc:
+        result.update(status="prepare_failed", note=str(exc)[-600:])
+        cleanup(info, args.keep)
+        return result
+    result["plain"] = {"test_command": test_command, "scrubbed": scrub_for_plain(info)}
+    dirty = porcelain(checkout)
+    if dirty:
+        result["plain"]["checkout_dirty_before"] = dirty
+    prompt = build_plain_prompt(inst, row, test_command, work / "scratch")
+    result["claude_version"] = claude_version(dict(os.environ, **extra_env))
+
+    attempt, run = 0, None
+    while attempt < 3:
+        attempt += 1
+        run = run_plain_instance(info, prompt, args.model, args.timeout_s, attempt, extra_env)
+        if run["answer"] is not None or not run["session_limited"]:
+            break
+        wait = seconds_until_reset(run["output"]) or 3600
+        print(f"  session limit and no answer — waiting {wait}s (attempt {attempt})",
+              file=sys.stderr)
+        time.sleep(wait)
+    run.pop("output", None)
+    final = run.pop("final_text", None)
+    answer = run.pop("answer", None)
+    run["transcript"] = transcript_usage(checkout, run.get("session_id"), config_dir)
+    run["instructions"] = instruction_files(checkout.resolve(), run.get("session_id"), config_dir)
+    run["outside_references"] = outside_references(checkout.resolve(), run.get("session_id"), iid,
+                                                   config_dir)
+    result["run"] = run
+    result["attempts"] = attempt
+    result["modified_checkout"] = porcelain(checkout)
+    if answer is None:
+        why = (" (timed out)" if run["cli_exit"] is None
+               else " (session limit)" if run["session_limited"] else "")
+        result.update(status="no_answer",
+                      note="the final reply has no parseable ```json block" + why)
+    else:
+        findings = plain_findings(answer)
+        score = score_findings(inst["gold_hunks"], findings,
+                               mirror_source(inst["repo"], inst["base_commit"]))
+        score["items"], score["items_dropped"] = len(answer), len(answer) - len(findings)
+        result.update(status="scored", score=score)
+    result["archive"] = str(archive_plain(inst, info, final, answer))
+    result["finished_at"] = now_utc()
+    cleanup(info, args.keep)
+    return result
+
+
+def plain_preflight(args) -> None:
+    """Refuse up front what would otherwise fail, or mislead, per instance."""
+    if args.plugin_root:
+        raise SystemExit("swebench: --plugin-root has no meaning for --arm plain — that arm "
+                         "loads no plugin")
+    if args.reuse:
+        raise SystemExit("swebench: --reuse is refused for --arm plain — a reused workdir keeps "
+                         "what earlier runs left in it (a Verdict run's QA root, logs and scratch "
+                         "among them), and the control starts from the workdir prepare() builds")
+    if shutil.which(CLAUDE_CMD) is None:
+        raise SystemExit(f"swebench: {CLAUDE_CMD!r} not found on PATH")
+    print(f"arm: plain — Claude Code without the plugin; ledger {RESULTS_PLAIN}", file=sys.stderr)
+
+
 def cmd_prepare(args) -> int:
     """Checkout, environment, validation and profile — no model run. The
     environment step of a pilot, and the way to inspect a checkout by hand."""
@@ -1062,14 +1589,18 @@ def cmd_prepare(args) -> int:
 
 
 def cmd_run(args) -> int:
-    root = resolve_root(args.plugin_root)
-    print(f"plugin root: {root} ({plugin_version(root) or 'unversioned'})", file=sys.stderr)
+    plain, root = args.arm == "plain", None
+    if plain:
+        plain_preflight(args)
+    else:
+        root = resolve_root(args.plugin_root)
+        print(f"plugin root: {root} ({plugin_version(root) or 'unversioned'})", file=sys.stderr)
     pool = {i["instance_id"]: i for i in instances()}
     if args.instance not in pool:
         raise SystemExit(f"swebench: {args.instance!r} is not in the selected set")
-    result = one(pool[args.instance], args, root)
+    result = one_plain(pool[args.instance], args) if plain else one(pool[args.instance], args, root)
     if not args.dry:
-        append_result(result)
+        append_result(result, RESULTS_PLAIN if plain else None)
     print(json.dumps({k: v for k, v in result.items() if k != "score"} | {
         "score": {k: v for k, v in (result.get("score") or {}).items() if k != "per_finding"}},
         indent=2))
@@ -1117,13 +1648,18 @@ def cmd_rescore(args) -> int:
 
 
 def cmd_batch(args) -> int:
-    root = resolve_root(args.plugin_root)
-    print(f"plugin root: {root} ({plugin_version(root) or 'unversioned'})", file=sys.stderr)
-    done = done_ids() if not args.redo else set()
+    plain, root = args.arm == "plain", None
+    ledger = RESULTS_PLAIN if plain else RESULTS
+    if plain:
+        plain_preflight(args)
+    else:
+        root = resolve_root(args.plugin_root)
+        print(f"plugin root: {root} ({plugin_version(root) or 'unversioned'})", file=sys.stderr)
+    done = done_ids(ledger) if not args.redo else set()
     if args.retry:
         # Rows whose status names an environment or a lost run, not a verdict —
         # the instance goes again once the harness has been fixed.
-        retry = {r["instance_id"] for r in load_results() if r.get("status") in args.retry}
+        retry = {r["instance_id"] for r in load_results(ledger) if r.get("status") in args.retry}
         done -= retry
     todo = [i for i in instances() if i["instance_id"] not in done]
     if args.only:
@@ -1137,8 +1673,8 @@ def cmd_batch(args) -> int:
             print("STOP file present — stopping before the next instance", file=sys.stderr)
             break
         print(f"[{n}/{len(todo)}]", file=sys.stderr)
-        result = one(inst, args, root)
-        append_result(result)
+        result = one_plain(inst, args) if plain else one(inst, args, root)
+        append_result(result, ledger)
         if (result.get("run") or {}).get("limit") == "weekly":
             # The allowance is gone for days. Every remaining instance would fail
             # the same way and be written into the ledger as a run that never ran.
@@ -1154,10 +1690,11 @@ def cmd_batch(args) -> int:
 
 # ── the table ─────────────────────────────────────────────────────────────────
 
-def load_results() -> list[dict]:
+def load_results(path: Path | None = None) -> list[dict]:
     rows = []
-    if RESULTS.is_file():
-        for line in RESULTS.read_text(encoding="utf-8").splitlines():
+    ledger = path or RESULTS
+    if ledger.is_file():
+        for line in ledger.read_text(encoding="utf-8").splitlines():
             if line.strip():
                 rows.append(json.loads(line))
     latest: dict[str, dict] = {}
@@ -1176,7 +1713,7 @@ def _at_least(row: dict, key: str, level: str) -> bool:
 
 def render_table(rows: list[dict]) -> str:
     scored = [r for r in rows if r.get("status") == "scored"]
-    ran = [r for r in rows if r.get("status") in ("scored", "blocked", "no_state")]
+    ran = [r for r in rows if r.get("status") in ("scored", "blocked", "no_state", "no_answer")]
     lines = []
     lines.append(f"Instances attempted: {len(rows)} · ran: {len(ran)} · scored: {len(scored)}")
     for level in ("function", "hunk", "file"):
@@ -1197,6 +1734,15 @@ def render_table(rows: list[dict]) -> str:
     if outs:
         lines.append(f"- output tokens per run (whole session, from the transcript): median "
                      f"{sorted(outs)[len(outs) // 2] // 1000}k, total {sum(outs) // 1000}k")
+    if any("modified_checkout" in r for r in ran):      # the control arm's rows only
+        dirty = [r["instance_id"] for r in ran if r.get("modified_checkout")]
+        lines.append(f"- checkout modified by the run (`git status --porcelain` after it): "
+                     f"{len(dirty)} of {len(ran)}" + (" — " + ", ".join(dirty) if dirty else ""))
+    if any("outside_references" in (r.get("run") or {}) for r in ran):
+        reached = [r["instance_id"] for r in ran if (r.get("run") or {}).get("outside_references")]
+        lines.append(f"- sessions that reached past their instance (dataset, mirrors, archives, "
+                     f"other instances, network): {len(reached)} of {len(ran)}"
+                     + (" — " + ", ".join(reached) if reached else ""))
     lines.append("")
     lines.append("| Instance | Difficulty | Status | Findings | Any | Headline | Wall | Output tok | Cost |")
     lines.append("|---|---|---|---|---|---|---|---|---|")
@@ -1246,8 +1792,74 @@ def render_table(rows: list[dict]) -> str:
     return "\n".join(lines) + "\n"
 
 
+def _median(values: list):
+    """The table's own median — the upper one for an even count."""
+    return sorted(values)[len(values) // 2] if values else None
+
+
+def render_compare(verdict_rows: list[dict], plain_rows: list[dict]) -> str:
+    """The two arms side by side over the instances scored in BOTH: the location rates,
+    wall and cost medians, and every instance where the grades differ. An instance scored
+    in one arm only is listed, never counted."""
+    v = {r["instance_id"]: r for r in verdict_rows}
+    p = {r["instance_id"]: r for r in plain_rows}
+
+    def order(iid):
+        repo = (v.get(iid) or p.get(iid))["repo"]
+        return (REPO_ORDER.index(repo) if repo in REPO_ORDER else 99, iid)
+
+    both = sorted((i for i in v if i in p and v[i].get("status") == "scored"
+                   and p[i].get("status") == "scored"), key=order)
+    lines = [f"Scored in both arms: {len(both)} · Verdict ledger: {len(v)} instance(s), "
+             f"{sum(r.get('status') == 'scored' for r in v.values())} scored · plain ledger: "
+             f"{len(p)} instance(s), {sum(r.get('status') == 'scored' for r in p.values())} scored"]
+    if both:
+        models = [", ".join(sorted({str(arm[i].get("model")) for i in both})) for arm in (v, p)]
+        resolved = sorted({m for i in both for m in (p[i].get("run") or {}).get("models") or []})
+        lines.append(f"Model: Verdict {models[0]} · plain {models[1]}"
+                     + (f" (its CLI reported {', '.join(resolved)})" if resolved else ""))
+        if any("outside_references" in (p[i].get("run") or {}) for i in both):
+            reached = [i for i in both if (p[i].get("run") or {}).get("outside_references")]
+            lines.append(f"Plain sessions that reached past their instance: {len(reached)} of "
+                         f"{len(both)}" + (" — " + ", ".join(reached) if reached else ""))
+        lines += ["", "| Located at … or better | Verdict · any | Plain · any | Verdict · headline "
+                      "| Plain · headline |", "|---|---|---|---|---|"]
+        for level in ("function", "hunk", "file"):
+            cells = [_pct(sum(_at_least(arm[i], key, level) for i in both), len(both))
+                     for key in ("any_hit", "headline_hit") for arm in (v, p)]
+            lines.append(f"| `{level}` | " + " | ".join(cells) + " |")
+        walls = [_median([arm[i]["run"]["wall_s"] for i in both
+                          if (arm[i].get("run") or {}).get("wall_s")]) for arm in (v, p)]
+        costs = [_median([arm[i]["run"]["cost_usd"] for i in both
+                          if (arm[i].get("run") or {}).get("cost_usd")]) for arm in (v, p)]
+        lines += ["", "| Median per run, over those instances | Verdict | Plain |", "|---|---|---|",
+                  "| wall time | " + " | ".join(f"{w // 60} min" if w else "—" for w in walls) + " |",
+                  "| cost (CLI-reported) | " + " | ".join(f"${c:.2f}" if c else "—" for c in costs)
+                  + " |"]
+        grades = {i: [(arm[i]["score"]["any_hit"], arm[i]["score"]["headline_hit"])
+                      for arm in (v, p)] for i in both}
+        disagree = [i for i in both if grades[i][0] != grades[i][1]]
+        lines += ["", f"Instances where the arms disagree: {len(disagree)}"]
+        if disagree:
+            lines += ["", "| Instance | Verdict · any | Plain · any | Verdict · headline "
+                          "| Plain · headline |", "|---|---|---|---|---|"]
+            for i in disagree:
+                (va, vh), (pa, ph) = grades[i]
+                lines.append(f"| {i} | {va} | {pa} | {vh} | {ph} |")
+    left = sorted((set(v) | set(p)) - set(both), key=order)
+    if left:
+        lines += ["", "Not in the comparison (not scored in both arms):"]
+        for i in left:
+            lines.append(f"- {i}: Verdict {v[i].get('status') if i in v else 'not run'}, "
+                         f"plain {p[i].get('status') if i in p else 'not run'}")
+    return "\n".join(lines) + "\n"
+
+
 def cmd_table(args) -> int:
-    rows = load_results()
+    if getattr(args, "compare", False):
+        print(render_compare(load_results(RESULTS), load_results(RESULTS_PLAIN)))
+        return 0
+    rows = load_results(RESULTS_PLAIN if getattr(args, "arm", "verdict") == "plain" else None)
     if not rows:
         print("no results yet")
         return 0
@@ -1255,7 +1867,7 @@ def cmd_table(args) -> int:
     return 0
 
 
-def main(argv=None) -> int:
+def build_parser() -> argparse.ArgumentParser:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     sub = ap.add_subparsers(dest="cmd", required=True)
     sub.add_parser("select", help="write the instance set")
@@ -1272,7 +1884,12 @@ def main(argv=None) -> int:
             p.add_argument("--redo", action="store_true", help="ignore existing results")
             p.add_argument("--retry", nargs="*", default=None, metavar="STATUS",
                            help="re-run instances whose latest row has one of these statuses "
-                                "(env_invalid, prepare_failed, no_state, blocked)")
+                                "(env_invalid, prepare_failed, no_state, blocked; no_answer "
+                                "with --arm plain)")
+        p.add_argument("--arm", choices=ARMS, default="verdict",
+                       help="verdict (default): the shipped plugin through verdict-run, ledger "
+                            "results.jsonl; plain: the same runs with no plugin and a prompt "
+                            "that never names it, ledger results-plain.jsonl")
         p.add_argument("--model", default="opus")
         p.add_argument("--env-file", type=Path, default=None, metavar="PATH",
                        help="KEY=VALUE file loaded into each run's environment: "
@@ -1282,10 +1899,19 @@ def main(argv=None) -> int:
         p.add_argument("--plugin-root", default=None)
         p.add_argument("--keep", action="store_true", help="keep the checkout and venv")
         p.add_argument("--reuse", action="store_true", help="reuse an existing workdir")
-        p.add_argument("--dry", action="store_true", help="do not append to results.jsonl")
-    sub.add_parser("table", help="render results.jsonl as markdown")
+        p.add_argument("--dry", action="store_true", help="do not append to the ledger")
+    tp = sub.add_parser("table", help="render a ledger as markdown")
+    tp.add_argument("--arm", choices=ARMS, default="verdict",
+                    help="which ledger: results.jsonl (verdict) or results-plain.jsonl (plain)")
+    tp.add_argument("--compare", action="store_true",
+                    help="both arms side by side, over the instances scored in both")
     rs = sub.add_parser("rescore", help="re-grade archived runs with the current scorer")
     rs.add_argument("instances", nargs="*")
+    return ap
+
+
+def main(argv=None) -> int:
+    ap = build_parser()
     args = ap.parse_args(argv)
     args._env = {}
     if getattr(args, "env_file", None):
