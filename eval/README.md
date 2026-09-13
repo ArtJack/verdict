@@ -277,6 +277,58 @@ Not scored:
 - mwaskom__seaborn-3187: blocked — 
 - pylint-dev__pylint-6528: blocked —
 
+#### The control arm — the same runs without Verdict (not run yet)
+
+The rates above say where Verdict's findings land against the gold patch, not that the plugin
+is why: Claude Code handed the same issue might land there too. `swebench.py batch --arm plain`
+is the control, and it differs from the Verdict arm in the plugin and the prompt only.
+
+- **Held equal:** the forty instances and `prepare()` (checkout, dated environment, proof) in a
+  fresh workdir (`--reuse` is refused for this arm); `--model`, `--timeout-s`, `--env-file` /
+  `CLAUDE_CONFIG_DIR` with trust seeded; the launch `verdict-run` makes — `claude -p <prompt>
+  --model opus --setting-sources project,local --output-format json
+  --dangerously-skip-permissions` from the checkout, through the runner's own streaming call
+  and retry rules; the transcript token count; and the scorer, `score_findings()`, which both
+  arms call.
+- **Taken out:** no agent, command, skill, hook or guard is provisioned, the generated QA
+  profile is deleted before the session, and no `VERDICT_*` variable reaches the CLI.
+- **The prompt** names the repository, the profile's suite command (less Verdict's
+  `--junitxml={report}` placeholder) and a scratch directory; asks for the defect, with no fix
+  and no edit; and wants one closing JSON block — `title`, `severity`, `file`, `line`,
+  `mechanism` per defect, most important first. Then the issue, verbatim. It never says
+  Verdict, QA, finding or harness, and every row carries the template's sha256.
+- **The answer** is the last `` ```json `` block of the final reply. None, or one that does not
+  parse, is `no_answer`; a first attempt without one is retried once, as the runner retries a
+  run that wrote no state. Each item becomes a finding with `file:line` as an anchor and as
+  prose, graded with function spans from the base commit in the mirror (nothing guards this
+  arm's writes), and `git status --porcelain` after the run is published as `modified_checkout`.
+- **Kept apart:** `swebench/results-plain.jsonl` and `~/.cache/verdict-swebench/runs-plain/`.
+  `table --arm plain` renders that ledger; `table --compare` sets both arms side by side over
+  the instances scored in both and lists every instance where they disagree.
+
+Not equal, or not by construction — measured on the Verdict arm's archive before any plain run:
+
+- **Citations.** A Verdict finding cites every `path:line` in its evidence; a plain item cites
+  one `file:line` plus any in its mechanism. Of the Verdict arm's 35 headline hits at
+  `function`, 12 have exactly one citation at that level.
+- **Instructions.** The operator's `~/.claude/CLAUDE.md` is the `.claude/CLAUDE.md` of an
+  ancestor of every checkout; Claude Code attached it to 34 of the Verdict arm's 41 sessions.
+  It names Verdict and routes testing to it, so a plain session can meet Verdict's name there,
+  though never in its prompt. Held equal rather than removed from one arm; each plain row
+  records the instruction files its session was given.
+- **Reach.** The checkout sits inside the cache, so a session in either arm can read the
+  dataset file (every gold patch), the mirrors (every fix commit) and the network — and a plain
+  session, running second, the Verdict findings for its own instance. Nothing blocks it; each
+  plain row lists the tool calls that did, by a heuristic over the transcript that flags none of
+  the Verdict arm's 41 sessions.
+- **Version.** Every Verdict transcript says Claude Code 2.1.263, and every result line that
+  names a model names `claude-opus-5`; each plain row records `claude --version` and the models
+  its result line reports.
+- **Memory.** A plain run refuses to start where Claude Code's auto-memory for the checkout
+  path is not empty; every Verdict session started with none.
+
+**Not run yet:** no plain row exists.
+
 ### A prompt cut that measured worse — and what it cost to learn
 
 The largest measured cost of a run is not any one output: it is a fixed preamble
