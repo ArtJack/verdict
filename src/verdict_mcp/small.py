@@ -1269,6 +1269,24 @@ def merge_quarantine(carried: list, fresh: list) -> list:
 
 # ── the verdict, which may never improve on its own ───────────────────────────
 
+def gate_failed(facts: dict) -> bool:
+    """Did any gate this run come back red? A suite with failing tests is the plainest
+    thing a QA run can know, and it outranks everything this engine reads.
+
+    Measured 2026-09-17, and the reason this function exists: on the seeded delta fixture
+    the local tier carried all five prior findings honestly, filed the new defect — and
+    reported `pass with risks` over a suite with three failing tests, because the verdict
+    was computed from finding severities alone and an unproven reading is held at Minor.
+    A strong model classifies a failure (stale expectation, brittle test, flaky) and may
+    still ship; this engine cannot be trusted to make that call from a few hundred tokens
+    of context, so a red gate is a `fail` and a person or a real model decides otherwise.
+    """
+    for gate in (facts.get("gates") or {}).values():
+        if isinstance(gate, dict) and str(gate.get("result")) == "fail":
+            return True
+    return False
+
+
 def counts_measured(facts: dict) -> bool:
     """Did any gate this run produce test counts? Nothing else establishes that a
     test executed at all, and a verdict over that is `blocked`, not `pass`."""
@@ -1288,7 +1306,8 @@ def unexercised_diff(facts: dict) -> int:
 
 
 def local_verdict(previous_verdict, filed: list, carried: list, measured: bool,
-                  cold_lines: int = 0, ceiling: str | None = None) -> str:
+                  cold_lines: int = 0, ceiling: str | None = None,
+                  gates_failed: bool = False) -> str:
     """The verdict of a local run — arithmetic, and monotone downwards.
 
     The rule that matters is the one this engine cannot be trusted without: a run
@@ -1306,6 +1325,9 @@ def local_verdict(previous_verdict, filed: list, carried: list, measured: bool,
     """
     if not measured:
         return "blocked"
+    if gates_failed:
+        # Red suite, red verdict. Not "pass with risks over three failing tests".
+        return "fail"
     severities = [str(f.get("severity")) for f in list(filed) + list(carried)]
     if "Blocker" in severities:
         return "fail"
@@ -1735,7 +1757,8 @@ def run(repo: Path, qa_root: Path, model: Model, limit: int, gate: str | None,
     # means "baseline", which would hand this run the freedom a baseline has.
     prior_verdict = (previous.get("verdict") or "blocked") if previous else None
     verdict = local_verdict(prior_verdict, filed, carried_records, measured, cold_lines,
-                            ceiling=NO_CODE_READ if non_python else None)
+                            ceiling=NO_CODE_READ if non_python else None,
+                            gates_failed=gate_failed(facts))
 
     touched = touches_findings(reference, changed) if reference else []
     owed = needs_claude(facts, filed, refiled, touched, len(asked_questions),

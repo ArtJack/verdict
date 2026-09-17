@@ -1261,5 +1261,11 @@
   "path": "src/verdict_mcp/small.py",
   "old": "            if self.num_ctx and exc.code in (400, 422) and \"num_ctx\" in detail:",
   "new": "            if False:"
+ },
+ {
+  "label": "0.90.0 P21 local verdict: a red suite is reported as whatever the findings say",
+  "path": "src/verdict_mcp/small.py",
+  "old": "    if gates_failed:\n        # Red suite, red verdict. Not \"pass with risks over three failing tests\".\n        return \"fail\"\n",
+  "new": "    if False:\n        # Red suite, red verdict. Not \"pass with risks over three failing tests\".\n        return \"fail\"\n"
  }
 ]

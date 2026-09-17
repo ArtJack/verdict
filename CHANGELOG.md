@@ -17,6 +17,13 @@ died mid-flight. A sweep that *is* allowed while the gateway is down still runs,
 its own `not_tested` that the model was unreachable. The decision table is in
 [docs/nightly.md](docs/nightly.md).
 
+**A red gate is a `fail`.** The zero-false-greens gate this release is measured by caught the
+tier under-rating a red suite: on the seeded delta it carried all five prior findings honestly,
+filed the new defect, and still said `pass with risks` over three failing tests — because the
+verdict was arithmetic over finding severities and a reading nobody proved is held at Minor. A
+failing gate now outranks the findings. A strong model classifies a failure and may ship anyway;
+this one cannot be trusted to, so a person or a real model decides.
+
 **The window a question arrives in.** Ollama serves every model at 4,096 tokens unless told
 otherwise, and past that it keeps only the end of the prompt — the instructions first, and
 `/no_think` with them. Measured through the author's gateway: a ~6k-token prompt with a code word

@@ -635,3 +635,21 @@ def test_the_window_is_a_flag_and_an_environment_variable(monkeypatch):
         with pytest.raises(SystemExit):
             small.main(["--repo", str(REPO), *argv])
         assert seen.get("num_ctx") == want, (argv, env)
+
+
+def test_a_red_suite_is_a_fail_whatever_the_findings_say():
+    """Measured on the seeded delta, 2026-09-17: the tier carried all five prior findings
+    honestly and still reported `pass with risks` over three failing tests, because the
+    verdict was arithmetic over severities and an unproven reading is capped at Minor. A
+    strong model may classify a failure and ship anyway; this one cannot be trusted to."""
+    assert small.gate_failed({"gates": {"suite": {"result": "fail", "counts": {"failed": 3}}}})
+    assert not small.gate_failed({"gates": {"suite": {"result": "pass", "counts": {"passed": 8}}}})
+    assert not small.gate_failed({})
+
+    assert small.local_verdict("pass with risks", [], [], True, gates_failed=True) == "fail"
+    assert small.local_verdict("pass", [], [], True, gates_failed=True) == "fail"
+    assert small.local_verdict(None, [], [], True, gates_failed=True) == "fail"
+    assert small.local_verdict("pass", [], [], False, gates_failed=True) == "blocked", \
+        "a suite that produced no counts at all is still `blocked`, not `fail`"
+    assert small.local_verdict("pass with risks", [], [], True, gates_failed=False) \
+        == "pass with risks", "a green suite is left where it was"
