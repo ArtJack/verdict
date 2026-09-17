@@ -54,6 +54,7 @@ Behavioural regressions still need a scored run. Neither substitutes for the oth
 | [`fixtures/refund-spec/`](fixtures/refund-spec/) | Shift-left fixture: a draft spec with a seeded contradiction, an unmeasurable requirement, an at-the-boundary ambiguity, a silent failure-path gap, and a CHANGELOG conflict. Protocol: `/spec SPEC.md`, no code exists. Key: [expected-spec.json](expected-spec.json) |
 | [`score.py`](score.py) | Deterministic scorer. Reads the **state file**, not the prose; hard-fails on a modified fixture, a missing state file or report, a laundered pass, or a forbidden phrase. Unit-tested in `tests/test_score.py` |
 | [`run_eval.py`](run_eval.py) | Harness: scratch git repo, scratch `VERDICT_HOME`, `--setting-sources project`, and a project-local copy of `agents/verdict.md` so the run exercises this checkout's prompt |
+| [`usage.py`](usage.py) · [`usage_census.py`](usage_census.py) | What one run spent, and what the habit spends: both read Claude Code's own transcripts, summed per request id. The census groups every Verdict-agent run on the machine by who launched it, which model answered, week and project — see "Where the tokens go". Reads only; unit-tested in `tests/test_usage.py`, `tests/test_usage_census.py` |
 
 ## Protocol
 
@@ -508,6 +509,41 @@ recorded rather than explained.
 tokens (78k against 98k) but read *more* context (5.56M against 3.77M) over more turns (129
 against 97). The saving is the per-token price, not less effort — which matters, because the
 measured cost of a run is dominated by a fixed preamble re-read on every turn.
+
+### Where the tokens go — a census of the author's own runs
+
+Every number above prices one run. The question an operator actually has is what the *habit*
+costs and who is spending it, and the answer was not the one anybody expected.
+[`usage_census.py`](usage_census.py) over every Verdict-agent run recorded on the author's
+machine, 2026-08-13 → 2026-09-17, tokens summed per request id:
+
+| Launched by | Runs | Requests | Output | Cache read | Cache write |
+|---|---|---|---|---|---|
+| an interactive session, the tester spawned as a subagent | 215 | 8,815 | 15.06M | 947.8M | 51.1M |
+| a headless `claude -p` — the scheduled nightly | 17 | 1,316 | 1.47M | 174.1M | 4.4M |
+
+About $1,400 at list price, and **the nightly everybody suspected is a sixth of it.** 214 of the
+232 runs were spawned with no model named, so `model: inherit` handed them whatever the
+orchestrating session was running — the most expensive model on the account, 218 times out of
+232. Nobody chose that; it is what a default does when nothing records the bill.
+
+| One run | Median | p90 | Largest |
+|---|---|---|---|
+| requests | 33 | 87 | 157 |
+| output tokens | 46k | 148k | 398k |
+| cache read | 2.8M | 12.8M | 40.3M |
+| largest context a request carried | 137k | 322k | 579k |
+
+The shape is turns times a growing context: about fifty small shell calls a run, none of them
+large, each re-reading everything before it. **The 15 largest runs — 6.5% of them — are 27% of
+all cache read.** Two consequences follow, and neither is a prompt edit: the model that signs an
+unattended or routine run should be chosen, not inherited (`verdict-run --model`, a per-spawn
+model for the subagent, or `verdict-local` and the model-free sweep, which cost nothing); and a
+run deserves a stated budget, because the tail is where the money is.
+
+Also measured the same day: the nightly had never been given `--skip-unless-drift`, so on a night
+when HEAD had not moved it spent a full model run to carry 61 findings by id. With the flag the
+same night took two seconds and said so.
 
 ### Recall — what the tester *misses*
 
