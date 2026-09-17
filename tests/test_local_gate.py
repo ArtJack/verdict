@@ -259,13 +259,15 @@ def test_a_gate_run_takes_the_caps_without_being_told(tmp_path, monkeypatch):
     seen = {}
 
     def spy(repo_, qa_, model_, limit, gate, reruns, prove=True, **kw):
-        seen.update(limit=limit, budget=kw.get("budget"), sha_range=kw.get("sha_range"))
+        seen.update(limit=limit, reruns=reruns, budget=kw.get("budget"),
+                    sha_range=kw.get("sha_range"))
         return 0
 
     monkeypatch.setattr(small, "run", spy)
     assert small.main(["--repo", str(repo), "--range", sha_range, "--qa-root", str(qa),
                        "--env-file", str(_env_file(tmp_path))]) == 0
     assert seen["limit"] == small.GATE_MAX_FILES
+    assert seen["reruns"] == 0, "three green suites prove nothing about a diff"
     assert seen["budget"].functions == small.GATE_MAX_FUNCTIONS
     assert seen["budget"].probes == small.GATE_MAX_PROBES
     assert seen["budget"].seconds == small.GATE_MODEL_BUDGET_S

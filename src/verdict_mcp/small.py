@@ -1976,10 +1976,14 @@ def main(argv=None) -> int:
                 else (GATE_MAX_PROBES if ranged else None)),
         seconds=(args.max_model_s if args.max_model_s is not None
                  else (GATE_MODEL_BUDGET_S if ranged else None)))
+    # A named range is a gate somebody is waiting for, so it takes the caps
+    # unless the operator overrode them: six files, and no repeat runs of the
+    # whole suite — three green suites prove nothing about a diff.
     limit = GATE_MAX_FILES if ranged and args.limit == 8 else args.limit
+    reruns = 0 if ranged and args.reruns == 2 else args.reruns
     print(f"verdict-local: {clock.now():%Y-%m-%dT%H:%M:%SZ} · project {project!r} · {detail}",
           file=sys.stderr)
-    return run(repo, qa_root, model, limit, args.gate, args.reruns, args.prove,
+    return run(repo, qa_root, model, limit, args.gate, reruns, args.prove,
                delta=args.delta or (qa_root / "state.json").is_file(),
                sha_range=sha_range, reference_state=args.reference_state, budget=budget)
 
