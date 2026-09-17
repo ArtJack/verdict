@@ -510,7 +510,8 @@ modules away. That is a prompt problem before it is a model problem.
 > the Sonnet run that scored 9/10 missed only this row, so it earned `class-not-split` — sites in
 > both `invoice.py` and `report.py`, recorded in one finding. That is generalising. It is an
 > inference from the published numbers, not a re-score: those workdirs are gone. The claim above
-> is left standing as published and is **unverified** until the paired payment on the amended key.
+> is left standing as published. **Settled 2026-09-17 by the paired re-run below: refuted** —
+> Sonnet named the sibling sites in three runs of three.
 
 **One Sonnet run wrote no state at all**, scoring 0/0 with `state_missing`. One occurrence,
 recorded rather than explained.
@@ -542,10 +543,49 @@ session happened to wait; the fixture measured *which model waits for its subage
 fixed in the harness (0.89.0: `--out` is a second copy; the runner and this rig export
 `CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS=0`), neither in the prompt, and the payment stopped after
 the fixture then in flight rather than spend on an arm the instrument could not read. The
-pairing is re-run on the fixed harness; until then the honest statement is: **Opus 25/27 on the
-seeded delta; Sonnet unmeasured, one run of one at 9/9.** The scorer also failed in the first
-launch for a reason of the operator's making — a bare `python3` without the package importable
-— and every row above was re-scored from the kept workdirs, which costs no tokens.
+scorer also failed in the first launch for a reason of the operator's making — a bare `python3`
+without the package importable — and every row above was re-scored from the kept workdirs,
+which costs no tokens. (That first attempt's honesty fixture, which neither defect touched:
+Opus 6/6 · 6/6 · 6/6, Sonnet 6/6 · 6/6 · 5/6.)
+
+**2026-09-17, the same day — the pairing re-run on the fixed harness** (tree `03a7d0f`, the same
+0.88.0 prompt in both arms, n=3 per arm, interleaved, the worktree's own interpreter, a clean
+environment). List price: Opus $5/$25, Sonnet $2/$10 per million tokens in/out, cache read a
+tenth of input, cache write 1.25×.
+
+| Fixture | Opus | Sonnet | Opus bill (3 runs) | Sonnet bill (3 runs) |
+|---|---|---|---|---|
+| pricer, seeded delta (9 rows) | 8/9 · 8/9 · 9/9 | 8/9 · 9/9 · 9/9 | 151 req · 193k out · 9.47M read · **$11.92** | 130 req · 166k out · 8.47M read · **$4.35** |
+| liar, adversarial honesty (6) | 6/6 · 6/6 · 6/6 | 6/6 · 6/6 · 6/6 | 132 req · 117k out · 5.11M read · **$7.23** | 121 req · 118k out · 5.93M read · **$3.15** |
+| rates, root cause (10) | 10/10 · 10/10 · 9/10 | ***no state*** · 10/10 · ***no state*** | 106 req · 102k out · 4.15M read · **$6.16** | 79 req · 66k out · 2.84M read · $1.74 |
+
+**The delta and the honesty fixture: parity, at about 40% of the price.** Sonnet 26/27 against
+Opus 25/27 on the protocol a nightly and a merge gate actually run, no hard fail in either arm,
+and the one row anybody missed (`still-open-by-id`: a finding re-typed instead of carried by id)
+is missed by both. On the fixed harness Sonnet also did **not** take more turns than Opus — the
+2026-09-08 figure (129 requests against 97) does not reproduce.
+
+**Root cause: the class claim is refuted, and a different gap is measured.** The Sonnet run that
+wrote state scored 10/10 on the amended key, both class rows included. The other two wrote no
+state — and their handoffs are right on substance: both name the truncating `to_cents`, both
+separate trigger from cause, and **both say in words that `invoice.py` and `report.py` repeat the
+conversion and that fixing `money.py` alone leaves them wrong.** Sonnet generalises. What it did
+in two runs of three is answer the root-cause charter as a diagnosis and never call the harness
+at all: zero `verdict-facts` calls in 21 and 18 requests, an empty QA root, nothing on the
+record. That is a contract miss (`commands/cause.md` step 7 ends in the state and the handoff),
+it is not the background kill (the ceiling was lifted) and not `--out`, and the stop hook's new
+rule cannot see it, because a tester that never measured leaves no marker. It is cheap to catch
+from outside — `verdict-gate --min-run-number <n+1>` exits 4 or 5 — and that is where it is
+caught: a runner that re-asks once, an orchestrator that sends the tester back. It is not pinned
+to the prompt here, because a blanket "every invocation must write state" rule would nag the
+charters that legitimately write none (a bug report, a regression checklist).
+
+**What a maintainer can take from it.** For delta runs, merge gates and honesty-class review,
+Sonnet signs at parity on this prompt. For the root-cause charter, gate the run number and
+re-ask. The acceptance rule set before the payment — no hard fail in nine Sonnet runs — was
+**not met** (two, both on root cause), and that is the published result. Both payments together
+cost about $61 at list price, $27 of it the first attempt whose Sonnet delta arm the harness
+could not read.
 
 ### Where the tokens go — a census of the author's own runs
 

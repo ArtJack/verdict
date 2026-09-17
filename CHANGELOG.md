@@ -59,6 +59,12 @@ way; it is the first scheduled night's lost run again. `verdict-run` and the eva
 the runner's `--timeout-s`, which kills the process rather than the work. Three more pinned
 mutants (Q13–Q15). The numbers, and what they do and do not say about Sonnet, are in
 [eval/README.md](eval/README.md#the-model-axis--opus-against-sonnet-paired).
+Re-run on the fixed harness the same day, n=3 per arm: seeded delta **Sonnet 26/27, Opus 25/27**;
+honesty 18/18 both; at about 40% of Opus's bill and with no more turns. On root cause Sonnet's
+one recorded run is 10/10 and the "does not generalise" claim is refuted (it named the sibling
+sites three times of three) — but two runs of three answered the charter as a diagnosis and never
+called the harness, so the acceptance rule set beforehand (no hard fail in nine) was not met.
+Gate the run number and re-ask; that is what `verdict-run` does and what an orchestrator should.
 
 **Docs that had gone stale.** The FAQ still said Sonnet hard-fails the eval — a row
 superseded the day it was written. It now gives the three local answers in order of cost, and
