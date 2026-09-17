@@ -1,8 +1,7 @@
-# pricer-ts — eval fixture (spec of record)
+# pricer-ts (spec of record)
 
 A tiny marketplace listing pricer, TypeScript edition. **This README is the requirement
-spec** the code and tests must satisfy. It intentionally contains seeded defects — see
-`../../expected-ts.json` for the answer key (do not read it during an eval run).
+spec** the code and tests must satisfy.
 
 ## Requirements
 

@@ -1,7 +1,6 @@
 # Refund Engine — feature spec (v0.3 draft)
 
-Spec of record for the refund engine. *(Eval fixture: the answer key lives in
-`../../expected-spec.json` — do not read any `expected*` file during a run.)*
+Spec of record for the refund engine.
 
 ## Requirements
 

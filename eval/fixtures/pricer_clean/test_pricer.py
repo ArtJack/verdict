@@ -1,10 +1,4 @@
-"""Suite for the pricer.
-
-Deliberately realistic rather than exhaustive: it covers the happy paths and
-the two boundaries anyone would think of, and leaves gaps a careful reader
-would notice. Those gaps are the point — a mutant the suite fails to kill is
-exactly the defect a tester has to find by reading the code.
-"""
+"""Suite for the pricer."""
 
 import pytest
 

@@ -66,11 +66,34 @@ def test_census_separates_killed_equivalent_and_survivors():
             assert not m["killed_by_suite"] and m["behaviour_changed"] is True
 
 
-def test_a_mutant_that_changes_nothing_is_excluded_as_equivalent():
-    result = census(FIXTURE, "pricer.py", sys.executable)
-    equivalent = [m for m in result["detail"] if m["bucket"] == "equivalent"]
-    assert equivalent, "the operator set should produce at least one no-op rewrite"
-    assert not any(m["id"] in result["survivor_ids"] for m in equivalent)
+def test_a_mutant_that_changes_nothing_is_excluded_as_equivalent(tmp_path):
+    """A rewrite that changes the source and not the program is a question with no
+    answer, so it never reaches the denominator.
+
+    The example used to be taken from the fixture, and the fixture's only no-op rewrite
+    was an asterisk inside the docstring that told the reader the module was correct and
+    existed to be broken — prose no tester should ever have been handed, now gone
+    (`tests/test_fixture_hygiene.py`). The no-op is planted here instead, where it is a
+    behavioural one rather than an accident of the prose: `x * 1.0` and `x / 1.0` are the
+    same function over every input the probe asks about.
+    """
+    base = tmp_path / "base"
+    base.mkdir()
+    (base / "m.py").write_text("def scale(x):\n    return x * 1.0\n", encoding="utf-8")
+    (base / "test_m.py").write_text(
+        "from m import scale\n\n\ndef test_scale_keeps_the_value():\n"
+        "    assert scale(2) == 2.0\n", encoding="utf-8")
+    (base / "probe.py").write_text(
+        "import m\n\nprint([repr(m.scale(v)) for v in (-3, 0, 0.5, 2, 7.25)])\n",
+        encoding="utf-8")
+
+    result = census(base, "m.py", sys.executable)
+    rewrites = {m["after"]: m for m in result["detail"]}
+    noop = rewrites["return x / 1.0"]
+    assert noop["behaviour_changed"] is False and noop["bucket"] == "equivalent"
+    assert noop["id"] not in result["survivor_ids"]
+    # The control beside it: the same line, a rewrite that does change the answer.
+    assert rewrites["return x * 1.1"]["bucket"] != "equivalent"
 
 
 def test_the_oracle_reports_its_own_blind_spots():

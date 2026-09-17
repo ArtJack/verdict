@@ -1,11 +1,6 @@
 """Listing pricer for a marketplace storefront.
 
 The requirement spec of record is README.md in this directory.
-
-Unlike the `pricer` fixture, this module is *correct*: every rule in the spec
-is implemented as written. It exists to be broken one line at a time by
-`eval/mutate.py`, so that recall can be measured against defects nobody
-authored by hand.
 """
 
 from decimal import ROUND_HALF_UP, Decimal

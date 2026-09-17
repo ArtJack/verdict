@@ -1,7 +1,7 @@
 # QA Profile — pricer
 
 **Project-Key:** `pricer`
-**Repo-Path:** `@FIXTURE_DIR@`
+**Repo-Path:** `@REPO_PATH@`
 **Repo-Remote:** `none`
 **Profile created:** 2026-08-20
 
@@ -13,16 +13,15 @@ credentials, no live services. `README.md` in the repo is the requirement spec o
 ## Isolation check (before any Bash call)
 
 - `git status --porcelain` on the checkout — must be clean, and MUST remain clean: the
-  fixture under test is never modified.
+  code under test is never modified.
 - No `.env` of any kind is expected; if one appears, every stateful task is `blocked`.
 
 ## Test commands
 
 - Suite: `python3 -m pytest -q` (provision pytest out-of-tree if absent — never install
-  into the fixture).
+  into the checkout).
 - Coverage: no tool configured — the coverage direction gate is unmeasurable; say so.
 
 ## Forbidden
 
 - Any modification of the checkout, including fixture files and skip markers.
-- Reading `eval/EXPECTED*.md` or `eval/expected*.json` anywhere on disk — answer keys.
