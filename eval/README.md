@@ -587,6 +587,26 @@ re-ask. The acceptance rule set before the payment — no hard fail in nine Sonn
 cost about $61 at list price, $27 of it the first attempt whose Sonnet delta arm the harness
 could not read.
 
+**The same evening — does one sentence in the request close the gap?** An orchestrator's packet
+now says "this is a run". Measured the way it is used: `run_eval.py --task-note` appends
+*This is a QA run, not a chat answer: start with verdict-facts, write the judgment, and end with
+verdict-finalize. An answer without state is not accepted.* to the fixture's task, and leaves the
+agent prompt and its hash (`451a01db…`) alone. Sonnet, root cause, n=3, tree `e00b93c`:
+
+| Sonnet on root cause | Wrote state | Scores | Bill (3 runs) |
+|---|---|---|---|
+| without the sentence (the pairing above) | 1 of 3 | *no state* · 10/10 · *no state* | $1.74 |
+| **with the sentence** | **3 of 3** | **9/10 · 10/10 · 9/10** | $2.77 |
+| Opus, for reference (the pairing above) | 3 of 3 | 10/10 · 10/10 · 9/10 | $6.16 |
+
+The misses are `chain-reported-with-mechanism` once — Opus's own miss above — and
+`trigger-separated-from-cause` once, the row whose single-word scorer is an open finding
+(VERDICT-F-74). **What it shows: with the run named as a run, Sonnet finishes it, at 28/30 against
+Opus's 29/30 and under half the bill. What it does not show:** that the sentence is the cause —
+three of three against one of three is a probability of about one in five by chance alone, and
+the two arms ran hours apart. It is enough to keep the sentence in every packet and to keep
+checking the run number afterwards; it is not a published rate.
+
 ### Where the tokens go — a census of the author's own runs
 
 Every number above prices one run. The question an operator actually has is what the *habit*
