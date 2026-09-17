@@ -387,6 +387,20 @@ def test_the_not_tested_list_is_counted_not_described(tmp_path):
     assert "no origin was traced" in lines
 
 
+def test_a_state_on_disk_is_carried_even_when_the_delta_flag_was_forgotten(tmp_path):
+    """The flag says what the operator expected; the state on disk says what the
+    run must do. A caller that forgot it would otherwise get the 0.88.0 behaviour
+    back — no prior finding mentioned, and the merge resolving the lot."""
+    repo, qa = project(tmp_path)
+    (repo / "other.py").write_text("def other(x):\n    return x  # c\n", encoding="utf-8")
+    git(repo, "commit", "-qam", "touch an uncited file")
+
+    assert delta(repo, qa, delta=False) == 0
+    judgment = json.loads((qa / "judgment.json").read_text(encoding="utf-8"))
+    assert judgment["still_open"] == ["PROJ-F-1"]
+    assert state_of(qa)["findings"][0]["status"] == "open"
+
+
 def test_a_first_run_in_an_empty_root_is_a_baseline_with_nothing_carried(tmp_path):
     repo = tmp_path / "Fresh"
     repo.mkdir()

@@ -1479,7 +1479,14 @@ def run(repo: Path, qa_root: Path, model: Model, limit: int, gate: str | None,
         return 2
     gates = [("suite", gate)] if gate else (gates_from(config) or [("suite", GATE_DEFAULT)])
     name, command = gates[0]
-    previous = read_json(qa_root / "state.json") if delta else None
+    # Read whatever is there, always — never `if delta`. A caller that forgot the
+    # flag over a root that already holds a record would otherwise get the 0.88.0
+    # behaviour back: no prior finding mentioned, and the merge resolving the lot.
+    # The flag says what the operator expected, and a mismatch is worth a line.
+    previous = read_json(qa_root / "state.json")
+    if delta and not previous:
+        print(f"verdict-local: --delta was asked for, but {qa_root} holds no state — this "
+              "run is a baseline, with nothing to carry", file=sys.stderr)
     reference = read_reference(reference_state) if reference_state else None
 
     print(f"verdict-local: measuring {repo} · gate {name}", file=sys.stderr)
