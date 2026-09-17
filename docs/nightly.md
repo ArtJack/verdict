@@ -279,8 +279,10 @@ that make it usable over a project with a backlog:
   fail→pass on a test somebody *chose* (`verification_test`, or one the collector saw for the
   first time this run), carried by id, or re-filed under its own id with the drift that moved
   its evidence. The invariant is asserted before anything is finalized; a gap refuses the run.
-- **The verdict is monotone.** A previous `fail` stays `fail`. This tier can make a verdict
-  worse or leave it alone, never better.
+- **The verdict is monotone.** A previous `fail` stays `fail`, and a previous `blocked` stays
+  `blocked` — the second because `blocked` means an earlier run could not test at all, and this
+  engine cannot tell whether what blocked it has cleared. A carried `blocked` says so in
+  `not_tested`. This tier can make a verdict worse or leave it alone, never better.
 - **A quarantine is released by measurement, not by its expiry date** — five identical runs of
   the one test, and the FLAKY finding stays open with the measurement added to it.
 - **No counts, no verdict**: a run where no gate produced test counts is `blocked`.

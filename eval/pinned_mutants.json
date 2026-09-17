@@ -1163,8 +1163,8 @@
  {
   "label": "0.90.0 P4 local verdict: computed from this run's findings only, so a fail can improve",
   "path": "src/verdict_mcp/small.py",
-  "old": "    if previous_verdict == \"fail\":\n        return \"fail\"",
-  "new": "    if previous_verdict == \"fail\" and False:\n        return \"fail\""
+  "old": "    if previous_verdict in (\"fail\", \"blocked\"):\n        return str(previous_verdict)",
+  "new": "    if previous_verdict == \"never\":\n        return str(previous_verdict)"
  },
  {
   "label": "0.90.0 P5 local delta: the previous flaky quarantine is wiped",
@@ -1243,5 +1243,11 @@
   "path": "src/verdict_mcp/small.py",
   "old": "    try:\n        doc = json.loads(Path(path).read_text(encoding=\"utf-8\"))\n    except (OSError, json.JSONDecodeError) as exc:",
   "new": "    try:\n        Path(path).write_text(\"{}\", encoding=\"utf-8\")\n        doc = json.loads(Path(path).read_text(encoding=\"utf-8\"))\n    except (OSError, json.JSONDecodeError) as exc:"
+ },
+ {
+  "label": "0.90.0 P18 local verdict: a standing blocked verdict is improved by a local run that filed something",
+  "path": "src/verdict_mcp/small.py",
+  "old": "    if previous_verdict in (\"fail\", \"blocked\"):\n        return str(previous_verdict)",
+  "new": "    if previous_verdict in (\"fail\",):\n        return str(previous_verdict)"
  }
 ]

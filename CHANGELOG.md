@@ -32,9 +32,15 @@ is in one of the three — is asserted before anything is finalized, and a gap r
 rather than writing a state.
 
 **The verdict is monotone.** Six functions read by an 8B model may make a verdict worse or
-leave it alone, never better: a previous `fail` stays `fail` until something with judgment
-looks at it. No gate counts is `blocked`, not `pass`. An open Blocker is `fail`. Anything newly
-filed, an open Critical, or changed lines nothing executed caps the run at `pass with risks`.
+leave it alone, never better. Two verdicts are sticky, for different reasons: a previous `fail`
+stays `fail` because something with judgment found a defect and nothing here has the standing to
+say it is gone, and a previous `blocked` stays `blocked` because a previous run could not test
+at all — an environment, a tool, a requirement nobody answered — and this engine cannot tell
+whether that reason has cleared. The second was the more expensive one to get wrong: it turns
+the gate's exit 3 into exit 0. A carried `blocked` says so in `not_tested` and in the report.
+No gate counts is `blocked`, not `pass`. An open Blocker is `fail` whatever the standing verdict
+was. Anything newly filed, an open Critical, or changed lines nothing executed caps the run at
+`pass with risks`.
 
 **A quarantine is released by measurement, not by its expiry date.** A due entry's test is run
 five times; 5/5 passes releases it and the FLAKY finding is re-filed with that measurement
@@ -83,7 +89,11 @@ is a list nobody reads.
 **And one line in the sweep (P-32):** `sweep_judgment` wrote `verified_intact: []`, so the
 cheapest run in the system silently deleted the list the *next* sweep is built to guard.
 
-Seventeen pinned mutants (P1–P17), whole suite. `run_eval.py --engine local` runs the pricer
+Eighteen pinned mutants (P1–P18), whole suite. P4 — "the verdict is computed from this run's
+findings only" — **survived its first campaign**, and the survivor was the instrument working:
+the test asserted a standing `fail` beside *nothing filed*, where the rule cannot fire. The
+missing case (a standing `fail` beside a freshly filed Minor) is pinned now, and P18 pins the
+`blocked` half beside it. `run_eval.py --engine local` runs the pricer
 fixture through the local engine against the same answer key, with an injectable engine so the
 wiring is a unit test rather than a nightly. No change to `agents/verdict.md`, `commands/`,
 `skills/` or `hooks/`, so no eval payment.

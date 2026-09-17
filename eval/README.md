@@ -838,11 +838,11 @@ it supports. It carries a class the hand-written scripts never had: mutants that
 **call site** while leaving the code correct, because "the code is right" and "the code
 runs" are different claims and only the first was ever being tested.
 
-v0.90.0 added seventeen (P1–P17) for the local tier, and they are the shape a safety rule
+v0.90.0 added eighteen (P1–P18) for the local tier, and they are the shape a safety rule
 wants: each one puts back a defect whose symptom is *silence*. A drifted finding carried
 instead of re-filed; an unmentioned finding left to the merge's silence rule; a resolution on
 a test that merely passes at HEAD; a verdict computed from this run's findings alone, so a
-`fail` can improve on its own; the previous quarantine or `verified_intact` wiped; a run with
+`fail` or a `blocked` can improve on its own; the previous quarantine or `verified_intact` wiped; a run with
 no answers finalizing anyway; a liveliness probe that always says alive; a quarantine released
 on its expiry date alone; `--on-drift local` falling through to a Claude run; a sweep dropping
 `verified_intact`; the report omitting its Judge line; a range run falling back to the reading
@@ -850,6 +850,13 @@ map; `--range` without `--qa-root` writing the key's own state root; a non-Pytho
 finalizing an unqualified pass; `needs_claude` dropping the changed lines nothing executed; the
 reference state opened for writing. None of those turns the suite red on its own — which is
 exactly why each one is in the catalogue.
+
+**P4 survived its first campaign, and that is the tool earning its keep.** The rule is "a
+standing verdict may not improve"; the test asserted a standing `fail` beside *nothing filed*,
+which is a case the rule never has to fire on, so deleting the rule changed nothing the suite
+could see. The missing case — a standing `fail` beside a finding this run filed itself — is
+pinned now, and reading the survivor is what found the same hole on the `blocked` side, which
+is worse: it turns the gate's exit 3 into exit 0. That is P18.
 
 ### Scoring the local engine — `run_eval.py --engine local`
 

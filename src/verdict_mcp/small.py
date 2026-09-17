@@ -1263,8 +1263,16 @@ def local_verdict(previous_verdict, filed: list, carried: list, measured: bool,
 
     The rule that matters is the one this engine cannot be trusted without: a run
     that read six functions with an 8B model may never improve the standing
-    verdict. A `fail` stays `fail` until something with judgment looks at it;
-    everything this run can do is make the verdict worse, or leave it alone.
+    verdict. Two verdicts are sticky, and for different reasons.
+
+    A `fail` stays `fail` because something with judgment found a defect and
+    nothing here has the standing to say it is gone. A `blocked` stays `blocked`
+    because a previous run could not test at all — an environment, a tool, a
+    requirement nobody answered — and this engine cannot tell whether what
+    blocked it has cleared. Letting `blocked` improve was the worse of the two:
+    the gate turns exit 3 into exit 0 on the word of a run that read six
+    functions, which is precisely the false green this tier exists to make
+    impossible.
     """
     if not measured:
         return "blocked"
@@ -1276,11 +1284,15 @@ def local_verdict(previous_verdict, filed: list, carried: list, measured: bool,
         # engine's own arithmetic stands — capped by what it could not read.
         standing = verdict_for(filed)
         return "pass with risks" if standing == "pass" and (cold_lines or ceiling) else standing
-    if previous_verdict == "fail":
-        return "fail"
+    if previous_verdict in ("fail", "blocked"):
+        return str(previous_verdict)
     if "Critical" in severities or filed or cold_lines or ceiling:
         return "pass with risks"
     return str(previous_verdict or "pass")
+
+
+CARRIED_BLOCKED = ("the previous run was blocked and this engine cannot tell whether what "
+                   "blocked it has cleared — the verdict is carried, not re-judged")
 
 
 # ── what a model would still have to answer ───────────────────────────────────
@@ -1719,13 +1731,18 @@ def run(repo: Path, qa_root: Path, model: Model, limit: int, gate: str | None,
                 "context": "declare `test_one_cmd` in the profile so the harness can run one "
                            "test, or release the quarantine deliberately"})
 
+    not_tested = not_tested_lines(model, files, examined, prior_open, still_open_ids,
+                                  refiled, prove, budget, quarantine_notes, non_python)
+    carried_blocked = prior_verdict == "blocked" and verdict == "blocked"
+    if carried_blocked:
+        not_tested.append(CARRIED_BLOCKED)
+
     judgment = {
         "topic": "local-delta" if previous else "local",
         "verdict": verdict,
         "findings": [], "still_open": still_open_ids, "resolved": resolved_ids,
         "questions": asked_questions,
-        "not_tested": not_tested_lines(model, files, examined, prior_open, still_open_ids,
-                                       refiled, prove, budget, quarantine_notes, non_python),
+        "not_tested": not_tested,
         "prose": {
             "scope": (f"{ENGINE}: {examined} function(s) in {len(files)} file(s) read one at a "
                       f"time by {model.name}, each in isolation"
@@ -1737,8 +1754,10 @@ def run(repo: Path, qa_root: Path, model: Model, limit: int, gate: str | None,
                       "it reads the suite only where the range touched it."
                       + (" " + NO_CODE_READ if non_python else "")),
             "notes": ("No Claude tokens were spent on this run. The verdict cannot improve on "
-                      "its own: a previous `fail` stays `fail` until something with judgment "
-                      "looks at it."),
+                      "its own: a previous `fail` stays `fail`, and a previous `blocked` "
+                      "stays `blocked`, until something with judgment looks at it."
+                      + (" " + CARRIED_BLOCKED[0].upper() + CARRIED_BLOCKED[1:] + "."
+                         if carried_blocked else "")),
         },
         "isolation_check": {"result": "pass", "note": "local mode reads the checkout and "
                                                       "runs the suite gate; it writes nothing "

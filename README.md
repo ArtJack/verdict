@@ -3,7 +3,7 @@
 [![ci](https://github.com/ArtJack/verdict/actions/workflows/ci.yml/badge.svg)](https://github.com/ArtJack/verdict/actions/workflows/ci.yml)
 [![verdict on itself](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fraw.githubusercontent.com%2FArtJack%2Fverdict%2Fmain%2F.qa%2Fstate.json&query=%24.verdict&label=verdict%20on%20itself&color=blue)](.qa/reports/INDEX.md)
 [![eval 8/8 seeded defects](https://img.shields.io/badge/eval-8%2F8_seeded_defects-brightgreen)](eval/README.md#published-results)
-[![pinned rules 205/205 killed](https://img.shields.io/badge/pinned_rules-205%2F205_killed-brightgreen)](eval/README.md#suite-fault-detection-power--mutation-testing-on-ourselves)
+[![pinned rules 206/206 killed](https://img.shields.io/badge/pinned_rules-206%2F206_killed-brightgreen)](eval/README.md#suite-fault-detection-power--mutation-testing-on-ourselves)
 [![PyPI](https://img.shields.io/pypi/v/verdict-qa-mcp?label=verdict-qa-mcp&color=blue)](https://pypi.org/project/verdict-qa-mcp/)
 [![Claude Code plugin](https://img.shields.io/badge/Claude_Code-plugin-6E56CF)](#install)
 [![license MIT](https://img.shields.io/github/license/ArtJack/verdict)](LICENSE)
@@ -618,8 +618,8 @@ calls and seven thousand input tokens a run. Since 0.90.0 it is a **delta** as w
 pass, and safe over a project that already has state: every prior open finding is resolved by a
 measured fail→pass on a test somebody chose, carried by id, or re-filed under its own id with
 the drift that moved it — never left unmentioned, because the harness reads silence as
-resolution. Its verdict is monotone: it can make a verdict worse or leave it alone, and a
-`fail` stays `fail` until something with judgment looks at it. `--range`/`--base` with a
+resolution. Its verdict is monotone: it can make a verdict worse or leave it alone, and both a
+`fail` and a `blocked` stand until something with judgment looks at them. `--range`/`--base` with a
 throwaway `--qa-root` judge a branch without touching the project's own state, and a range with
 no Python in it reads nothing and says so rather than reporting a clean pass. Wire it into a
 night with `verdict-run --on-drift local`, which can never reach the `claude` CLI at all.

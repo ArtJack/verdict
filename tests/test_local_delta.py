@@ -201,16 +201,57 @@ def test_a_resolution_needs_a_measured_fail_then_pass_on_a_chosen_test():
 def test_the_verdict_never_improves_on_its_own():
     """Six functions read by an 8B model may make a verdict worse or leave it
     alone. A `fail` that turns into `pass` because nobody looked is the single
-    outcome this whole tier is not allowed to have."""
+    outcome this whole tier is not allowed to have.
+
+    The cases that matter are the ones where this run DID find something: a
+    standing `fail` beside a freshly filed Minor is exactly where an engine that
+    scores only its own findings quietly promotes the verdict. (Pinned as P4,
+    which survived the first campaign because these three lines were missing.)
+    """
     assert small.local_verdict("fail", [], [], True) == "fail"
     assert small.local_verdict("fail", [], [{"severity": "Minor"}], True) == "fail"
+    assert small.local_verdict("fail", [{"severity": "Minor"}], [], True) == "fail", \
+        "a run that filed something of its own does not get to re-score the release"
+    assert small.local_verdict("fail", [], [], True, cold_lines=4) == "fail"
+    assert small.local_verdict("fail", [], [], True, ceiling="no code read") == "fail"
+    assert small.local_verdict("fail", [], [{"severity": "Critical"}], True) == "fail"
     assert small.local_verdict("pass with risks", [], [], True) == "pass with risks"
     assert small.local_verdict("pass", [], [], True) == "pass"
     assert small.local_verdict("pass", [{"severity": "Minor"}], [], True) == "pass with risks"
     assert small.local_verdict("pass", [], [{"severity": "Blocker"}], True) == "fail", \
         "a carried Blocker still fails the release"
     assert small.local_verdict("pass", [], [{"severity": "Critical"}], True) == "pass with risks"
+
+
+def test_a_standing_blocked_verdict_is_never_improved_by_a_local_run():
+    """`blocked` is the harder half of the same rule, and the more expensive one
+    to get wrong: the gate turns exit 3 into exit 0. `blocked` means a previous
+    run could not test at all — an environment, a tool, a requirement nobody
+    answered — and this engine cannot tell whether that reason has cleared."""
     assert small.local_verdict("blocked", [], [], True) == "blocked"
+    assert small.local_verdict("blocked", [{"severity": "Minor"}], [], True) == "blocked", \
+        "filing something of its own does not clear whatever blocked the last run"
+    assert small.local_verdict("blocked", [], [], True, cold_lines=9) == "blocked"
+    assert small.local_verdict("blocked", [], [], True, ceiling="no code read") == "blocked"
+    assert small.local_verdict("blocked", [], [{"severity": "Critical"}], True) == "blocked"
+    assert small.local_verdict("blocked", [], [{"severity": "Blocker"}], True) == "fail", \
+        "worse is always allowed: an open Blocker fails whatever the standing verdict was"
+    assert small.local_verdict("blocked", [], [], False) == "blocked"
+
+
+def test_a_carried_blocked_verdict_says_why_it_was_carried(tmp_path):
+    """A `blocked` that simply reappears reads like a run that re-judged it. The
+    run says, in the list a reader checks, that it did not."""
+    repo, qa = project(tmp_path, judgment_extra={"verdict": "blocked"})
+    (repo / "other.py").write_text("def other(x):\n    return x  # c\n", encoding="utf-8")
+    git(repo, "commit", "-qam", "touch an uncited file")
+
+    assert delta(repo, qa) == 0
+    state = state_of(qa)
+    assert state["verdict"] == "blocked"
+    assert small.CARRIED_BLOCKED in state["not_tested"]
+    report = (qa / state["last_run"]["report"]).read_text(encoding="utf-8")
+    assert "cannot tell whether what blocked it has cleared" in report
 
 
 def test_no_gate_counts_is_blocked_not_pass():
