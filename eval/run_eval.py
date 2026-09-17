@@ -52,7 +52,9 @@ Model runs cost real tokens — this is never a per-PR CI job.
 from __future__ import annotations
 
 import argparse
+import contextlib
 import hashlib
+import io
 import json
 import os
 import re
@@ -378,14 +380,20 @@ def run_local_engine(checkout, qa_home, qa_root, args, phase, log_path, engine=N
         from verdict_mcp.small import main as engine        # noqa: PLC0415 — optional import
     previous = os.environ.get("VERDICT_HOME")
     os.environ["VERDICT_HOME"] = str(qa_home)
+    # The engine prints its summary to stdout, and this script's stdout is the result JSON:
+    # the first local proof wrote a thousand characters of summary ahead of the JSON, and
+    # nothing that parses the result could read it. The summary belongs in the phase log.
+    captured = io.StringIO()
     try:
-        code = engine(argv)
+        with contextlib.redirect_stdout(captured):
+            code = engine(argv)
     finally:
         if previous is None:
             os.environ.pop("VERDICT_HOME", None)
         else:
             os.environ["VERDICT_HOME"] = previous
-    Path(log_path).write_text(f"verdict-local {' '.join(argv)}\nexit {code}\n", encoding="utf-8")
+    Path(log_path).write_text(f"verdict-local {' '.join(argv)}\n{captured.getvalue()}"
+                              f"exit {code}\n", encoding="utf-8")
     if code != 0:
         raise RuntimeError(f"verdict-local exited {code}; log: {log_path}")
 

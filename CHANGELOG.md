@@ -17,6 +17,15 @@ died mid-flight. A sweep that *is* allowed while the gateway is down still runs,
 its own `not_tested` that the model was unreachable. The decision table is in
 [docs/nightly.md](docs/nightly.md).
 
+**The window a question arrives in.** Ollama serves every model at 4,096 tokens unless told
+otherwise, and past that it keeps only the end of the prompt — the instructions first, and
+`/no_think` with them. Measured through the author's gateway: a ~6k-token prompt with a code word
+on its first line arrived as 2,050 tokens and the model invented the code; asked with `num_ctx:
+8192` it arrived whole and answered correctly in 49 seconds instead of 137. `verdict-local` now
+asks for 8,192 on every request (`--num-ctx`, `VERDICT_LOCAL_NUM_CTX`), so nobody's server needs
+root to be usable, and a gateway that refuses the parameter is asked again without it. The eval
+rig's `--engine local` also stopped printing the engine's summary into its result JSON.
+
 **`verdict-local` is a delta now, and it cannot close a finding by silence.** 0.89.0 said
 plainly that it must not be pointed at a project that already has Verdict state. Here is why,
 and here is the fix. It wrote `still_open: []`, and `merge()` reads an unmentioned finding as

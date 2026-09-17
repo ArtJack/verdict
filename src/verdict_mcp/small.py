@@ -91,6 +91,15 @@ except ImportError:  # bare-script execution
 MAX_SOURCE_LINES = 120          # one question's worth of code
 MAX_FUNCTIONS = 60              # a cap, so a large repository still finishes
 DEFAULT_TIMEOUT_S = 900
+# The window each question asks for. Ollama serves every model at 4,096 tokens unless told
+# otherwise, and past that it keeps only the END of the prompt: the instructions go first,
+# `/no_think` with them, and the model thinks through its whole budget and answers nothing
+# or invents something. Measured 2026-09-17 through the author's gateway, one ~6k-token
+# prompt with a code word on its first line: at the default it arrived as 2,050 tokens and
+# the model answered "0126"; asked with `num_ctx: 8192` it arrived whole (5,943 tokens), the
+# answer was right, and it came back in 49 seconds instead of 137. Sent on the request, so it
+# needs no change on anyone's server; `--num-ctx 0` leaves the server's default alone.
+DEFAULT_NUM_CTX = 8192
 # What a gate run may spend. A PR gate that takes an hour is a gate nobody
 # waits for, so the caps are the product decision: six files, twenty-four
 # functions, six counterfactuals, two minutes per call and fifteen minutes of
@@ -121,8 +130,10 @@ class Model:
     output budget reasoning and returns an empty text block — measured, not assumed.
     """
 
-    def __init__(self, name: str, base_url: str, token: str, timeout_s=DEFAULT_TIMEOUT_S):
+    def __init__(self, name: str, base_url: str, token: str, timeout_s=DEFAULT_TIMEOUT_S,
+                 num_ctx: int = DEFAULT_NUM_CTX):
         self.name, self.base_url, self.token, self.timeout_s = name, base_url, token, timeout_s
+        self.num_ctx = int(num_ctx or 0)
         self.calls, self.input_tokens, self.output_tokens, self.retries = 0, 0, 0, 0
         # A transport failure and an unparseable reply are different facts, and
         # `retries` counted only the second. A night where the gateway died
@@ -134,12 +145,31 @@ class Model:
     def ask(self, prompt: str, max_tokens: int = 1200) -> str:
         body = {"model": self.name, "max_tokens": max_tokens,
                 "messages": [{"role": "user", "content": "/no_think\n" + prompt}]}
+        if self.num_ctx:
+            body["num_ctx"] = self.num_ctx
         req = urllib.request.Request(
             self.base_url.rstrip("/") + "/v1/messages", data=json.dumps(body).encode("utf-8"),
             headers={"content-type": "application/json",
                      "Authorization": f"Bearer {self.token}"})
-        with urllib.request.urlopen(req, timeout=self.timeout_s) as resp:
-            doc = json.load(resp)
+        try:
+            with urllib.request.urlopen(req, timeout=self.timeout_s) as resp:
+                doc = json.load(resp)
+        except urllib.error.HTTPError as exc:
+            # A gateway in front of something that is not Ollama may refuse a parameter it
+            # does not know. That is a fact about the server, not a failed question: ask
+            # again without the window, once, and say what that costs.
+            detail = ""
+            try:
+                detail = exc.read().decode("utf-8", "replace")
+            except Exception:       # noqa: BLE001 — the body is a courtesy, not evidence
+                pass
+            if self.num_ctx and exc.code in (400, 422) and "num_ctx" in detail:
+                print(f"verdict-local: the gateway refused num_ctx ({exc.code}); asking without "
+                      "it — a server that keeps its default window will cut long questions "
+                      "from the front", file=sys.stderr)
+                self.num_ctx = 0
+                return self.ask(prompt, max_tokens)
+            raise
         self.calls += 1
         usage = doc.get("usage") or {}
         self.input_tokens += int(usage.get("input_tokens") or 0)
@@ -1776,7 +1806,7 @@ def run(repo: Path, qa_root: Path, model: Model, limit: int, gate: str | None,
         "calls": model.calls, "tokens": model.input_tokens + model.output_tokens,
         "input_tokens": model.input_tokens, "output_tokens": model.output_tokens,
         "answered": model.answered, "unanswered": model.unanswered,
-        "retries": model.retries, "errors": model.errors,
+        "retries": model.retries, "errors": model.errors, "num_ctx": model.num_ctx,
         "functions_read": examined, "functions_skipped": budget.skipped,
         "seconds": round(budget.elapsed_s(), 1),
     }
@@ -1914,6 +1944,11 @@ def main(argv=None) -> int:
                     help="run the suite N more times to find tests that are not stable "
                          "(default 2); flakiness is measured, never asked of the model")
     ap.add_argument("--timeout-s", type=int, default=DEFAULT_TIMEOUT_S)
+    ap.add_argument("--num-ctx", type=int, metavar="TOKENS",
+                    default=int(os.environ.get("VERDICT_LOCAL_NUM_CTX") or DEFAULT_NUM_CTX),
+                    help="the context window each question asks the server for (default "
+                         f"{DEFAULT_NUM_CTX}); 0 leaves the server's own default, which on "
+                         "Ollama is 4,096 and cuts long questions from the front")
     ap.add_argument("--delta", action="store_true",
                     help="a delta against the stored baseline: every prior open finding is "
                          "resolved by measurement, carried by id, or re-filed with the drift "
@@ -1976,7 +2011,7 @@ def main(argv=None) -> int:
     ranged = bool(sha_range)
     model = Model(args.model, base_url, token,
                   GATE_CALL_TIMEOUT_S if ranged and args.timeout_s == DEFAULT_TIMEOUT_S
-                  else args.timeout_s)
+                  else args.timeout_s, num_ctx=args.num_ctx)
     alive, detail = gateway_alive(base_url, token)
     if not alive:
         # Asked before the suite, not after. A dead gateway found at the first

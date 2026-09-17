@@ -1249,5 +1249,17 @@
   "path": "src/verdict_mcp/small.py",
   "old": "    if previous_verdict in (\"fail\", \"blocked\"):\n        return str(previous_verdict)",
   "new": "    if previous_verdict in (\"fail\",):\n        return str(previous_verdict)"
+ },
+ {
+  "label": "0.90.0 P19 local: no window is asked for, so a long question arrives with its front cut off",
+  "path": "src/verdict_mcp/small.py",
+  "old": "        if self.num_ctx:\n            body[\"num_ctx\"] = self.num_ctx\n",
+  "new": "        if False:\n            body[\"num_ctx\"] = self.num_ctx\n"
+ },
+ {
+  "label": "0.90.0 P20 local: a gateway that refuses num_ctx fails every question instead of being asked again without it",
+  "path": "src/verdict_mcp/small.py",
+  "old": "            if self.num_ctx and exc.code in (400, 422) and \"num_ctx\" in detail:",
+  "new": "            if False:"
  }
 ]

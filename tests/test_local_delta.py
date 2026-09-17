@@ -542,3 +542,96 @@ def test_only_changed_and_missing_force_a_re_file(drift, carried):
     assert resolved == []
     assert (still_open == ["P-F-1"]) is carried
     assert (len(refile) == 1) is (not carried)
+
+
+def test_the_engines_summary_goes_to_the_phase_log_not_into_the_result_json(tmp_path, capsys):
+    """The first local proof printed verdict-local's summary ahead of the result JSON on the
+    same stdout, and nothing that parses a result could read it."""
+    sys.path.insert(0, str(REPO / "eval"))
+    import run_eval
+
+    args = type("A", (), {"local_model": "qwen3", "local_limit": 6, "local_env_file": None})()
+
+    def chatty_engine(_argv):
+        print("  model      qwen3 · 48 call(s) · Claude tokens: 0")
+        return 0
+
+    log = tmp_path / "phase.log"
+    run_eval.run_local_engine("/checkout", tmp_path / "home", "/qa", args, "delta", log,
+                              engine=chatty_engine)
+    assert capsys.readouterr().out == "", "stdout is the result JSON's, and nothing else's"
+    text = log.read_text(encoding="utf-8")
+    assert "48 call(s)" in text and text.rstrip().endswith("exit 0")
+
+
+# ── the window each question asks for ─────────────────────────────────────────
+
+class _Reply:
+    def __init__(self, doc):
+        self._raw = json.dumps(doc).encode("utf-8")
+
+    def read(self, *_a):
+        return self._raw
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        return False
+
+
+def _gateway(monkeypatch, refuse_num_ctx=False):
+    """A stand-in for `urlopen` that records each request body."""
+    import io as _io
+    import urllib.error
+    bodies = []
+
+    def urlopen(req, timeout=None):
+        body = json.loads(req.data.decode("utf-8"))
+        bodies.append(body)
+        if refuse_num_ctx and "num_ctx" in body:
+            raise urllib.error.HTTPError(req.full_url, 400, "Bad Request", {},
+                                         _io.BytesIO(b'{"error": "Unrecognized argument: num_ctx"}'))
+        return _Reply({"content": [{"type": "text", "text": '{"ok": true}'}],
+                       "usage": {"input_tokens": 10, "output_tokens": 3}})
+
+    monkeypatch.setattr(small.urllib.request, "urlopen", urlopen)
+    return bodies
+
+
+def test_each_question_asks_for_a_window_it_fits_in(monkeypatch):
+    """At Ollama's default 4,096 tokens a long question loses its FRONT — the instructions
+    and `/no_think` with them. Measured 2026-09-17: a ~6k-token prompt arrived as 2,050
+    tokens and the model invented its answer; with `num_ctx: 8192` it arrived whole."""
+    bodies = _gateway(monkeypatch)
+    assert small.Model("qwen3", "http://gw", "t").ask_json("q") == {"ok": True}
+    assert bodies[-1]["num_ctx"] == small.DEFAULT_NUM_CTX == 8192
+    small.Model("qwen3", "http://gw", "t", num_ctx=0).ask_json("q")
+    assert "num_ctx" not in bodies[-1], "0 leaves the server's own default alone"
+
+
+def test_a_gateway_that_refuses_the_window_is_asked_again_without_it(monkeypatch, capsys):
+    bodies = _gateway(monkeypatch, refuse_num_ctx=True)
+    model = small.Model("qwen3", "http://gw", "t")
+    assert model.ask_json("q") == {"ok": True}, "a refused parameter is not a failed question"
+    assert "num_ctx" in bodies[0] and "num_ctx" not in bodies[1]
+    assert model.num_ctx == 0 and model.errors == 0 and model.answered == 1
+    assert "refused num_ctx" in capsys.readouterr().err
+    model.ask_json("again")
+    assert len(bodies) == 3 and "num_ctx" not in bodies[2], "asked once, remembered after"
+
+
+def test_the_window_is_a_flag_and_an_environment_variable(monkeypatch):
+    seen = {}
+    monkeypatch.setattr(small, "Model", lambda *a, **k: seen.update(k) or (_ for _ in ()).throw(SystemExit(0)))
+    monkeypatch.setenv("ANTHROPIC_BASE_URL", "http://gw")
+    monkeypatch.setenv("ANTHROPIC_AUTH_TOKEN", "t")
+    for argv, env, want in ((["--num-ctx", "16384"], None, 16384), ([], "12000", 12000), ([], None, 8192)):
+        if env is None:
+            monkeypatch.delenv("VERDICT_LOCAL_NUM_CTX", raising=False)
+        else:
+            monkeypatch.setenv("VERDICT_LOCAL_NUM_CTX", env)
+        seen.clear()
+        with pytest.raises(SystemExit):
+            small.main(["--repo", str(REPO), *argv])
+        assert seen.get("num_ctx") == want, (argv, env)

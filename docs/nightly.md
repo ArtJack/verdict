@@ -288,6 +288,11 @@ that make it usable over a project with a backlog:
 - **No counts, no verdict**: a run where no gate produced test counts is `blocked`.
 - **A run that got no answers writes no state**, and leaves its marker, so tomorrow knows the
   night was lost.
+- **Each question asks for an 8,192-token window** (`--num-ctx`, `VERDICT_LOCAL_NUM_CTX`; 0
+  leaves the server's default). Ollama serves every model at 4,096 tokens unless told otherwise
+  and keeps only the *end* of a longer prompt — the instructions go first. Sent on the request,
+  so no server needs reconfiguring; a gateway that refuses the parameter is asked again without
+  it, once, with a warning. On a GTX 1070 an 8B model at 8,192 tokens is 6.4 GB, all on the GPU.
 
 For a PR rather than a nightly, point it at a throwaway QA root:
 
