@@ -608,12 +608,22 @@ nothing routes through the author and no API key is required. The one place a ke
 appear is the optional GitHub Action's run mode, and that is your key, in your repo, for
 your CI. Everything below the model is plain files and stdlib Python.
 
-**Can it run on a local LLM?** The wiring exists today (`ANTHROPIC_BASE_URL` passes
-through to any Anthropic-compatible gateway, e.g. LiteLLM in front of Ollama), and every
-non-judgment layer already runs locally for free. But the verdict is only as good as the
-judge: Sonnet — far stronger than any home-lab model — currently hard-fails the eval (see
-the results table), so a local model must earn verdict-signing duty by passing the same
-eval as everyone else. Run it, publish the score, then decide.
+**Can it run on a local LLM?** Three answers, cheapest first. **No model at all:**
+`verdict-run --skip-unless-drift` carries the standing verdict on a night when nothing a
+finding cites has moved — two seconds, and it says so. **A small local model:**
+`verdict-local` inverts the control — the harness measures, slices the code and proves claims
+in a scratch copy, and the model answers one bounded question at a time. Measured with
+`qwen3:8b` behind LiteLLM and Ollama: 9/10 · 9/10 · 10/10 on the baseline fixture, about thirty
+calls and seven thousand input tokens a run. Today it is a first pass over a Python project:
+**do not point it at a project that already has Verdict state** — it does not yet carry
+earlier findings forward, and the harness reads that silence as resolution. **The full agent
+through a gateway** (`verdict-run --env-file`, `ANTHROPIC_BASE_URL` → LiteLLM → your model
+server, [docs/nightly.md](docs/nightly.md)) needs a model with the window for a twelve-
+thousand-token contract on top of the CLI's own prompt; an 8B model served at 4k is not one.
+Which model may sign a verdict is the eval's decision, never a default's: Sonnet tied Opus on
+the honesty fixture and was at parity on root cause at n=3, with one run that wrote no state
+([the model axis](eval/README.md#the-model-axis--opus-against-sonnet-paired)). Run it, publish
+the score, then decide.
 
 **Why won't it fix the bugs it finds?** Independence. The agent that patches the code and
 then declares it healthy is grading its own homework. Verdict returns an ordered,
