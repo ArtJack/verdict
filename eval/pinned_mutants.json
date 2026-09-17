@@ -1123,5 +1123,23 @@
   "path": "src/verdict_mcp/usage.py",
   "old": "    if not session_id or not re.fullmatch(r\"[A-Za-z0-9_-]+\", str(session_id)):\n        return []",
   "new": "    if not session_id:\n        return []"
+ },
+ {
+  "label": "0.89.0 Q13 harness: --out replaces the QA root's facts instead of adding a copy, so a measured run reads as hand-written",
+  "path": "src/verdict_mcp/harness.py",
+  "old": "    (qa_root / \"facts.json\").write_text(text + \"\\n\", encoding=\"utf-8\")\n    if args.out and",
+  "new": "    if not args.out:\n        (qa_root / \"facts.json\").write_text(text + \"\\n\", encoding=\"utf-8\")\n    if args.out and"
+ },
+ {
+  "label": "0.89.0 Q14 runner: the CLI's 600-second ceiling is left in place, so a backgrounded tester is killed mid-run",
+  "path": "src/verdict_mcp/runner.py",
+  "old": "    env.setdefault(BG_WAIT_ENV, \"0\")\n",
+  "new": "    pass\n"
+ },
+ {
+  "label": "0.89.0 Q15 runner: the operator's own background-wait ceiling is overwritten",
+  "path": "src/verdict_mcp/runner.py",
+  "old": "    env.setdefault(BG_WAIT_ENV, \"0\")\n",
+  "new": "    env[BG_WAIT_ENV] = \"0\"\n"
  }
 ]

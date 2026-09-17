@@ -2369,7 +2369,15 @@ def facts_main(argv=None) -> int:
     if ids is not None:
         (qa_root / "test-ids.txt").write_text("\n".join(ids) + "\n", encoding="utf-8")
     text = json.dumps(facts, indent=2)
-    (args.out or (qa_root / "facts.json")).write_text(text + "\n", encoding="utf-8")
+    # The QA root's copy is the one the gate, the scorer and the stop hook read as "facts
+    # were measured for this run"; `--out` is a second copy, as its help has always said.
+    # It was written *instead*: a run that asked for a copy lost the signal and read as
+    # hand-written state (exit 6). Measured 2026-09-17 — a Sonnet run that scored 9 of 9 on
+    # substance was zeroed for using a documented flag.
+    (qa_root / "facts.json").write_text(text + "\n", encoding="utf-8")
+    if args.out and args.out.expanduser().resolve() != (qa_root / "facts.json").resolve():
+        args.out.expanduser().parent.mkdir(parents=True, exist_ok=True)
+        args.out.expanduser().write_text(text + "\n", encoding="utf-8")
     print(text)
     print(f"verdict-facts: judgment template → {judgment_template()} — copy it, replace every "
           f"value, keep every key. One finding = one file, {qa_root / FINDINGS_DIR}/<ID>.json, "

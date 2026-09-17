@@ -520,6 +520,33 @@ tokens (78k against 98k) but read *more* context (5.56M against 3.77M) over more
 against 97). The saving is the per-token price, not less effort — which matters, because the
 measured cost of a run is dominated by a fixed preamble re-read on every turn.
 
+**2026-09-17 — the seeded delta, paired, and two harness defects it found.** Same protocol,
+0.88.0 prompt (sha `451a01db…` in both arms), n=3, arms interleaved, scored with
+`--require-harness`:
+
+| Arm | Run 1 | Run 2 | Run 3 | Output tokens | Cache read | Requests |
+|---|---|---|---|---|---|---|
+| Opus | 8/9 | 9/9 | 8/9 | 183k | 8.17M | 135 |
+| Sonnet | **0** (9/9 on substance) | **0** (no state) | **0** (no state) | 186k | 10.93M | 150 |
+
+Read as a model comparison that table says Sonnet cannot do the job, and it would be wrong.
+**Run 1** is a complete, correct run — REGRESSED ranked first, the expired quarantine released,
+three findings carried by id (the row Opus missed twice) — that passed `--out` to
+`verdict-facts`. The flag's help says "also write facts.json here"; the code wrote it there
+*instead*, so the QA root held no facts, `facts_measured` read false, and the protocol zeroed
+the run as hand-written. Scored without the harness requirement it is **9/9**. **Runs 2 and
+3** never finished: the outer headless session delegated the tester in the background and ended
+its turn, and the CLI's print mode kills background tasks after 600 seconds — one tester died
+with its judgment and four finding files written and no `verdict-finalize`. Opus's outer
+session happened to wait; the fixture measured *which model waits for its subagent*. Both are
+fixed in the harness (0.89.0: `--out` is a second copy; the runner and this rig export
+`CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS=0`), neither in the prompt, and the payment stopped after
+the fixture then in flight rather than spend on an arm the instrument could not read. The
+pairing is re-run on the fixed harness; until then the honest statement is: **Opus 25/27 on the
+seeded delta; Sonnet unmeasured, one run of one at 9/9.** The scorer also failed in the first
+launch for a reason of the operator's making — a bare `python3` without the package importable
+— and every row above was re-scored from the kept workdirs, which costs no tokens.
+
 ### Where the tokens go — a census of the author's own runs
 
 Every number above prices one run. The question an operator actually has is what the *habit*

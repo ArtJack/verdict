@@ -304,6 +304,9 @@ def plugin_root(explicit=None):
     return None
 
 
+# `0` = wait for background tasks indefinitely (the CLI's own wording on stderr).
+BG_WAIT_ENV = "CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS"
+
 GATEWAY_FLAGS = {
     # A model that is not Anthropic's behind the base URL rejects the `thinking`
     # block and any pre-release field, and cannot be named from the CLI's built-in
@@ -825,6 +828,14 @@ def main(argv=None) -> int:
     env, env_notes = session_env(env, repo)
     for note in env_notes:
         print(f"verdict-run: {note}", file=sys.stderr)
+    # A headless session may delegate the tester in the background and end its turn — "I'll
+    # report back when it completes". In print mode the CLI then waits 600 s for background
+    # tasks and kills them: a tester that needs eleven minutes is terminated at ten with its
+    # judgment half-written, no state, exit 5. Measured 2026-09-17, two Sonnet runs of three,
+    # and it is the first scheduled night's lost run again (docs/nightly.md). The bound on a
+    # run is this runner's own --timeout-s, which kills the process; the CLI's ceiling only
+    # ever kills the work. An operator who set their own value keeps it.
+    env.setdefault(BG_WAIT_ENV, "0")
     # `project,local`: the user-scope plugin stays out (isolation), and the
     # hooks provisioned into settings.local.json come in.
     cmd = [args.claude_cmd, "-p", prompt, "--model", args.model,

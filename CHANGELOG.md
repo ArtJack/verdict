@@ -45,6 +45,21 @@ that never looks past the failing site at one row, not two, and fails on the una
 The published claim stands with a dated correction beside it: unverified until the next
 paired payment.
 
+**Two harness defects that were being read as a model's.** The first paired payment of this
+release found them, and neither is in the prompt. `verdict-facts --out` has always said "also
+write facts.json here" and wrote it there *instead*: a Sonnet run that asked for a copy left
+the QA root without its facts, every harness signal read "not measured", and a run that scores
+**9 of 9 on substance** — above Opus's 8/9 · 9/9 · 8/9 on the same fixture that hour — was
+zeroed as hand-written. It is a second copy now, as documented. And in print mode the CLI waits
+600 seconds for background tasks, then kills them: a headless session that delegates the tester
+in the background and ends its turn ("I'll report back when it completes") loses any run longer
+than ten minutes — judgment half-written, no state, exit 5. Two Sonnet runs of three died that
+way; it is the first scheduled night's lost run again. `verdict-run` and the eval rig now export
+`CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS=0` (an operator's own value wins); the bound on a run is
+the runner's `--timeout-s`, which kills the process rather than the work. Three more pinned
+mutants (Q13–Q15). The numbers, and what they do and do not say about Sonnet, are in
+[eval/README.md](eval/README.md#the-model-axis--opus-against-sonnet-paired).
+
 **Docs that had gone stale.** The FAQ still said Sonnet hard-fails the eval — a row
 superseded the day it was written. It now gives the three local answers in order of cost, and
 says plainly that `verdict-local` **must not be pointed at a project that already has Verdict
@@ -55,7 +70,7 @@ next release, which makes local mode a delta and a gate; until then it is a firs
 a fresh Python project, which is what it was measured as. `README-pypi.md` gains the three
 commands its table had forgotten.
 
-Twelve pinned mutants (Q1–Q12), whole-suite. No change to `agents/verdict.md`, so no eval
+Fifteen pinned mutants (Q1–Q15), whole-suite. No change to `agents/verdict.md`, so no eval
 payment. Known and tracked separately: four older catalogue anchors (T02, 0.78.0 R2/R5,
 0.79.0 S7) no longer match the source they were written against, so a full `pin_check` would
 report them stale — found by checking every anchor while adding these.
