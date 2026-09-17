@@ -129,7 +129,7 @@ class Model:
         # halfway through therefore reported "0 retries" beside a judgment built
         # from half the questions — which reads as a clean run. Counted apart,
         # and both land in `last_run.local`.
-        self.errors, self.answers, self.unanswered = 0, 0, 0
+        self.errors, self.answered, self.unanswered = 0, 0, 0
 
     def ask(self, prompt: str, max_tokens: int = 1200) -> str:
         body = {"model": self.name, "max_tokens": max_tokens,
@@ -162,7 +162,7 @@ class Model:
                 return None
             doc = extract_json(text)
             if doc is not None:
-                self.answers += 1
+                self.answered += 1
                 return doc
             self.retries += 1
         self.unanswered += 1
@@ -1621,7 +1621,7 @@ def run(repo: Path, qa_root: Path, model: Model, limit: int, gate: str | None,
               file=sys.stderr)
         return 1
 
-    if (model.answers + model.unanswered) and not model.answers:
+    if (model.answered + model.unanswered) and not model.answered:
         print(f"verdict-local: refusing to finalize — {model.unanswered} question(s) were "
               f"asked and none was answered ({model.errors} transport error(s)). A judgment "
               "assembled from no answers is a run that measured the suite and called it QA. "
@@ -1692,7 +1692,7 @@ def run(repo: Path, qa_root: Path, model: Model, limit: int, gate: str | None,
         "host": urllib.parse.urlparse(model.base_url).hostname or model.base_url,
         "calls": model.calls, "tokens": model.input_tokens + model.output_tokens,
         "input_tokens": model.input_tokens, "output_tokens": model.output_tokens,
-        "answers": model.answers, "unanswered": model.unanswered,
+        "answered": model.answered, "unanswered": model.unanswered,
         "retries": model.retries, "errors": model.errors,
         "functions_read": examined, "functions_skipped": budget.skipped,
         "seconds": round(budget.elapsed_s(), 1),
@@ -1721,7 +1721,7 @@ def not_tested_lines(model: Model, files: list, examined: int, prior_open: list,
     measured, so a local `pass` is visibly a different sentence from an agent's.
     """
     out = [
-        f"no agent ran: {model.answers + model.unanswered} bounded question(s) went to "
+        f"no agent ran: {model.answered + model.unanswered} bounded question(s) went to "
         f"{model.name} — no exploratory charter, no archaeology, no adversarial reading of "
         "the suite",
         "the commit history: no origin was traced, and no `git log -S` was run",
