@@ -1689,8 +1689,10 @@ def run(repo: Path, qa_root: Path, model: Model, limit: int, gate: str | None,
     measured = counts_measured(facts)
     cold_lines = unexercised_diff(facts)
     carried_records = [by_id[f] for f in still_open_ids if f in by_id]
-    verdict = local_verdict((previous or {}).get("verdict") if previous else None,
-                            filed, carried_records, measured, cold_lines,
+    # A prior state with no verdict in it is unknown, not clean — and `None` here
+    # means "baseline", which would hand this run the freedom a baseline has.
+    prior_verdict = (previous.get("verdict") or "blocked") if previous else None
+    verdict = local_verdict(prior_verdict, filed, carried_records, measured, cold_lines,
                             ceiling=NO_CODE_READ if non_python else None)
 
     touched = touches_findings(reference, changed) if reference else []
