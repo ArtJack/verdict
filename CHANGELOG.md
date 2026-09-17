@@ -72,6 +72,14 @@ liveliness asked *before* the suite instead of at the first question. A run that
 writes no state and leaves its marker: a judgment assembled from no answers is a run that
 measured the suite and called it QA.
 
+**Four smaller things a nightly would have found later.** The state on disk is carried whether
+or not `--delta` was passed, so one missing argument cannot restore the old behaviour. A prior
+state with no verdict in it reads as `blocked` — unknown, not clean. One test gets one
+quarantine entry and one finding, with this run's measurement winning, instead of last night's
+counts sitting beside tonight's with nothing to say which expiry governs. And `next_run_focus`
+and `release_blockers` are deduplicated and capped, because a list a nightly appends to forever
+is a list nobody reads.
+
 **And one line in the sweep (P-32):** `sweep_judgment` wrote `verified_intact: []`, so the
 cheapest run in the system silently deleted the list the *next* sweep is built to guard.
 
