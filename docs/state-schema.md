@@ -87,7 +87,7 @@ here.
 | `run_type` | yes | `baseline` · `delta` · `re-baseline` — a strict enum, because consumers switch on it |
 | `run_label` | no | Free text describing *this* run when the type alone is too coarse ("merge gate re-gate", "claim verification"). Introduced when a production run smuggled the description into `run_type` and broke every consumer that read it |
 | `run_number` | yes | Monotonic counter |
-| `last_run` | yes | `timestamp_utc`, `git_sha`, `sha_range`, `report` at minimum. `model` appears when the launcher exported `VERDICT_MODEL` (verdict-run does): the model that signed the verdict, measured rather than remembered |
+| `last_run` | yes | `timestamp_utc`, `git_sha`, `sha_range`, `report` at minimum. `model` appears when the launcher exported `VERDICT_MODEL` (verdict-run does): the model that signed the verdict, measured rather than remembered. `engine` and `local` appear when a second engine answered — see "A second engine" below |
 | `isolation_check` | yes | Result of the profile's isolation check (§0) |
 | `gates` | yes | One entry per gate actually run: command, summary line, exit code, and `duration_s` (optional but required to make the week-over-week duration gate measurable) |
 | `tests` | yes | Collected/passed/skipped/failed counts (plus optional `duration_s`) — a silent drop in `collected` is a finding |
@@ -475,6 +475,30 @@ sets `run_type: sweep` and `last_run.model: none`. The run number advances, the 
 the INDEX row are written, the history row is signed. Any condition failing prints why and
 runs the model; the suite then runs once more inside the agent's own `verdict-facts`.
 
+The synthetic judgment carries `verified_intact` forward rather than emptying it (0.90.0): a
+sweep that wrote `[]` silently deleted the list the *next* sweep is built to guard, which is
+the confirmation people actually pay a tester for. It also states, in `not_tested`, that
+nothing outside the checkout was read — so a standing blocker quoting a production number was
+not re-checked.
+
+## A second engine — `last_run.engine`, `last_run.local`, `facts.needs_claude`
+
+`verdict-run --on-drift local` (0.90.0) hands a blocked sweep to `verdict-local` instead of a
+Claude session. The state says so rather than leaving a reader to infer it:
+
+| Field | Where | What it says |
+|---|---|---|
+| `last_run.engine` | `state.json` | `verdict-local` when the harness drove the run and a small model answered its questions. Absent for an agent run, so an older state is unchanged |
+| `last_run.model` | `state.json` | `local:<name>` — `verdict-local` exports `VERDICT_MODEL` before `collect()`, so the model that signed the verdict is measured here exactly as it is for an agent run |
+| `last_run.local` | `state.json` | that engine's own counters: `model`, `host` (the gateway's hostname, never the credential), `calls`, `tokens`, `input_tokens`, `output_tokens`, `answered`, `unanswered`, `retries`, `errors` (transport failures, counted apart from a reply the parser refused), `functions_read`, `functions_skipped`, `seconds` |
+| `facts.needs_claude` | `facts.json` | the measured reasons a real model run is still owed — `unexercised_changed_lines: N`, `touches_open_finding: [ids]`, `unprovable_high_severity: [ids]`, `drift_unsettled: [ids]`, `non_python_diff`, `questions_parked: N`, `diff_over_limit`. Each entry is something the harness counted, and each one also becomes a `next_run_focus` line, which does reach the state |
+
+The report gains one **Judge** line beside the Harness line: the engine, the model, the host,
+the calls and tokens, the questions that went unanswered, and `no Claude tokens spent`. A
+sweep's Judge line reads `none (model-free sweep)`. The `usage.jsonl` row for such a run
+carries `engine`, a Claude bill of a measured zero, and the engine's counters under `local` —
+a night that cost nothing is only credible beside the number of calls it took to cost nothing.
+
 ## Findings as files — `<qa-root>/findings/<ID>.json`
 
 The judgment was one JSON written from memory at the end of the run: boltons paused
@@ -629,6 +653,12 @@ silence-as-resolution back unconditionally. It must be a real boolean — a trut
 would grant the licence by accident, so `validate_judgment` rejects one. Resolving a finding
 explicitly, by re-reporting it with `status: "resolved"`, always works and is never subject
 to the guardrail.
+
+This guardrail is a floor, not a plan, and `verdict-local --delta` does not rely on it at
+all: it mentions every prior open finding by name (resolved by measurement, carried by id, or
+re-filed with the drift that moved it) and asserts that before it finalizes. It has to. A key
+with four open findings is below the floor, so silence there resolves all four — which is what
+0.88.0's local mode did, writing `still_open: []` on a project that already had a backlog.
 
 Each row also carries **`chain`** — `sha256(previous chain + this row, canonical JSON)` —
 and `state.json` records the same value in `last_run.chain`. This is what makes

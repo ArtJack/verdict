@@ -1141,5 +1141,107 @@
   "path": "src/verdict_mcp/runner.py",
   "old": "    env.setdefault(BG_WAIT_ENV, \"0\")\n",
   "new": "    env[BG_WAIT_ENV] = \"0\"\n"
+ },
+ {
+  "label": "0.90.0 P1 local delta: a drifted finding is carried instead of re-filed",
+  "path": "src/verdict_mcp/small.py",
+  "old": "        elif drift in (\"changed\", \"missing\"):\n            refile.append((f, drift, moved))",
+  "new": "        elif False:\n            refile.append((f, drift, moved))"
+ },
+ {
+  "label": "0.90.0 P2 local delta: an unmentioned finding is left to the merge's silence rule",
+  "path": "src/verdict_mcp/small.py",
+  "old": "        else:\n            still_open.append(fid)",
+  "new": "        else:\n            pass"
+ },
+ {
+  "label": "0.90.0 P3 local delta: a resolution on a test that merely passes at HEAD",
+  "path": "src/verdict_mcp/small.py",
+  "old": "    if rec.get(\"at_previous\") != \"fail\" or rec.get(\"at_head\") != \"pass\":\n        return None",
+  "new": "    if rec.get(\"at_head\") != \"pass\":\n        return None"
+ },
+ {
+  "label": "0.90.0 P4 local verdict: computed from this run's findings only, so a fail can improve",
+  "path": "src/verdict_mcp/small.py",
+  "old": "    if previous_verdict == \"fail\":\n        return \"fail\"",
+  "new": "    if previous_verdict == \"fail\" and False:\n        return \"fail\""
+ },
+ {
+  "label": "0.90.0 P5 local delta: the previous flaky quarantine is wiped",
+  "path": "src/verdict_mcp/small.py",
+  "old": "    quarantine_out = carried_quarantine + fresh_quarantine",
+  "new": "    quarantine_out = fresh_quarantine"
+ },
+ {
+  "label": "0.90.0 P6 local delta: verified_intact is wiped",
+  "path": "src/verdict_mcp/small.py",
+  "old": "        \"verified_intact\": list((previous or {}).get(\"verified_intact\") or []),",
+  "new": "        \"verified_intact\": [],"
+ },
+ {
+  "label": "0.90.0 P7 local delta: a run that got no answers finalizes anyway",
+  "path": "src/verdict_mcp/small.py",
+  "old": "    if (model.answered + model.unanswered) and not model.answered:",
+  "new": "    if False:"
+ },
+ {
+  "label": "0.90.0 P8 local: the gateway liveliness probe always says alive",
+  "path": "src/verdict_mcp/small.py",
+  "old": "        return False, f\"{url} is unreachable: {str(exc)[:160]}\"",
+  "new": "        return True, f\"{url} is unreachable: {str(exc)[:160]}\""
+ },
+ {
+  "label": "0.90.0 P9 local quarantine: released on the expiry date alone, unmeasured",
+  "path": "src/verdict_mcp/small.py",
+  "old": "        outcomes = [_run_test(test_one_cmd, str(entry[\"test_id\"]), repo, repo,\n                              REQUARANTINE_TIMEOUT_S)[\"result\"] for _ in range(runs)]",
+  "new": "        outcomes = [\"pass\" for _ in range(runs)]"
+ },
+ {
+  "label": "0.90.0 P10 runner: --on-drift local falls through to a claude run",
+  "path": "src/verdict_mcp/runner.py",
+  "old": "    if args.on_drift == \"local\":\n        if not alive:\n            clear_marker(qa_root)",
+  "new": "    if False:\n        if not alive:\n            clear_marker(qa_root)"
+ },
+ {
+  "label": "0.90.0 P11 sweep: verified_intact is dropped, so the next sweep guards nothing",
+  "path": "src/verdict_mcp/runner.py",
+  "old": "        \"verified_intact\": list(previous.get(\"verified_intact\") or []),",
+  "new": "        \"verified_intact\": [],"
+ },
+ {
+  "label": "0.90.0 P12 report: the Judge line is omitted, so a local run reads like an agent run",
+  "path": "src/verdict_mcp/harness.py",
+  "old": "    engine = last.get(\"engine\")\n    if not engine:",
+  "new": "    engine = None\n    if not engine:"
+ },
+ {
+  "label": "0.90.0 P13 local gate: a range run falls back to the reading map",
+  "path": "src/verdict_mcp/small.py",
+  "old": "    if not changed:\n        return candidates(facts, repo)",
+  "new": "    if True:\n        return candidates(facts, repo)"
+ },
+ {
+  "label": "0.90.0 P14 local gate: --range without --qa-root writes the key's own state root",
+  "path": "src/verdict_mcp/small.py",
+  "old": "    if (args.sha_range or args.base) and not args.qa_root:",
+  "new": "    if False:"
+ },
+ {
+  "label": "0.90.0 P15 local gate: a non-Python diff finalizes an unqualified pass",
+  "path": "src/verdict_mcp/small.py",
+  "old": "    non_python = bool(ranged and changed and not python_in(changed))",
+  "new": "    non_python = False"
+ },
+ {
+  "label": "0.90.0 P16 local gate: needs_claude drops the changed lines nothing executed",
+  "path": "src/verdict_mcp/small.py",
+  "old": "    cold = unexercised_diff(facts)\n    if cold:\n        out[\"unexercised_changed_lines\"] = cold",
+  "new": "    cold = 0\n    if cold:\n        out[\"unexercised_changed_lines\"] = cold"
+ },
+ {
+  "label": "0.90.0 P17 local gate: the reference state is opened for writing",
+  "path": "src/verdict_mcp/small.py",
+  "old": "    try:\n        doc = json.loads(Path(path).read_text(encoding=\"utf-8\"))\n    except (OSError, json.JSONDecodeError) as exc:",
+  "new": "    try:\n        Path(path).write_text(\"{}\", encoding=\"utf-8\")\n        doc = json.loads(Path(path).read_text(encoding=\"utf-8\"))\n    except (OSError, json.JSONDecodeError) as exc:"
  }
 ]

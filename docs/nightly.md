@@ -238,6 +238,72 @@ measurements (`docs/state-schema.md`, "The model-free night").
 verdict-run myapp --skip-unless-drift --max-age-hours 26 --fail-on risks
 ```
 
+## A night that spends no Claude tokens at all
+
+The sweep answers "nothing a finding cites moved". `--on-drift` (0.90.0) answers the harder
+half: something *did* move, and this is a run nobody asked for. The night steps down a tier
+instead of reaching for the expensive model.
+
+```
+verdict-run myapp --on-drift local \
+  --local-env-file ~/.config/verdict-gateway.env --local-model qwen3
+```
+
+`--on-drift local` and `--on-drift none` both imply `--skip-unless-drift`, and **neither can
+reach the `claude` CLI at all** — that is the property, not a side effect. What happens, in
+order:
+
+| Condition, all harness-measured | What runs | State written | Exit |
+|---|---|---|---|
+| HEAD unchanged, no quarantine due | nothing; the standing verdict is re-gated | none | the gate's |
+| HEAD moved, nothing a finding cites | the model-free sweep | run advances, `model: none` | the gate's |
+| the sweep is blocked, the gateway answers | `verdict-local --delta` | `last_run.engine: verdict-local` and its counters | the gate's |
+| the sweep is blocked, the gateway is down | nothing at all | none | 5, loud |
+| the sweep is allowed, the gateway is down | the sweep, plus one `not_tested` line saying the model was unreachable | as above | the gate's |
+| the local run got no answers | nothing is finalized; the run marker stays | none | 5, loud |
+| no gate produced counts | the local delta, verdict forced `blocked` | `blocked` | 3 |
+| `--on-drift none` | the sweep, or nothing | as above, or none | the gate's, or 5 |
+
+`--on-drift local` with no `ANTHROPIC_BASE_URL` / `ANTHROPIC_AUTH_TOKEN` — in
+`--local-env-file` or in the environment — is **exit 2 before anything runs**. The alternative
+is the one an unattended night must never have: quietly spending the expensive model instead.
+
+What a local night is, and what it is not: the harness measures the repository exactly as it
+does for the agent — the gates, the id ledger, diff coverage, every anchor re-hashed, each open
+finding's cited test re-run at both commits — and a small model answers a few dozen bounded
+questions about single functions of the diff. There is no exploratory charter, no archaeology
+and no adversarial reading of the suite, and the report says so in numbers. The safety rules
+that make it usable over a project with a backlog:
+
+- **A finding is never closed by silence.** Every prior open finding is resolved by a measured
+  fail→pass on a test somebody *chose* (`verification_test`, or one the collector saw for the
+  first time this run), carried by id, or re-filed under its own id with the drift that moved
+  its evidence. The invariant is asserted before anything is finalized; a gap refuses the run.
+- **The verdict is monotone.** A previous `fail` stays `fail`. This tier can make a verdict
+  worse or leave it alone, never better.
+- **A quarantine is released by measurement, not by its expiry date** — five identical runs of
+  the one test, and the FLAKY finding stays open with the measurement added to it.
+- **No counts, no verdict**: a run where no gate produced test counts is `blocked`.
+- **A run that got no answers writes no state**, and leaves its marker, so tomorrow knows the
+  night was lost.
+
+For a PR rather than a nightly, point it at a throwaway QA root:
+
+```
+verdict-local --repo . --base main --qa-root /tmp/pr.qa \
+  --reference-state ~/.claude/verdict/myapp/state.json \
+  --env-file ~/.config/verdict-gateway.env
+```
+
+`--qa-root` is **required** with `--range`/`--base`: in a linked worktree `derive_key` returns
+the *main* worktree's key, so without it a judgment about an unmerged branch would overwrite
+the project's own record. Copy the key's `profile.md` into that directory and nothing else.
+`--reference-state` reads the real state read-only, to say which of its open findings the diff
+touches. The run prints a short summary ending in `Claude tokens: 0`, and `facts.needs_claude`
+names what a real model run is still owed: changed lines nothing executed, open findings the
+diff touches, high-severity claims no counterfactual could prove, drift nobody read, a diff
+with no Python in it, parked questions, a range larger than the caps.
+
 ## Which account pays, and which endpoint answers
 
 A scheduled run spends whatever the CLI happens to be signed into. That is rarely what

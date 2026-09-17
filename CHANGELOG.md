@@ -3,6 +3,83 @@
 Plugin and `verdict-mcp` share one version line; `.claude-plugin/plugin.json` and
 `pyproject.toml` are bumped together.
 
+## 0.90.0 — 2026-09-17 · "the local tier"
+
+**Every run nobody asked for spends zero Claude tokens.** `verdict-run --on-drift
+{model,local,none}` decides what a night does when the sweep is blocked: spend a Claude run
+(the default, unchanged), hand it to `verdict-local` against a gateway, or do nothing and exit
+5. `local` and `none` imply `--skip-unless-drift` and **cannot reach the `claude` CLI at all** —
+that is the property, not a side effect. A local night with no endpoint is refused before
+anything runs, exit 2, because the alternative is the one an unattended run must never have:
+quietly spending the expensive model instead. A blocked sweep with a dead gateway writes
+nothing and clears the run marker its own facts pass left, so tomorrow is not told that tonight
+died mid-flight. A sweep that *is* allowed while the gateway is down still runs, and says in
+its own `not_tested` that the model was unreachable. The decision table is in
+[docs/nightly.md](docs/nightly.md).
+
+**`verdict-local` is a delta now, and it cannot close a finding by silence.** 0.89.0 said
+plainly that it must not be pointed at a project that already has Verdict state. Here is why,
+and here is the fix. It wrote `still_open: []`, and `merge()` reads an unmentioned finding as
+resolved unless five or more AND over half the backlog goes quiet at once — so a key with four
+open findings lost all four to a run that never looked at them, and a key with sixty lost the
+ten whose code had drifted. Now every prior open finding leaves a delta in exactly one of three
+places: **resolved** by a measured fail→pass on a test somebody chose (`verification_test`, or
+one the collector saw for the first time this run — the `harness._chosen` rule, and the only
+resolution path there is), **carried by id** because its cited code is where it was, or
+**re-filed** under its own id with the drift that moved it, because `still_open` over changed
+code is refused by the harness and silence would close it. The invariant — every prior open id
+is in one of the three — is asserted before anything is finalized, and a gap refuses the run
+rather than writing a state.
+
+**The verdict is monotone.** Six functions read by an 8B model may make a verdict worse or
+leave it alone, never better: a previous `fail` stays `fail` until something with judgment
+looks at it. No gate counts is `blocked`, not `pass`. An open Blocker is `fail`. Anything newly
+filed, an open Critical, or changed lines nothing executed caps the run at `pass with risks`.
+
+**A quarantine is released by measurement, not by its expiry date.** A due entry's test is run
+five times; 5/5 passes releases it and the FLAKY finding is re-filed with that measurement
+rather than left standing on words that are no longer true. Anything less moves the expiry with
+the counts it measured. A project with no `test_one_cmd` keeps the quarantine, parks a question
+and says so in `not_tested` — it never releases one it could not measure.
+
+**A branch no longer writes the trunk's record.** `verdict-local --range BASE..HEAD` / `--base
+REF` (through the merge base) now **require** `--qa-root`: in a linked worktree `derive_key`
+returns the *main* worktree's key, so a judgment about an unmerged branch resolved and would
+have overwritten the project's own state. `collect()` takes the range from the caller, so diff
+coverage exists on a run that has no previous state — the one measurement a PR gate exists to
+make. `--reference-state` reads the real state read-only to say which of its open findings the
+diff touches. A range with no parseable Python in it reads nothing, says so in one fixed
+sentence, and cannot rise above `pass with risks`; it used to fall through to the reading map
+and report a clean pass over files the change never touched. Caps: six files, twenty-four
+functions, six counterfactuals, two minutes a call, fifteen minutes of model time — and when a
+cap bites, the run says how many candidates it never looked at.
+
+**The record says who judged it.** `last_run.engine`, `last_run.model: local:<name>` and
+`last_run.local` (calls, tokens, answered, unanswered, retries, transport errors, functions
+read and skipped, seconds, and the gateway's *hostname* — never its credential). The report
+gains a **Judge** line beside the Harness line, ending `no Claude tokens spent`; a sweep's
+reads `none (model-free sweep)`. 0.89.0's `usage.jsonl` row carries `engine`, a Claude bill of
+a measured zero, and those counters under `local`. `facts.needs_claude` names what a real model
+run is still owed, each entry something the harness counted. The gate prints at most fifteen
+lines, ending `Claude tokens: 0`.
+
+**The housekeeping it never did.** The whole profile reaches `collect()`, so `test_one_cmd`,
+`test_ids_cmd` and `coverage_suite_cmd` exist here as they do for the agent — without them no
+fix could be verified, no id ledger was written, and diff coverage was permanently unavailable,
+which are the measurements the safety rules above rest on. Plus the run marker before the
+gates, last run's finding files moved aside, `test-ids.txt` written, and the gateway's
+liveliness asked *before* the suite instead of at the first question. A run that got no answers
+writes no state and leaves its marker: a judgment assembled from no answers is a run that
+measured the suite and called it QA.
+
+**And one line in the sweep (P-32):** `sweep_judgment` wrote `verified_intact: []`, so the
+cheapest run in the system silently deleted the list the *next* sweep is built to guard.
+
+Seventeen pinned mutants (P1–P17), whole suite. `run_eval.py --engine local` runs the pricer
+fixture through the local engine against the same answer key, with an injectable engine so the
+wiring is a unit test rather than a nightly. No change to `agents/verdict.md`, `commands/`,
+`skills/` or `hooks/`, so no eval payment.
+
 ## 0.89.0 — 2026-09-17 · "a default nobody chose"
 
 **Who was spending it.** A census of the author's own machine — every Verdict-agent run in

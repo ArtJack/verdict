@@ -838,6 +838,31 @@ it supports. It carries a class the hand-written scripts never had: mutants that
 **call site** while leaving the code correct, because "the code is right" and "the code
 runs" are different claims and only the first was ever being tested.
 
+v0.90.0 added seventeen (P1–P17) for the local tier, and they are the shape a safety rule
+wants: each one puts back a defect whose symptom is *silence*. A drifted finding carried
+instead of re-filed; an unmentioned finding left to the merge's silence rule; a resolution on
+a test that merely passes at HEAD; a verdict computed from this run's findings alone, so a
+`fail` can improve on its own; the previous quarantine or `verified_intact` wiped; a run with
+no answers finalizing anyway; a liveliness probe that always says alive; a quarantine released
+on its expiry date alone; `--on-drift local` falling through to a Claude run; a sweep dropping
+`verified_intact`; the report omitting its Judge line; a range run falling back to the reading
+map; `--range` without `--qa-root` writing the key's own state root; a non-Python diff
+finalizing an unqualified pass; `needs_claude` dropping the changed lines nothing executed; the
+reference state opened for writing. None of those turns the suite red on its own — which is
+exactly why each one is in the catalogue.
+
+### Scoring the local engine — `run_eval.py --engine local`
+
+`--engine local` runs the `pricer` fixture through `verdict-local` instead of a `claude -p`
+session, scored by the same answer key. The question it has to survive is not "does it find as
+much" — it will not, and the report says so in numbers — but the hard gate: **zero false
+greens.** No `pass` where the key says `fail`, and nothing marked RESOLVED without a
+verification record. Its deterministic rows (the still-open floor, still-open by id, findings
+filed as files, questions not re-asked, the verdict, quarantine released on expiry) should be
+3/3; the model rows are a small model's, and are published as whatever they are. The wiring has
+an injectable engine, so the protocol is a unit test rather than something only a gateway can
+check.
+
 ### Variance — a score is n=1 until repeated
 
 `run_eval.py --repeat N` runs a protocol N times in fresh workdirs. First measured series

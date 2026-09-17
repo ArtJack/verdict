@@ -3,7 +3,7 @@
 [![ci](https://github.com/ArtJack/verdict/actions/workflows/ci.yml/badge.svg)](https://github.com/ArtJack/verdict/actions/workflows/ci.yml)
 [![verdict on itself](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fraw.githubusercontent.com%2FArtJack%2Fverdict%2Fmain%2F.qa%2Fstate.json&query=%24.verdict&label=verdict%20on%20itself&color=blue)](.qa/reports/INDEX.md)
 [![eval 8/8 seeded defects](https://img.shields.io/badge/eval-8%2F8_seeded_defects-brightgreen)](eval/README.md#published-results)
-[![pinned rules 188/188 killed](https://img.shields.io/badge/pinned_rules-188%2F188_killed-brightgreen)](eval/README.md#suite-fault-detection-power--mutation-testing-on-ourselves)
+[![pinned rules 205/205 killed](https://img.shields.io/badge/pinned_rules-205%2F205_killed-brightgreen)](eval/README.md#suite-fault-detection-power--mutation-testing-on-ourselves)
 [![PyPI](https://img.shields.io/pypi/v/verdict-qa-mcp?label=verdict-qa-mcp&color=blue)](https://pypi.org/project/verdict-qa-mcp/)
 [![Claude Code plugin](https://img.shields.io/badge/Claude_Code-plugin-6E56CF)](#install)
 [![license MIT](https://img.shields.io/github/license/ArtJack/verdict)](LICENSE)
@@ -614,14 +614,20 @@ finding cites has moved — two seconds, and it says so. **A small local model:*
 `verdict-local` inverts the control — the harness measures, slices the code and proves claims
 in a scratch copy, and the model answers one bounded question at a time. Measured with
 `qwen3:8b` behind LiteLLM and Ollama: 9/10 · 9/10 · 10/10 on the baseline fixture, about thirty
-calls and seven thousand input tokens a run. Today it is a first pass over a Python project:
-**do not point it at a project that already has Verdict state** — it does not yet carry
-earlier findings forward, and the harness reads that silence as resolution. **The full agent
-through a gateway** (`verdict-run --env-file`, `ANTHROPIC_BASE_URL` → LiteLLM → your model
-server, [docs/nightly.md](docs/nightly.md)) needs a model with the window for a twelve-
-thousand-token contract on top of the CLI's own prompt; an 8B model served at 4k is not one.
-Which model may sign a verdict is the eval's decision, never a default's: Sonnet tied Opus on
-the honesty fixture and was at parity on root cause at n=3, with one run that wrote no state
+calls and seven thousand input tokens a run. Since 0.90.0 it is a **delta** as well as a first
+pass, and safe over a project that already has state: every prior open finding is resolved by a
+measured fail→pass on a test somebody chose, carried by id, or re-filed under its own id with
+the drift that moved it — never left unmentioned, because the harness reads silence as
+resolution. Its verdict is monotone: it can make a verdict worse or leave it alone, and a
+`fail` stays `fail` until something with judgment looks at it. `--range`/`--base` with a
+throwaway `--qa-root` judge a branch without touching the project's own state, and a range with
+no Python in it reads nothing and says so rather than reporting a clean pass. Wire it into a
+night with `verdict-run --on-drift local`, which can never reach the `claude` CLI at all.
+**The full agent through a gateway** (`verdict-run --env-file`, `ANTHROPIC_BASE_URL` → LiteLLM →
+your model server, [docs/nightly.md](docs/nightly.md)) needs a model with the window for a
+twelve-thousand-token contract on top of the CLI's own prompt; an 8B model served at 4k is not
+one. Which model may sign a verdict is the eval's decision, never a default's: Sonnet tied Opus
+on the honesty fixture and was at parity on root cause at n=3, with one run that wrote no state
 ([the model axis](eval/README.md#the-model-axis--opus-against-sonnet-paired)). Run it, publish
 the score, then decide.
 
