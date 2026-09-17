@@ -11,7 +11,8 @@
         "int(amount * 100)",
         "int(amount*100)"
       ],
-      "classification": "REAL_DEFECT"
+      "classification": "REAL_DEFECT",
+      "class_of": "cents-conversion-truncation"
     },
     {
       "key": "class-other-truncation-sites",
@@ -23,7 +24,9 @@
         "three sites",
         "same shape",
         "other site"
-      ]
+      ],
+      "class_of": "cents-conversion-truncation",
+      "note": "Amended 2026-09-16: this row and `cause-truncation-in-to-cents` describe one class, and since 0.84.0 the contract files one finding per class — finalize refuses a second finding that cites a line the first lists under `root_cause.class.sites`. Without a shared `class_of` the maximum matching gave the class-owning finding to the first row, so this row could only be earned by some OTHER finding that happened to say \"invoice\" (a test-gap finding does), which measures wording, not generalisation. The two rows now share `class_of`, exactly as the liar key's two cannot-fail rows have since 2026-09-07: one finding that names the sibling sites earns both, two findings still earn them separately. `class-not-split` remains the mechanical requirement (the sites recorded, in one finding, across both files). The archived corpus run scores 7/7 before and after."
     },
     {
       "key": "verdict-fails",

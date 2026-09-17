@@ -550,3 +550,34 @@ def test_two_rows_of_one_class_may_share_a_finding(tmp_path):
                           {"key": "tautology", "match_any": ["tautolog"]}]}
     rc, out = run_score(tmp_path, state, expected_file=_expected_file(tmp_path, unrelated))
     assert sorted(r["point"] for r in out["rows"]) == [0, 1], "unrelated rows never share"
+
+
+def test_the_cause_keys_two_truncation_rows_are_one_class(tmp_path):
+    """The rates key as shipped, not a stand-in. Its first two rows describe one class —
+    the truncating cents conversion and the sites that repeat it — and since 0.84.0 a
+    run may file only ONE finding for it (finalize refuses a second that cites a line the
+    first lists under `root_cause.class.sites`). Before 2026-09-16 the rows shared no
+    `class_of`, so the class-owning finding went to the first row and the second could
+    only be earned by some other finding that happened to say "invoice" — a published
+    Opus-against-Sonnet gap rested on that row. Sharing must not lower the bar either:
+    a finding that never looks past the failing site still earns one row, not two."""
+    key = json.loads((EVAL / "expected-cause.json").read_text(encoding="utf-8"))
+    rows = [r for r in key["rows"]
+            if r["key"] in ("cause-truncation-in-to-cents", "class-other-truncation-sites")]
+    assert [r.get("class_of") for r in rows] == ["cents-conversion-truncation"] * 2
+    expected = _expected_file(tmp_path, {"rows": rows})
+
+    state = perfect_state()
+    state["findings"] = [_finding(
+        "R-F-1", "money.to_cents truncates instead of rounding half up", "REAL_DEFECT",
+        ["money.py:6 int(amount * 100) — the failing site",
+         "invoice.py:8 and report.py:9 repeat the same shape; neither has a test"], "Critical")]
+    rc, out = run_score(tmp_path, state, expected_file=expected)
+    assert [r["point"] for r in out["rows"]] == [1, 1]
+    assert out["rows"][0]["matched"] == out["rows"][1]["matched"] == "R-F-1"
+
+    state["findings"] = [_finding(
+        "R-F-1", "money.to_cents truncates instead of rounding half up", "REAL_DEFECT",
+        ["money.py:6 int(amount * 100) — the failing site"], "Critical")]
+    rc, out = run_score(tmp_path, state, expected_file=expected)
+    assert [r["point"] for r in out["rows"]] == [1, 0], "one site found is one row earned"

@@ -502,6 +502,16 @@ conversion 3 of 3, Sonnet 0 of 2. Sonnet finds the defect and does not generalis
 is exactly the row that decides whether a fix at one site leaves the same rule broken two
 modules away. That is a prompt problem before it is a model problem.
 
+> **Correction, 2026-09-16 — that paragraph may be describing the scorer, not Sonnet.** The
+> row in question could not be earned by the class-owning finding at all (see Answer-key
+> amendments, 2026-09-16): it was earned by any *second* finding containing the word `invoice`.
+> A run that did what the contract asks — one finding, the sibling sites under
+> `root_cause.class.sites` — scored it as a miss. And if the per-row account above is complete,
+> the Sonnet run that scored 9/10 missed only this row, so it earned `class-not-split` — sites in
+> both `invoice.py` and `report.py`, recorded in one finding. That is generalising. It is an
+> inference from the published numbers, not a re-score: those workdirs are gone. The claim above
+> is left standing as published and is **unverified** until the paired payment on the amended key.
+
 **One Sonnet run wrote no state at all**, scoring 0/0 with `state_missing`. One occurrence,
 recorded rather than explained.
 
@@ -798,6 +808,24 @@ change is eval-paid — so it is filed for the next run rather than smuggled int
 that found it.
 
 ### Answer-key amendments
+
+- **2026-09-16, `expected-cause.json`: `cause-truncation-in-to-cents` and
+  `class-other-truncation-sites` share a `class_of`.** The same instrument shape as the liar
+  amendment below, found nine days later on the fixture next door. The two rows describe one
+  class, and since 0.84.0 a run may file only one finding for it — `finalize` refuses a second
+  finding that cites a line the first lists under `root_cause.class.sites`. The maximum matching
+  gave that one finding to the first row, so the second row could only be earned by some *other*
+  finding that happened to contain one of its terms, and the term that does it is the bare word
+  `invoice`: a test-gap finding ("invoice and report tests use only whole-cent data") earns the
+  row without saying anything about the class. That row is the whole of the published
+  Opus-against-Sonnet gap in "The model axis" (3 of 3 against 0 of 2), and the workdirs of that
+  pairing no longer exist, so whether the gap was the model or the wording is **not known** — it
+  is re-measured by the next paired payment, with `class-not-split` (the sites recorded, in one
+  finding, across both files) as the row that reads the state rather than the words. Proven not
+  to lower the bar: the archived corpus run scores 7/7 before and after with the same
+  row-to-finding mapping, and `test_the_cause_keys_two_truncation_rows_are_one_class` scores a
+  finding that never looks past the failing site at one row, not two — and fails on the
+  unamended key.
 
 - **2026-09-07, `expected-liar.json`: `mock-asserting-test` and `tautological-assertion` share a
   `class_of`.** The 0.84.0 contract files one finding per class, and the payment run reported the
