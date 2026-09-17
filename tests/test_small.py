@@ -155,6 +155,47 @@ def test_ask_json_retries_then_gives_up():
     assert bad.ask_json("q") is None and bad.retries == 3
 
 
+def test_a_transport_failure_is_counted_apart_from_an_unparseable_reply():
+    """`retries` counted only the reply the parser refused, so a night where the
+    gateway died halfway through reported "0 retries" beside a judgment built
+    from half the questions — which reads exactly like a clean run."""
+    import urllib.error
+
+    class Dead(small.Model):
+        def ask(self, prompt, max_tokens=1200):
+            raise urllib.error.URLError("connection refused")
+
+    dead = Dead("m", "http://x", "t")
+    assert dead.ask_json("q") is None
+    assert dead.errors == 1 and dead.unanswered == 1 and dead.retries == 0
+
+    class Babbling(small.Model):
+        def ask(self, prompt, max_tokens=1200):
+            return "I think it is fine."
+
+    noise = Babbling("m", "http://x", "t")
+    assert noise.ask_json("q") is None
+    assert noise.errors == 0 and noise.unanswered == 1 and noise.retries == 3
+
+    class Good(small.Model):
+        def ask(self, prompt, max_tokens=1200):
+            return '{"ok": 1}'
+
+    good = Good("m", "http://x", "t")
+    assert good.ask_json("q") == {"ok": 1}
+    assert good.answered == 1 and good.unanswered == 0 and good.errors == 0
+
+
+def test_the_flags_a_local_night_is_driven_by_are_declared():
+    """The runner builds these by name; a rename that only broke the CLI would
+    otherwise be found by a nightly instead of by the suite."""
+    source = (REPO / "src" / "verdict_mcp" / "small.py").read_text(encoding="utf-8")
+    for flag in ('"--delta"', '"--qa-root"', '"--range"', '"--base"',
+                 '"--reference-state"', '"--max-functions"', '"--max-probes"',
+                 '"--max-model-s"'):
+        assert flag in source, flag
+
+
 def test_read_env_file_and_a_missing_one(tmp_path, capsys):
     path = tmp_path / "e"
     path.write_text("# c\nANTHROPIC_BASE_URL='http://gw:4000'\n", encoding="utf-8")

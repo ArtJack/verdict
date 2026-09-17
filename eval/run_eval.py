@@ -1,6 +1,13 @@
 #!/usr/bin/env python3
 """Eval harness: run Verdict against a fixture and score the result.
 
+Engines (--engine):
+  agent      a `claude -p` session running the verdict agent (default)
+  local      `verdict-local`: the harness drives and a small model on a gateway
+             answers one bounded question at a time. Scored by the same answer
+             key, because the question it has to survive is not "does it find as
+             much" — it will not — but "does it ever produce a false green".
+
 Fixtures (--fixture):
   pricer     the seeded-defect app; modes: baseline | seeded | live
   pricer-ts  the TypeScript/vitest twin; mode: baseline
@@ -338,6 +345,51 @@ def _seconds_until_reset(output: str) -> int | None:
     return max(60, min(wait, 10800))
 
 
+def local_argv(checkout: Path, qa_root: Path, args, phase: str) -> list:
+    """The `verdict-local` command line for one phase of a fixture run.
+
+    A list, built by a function, because that is the part worth testing without a
+    gateway: which flags a scored run gets is the experiment's protocol, and a
+    protocol that only exists inside a subprocess call cannot be checked.
+    """
+    argv = ["--repo", str(checkout), "--qa-root", str(qa_root),
+            "--model", args.local_model, "--limit", str(args.local_limit),
+            "--reruns", "0"]
+    if phase == "delta":
+        # Stated rather than inferred: the seeded phase runs against a planted
+        # golden state, and whether it is a delta is the whole question the
+        # zero-false-greens gate is asking.
+        argv.append("--delta")
+    if args.local_env_file:
+        argv += ["--env-file", str(args.local_env_file)]
+    return argv
+
+
+def run_local_engine(checkout, qa_home, qa_root, args, phase, log_path, engine=None) -> None:
+    """One local-engine phase, in place of a `claude -p` session.
+
+    `engine` is the seam: the default calls `verdict_mcp.small.main`, and a test
+    passes a fake that answers from a script. Nothing here reaches the network on
+    its own, which is what lets the wiring be a unit test rather than a nightly.
+    """
+    argv = local_argv(Path(checkout), Path(qa_root), args, phase)
+    if engine is None:
+        sys.path.insert(0, str(REPO / "src"))
+        from verdict_mcp.small import main as engine        # noqa: PLC0415 — optional import
+    previous = os.environ.get("VERDICT_HOME")
+    os.environ["VERDICT_HOME"] = str(qa_home)
+    try:
+        code = engine(argv)
+    finally:
+        if previous is None:
+            os.environ.pop("VERDICT_HOME", None)
+        else:
+            os.environ["VERDICT_HOME"] = previous
+    Path(log_path).write_text(f"verdict-local {' '.join(argv)}\nexit {code}\n", encoding="utf-8")
+    if code != 0:
+        raise RuntimeError(f"verdict-local exited {code}; log: {log_path}")
+
+
 def run_agent(prompt, checkout, qa_home, model, timeout_s, base_env, log_path):
     env = dict(base_env, VERDICT_HOME=str(qa_home), VERDICT_STRICT="1")
     # A tester delegated in the background is killed by the CLI after 600 s in print mode;
@@ -414,7 +466,8 @@ def run_once(args, fixture, mode, base_env, prompt_text=None, arm=None, model=No
     base_env = session_env(base_env, workdir / "claude-config", checkout)
     qa_root = qa_home / fixture["dir"]
     results = {"fixture": args.fixture, "mode": mode, "workdir": str(workdir),
-               "model": model,
+               "model": args.local_model if args.engine == "local" else model,
+               "engine": args.engine,
                # the endpoint, never the credential
                "endpoint": base_env.get("ANTHROPIC_BASE_URL", "anthropic"),
                "prompt_sha256": hashlib.sha256(
@@ -451,9 +504,13 @@ def run_once(args, fixture, mode, base_env, prompt_text=None, arm=None, model=No
         rev_a = git(["rev-parse", "--short", "HEAD"], checkout, base_env)
 
         if mode in ("baseline", "live"):
-            run_agent(with_task_note(fixture["prompt"], getattr(args, "task_note", None)),
-                      checkout, qa_home, model,
-                      args.timeout_s, base_env, workdir / "phase1.log")
+            if args.engine == "local":
+                run_local_engine(checkout, qa_home, qa_root, args, "baseline",
+                                 workdir / "phase1.log")
+            else:
+                run_agent(with_task_note(fixture["prompt"], getattr(args, "task_note", None)),
+                          checkout, qa_home, model,
+                          args.timeout_s, base_env, workdir / "phase1.log")
             rc, out = score(qa_root, EVAL_DIR / fixture["expected_baseline"],
                             None, checkout, args.require_harness)
             results["baseline"] = out
@@ -477,9 +534,13 @@ def run_once(args, fixture, mode, base_env, prompt_text=None, arm=None, model=No
             subprocess.run(["git", "add", "-A"], cwd=checkout, env=env, check=True)
             subprocess.run(["git", "commit", "-qm", "fixture rev B"],
                            cwd=checkout, env=env, check=True)
-            run_agent(with_task_note(DELTA_PROMPT, getattr(args, "task_note", None)),
-                      checkout, qa_home, model,
-                      args.timeout_s, base_env, workdir / "phase2.log")
+            if args.engine == "local":
+                run_local_engine(checkout, qa_home, qa_root, args, "delta",
+                                 workdir / "phase2.log")
+            else:
+                run_agent(with_task_note(DELTA_PROMPT, getattr(args, "task_note", None)),
+                          checkout, qa_home, model,
+                          args.timeout_s, base_env, workdir / "phase2.log")
             rc, out = score(qa_root, EVAL_DIR / fixture["expected_delta"],
                             mode, checkout, args.require_harness)
             results["delta"] = out
@@ -584,13 +645,34 @@ def main() -> int:
                          "--model against MODEL, runs interleaved, one table with per-row "
                          "deltas and each arm's token bill (e.g. --model opus "
                          "--pair-model sonnet)")
+    ap.add_argument("--engine", choices=("agent", "local"), default="agent",
+                    help="who judges: the Claude agent (default), or `verdict-local` driving "
+                         "a small model through a gateway. The local engine is scored by the "
+                         "same answer key — the point of running it here is the hard gate, "
+                         "that it never produces a false green")
+    ap.add_argument("--local-env-file", type=Path, default=None, metavar="PATH",
+                    help="KEY=VALUE file with the gateway's ANTHROPIC_BASE_URL and "
+                         "ANTHROPIC_AUTH_TOKEN, for --engine local")
+    ap.add_argument("--local-model", default=os.environ.get("VERDICT_LOCAL_MODEL", "qwen3"),
+                    metavar="NAME", help="the model name the gateway serves")
+    ap.add_argument("--local-limit", type=int, default=6, metavar="N",
+                    help="how many files the local engine may read (default 6)")
     args = ap.parse_args()
 
     fixture = FIXTURES[args.fixture]
     mode = args.mode or ("seeded" if args.fixture == "pricer" else "baseline")
     if mode not in fixture["modes"]:
         ap.error(f"fixture {args.fixture!r} supports modes {fixture['modes']}")
-    if shutil.which("claude") is None:
+    if args.engine == "local":
+        # The local engine reads Python and drives a Python harness; the fixtures
+        # that mean anything to it are the pricer's two. Saying so beats scoring
+        # a TypeScript twin at zero and calling that a measurement.
+        if args.fixture != "pricer" or mode not in ("baseline", "seeded"):
+            ap.error("--engine local is wired for `pricer` in baseline or seeded mode only")
+        if args.pair or args.pair_model:
+            ap.error("--engine local has no prompt and no Claude bill, so neither paired "
+                     "axis means anything against it")
+    elif shutil.which("claude") is None:
         print("error: the `claude` CLI is required for model runs", file=sys.stderr)
         return 2
 

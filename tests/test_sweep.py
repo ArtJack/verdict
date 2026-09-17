@@ -114,6 +114,86 @@ def test_the_unchanged_head_path_still_applies(tmp_path):
     assert state_of(qa)["run_number"] == 1
 
 
+# ── the tier below the sweep: --on-drift ──────────────────────────────────
+
+def env_file(tmp_path, base="http://127.0.0.1:1"):
+    path = tmp_path / "gw.env"
+    path.write_text(f"ANTHROPIC_BASE_URL={base}\nANTHROPIC_AUTH_TOKEN=t\n", encoding="utf-8")
+    return path
+
+
+def test_on_drift_local_never_launches_claude(tmp_path):
+    """The whole point of the tier. The sweep is blocked — a cited file moved —
+    and a night told to be local goes to the gateway or nowhere. The stub CLI is
+    the instrument: if it ever ran, it would leave its file behind."""
+    repo, home, qa = project(tmp_path)
+    (repo / "cited.py").write_bytes(b"def a(x):\n    return x + 1  # touched\n")
+    git(repo, "commit", "-qam", "touch cited.py")
+    proc, model_ran = run(tmp_path, repo, home, "--on-drift", "local",
+                          "--local-env-file", str(env_file(tmp_path)))
+    assert not model_ran, proc.stderr
+    assert proc.returncode == 5, proc.stderr
+    assert "the local gateway is down" in proc.stderr
+    assert state_of(qa)["run_number"] == 1, "nothing was written"
+    assert not (qa / "run-in-progress.json").exists(), \
+        "a night that never started must not leave a marker claiming it did"
+
+
+def test_on_drift_local_refuses_without_an_endpoint(tmp_path):
+    """Refused before anything runs, because the alternative — quietly spending
+    the expensive model instead — is the outcome this release exists to remove."""
+    repo, home, _qa = project(tmp_path)
+    env = {k: v for k, v in os.environ.items()
+           if not k.startswith("VERDICT_") and not k.startswith("ANTHROPIC_")}
+    env["VERDICT_HOME"] = str(home)
+    env["ARGV_OUT"] = str(tmp_path / "argv.json")
+    proc = subprocess.run([sys.executable, str(RUNNER), "--repo", str(repo),
+                           "--claude-cmd", "definitely-not-on-path",
+                           "--no-provision", "--on-drift", "local"],
+                          capture_output=True, text=True, env=env, encoding="utf-8",
+                          errors="replace")
+    assert proc.returncode == 2, proc.stderr
+    assert "--on-drift local needs ANTHROPIC_BASE_URL" in proc.stderr
+    assert "must not fall through to a Claude run" in proc.stderr
+    assert "not found on PATH" not in proc.stderr, \
+        "a local night does not need the claude CLI, so a missing one is not its problem"
+
+
+def test_on_drift_none_writes_nothing_and_says_the_run_did_not_happen(tmp_path):
+    repo, home, qa = project(tmp_path)
+    (repo / "cited.py").write_bytes(b"def a(x):\n    return x + 1  # touched\n")
+    git(repo, "commit", "-qam", "touch cited.py")
+    proc, model_ran = run(tmp_path, repo, home, "--on-drift", "none")
+    assert not model_ran and proc.returncode == 5, proc.stderr
+    assert "--on-drift none forbids a model run" in proc.stderr
+    assert state_of(qa)["run_number"] == 1
+    assert not (qa / "run-in-progress.json").exists()
+
+
+def test_on_drift_local_still_sweeps_when_it_can_and_names_the_dead_gateway(tmp_path):
+    """The sweep is allowed, so the night is still worth something — and the
+    not_tested says the model was unreachable, rather than leaving a reader to
+    assume the sweep was a choice."""
+    repo, home, qa = project(tmp_path)
+    (repo / "other.py").write_bytes(b"def b(x):\n    return x  # untouched by any finding\n")
+    git(repo, "commit", "-qam", "touch other.py")
+    proc, model_ran = run(tmp_path, repo, home, "--on-drift", "local",
+                          "--local-env-file", str(env_file(tmp_path)))
+    assert not model_ran and proc.returncode == 0, proc.stderr
+    s = state_of(qa)
+    assert s["run_type"] == "sweep" and s["run_number"] == 2
+    assert any("the local model was unreachable" in line for line in s["not_tested"])
+
+
+def test_on_drift_model_is_the_default_and_unchanged(tmp_path):
+    repo, home, qa = project(tmp_path)
+    (repo / "cited.py").write_bytes(b"def a(x):\n    return x + 1  # touched\n")
+    git(repo, "commit", "-qam", "touch cited.py")
+    proc, model_ran = run(tmp_path, repo, home, "--skip-unless-drift")
+    assert model_ran, proc.stderr
+    assert state_of(qa)["run_number"] == 1
+
+
 def test_every_blocker_is_a_measurement():
     today = date(2026, 9, 8)
     facts = {"evidence_drift": {"status": "measured", "summary": {"drifted_findings": [],
@@ -143,6 +223,24 @@ def test_every_blocker_is_a_measurement():
     assert "no commit range to compare" in sweep_blockers(facts, previous, None, today)
     incomplete = json.loads(json.dumps(facts)); incomplete["previous_run_incomplete"] = {"x": 1}
     assert "the previous run never finished" in sweep_blockers(incomplete, previous, ["b.py"], today)
+
+
+def test_a_sweep_carries_verified_intact_and_says_nothing_outside_was_read():
+    """P-32: the sweep used to write `verified_intact: []`, so the cheapest run in
+    the system silently deleted the list the NEXT sweep is supposed to guard —
+    and the confirmation the first external user said he was paying for. It also
+    now states the one limit a model-free run shares with a local one: nothing
+    outside the checkout was read, so a standing blocker quoting a production
+    number was not re-checked."""
+    previous = {"verdict": "pass", "findings": [],
+                "verified_intact": ["net proceeds never go negative",
+                                    "no order is charged twice"]}
+    j = sweep_judgment({"last_run": {"sha_range": "a..b"}}, previous, ["x.py"], 1)
+    assert j["verified_intact"] == ["net proceeds never go negative",
+                                    "no order is charged twice"]
+    assert any("nothing outside the checkout was read" in line for line in j["not_tested"])
+    with_note = sweep_judgment({"last_run": {}}, previous, [], 1, ["the model was unreachable"])
+    assert with_note["not_tested"][-1] == "the model was unreachable"
 
 
 def test_the_synthetic_judgment_carries_every_open_finding_by_id_and_nothing_else():
