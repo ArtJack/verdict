@@ -1169,8 +1169,8 @@
  {
   "label": "0.90.0 P5 local delta: the previous flaky quarantine is wiped",
   "path": "src/verdict_mcp/small.py",
-  "old": "    quarantine_out = carried_quarantine + fresh_quarantine",
-  "new": "    quarantine_out = fresh_quarantine"
+  "old": "    quarantine_out = merge_quarantine(carried_quarantine, fresh_quarantine)",
+  "new": "    quarantine_out = merge_quarantine([], fresh_quarantine)"
  },
  {
   "label": "0.90.0 P6 local delta: verified_intact is wiped",

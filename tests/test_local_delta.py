@@ -276,6 +276,26 @@ def test_a_quarantine_that_cannot_be_re_measured_is_kept_and_said_out_loud(tmp_p
     assert "NOT re-measured" in notes[0] and "test_one_cmd" in notes[0]
 
 
+def test_one_test_gets_one_quarantine_entry_and_one_finding(tmp_path):
+    """A test already under an expiry that goes unstable again would otherwise be
+    in the list twice — last run's counts and this run's — with nothing to say
+    which expiry governs; and it would get a second finding id for one defect."""
+    old = {"test_id": "t.py::x", "quarantined_until": "2099-01-01", "run_count": 3}
+    fresh = {"test_id": "t.py::x", "quarantined_until": "2026-10-01", "run_count": 5}
+    assert small.merge_quarantine([old], [fresh]) == [fresh], "this run's measurement wins"
+    assert small.merge_quarantine([old], []) == [old]
+    assert small.merge_quarantine([], []) == []
+
+    previous = {"findings": [
+        {"id": "P-F-4", "status": "open", "failure_classification": "FLAKY",
+         "title": "t.py::x is not deterministic", "evidence": ["measured"]},
+        {"id": "P-F-5", "status": "resolved", "failure_classification": "FLAKY",
+         "title": "t.py::y is not deterministic"}]}
+    assert small.flaky_findings_by_test(previous, ["t.py::x"]) == {"t.py::x": "P-F-4"}
+    assert small.flaky_findings_by_test(previous, ["t.py::y"]) == {}, "resolved is not open"
+    assert small.flaky_findings_by_test(None, ["t.py::x"]) == {}
+
+
 def test_an_expiry_that_is_not_due_is_carried_verbatim(tmp_path):
     repo = tmp_path / "r"
     repo.mkdir()

@@ -1193,20 +1193,48 @@ def requarantine(repo: Path, entries, test_one_cmd: str | None, today,
     return kept, released, notes
 
 
-def released_ids(previous: dict | None, released: list) -> list:
-    """The FLAKY findings whose quarantine this run released — they are re-filed
-    with the measurement, not left standing on a claim that is no longer true."""
-    out = []
-    tests = {str(r.get("test_id")) for r in released if isinstance(r, dict)}
+def flaky_findings_by_test(previous: dict | None, test_ids) -> dict:
+    """`{test id: finding id}` for the open FLAKY findings a previous run left.
+
+    Matched on the test id appearing in the finding's own words, which is how
+    this engine and the agent both write them. There is no structured link
+    between a quarantine entry and its finding, and inventing one now would not
+    read the findings people already have.
+    """
+    wanted = {str(t) for t in test_ids if t}
+    out: dict = {}
     for f in (previous or {}).get("findings") or []:
         if not isinstance(f, dict) or norm_status(f.get("status")) != "open":
             continue
         if f.get("failure_classification") != "FLAKY":
             continue
         blob = " ".join([str(f.get("title") or "")] + [str(e) for e in (f.get("evidence") or [])])
-        if any(t and t in blob for t in tests):
-            out.append(str(f.get("id")))
+        for test_id in wanted:
+            if test_id in blob:
+                out.setdefault(test_id, str(f.get("id")))
     return out
+
+
+def released_ids(previous: dict | None, released: list) -> list:
+    """The FLAKY findings whose quarantine this run released — they are re-filed
+    with the measurement, not left standing on a claim that is no longer true."""
+    tests = [r.get("test_id") for r in released if isinstance(r, dict)]
+    return sorted(set(flaky_findings_by_test(previous, tests).values()))
+
+
+def merge_quarantine(carried: list, fresh: list) -> list:
+    """The carried entries plus this run's, one per test id.
+
+    A test already under an expiry that goes unstable again would otherwise be in
+    the list twice — once with last run's counts and once with this run's — and a
+    reader would have no way to tell which expiry governs. This run's measurement
+    wins, because it is the newer one.
+    """
+    by_test = {}
+    for entry in list(carried) + list(fresh):
+        if isinstance(entry, dict) and entry.get("test_id"):
+            by_test[str(entry["test_id"])] = entry
+    return [by_test[k] for k in sorted(by_test)]
 
 
 # ── the verdict, which may never improve on its own ───────────────────────────
@@ -1573,7 +1601,15 @@ def run(repo: Path, qa_root: Path, model: Model, limit: int, gate: str | None,
             "reason": f"failed in some of {len(repeats) + 1} identical runs and passed in "
                       "others — measured, not judged",
         })
+    # A test that already has an open FLAKY finding is being carried by id below;
+    # filing a second one for the same instability would put two ids on one defect.
+    already_flaky = flaky_findings_by_test(previous, sorted(flaky))
     for entry in fresh_quarantine:
+        if entry["test_id"] in already_flaky:
+            print(f"verdict-local: {entry['test_id']} is already "
+                  f"{already_flaky[entry['test_id']]}; the quarantine is re-measured and the "
+                  "finding carried, not filed again", file=sys.stderr)
+            continue
         mint(flaky_finding(entry, len(repeats) + 1, "@"), findings_dir, filed)
     for failure in failures:
         if failure["id"] in flaky:
@@ -1596,7 +1632,7 @@ def run(repo: Path, qa_root: Path, model: Model, limit: int, gate: str | None,
     # 4. The quarantine, re-measured rather than expired by the calendar.
     carried_quarantine, released, quarantine_notes = requarantine(
         repo, (previous or {}).get("flaky_quarantine") or [], config.get("test_one_cmd"), today)
-    quarantine_out = carried_quarantine + fresh_quarantine
+    quarantine_out = merge_quarantine(carried_quarantine, fresh_quarantine)
 
     # 5. Every prior open finding is mentioned — A, B or C, and nothing else.
     prior_open = [str(f.get("id")) for f in (previous or {}).get("findings") or []
