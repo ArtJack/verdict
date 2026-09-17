@@ -71,6 +71,8 @@ try:
     from .state import (RUNS_FILE, chain_link, history_row, load_runs,
                         next_revision)
     from .state import home as state_home
+    from .usage import ENTRYPOINT_ENV, SESSION_ENV, run_usage
+    from .usage import FIELDS as USAGE_FIELDS
     from .validate import known_tests, validate, validate_judgment
     from . import clock
 except ImportError:  # bare-script execution
@@ -91,6 +93,8 @@ except ImportError:  # bare-script execution
     from state import (RUNS_FILE, chain_link, history_row, load_runs,
                        next_revision)
     from state import home as state_home
+    from usage import ENTRYPOINT_ENV, SESSION_ENV, run_usage
+    from usage import FIELDS as USAGE_FIELDS
     from validate import known_tests, validate, validate_judgment
 
 RE_BASELINE_AFTER_DAYS = 7
@@ -2328,7 +2332,12 @@ def facts_main(argv=None) -> int:
         "started_utc": clock.stamp(),
         "repo": str(repo),
         # The commit is what separates "my own retry" from "last night died".
-        "git_sha": head}, indent=2) + "\n",
+        "git_sha": head,
+        # Which session staked this claim, when the CLI says. It is what lets the
+        # stop hook tell "the run this agent started and never finalized" from a
+        # marker somebody else's night left behind, and what lets finalize find this
+        # run's own transcript. Absent outside Claude Code; nothing depends on it.
+        **_session_identity()}, indent=2) + "\n",
         encoding="utf-8")
     # Last run's finding files move aside before this run writes its own —
     # unless the marker says this is the same run trying again, in which case
@@ -2457,6 +2466,68 @@ def _re_report(judgment: dict, previous: dict | None, facts: dict) -> list[str]:
     return bad
 
 
+USAGE_FILE = "usage.jsonl"
+
+
+def _session_identity() -> dict:
+    """`{session_id, entrypoint}` as far as the environment says, never a guess."""
+    out = {}
+    for key, name in (("session_id", SESSION_ENV), ("entrypoint", ENTRYPOINT_ENV)):
+        value = os.environ.get(name)
+        if value:
+            out[key] = value
+    return out
+
+
+def _measure_bill(qa_root: Path, facts: dict) -> dict | None:
+    """What this run has spent, read from the session's own transcript → a record, or
+    None when it cannot be known. Read before the state is composed, because the one
+    thing in it that belongs in the state is *which model answered*: a run spawned as
+    a subagent inherits its session's model, no operator exported `VERDICT_MODEL`, and
+    for three weeks the author's own history recorded no model on most rows while the
+    most expensive one on the account did the work."""
+    marker = _read_json(qa_root / "run-in-progress.json") or {}
+    session = marker.get("session_id") or os.environ.get(SESSION_ENV)
+    if not session:
+        return None
+    return run_usage(session, since=marker.get("started_utc"),
+                     fingerprint=facts.get("measured_at"))
+
+
+def _record_bill(qa_root: Path, state: dict, bill: dict | None) -> None:
+    """One line per run in `usage.jsonl`, beside the state and outside the signed row.
+
+    Outside, because a bill is telemetry: signing it would make every state written
+    before this file existed re-derive to a different row, the reason `gate_durations`
+    is kept out of the chain body. A run with no readable transcript still gets its
+    line — `usage: null` and why — so an absent bill is not mistaken for a free run.
+    Never raises, and never changes the exit code: the state is already on disk."""
+    try:
+        last = state.get("last_run") or {}
+        row = {"run_number": state.get("run_number"), "run_type": state.get("run_type"),
+               "timestamp_utc": last.get("timestamp_utc"), "model": last.get("model")}
+        if os.environ.get(ENTRYPOINT_ENV):
+            row["entrypoint"] = os.environ[ENTRYPOINT_ENV]
+        if os.environ.get("CLAUDE_EFFORT"):
+            row["effort"] = os.environ["CLAUDE_EFFORT"]
+        if state.get("run_type") == "sweep":
+            row["usage"] = {"requests": 0, **{k: 0 for k in USAGE_FIELDS}}
+            row["note"] = "model-free sweep: no model was called"
+        elif bill:
+            row["usage"] = bill
+            row["note"] = ("measured up to verdict-finalize; the closing handoff that "
+                           "follows is not in it")
+        else:
+            row["usage"] = None
+            row["note"] = ("no transcript could be read for this run — outside Claude Code, "
+                           "another machine, or a cleaned home. Unknown, not zero")
+        with (qa_root / USAGE_FILE).open("a", encoding="utf-8") as handle:
+            handle.write(json.dumps(row, sort_keys=True) + "\n")
+    except Exception as exc:        # noqa: BLE001 — see the docstring
+        print(f"verdict-finalize: the run's bill was not recorded ({exc}); the state is "
+              "written and valid", file=sys.stderr)
+
+
 def finalize_main(argv=None) -> int:
     ap = argparse.ArgumentParser(
         prog="verdict-finalize",
@@ -2487,6 +2558,13 @@ def finalize_main(argv=None) -> int:
         return 2
 
     previous = _read_json(qa_root / "state.json")
+
+    # The bill, and with it the model that actually answered — measured while the run
+    # marker still says when this run began. An operator's own label wins: `opus` from
+    # `verdict-run --model` is what they chose to call it, and it is already in the facts.
+    bill = None if args.sweep else _measure_bill(qa_root, facts)
+    if bill and bill.get("model") and not (facts.get("last_run") or {}).get("model"):
+        facts.setdefault("last_run", {})["model"] = bill["model"]
 
     # Findings as files: one `findings/<ID>.json` per finding, written when it
     # was proven; assembled here, oldest first. The judgment may still carry
@@ -2564,6 +2642,7 @@ def finalize_main(argv=None) -> int:
         return 1
     marker = qa_root / "run-in-progress.json"
     marker.unlink(missing_ok=True)
+    _record_bill(qa_root, state, bill)
     disagreements = check_artifacts(qa_root, state)
     if disagreements:
         # Loud, on the stream the agent reads, and not a refusal: the run is

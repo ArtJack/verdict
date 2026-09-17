@@ -194,3 +194,90 @@ def test_the_block_names_a_durable_signal_before_promising_exit_6(tmp_path, repo
     assert "facts_measured" not in proc.stderr.split("harness (")[1].split(")")[0], \
         "per-run scratch is not what the block is about"
     assert "exit 6" in proc.stderr
+
+
+# ── the run that never finalized (0.89.0) ─────────────────────────────────
+
+def _marker(root: Path, *, session="sess-1", minutes_ago=5, **extra):
+    from datetime import timedelta
+    root.mkdir(parents=True, exist_ok=True)
+    started = (datetime.now(timezone.utc) - timedelta(minutes=minutes_ago))
+    doc = {"started_utc": started.strftime("%Y-%m-%dT%H:%M:%SZ"), "repo": "/x", "git_sha": "abc"}
+    if session:
+        doc["session_id"] = session
+    doc.update(extra)
+    (root / "run-in-progress.json").write_text(json.dumps(doc), encoding="utf-8")
+    return root / "run-in-progress.json"
+
+
+def _tester_stops(repo, session="sess-1", agent_type="verdict:verdict", **extra):
+    return {"cwd": str(repo), "hook_event_name": "SubagentStop", "session_id": session,
+            "agent_type": agent_type, **extra}
+
+
+def test_a_tester_that_measured_and_never_finalized_is_told_once(tmp_path, repo):
+    """The recorded signature of a cheaper model: the facts are measured, the code is
+    read, the turn ends — and there is no state, no report, a lost run. The marker
+    `verdict-facts` leaves and only `verdict-finalize` removes is the evidence."""
+    root = qa_root(tmp_path, harnessed=True, fresh=False)      # last night's state, untouched
+    marker = _marker(root)
+    proc = fire(_tester_stops(repo), home=root.parent)
+    assert proc.returncode == 2
+    assert "verdict-finalize" in proc.stderr and "never did" in proc.stderr
+    assert "Traceback" not in proc.stderr
+    assert json.loads(marker.read_text(encoding="utf-8")).get("stop_told"), "the marker remembers"
+    again = fire(_tester_stops(repo), home=root.parent)
+    assert again.returncode == 0 and again.stderr == "", "told once per marker, never a loop"
+
+
+def test_a_first_run_that_never_finalized_has_no_state_at_all(tmp_path, repo):
+    """The case the hook used to leave at its first `is_file()`: no state.json exists,
+    because the run that would have written the first one is the run that stopped."""
+    root = tmp_path / "home" / "widget"
+    _marker(root)
+    proc = fire(_tester_stops(repo, agent_type="verdict"), home=root.parent)
+    assert proc.returncode == 2 and "verdict-finalize" in proc.stderr
+
+    team = repo / ".qa"
+    _marker(team, session="sess-2")
+    proc = fire(_tester_stops(repo, session="sess-2", agent_type="verdict-rc"),
+                home=tmp_path / "empty")
+    assert proc.returncode == 2, "a team-mode root inside the repo is found by its marker too"
+
+
+@pytest.mark.parametrize("why, marker_kw, event_kw", [
+    ("another session's marker — last night's, or a run next door",
+     {"session": "someone-else"}, {}),
+    ("a parallel agent finishing while the tester is still at work",
+     {}, {"agent_type": "Explore"}),
+    ("an agent the CLI did not name", {}, {"agent_type": None}),
+    ("the main session ending its turn while a background tester runs",
+     {}, {"hook_event_name": "Stop"}),
+    ("a marker written by a harness that recorded no session", {"session": None}, {}),
+    ("a marker too old to be the run that is ending now", {"minutes_ago": 7 * 60}, {}),
+    ("a marker from the future — a clock, not a run", {"minutes_ago": -30}, {}),
+    ("already continuing because of this hook", {}, {"stop_hook_active": True}),
+])
+def test_everything_short_of_identity_says_nothing(tmp_path, repo, why, marker_kw, event_kw):
+    root = qa_root(tmp_path, harnessed=True, fresh=False)
+    _marker(root, **marker_kw)
+    event = _tester_stops(repo)
+    event.update(event_kw)
+    proc = fire({k: v for k, v in event.items() if v is not None}, home=root.parent)
+    assert proc.returncode == 0 and proc.stderr == "", why
+
+
+def test_an_unreadable_marker_fails_open(tmp_path, repo):
+    root = qa_root(tmp_path, harnessed=True, fresh=False)
+    (root / "run-in-progress.json").write_text("{not json", encoding="utf-8")
+    proc = fire(_tester_stops(repo), home=root.parent)
+    assert proc.returncode == 0 and proc.stderr == ""
+    (root / "run-in-progress.json").write_text("[]", encoding="utf-8")
+    assert fire(_tester_stops(repo), home=root.parent).returncode == 0
+
+
+def test_a_finalized_run_leaves_no_marker_and_the_old_rule_still_speaks(tmp_path, repo):
+    """The new rule runs first; it must not swallow the rule this hook was written for."""
+    home = qa_root(tmp_path, harnessed=False).parent
+    proc = fire(_tester_stops(repo), home=home)
+    assert proc.returncode == 2 and "without going through the harness" in proc.stderr

@@ -3,7 +3,7 @@
 [![ci](https://github.com/ArtJack/verdict/actions/workflows/ci.yml/badge.svg)](https://github.com/ArtJack/verdict/actions/workflows/ci.yml)
 [![verdict on itself](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fraw.githubusercontent.com%2FArtJack%2Fverdict%2Fmain%2F.qa%2Fstate.json&query=%24.verdict&label=verdict%20on%20itself&color=blue)](.qa/reports/INDEX.md)
 [![eval 8/8 seeded defects](https://img.shields.io/badge/eval-8%2F8_seeded_defects-brightgreen)](eval/README.md#published-results)
-[![pinned rules 173/173 killed](https://img.shields.io/badge/pinned_rules-173%2F173_killed-brightgreen)](eval/README.md#suite-fault-detection-power--mutation-testing-on-ourselves)
+[![pinned rules 185/185 killed](https://img.shields.io/badge/pinned_rules-185%2F185_killed-brightgreen)](eval/README.md#suite-fault-detection-power--mutation-testing-on-ourselves)
 [![PyPI](https://img.shields.io/pypi/v/verdict-qa-mcp?label=verdict-qa-mcp&color=blue)](https://pypi.org/project/verdict-qa-mcp/)
 [![Claude Code plugin](https://img.shields.io/badge/Claude_Code-plugin-6E56CF)](#install)
 [![license MIT](https://img.shields.io/github/license/ArtJack/verdict)](LICENSE)
@@ -113,7 +113,7 @@ event fires:
 | `PreToolUse` | `Write`/`Edit`/`MultiEdit`/`NotebookEdit` | write-scope guard | always, unless `VERDICT_STRICT=1` or the caller is the verdict agent itself |
 | `PreToolUse` | `Bash` | bash-scope guard | always, unless `VERDICT_STRICT=1` |
 | `PostToolUse` | `Write`/`Edit`/`MultiEdit` | state validator | unless the written file is literally named `state.json` |
-| `Stop` / `SubagentStop` | end of turn | run-contract check | unless a QA run *in this session* left hand-written state — and it blocks **at most once**, never loops |
+| `Stop` / `SubagentStop` | end of turn | run-contract check | unless a QA run *in this session* left hand-written state, or a Verdict agent *of this session* measured the facts and is stopping without `verdict-finalize` (the run marker names the session; another session's marker, or another agent stopping beside a run in progress, says nothing) — each blocks **at most once**, never loops |
 | `SessionStart` | session open | findings banner | unless the repository has QA state |
 
 Every hook **fails open**: malformed input, missing files, or an exception mean

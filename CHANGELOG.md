@@ -3,6 +3,63 @@
 Plugin and `verdict-mcp` share one version line; `.claude-plugin/plugin.json` and
 `pyproject.toml` are bumped together.
 
+## 0.89.0 — 2026-09-17 · "a default nobody chose"
+
+**Who was spending it.** A census of the author's own machine — every Verdict-agent run in
+Claude Code's transcripts, tokens summed per request id (`eval/usage_census.py`) — found 232
+runs in five weeks, about $1,400 at list price, and the scheduled nightly everybody suspected
+was a sixth of it. 215 runs had been spawned from interactive sessions; 214 named no model,
+so `model: inherit` handed them the most expensive model on the account. A run is turns times
+a growing context — median 33 requests, the largest climbing from 41k to 427k tokens — and
+the 15 largest runs are 27% of all cache read. Nothing had recorded any of it. The table,
+and what follows from it, is in [eval/README.md](eval/README.md#where-the-tokens-go--a-census-of-the-authors-own-runs).
+
+**The bill is written down where the run is finalized.** `verdict-finalize` appends one line
+per run to `<qa-root>/usage.jsonl` — requests, the four token counts, requests per model id,
+the model's wall time, the entrypoint and effort level — read from the session's own
+transcript, found by the session id the CLI exports and by the run's own `measured_at`
+printed inside it, so another agent working in the same session is not billed to this run.
+It sits beside the state, not in the signed row: signing telemetry would make every older
+state re-derive to a different row. One thing does enter the state — when no operator
+exported `VERDICT_MODEL`, `last_run.model` is the model the transcript names, measured,
+instead of absent. An unreadable bill is recorded as unknown, never as zero, and can never
+fail a run. The reader moved from `eval/` into the package (`verdict_mcp.usage`), because
+the wheel ships nothing from `eval/`.
+
+**The run that never finalized is told, once.** The costliest failure leaves no state at
+all: the tester measures, investigates, and ends its turn without `verdict-finalize`. It is
+the recorded signature of a cheaper model — `state_missing` zeroes an eval score by protocol —
+and the stop hook went silent on exactly that case at its first `is_file()`. `verdict-facts`
+now writes the session into the run marker, and the hook speaks when a **Verdict** agent
+stops, in **that** session, with the marker still there. Identity, not a time window: a
+marker another night left behind, or a parallel agent finishing beside a run in progress,
+says nothing. Once per marker; every doubt fails open.
+
+**An answer-key row that read wording, corrected in public.** The one row behind the
+published Opus-against-Sonnet gap (3 of 3 against 0 of 2) could not be earned by the finding
+the contract asks for. Since 0.84.0 one class is one finding, so the class-owning finding went
+to the first truncation row and the second could only be earned by some *other* finding
+containing the word `invoice`. The two rows now share `class_of`, as the liar key's have since
+2026-09-07; the archived corpus run scores 7/7 before and after; a new test scores a finding
+that never looks past the failing site at one row, not two, and fails on the unamended key.
+The published claim stands with a dated correction beside it: unverified until the next
+paired payment.
+
+**Docs that had gone stale.** The FAQ still said Sonnet hard-fails the eval — a row
+superseded the day it was written. It now gives the three local answers in order of cost, and
+says plainly that `verdict-local` **must not be pointed at a project that already has Verdict
+state**: it does not carry earlier findings forward, and the harness reads that silence as
+resolution. It is also unsafe in a branch worktree (it resolves the *main* state root) and on
+a repository with no Python (it reads nothing and says `pass`). All three are fixed in the
+next release, which makes local mode a delta and a gate; until then it is a first pass over
+a fresh Python project, which is what it was measured as. `README-pypi.md` gains the three
+commands its table had forgotten.
+
+Twelve pinned mutants (Q1–Q12), whole-suite. No change to `agents/verdict.md`, so no eval
+payment. Known and tracked separately: four older catalogue anchors (T02, 0.78.0 R2/R5,
+0.79.0 S7) no longer match the source they were written against, so a full `pin_check` would
+report them stale — found by checking every anchor while adding these.
+
 ## 0.88.0 — 2026-09-09 · "prove the line, or hold the severity"
 
 **Local mode proves what it claims.** `verdict-local` now flips the suspected line in a
