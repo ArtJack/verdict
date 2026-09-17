@@ -91,6 +91,58 @@ def test_the_readme_badge_states_the_catalogue_size():
         f"badge says {m.group(1)}/{m.group(2)}, the catalogue scores {scored}")
 
 
+def test_every_catalogue_anchor_matches_exactly_once():
+    """A mutant is applied by exact replacement, and an `old` that does not
+    occur exactly once is reported STALE and counted as a survivor. So an edit
+    that moves an anchored line quietly takes a rule out of the measurement
+    while the badge above goes on counting it. Four scored entries went that
+    way and stayed there through 0.89.0: T02 when `_git_operands` repeated the
+    tar parser's `--` line (0.80.0), 0.78.0 R2 when the call beside the fold
+    gained an argument (0.83.0), 0.78.0 R5 and 0.79.0 S7 when the finding
+    checks moved into `validate_finding` one indent shallower (0.84.0). A full
+    `pin_check` could not have produced the number the badge stated, and
+    nothing in the suite said so — they were found by checking every anchor
+    while 0.89.0's own mutants were being added.
+
+    So it is checked on every run of the suite, and the edit that moves the
+    line is the edit that goes red. Equivalent entries too: out of the score,
+    they are still claims somebody re-measures.
+
+    Mutation runs leave this test out (`pin_check.SUITE` deselects it):
+    applying a mutant takes its own anchor out of the tree, so this test goes
+    red under the mutant rather than for the rule, and the failure would score
+    as a kill.
+    """
+    stale = []
+    for m in json.loads(pin_check.CATALOGUE.read_text(encoding="utf-8")):
+        target = pin_check.ROOT / m["path"]
+        if not target.is_file():
+            stale.append(f"{m['label']} — {m['path']}: no such file")
+            continue
+        hits = target.read_text(encoding="utf-8").count(m["old"])
+        if hits != 1:
+            stale.append(f"{m['label']} — {m['path']}: anchor matched {hits}")
+    assert not stale, (
+        "pin_check would score these as survivors. Re-anchor each on the rule's current "
+        "code (`git log -S` on the old text names the change that moved it):\n  "
+        + "\n  ".join(stale))
+
+
+def test_mutation_runs_leave_the_anchor_test_out():
+    """Inside a mutant the test above fails whatever the rule, because the
+    mutant has just deleted its own anchor — so a whole-suite run that kept it
+    would score every entry killed, including the ones nothing defends.
+    pin_check and the sweep both run `pin_check.SUITE`, which deselects it.
+
+    By the function's own name: pytest says nothing about a deselect that
+    matches no test, so a rename would quietly put it back into every mutant
+    run, and every rule would score killed again."""
+    node = f"tests/test_pin_check.py::{test_every_catalogue_anchor_matches_exactly_once.__name__}"
+    suite = pin_check.SUITE
+    assert any(suite[i:i + 2] == ["--deselect", node] for i in range(len(suite) - 1)), (
+        f"pin_check.SUITE runs {node} inside every mutant: {suite}")
+
+
 def test_a_mutation_is_written_atomically(tmp_path):
     """A kill between the truncate and the flush left a source file EMPTY —
     measured on this repository when a whole-catalogue run was interrupted:

@@ -177,6 +177,10 @@ def main(argv=None) -> int:
     if elsewhere:
         print(f"ISOLATION FAILED: the scratch copy imports {elsewhere}", file=sys.stderr)
         return 1
+    # Shared with pin_check, deselect included: the catalogue's anchor test goes
+    # red under any mutant of an anchored line, and that failure is the tree
+    # having moved, never a rule being defended. Build a command here instead
+    # and every such mutant scores killed.
     suite = [*pin_check.SUITE, "-x"]
     pin_check.sweep(tree)
     started = time.monotonic()

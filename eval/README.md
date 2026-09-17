@@ -698,8 +698,12 @@ first measurement, 66.4% after one hardening pass** (+44 targeted tests, 110 →
 | eval/score.py · server.py · state.py | 74% · 67% · 59% | unchanged this pass — next hardening targets |
 
 Reproduce: copy the tree, `pip install -e . pytest "mutmut>=2.5,<3"`, then
-`mutmut run --paths-to-mutate <files> --runner "python -m pytest -x -q tests/"`. Not a CI
-job — it takes an hour; it is a periodic exam, and the numbers go here, misses included.
+`mutmut run --paths-to-mutate <files> --runner "python -m pytest -x -q tests/ --deselect
+tests/test_pin_check.py::test_every_catalogue_anchor_matches_exactly_once"`. That test
+checks the pinned catalogue's anchors against the tree, so it fails under any mutant of an
+anchored line and would score it killed; it did not exist when the numbers above were
+measured. Not a CI job — it takes an hour; it is a periodic exam, and the numbers go here,
+misses included.
 
 ### The other mutation question: is a rule we fixed actually pinned?
 
@@ -817,6 +821,37 @@ The catalogue is [`eval/pinned_mutants.json`](pinned_mutants.json) — data, bes
 it supports. It carries a class the hand-written scripts never had: mutants that delete a
 **call site** while leaving the code correct, because "the code is right" and "the code
 runs" are different claims and only the first was ever being tested.
+
+**Four anchors went stale, and the badge went on counting them (fixed 2026-09-17).** A
+mutant is applied by exact replacement, and an `old` text that does not occur exactly once
+is reported STALE and scored as a survivor. Four scored entries lost their anchors and
+stayed lost through 0.89.0: T02 matched twice once `_git_operands` repeated the tar
+parser's `--` line (0.80.0); 0.78.0 R2 matched nothing once the call beside the fold gained
+`measured_at` (0.83.0); 0.78.0 R5 and 0.79.0 S7 matched nothing once the finding checks
+moved into `validate_finding`, one indent shallower (0.84.0). The equivalent T08 went
+ambiguous with T02. No published run reported them, because each release measured its own
+entries with `--filter`. Meanwhile the badge, which a test ties to the catalogue's *size*
+rather than to a run, went on saying N/N: no full `pin_check` on any tree from 0.80.0 to
+0.89.0 could have produced that number. 0.89.0 found them by checking every anchor while
+adding its own mutants, and `git log -S` on each old anchor named the change that moved it.
+
+Each entry is re-anchored on the code its rule lives in now, changing only the text that
+moved, and re-measured against the whole suite — 1,244 tests per mutant in a scratch copy,
+green control before each run: **T02 killed · 0.78.0 R1–R15 killed, R2 and R5 among them ·
+0.79.0 S7 killed**, and T08 survives, the equivalent it is marked. `tests/test_pin_check.py`
+now counts every anchor on every run of the suite, so the edit that moves an anchored line
+is the edit that goes red; against the catalogue as it stood, that test fails and names
+exactly those five entries.
+
+It is also the one test a campaign must not run. Applying a mutant takes its own anchor out
+of the tree — 184 of today's 191 entries — so inside a mutant it goes red for the tree
+having moved rather than for the rule, and `classify` reads that failure as a kill.
+Measured: with the anchor test in the suite, **T08 — an equivalent mutant no test can tell
+apart — scores KILLED**. `pin_check.SUITE` deselects it and `eval/sweep.py` shares that
+command; pytest says nothing about a deselect that matches nothing, so the node id is tied
+to the test function by a test of its own, and the rule is pinned as **A1** (killed). That
+is the 189th scored entry, and why the badge reads 189 rather than 188. What has still not
+happened is a full catalogue run: 19 mutants were measured here, not 189.
 
 ### Variance — a score is n=1 until repeated
 

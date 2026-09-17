@@ -73,10 +73,18 @@ import tempfile
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 CATALOGUE = ROOT / "eval" / "pinned_mutants.json"
+# The one test a mutant cannot be measured by: it checks every anchor in this
+# catalogue against the tree, and applying a mutant takes its own anchor out of
+# the tree — for 184 of today's 191 entries, all but the few whose replacement
+# keeps the anchor inside it. Left in the suite it goes red under each of those
+# and the failure reads as a kill, so the catalogue would score killed whether
+# or not any test defends the rule. pytest says nothing about a deselect that
+# matches no test, so tests/test_pin_check.py ties this name to the function.
+ANCHOR_TEST = "tests/test_pin_check.py::test_every_catalogue_anchor_matches_exactly_once"
 # `--project` pins the environment to the real checkout however the cwd moves;
 # PYTHONPATH then puts the scratch copy's own source ahead of it.
 SUITE = ["uv", "run", "--project", str(ROOT), "--group", "dev", "pytest", "-q",
-         "-p", "no:cacheprovider", "-o", "addopts="]
+         "-p", "no:cacheprovider", "-o", "addopts=", "--deselect", ANCHOR_TEST]
 IMPORT_CHECK = ["uv", "run", "--project", str(ROOT), "--group", "dev", "python", "-c",
                 "import verdict_mcp; print(verdict_mcp.__file__)"]
 
