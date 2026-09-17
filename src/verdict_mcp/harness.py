@@ -1199,8 +1199,19 @@ def _diff_from_files(files: dict, changed: dict, meta: dict, sha_range: str,
 
 def collect(repo: Path, qa_root: Path, gates: list[tuple[str, str]],
             test_ids_cmd: str | None = None, abandoned=_UNSET,
-            test_one_cmd: str | None = None, coverage_suite_cmd: str | None = None) -> dict:
-    """Measure everything about this run that is not a judgment."""
+            test_one_cmd: str | None = None, coverage_suite_cmd: str | None = None,
+            sha_range: str | None = None) -> dict:
+    """Measure everything about this run that is not a judgment.
+
+    `sha_range` overrides the range this function would otherwise derive from
+    the previous state's sha. A run that judges a *branch* — a PR gate — has no
+    previous state at all, so the derived range is None and diff coverage
+    reports "no commit range this run": the one measurement a PR gate exists to
+    make would be unavailable exactly where it matters. The caller that already
+    knows the range (`BASE..HEAD`, or a merge-base) says so, and everything
+    downstream — changed lines, per-file unexercised ranges, the census — is
+    measured over the change under review rather than over nothing.
+    """
     now = clock.now()
     previous = None
     state_path = qa_root / "state.json"
@@ -1248,10 +1259,15 @@ def collect(repo: Path, qa_root: Path, gates: list[tuple[str, str]],
     sha = _git(["rev-parse", "HEAD"], repo)
     branch = _git(["rev-parse", "--abbrev-ref", "HEAD"], repo)
     prev_sha = ((previous or {}).get("last_run") or {}).get("git_sha")
-    sha_range = diff_stat = None
+    range_override, sha_range = sha_range, None
+    diff_stat = None
     files_changed = lines_changed = None
-    if prev_sha and sha and _git(["cat-file", "-t", prev_sha], repo) == "commit":
+    if range_override and _git(["rev-parse", "--verify", "--quiet",
+                                str(range_override).split("..")[0]], repo):
+        sha_range = str(range_override)
+    elif prev_sha and sha and _git(["cat-file", "-t", prev_sha], repo) == "commit":
         sha_range = f"{prev_sha}..{sha}"
+    if sha_range:
         diff_stat = _git(["diff", "--shortstat", sha_range], repo)
         if diff_stat:
             nums = [int(n) for n in re.findall(r"(\d+)", diff_stat)]
@@ -2521,6 +2537,16 @@ def _record_bill(qa_root: Path, state: dict, bill: dict | None) -> None:
         if state.get("run_type") == "sweep":
             row["usage"] = {"requests": 0, **{k: 0 for k in USAGE_FIELDS}}
             row["note"] = "model-free sweep: no model was called"
+        elif last.get("engine"):
+            # A second engine answered, so the Claude bill is a measured zero
+            # rather than an unknown — and the engine's own counters go in the
+            # same row, because "this night cost nothing" is only credible
+            # beside the number of calls it took to cost nothing.
+            row["engine"] = last["engine"]
+            row["usage"] = {"requests": 0, **{k: 0 for k in USAGE_FIELDS}}
+            row["local"] = last.get("local") or {}
+            row["note"] = (f"judged by {last['engine']}: no Claude request was made; the "
+                           "`local` object carries that engine's own calls and tokens")
         elif bill:
             row["usage"] = bill
             row["note"] = ("measured up to verdict-finalize; the closing handoff that "
@@ -2871,6 +2897,32 @@ def _drifted_refs(drift: dict, finding: dict):
     return d["drift"], shown
 
 
+def _judge_line(state: dict, last: dict) -> list:
+    """Who answered, and what it cost — beside the Harness line, never inferred.
+
+    A report that names its harness and not its judge reads the same whether an
+    Opus session spent four dollars on it or an 8B model on the desk answered
+    forty bounded questions for nothing. Those are different reports, and the
+    difference is exactly what a reader weighing the verdict needs first. A
+    sweep says so too: "none" is a judge, and a run nobody judged must not look
+    like a run somebody did.
+    """
+    engine = last.get("engine")
+    if not engine:
+        return (["- Judge: none (model-free sweep) — no model was called, so nothing here "
+                 "was judged this run"] if state.get("run_type") == "sweep" else [])
+    local = last.get("local") if isinstance(last.get("local"), dict) else {}
+    parts = [f"- Judge: {engine} · model `{last.get('model') or '?'}`"]
+    if local.get("host"):
+        parts.append(f"host `{local['host']}`")
+    parts.append(f"{local.get('calls', 0)} call(s), {local.get('tokens', 0)} token(s)")
+    if local.get("errors"):
+        parts.append(f"{local['errors']} transport error(s)")
+    parts.append(f"{local.get('unanswered', 0)} question(s) unanswered")
+    parts.append("no Claude tokens spent")
+    return [" · ".join(parts)]
+
+
 def render_report(state: dict, prose: dict | None = None) -> str:
     """Render the report from the state, injecting the agent's prose.
 
@@ -2900,6 +2952,7 @@ def render_report(state: dict, prose: dict | None = None) -> str:
         out.append(f"- Harness: verdict-qa-mcp {harness.get('version') or '?'}"
                    + (f" · prompt {prompt[:12]}" if prompt else "")
                    + f" · `{harness['path']}`")
+    out += _judge_line(state, last)
     drift = state.get("evidence_drift") if isinstance(state.get("evidence_drift"), dict) else {}
     if drift.get("status") == "measured":
         summary = drift.get("summary") or {}
