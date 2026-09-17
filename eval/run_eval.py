@@ -326,6 +326,10 @@ def _seconds_until_reset(output: str) -> int | None:
 
 def run_agent(prompt, checkout, qa_home, model, timeout_s, base_env, log_path):
     env = dict(base_env, VERDICT_HOME=str(qa_home), VERDICT_STRICT="1")
+    # A tester delegated in the background is killed by the CLI after 600 s in print mode;
+    # the bound on an eval run is `timeout_s` below (see runner.BG_WAIT_ENV). Without this
+    # the model axis measured which model *waits for its subagent*, not which one tests.
+    env.setdefault("CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS", "0")
     for attempt in (1, 2):
         proc = sh(["claude", "-p", prompt, "--model", model,
                    "--setting-sources", "project", "--dangerously-skip-permissions"],

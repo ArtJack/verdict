@@ -174,6 +174,37 @@ generations fall back to the last write, which is what every row written before 
 existed relies on. Nothing is ever rewritten to mark it stale — the correction is appended,
 and it is the correction that carries the marker.
 
+## What a run cost — `<qa-root>/usage.jsonl`, and who started it
+
+One JSON line per finalized run, appended by `verdict-finalize` (0.89.0): `run_number`,
+`run_type`, `timestamp_utc`, `model` (what the state says signed the run), `entrypoint`
+and `effort` when the CLI exports them, and `usage` — `requests`, the four token counts
+(`input_tokens`, `output_tokens`, `cache_creation_input_tokens`, `cache_read_input_tokens`),
+`models` (requests per model id, as the transcript names them), `model_wall_s`, and which
+transcript was read and by which rule (`source`: `fingerprint` when the transcript carries
+this run's own `measured_at`, because `verdict-facts` printed it there; `latest-transcript`
+otherwise). A model-free sweep is billed as the zero it cost. A run whose transcript cannot
+be read — outside Claude Code, another machine, a cleaned home — gets `usage: null` and a
+note: **unknown, not zero.** The figure stops at `verdict-finalize`, so the closing handoff
+is not in it; `eval/usage_census.py` reads whole transcripts when the total matters.
+
+It is a file beside the state and **not** a key on the signed row, for the reason
+`gate_durations` is kept out of the chain body: signing telemetry would make every state
+written before it existed re-derive to a different row. One field does move into the state:
+when no operator exported `VERDICT_MODEL`, `last_run.model` is the model id the transcript
+names — measured — instead of absent. An operator's own label still wins (`opus` from
+`verdict-run --model` stays `opus`), and the bill keeps what actually answered under
+`usage.models`, so a label and the truth can disagree on the record rather than in private.
+
+The run marker `run-in-progress.json` — written by `verdict-facts` before the gates,
+removed only by `verdict-finalize` — now also carries `session_id` and `entrypoint` when
+the CLI exports `CLAUDE_CODE_SESSION_ID` / `CLAUDE_CODE_ENTRYPOINT`. That is what lets the
+stop hook tell *the run this agent started and never finalized* from a marker another
+night left behind (see the README's hook table), and what lets finalize find this run's
+transcript without guessing from the working directory. Absent outside Claude Code;
+nothing depends on it. Recording a bill can never fail a run: every error path prints one
+line and leaves the exit code alone.
+
 ## A clean `pass` needs a suite somebody could read
 
 `executed_nothing` is the defence against a suite that collects tests and runs none of

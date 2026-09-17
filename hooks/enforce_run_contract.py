@@ -31,6 +31,20 @@ that happened records when it happened; copying a file does not.
 Anything else exits 0 in about two stat calls. Every failure path — bad JSON,
 an import that does not resolve, an unreadable state — also exits 0: a hook
 that bricks sessions is worse than the problem it polices.
+
+**The run that never finalized (0.89.0).** Everything above needs a state on disk,
+and the costliest failure leaves none: the tester measures the facts, investigates,
+and ends its turn without `verdict-finalize` — no state, no report, a lost run. It is
+the recorded signature of a cheaper model (`state_missing` / `report_missing` zero an
+eval score by protocol), and until now this hook went silent on exactly that case at
+the first `is_file()`. `verdict-facts` leaves `run-in-progress.json` and only
+`verdict-finalize` removes it, so a marker still there when the tester stops is a run
+that did not finish. The bar for speaking is identity, not a time window: the event
+is a `SubagentStop`, the agent that is stopping is a Verdict agent, and the marker
+was written by *this* session (`verdict-facts` records `CLAUDE_CODE_SESSION_ID`; the
+event carries `session_id`). A marker some other night left behind, or a parallel
+agent finishing while the tester is still at work, matches none of that. Said once
+per marker — the marker remembers it was told.
 """
 
 import json
@@ -47,10 +61,56 @@ from qa_paths import utf8_stderr  # noqa: E402  (path set above, as the guards d
 # sitting in a normal coding session says nothing.
 RECENT_S = 30 * 60
 _ISO_Z = "%Y-%m-%dT%H:%M:%SZ"
+MARKER = "run-in-progress.json"
+# A marker older than this is not the run that is ending now, whoever wrote it. Long:
+# a full suite, a coverage pass and an investigation fit inside one run.
+UNFINISHED_S = 6 * 3600
 
 
 def _silent(code: int = 0) -> int:
     return code
+
+
+def _unfinished_run(event: dict, root: Path):
+    """The message for a tester stopping on a run it started and never finalized, or
+    None. Every doubt is a None: this runs at the end of every subagent's turn."""
+    if event.get("hook_event_name") != "SubagentStop":
+        return None
+    if "verdict" not in str(event.get("agent_type") or "").lower():
+        return None         # somebody else's agent finishing beside a run still in progress
+    marker_path = root / MARKER
+    try:
+        marker = json.loads(marker_path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    if not isinstance(marker, dict) or marker.get("stop_told"):
+        return None
+    session = event.get("session_id")
+    if not session or marker.get("session_id") != session:
+        return None         # another session's marker: last night's, or a run next door
+    try:
+        started = datetime.strptime(str(marker.get("started_utc")), _ISO_Z).replace(
+            tzinfo=timezone.utc)
+    except (ValueError, TypeError):
+        return None
+    if not 0 <= (datetime.now(timezone.utc) - started).total_seconds() <= UNFINISHED_S:
+        return None
+    try:
+        # Told once. `stop_hook_active` covers the immediate retry; this covers the
+        # tester's *next* stop, and any later agent of the same session.
+        marker["stop_told"] = datetime.now(timezone.utc).strftime(_ISO_Z)
+        marker_path.write_text(json.dumps(marker, indent=2) + "\n", encoding="utf-8")
+    except OSError:
+        pass
+    return (
+        "verdict: this agent started a QA run and is stopping without finishing it — "
+        f"`verdict-facts` ran at {marker.get('started_utc')} and `verdict-finalize` never did.\n"
+        f"  qa root: {root}\n"
+        "There is no state and no report for this run, so `verdict-gate` will read it as a run "
+        "that never happened (exit 4 or 5) and everything found so far is lost.\n"
+        "Write judgment.json (finding files you already wrote are kept) and run "
+        "`verdict-finalize` now (§6). If it cannot be finalized, say so in the handoff with the "
+        "command and its error — do not end silently.\n")
 
 
 def main() -> int:
@@ -85,10 +145,18 @@ def main() -> int:
             from project_key import derive_key
             from state import home as state_home
             key, _ = derive_key(Path(cwd))
-            candidate = state_home() / key
-            root = candidate if (candidate / "state.json").is_file() else None
+            # A first run that never finalized has a marker and no state at all.
+            for candidate in (state_home() / key, Path(cwd) / ".qa"):
+                if (candidate / "state.json").is_file() or (candidate / MARKER).is_file():
+                    root = candidate
+                    break
         if root is None:
             return _silent()
+
+        unfinished = _unfinished_run(event, Path(root))
+        if unfinished:
+            sys.stderr.write(unfinished)
+            return 2
 
         state_path = Path(root) / "state.json"
         if not state_path.is_file():

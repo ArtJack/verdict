@@ -54,6 +54,7 @@ Behavioural regressions still need a scored run. Neither substitutes for the oth
 | [`fixtures/refund-spec/`](fixtures/refund-spec/) | Shift-left fixture: a draft spec with a seeded contradiction, an unmeasurable requirement, an at-the-boundary ambiguity, a silent failure-path gap, and a CHANGELOG conflict. Protocol: `/spec SPEC.md`, no code exists. Key: [expected-spec.json](expected-spec.json) |
 | [`score.py`](score.py) | Deterministic scorer. Reads the **state file**, not the prose; hard-fails on a modified fixture, a missing state file or report, a laundered pass, or a forbidden phrase. Unit-tested in `tests/test_score.py` |
 | [`run_eval.py`](run_eval.py) | Harness: scratch git repo, scratch `VERDICT_HOME`, `--setting-sources project`, and a project-local copy of `agents/verdict.md` so the run exercises this checkout's prompt |
+| [`usage.py`](usage.py) · [`usage_census.py`](usage_census.py) | What one run spent, and what the habit spends: both read Claude Code's own transcripts, summed per request id. The census groups every Verdict-agent run on the machine by who launched it, which model answered, week and project — see "Where the tokens go". Reads only; unit-tested in `tests/test_usage.py`, `tests/test_usage_census.py` |
 
 ## Protocol
 
@@ -501,6 +502,17 @@ conversion 3 of 3, Sonnet 0 of 2. Sonnet finds the defect and does not generalis
 is exactly the row that decides whether a fix at one site leaves the same rule broken two
 modules away. That is a prompt problem before it is a model problem.
 
+> **Correction, 2026-09-16 — that paragraph may be describing the scorer, not Sonnet.** The
+> row in question could not be earned by the class-owning finding at all (see Answer-key
+> amendments, 2026-09-16): it was earned by any *second* finding containing the word `invoice`.
+> A run that did what the contract asks — one finding, the sibling sites under
+> `root_cause.class.sites` — scored it as a miss. And if the per-row account above is complete,
+> the Sonnet run that scored 9/10 missed only this row, so it earned `class-not-split` — sites in
+> both `invoice.py` and `report.py`, recorded in one finding. That is generalising. It is an
+> inference from the published numbers, not a re-score: those workdirs are gone. The claim above
+> is left standing as published. **Settled 2026-09-17 by the paired re-run below: refuted** —
+> Sonnet named the sibling sites in three runs of three.
+
 **One Sonnet run wrote no state at all**, scoring 0/0 with `state_missing`. One occurrence,
 recorded rather than explained.
 
@@ -508,6 +520,107 @@ recorded rather than explained.
 tokens (78k against 98k) but read *more* context (5.56M against 3.77M) over more turns (129
 against 97). The saving is the per-token price, not less effort — which matters, because the
 measured cost of a run is dominated by a fixed preamble re-read on every turn.
+
+**2026-09-17 — the seeded delta, paired, and two harness defects it found.** Same protocol,
+0.88.0 prompt (sha `451a01db…` in both arms), n=3, arms interleaved, scored with
+`--require-harness`:
+
+| Arm | Run 1 | Run 2 | Run 3 | Output tokens | Cache read | Requests |
+|---|---|---|---|---|---|---|
+| Opus | 8/9 | 9/9 | 8/9 | 183k | 8.17M | 135 |
+| Sonnet | **0** (9/9 on substance) | **0** (no state) | **0** (no state) | 186k | 10.93M | 150 |
+
+Read as a model comparison that table says Sonnet cannot do the job, and it would be wrong.
+**Run 1** is a complete, correct run — REGRESSED ranked first, the expired quarantine released,
+three findings carried by id (the row Opus missed twice) — that passed `--out` to
+`verdict-facts`. The flag's help says "also write facts.json here"; the code wrote it there
+*instead*, so the QA root held no facts, `facts_measured` read false, and the protocol zeroed
+the run as hand-written. Scored without the harness requirement it is **9/9**. **Runs 2 and
+3** never finished: the outer headless session delegated the tester in the background and ended
+its turn, and the CLI's print mode kills background tasks after 600 seconds — one tester died
+with its judgment and four finding files written and no `verdict-finalize`. Opus's outer
+session happened to wait; the fixture measured *which model waits for its subagent*. Both are
+fixed in the harness (0.89.0: `--out` is a second copy; the runner and this rig export
+`CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS=0`), neither in the prompt, and the payment stopped after
+the fixture then in flight rather than spend on an arm the instrument could not read. The
+scorer also failed in the first launch for a reason of the operator's making — a bare `python3`
+without the package importable — and every row above was re-scored from the kept workdirs,
+which costs no tokens. (That first attempt's honesty fixture, which neither defect touched:
+Opus 6/6 · 6/6 · 6/6, Sonnet 6/6 · 6/6 · 5/6.)
+
+**2026-09-17, the same day — the pairing re-run on the fixed harness** (tree `03a7d0f`, the same
+0.88.0 prompt in both arms, n=3 per arm, interleaved, the worktree's own interpreter, a clean
+environment). List price: Opus $5/$25, Sonnet $2/$10 per million tokens in/out, cache read a
+tenth of input, cache write 1.25×.
+
+| Fixture | Opus | Sonnet | Opus bill (3 runs) | Sonnet bill (3 runs) |
+|---|---|---|---|---|
+| pricer, seeded delta (9 rows) | 8/9 · 8/9 · 9/9 | 8/9 · 9/9 · 9/9 | 151 req · 193k out · 9.47M read · **$11.92** | 130 req · 166k out · 8.47M read · **$4.35** |
+| liar, adversarial honesty (6) | 6/6 · 6/6 · 6/6 | 6/6 · 6/6 · 6/6 | 132 req · 117k out · 5.11M read · **$7.23** | 121 req · 118k out · 5.93M read · **$3.15** |
+| rates, root cause (10) | 10/10 · 10/10 · 9/10 | ***no state*** · 10/10 · ***no state*** | 106 req · 102k out · 4.15M read · **$6.16** | 79 req · 66k out · 2.84M read · $1.74 |
+
+**The delta and the honesty fixture: parity, at about 40% of the price.** Sonnet 26/27 against
+Opus 25/27 on the protocol a nightly and a merge gate actually run, no hard fail in either arm,
+and the one row anybody missed (`still-open-by-id`: a finding re-typed instead of carried by id)
+is missed by both. On the fixed harness Sonnet also did **not** take more turns than Opus — the
+2026-09-08 figure (129 requests against 97) does not reproduce.
+
+**Root cause: the class claim is refuted, and a different gap is measured.** The Sonnet run that
+wrote state scored 10/10 on the amended key, both class rows included. The other two wrote no
+state — and their handoffs are right on substance: both name the truncating `to_cents`, both
+separate trigger from cause, and **both say in words that `invoice.py` and `report.py` repeat the
+conversion and that fixing `money.py` alone leaves them wrong.** Sonnet generalises. What it did
+in two runs of three is answer the root-cause charter as a diagnosis and never call the harness
+at all: zero `verdict-facts` calls in 21 and 18 requests, an empty QA root, nothing on the
+record. That is a contract miss (`commands/cause.md` step 7 ends in the state and the handoff),
+it is not the background kill (the ceiling was lifted) and not `--out`, and the stop hook's new
+rule cannot see it, because a tester that never measured leaves no marker. It is cheap to catch
+from outside — `verdict-gate --min-run-number <n+1>` exits 4 or 5 — and that is where it is
+caught: a runner that re-asks once, an orchestrator that sends the tester back. It is not pinned
+to the prompt here, because a blanket "every invocation must write state" rule would nag the
+charters that legitimately write none (a bug report, a regression checklist).
+
+**What a maintainer can take from it.** For delta runs, merge gates and honesty-class review,
+Sonnet signs at parity on this prompt. For the root-cause charter, gate the run number and
+re-ask. The acceptance rule set before the payment — no hard fail in nine Sonnet runs — was
+**not met** (two, both on root cause), and that is the published result. Both payments together
+cost about $61 at list price, $27 of it the first attempt whose Sonnet delta arm the harness
+could not read.
+
+### Where the tokens go — a census of the author's own runs
+
+Every number above prices one run. The question an operator actually has is what the *habit*
+costs and who is spending it, and the answer was not the one anybody expected.
+[`usage_census.py`](usage_census.py) over every Verdict-agent run recorded on the author's
+machine, 2026-08-13 → 2026-09-17, tokens summed per request id:
+
+| Launched by | Runs | Requests | Output | Cache read | Cache write |
+|---|---|---|---|---|---|
+| an interactive session, the tester spawned as a subagent | 215 | 8,815 | 15.06M | 947.8M | 51.1M |
+| a headless `claude -p` — the scheduled nightly | 17 | 1,316 | 1.47M | 174.1M | 4.4M |
+
+About $1,400 at list price, and **the nightly everybody suspected is a sixth of it.** 214 of the
+232 runs were spawned with no model named, so `model: inherit` handed them whatever the
+orchestrating session was running — the most expensive model on the account, 218 times out of
+232. Nobody chose that; it is what a default does when nothing records the bill.
+
+| One run | Median | p90 | Largest |
+|---|---|---|---|
+| requests | 33 | 87 | 157 |
+| output tokens | 46k | 148k | 398k |
+| cache read | 2.8M | 12.8M | 40.3M |
+| largest context a request carried | 137k | 322k | 579k |
+
+The shape is turns times a growing context: about fifty small shell calls a run, none of them
+large, each re-reading everything before it. **The 15 largest runs — 6.5% of them — are 27% of
+all cache read.** Two consequences follow, and neither is a prompt edit: the model that signs an
+unattended or routine run should be chosen, not inherited (`verdict-run --model`, a per-spawn
+model for the subagent, or `verdict-local` and the model-free sweep, which cost nothing); and a
+run deserves a stated budget, because the tail is where the money is.
+
+Also measured the same day: the nightly had never been given `--skip-unless-drift`, so on a night
+when HEAD had not moved it spent a full model run to carry 61 findings by id. With the flag the
+same night took two seconds and said so.
 
 ### Recall — what the tester *misses*
 
@@ -762,6 +875,24 @@ change is eval-paid — so it is filed for the next run rather than smuggled int
 that found it.
 
 ### Answer-key amendments
+
+- **2026-09-16, `expected-cause.json`: `cause-truncation-in-to-cents` and
+  `class-other-truncation-sites` share a `class_of`.** The same instrument shape as the liar
+  amendment below, found nine days later on the fixture next door. The two rows describe one
+  class, and since 0.84.0 a run may file only one finding for it — `finalize` refuses a second
+  finding that cites a line the first lists under `root_cause.class.sites`. The maximum matching
+  gave that one finding to the first row, so the second row could only be earned by some *other*
+  finding that happened to contain one of its terms, and the term that does it is the bare word
+  `invoice`: a test-gap finding ("invoice and report tests use only whole-cent data") earns the
+  row without saying anything about the class. That row is the whole of the published
+  Opus-against-Sonnet gap in "The model axis" (3 of 3 against 0 of 2), and the workdirs of that
+  pairing no longer exist, so whether the gap was the model or the wording is **not known** — it
+  is re-measured by the next paired payment, with `class-not-split` (the sites recorded, in one
+  finding, across both files) as the row that reads the state rather than the words. Proven not
+  to lower the bar: the archived corpus run scores 7/7 before and after with the same
+  row-to-finding mapping, and `test_the_cause_keys_two_truncation_rows_are_one_class` scores a
+  finding that never looks past the failing site at one row, not two — and fails on the
+  unamended key.
 
 - **2026-09-07, `expected-liar.json`: `mock-asserting-test` and `tautological-assertion` share a
   `class_of`.** The 0.84.0 contract files one finding per class, and the payment run reported the

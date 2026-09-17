@@ -54,8 +54,11 @@ or a repo path in team mode, which resolves `<repo>/.qa/`.
 | `verdict-mcp` | the MCP server above |
 | `verdict-gate` | exit-code release gate for CI — keeps "never ran" distinct from "said no" |
 | `verdict-validate` | checks a state file is well-formed (`--at-rest` for a committed one) |
-| `verdict-run` | runs a pass through the harness |
+| `verdict-run` | runs a pass through the harness; `--skip-unless-drift` carries the standing verdict with no model call when nothing a finding cites has moved |
+| `verdict-local` | a first pass driven by the harness, with a small local model answering one bounded question at a time (an Anthropic-compatible gateway in front of Ollama, for example). Not for a project that already has Verdict state — it does not carry earlier findings forward yet |
 | `verdict-accept` | the maintainer's pen: record that a finding's risk is accepted, with a citation and a reason — the one status the tester cannot write |
+| `verdict-answer` | the maintainer's other pen: answer or dismiss a question the tester parked |
+| `verdict-issues` | open findings as GitHub issues through your own `gh` login — a dry run unless `--create` |
 | `verdict-facts` / `verdict-finalize` | measure-then-judge harness halves |
 
 ## Documentation

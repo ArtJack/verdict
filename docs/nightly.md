@@ -68,6 +68,12 @@ how you exhaust tomorrow's window too.
   your turn until the state file and report are written.* Then verify rather than trust:
   compare `run_number` before and after, and retry once if it did not advance. The gate
   catches this either way (exit 5) — but a caught failure is still a lost night.
+  Since 0.89.0 `verdict-run` also removes the mechanism behind the worst form of it: in print
+  mode the CLI waits **600 seconds** for background tasks and then terminates them, so a tester
+  delegated in the background is killed mid-run and the log ends with `Background tasks still
+  running after 600s; terminating`. The runner exports `CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS=0`
+  (your own value wins) and bounds the run with `--timeout-s` instead. If you launch `claude -p`
+  yourself, set it yourself.
 - **Take a lock.** Two runs sharing one QA root is precisely the collision the state
   contract warns about, and a script can even be invoked while you are editing it (ours
   was, and executed half of itself). `mkdir` is atomic and makes a fine lock; expire it on

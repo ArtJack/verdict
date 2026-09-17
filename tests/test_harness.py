@@ -1122,3 +1122,30 @@ def test_fix_verification_runs_with_bytecode_writing_off(tmp_path, monkeypatch):
     monkeypatch.setattr(harness.subprocess, "run", fake_run)
     harness._run_test("pytest {id}", "tests/t.py::x", tmp_path, tmp_path, 30)
     assert seen.get("PYTHONDONTWRITEBYTECODE") == "1"
+
+
+def test_out_is_a_second_copy_never_the_only_one(repo, qa_root, tmp_path):
+    """`--out` has always said "also write facts.json here", and wrote it there *instead*:
+    a run that asked for a copy left the QA root without its facts, every harness signal
+    read "not measured", and the gate called a fully measured run hand-written (exit 6).
+    Found by a Sonnet eval run that scored 9 of 9 on substance and 0 by protocol."""
+    elsewhere = tmp_path / "scratch" / "deep" / "facts.json"
+    proc = subprocess.run(
+        [sys.executable, str(HARNESS), "facts", "--repo", str(repo), "--qa-root", str(qa_root),
+         "--out", str(elsewhere)], capture_output=True, text=True, encoding="utf-8")
+    assert proc.returncode == 0, proc.stderr
+    in_root = json.loads((qa_root / "facts.json").read_text(encoding="utf-8"))
+    assert json.loads(elsewhere.read_text(encoding="utf-8")) == in_root
+    assert in_root["measured_at"] == json.loads(proc.stdout)["measured_at"]
+
+    jpath = tmp_path / "j.json"
+    jpath.write_text(json.dumps(judgment()), encoding="utf-8")
+    done = subprocess.run(
+        [sys.executable, str(HARNESS), "finalize", "--qa-root", str(qa_root),
+         "--facts", str(elsewhere), "--judgment", str(jpath)],
+        capture_output=True, text=True, encoding="utf-8")
+    assert done.returncode == 0, done.stderr
+    from verdict_mcp.state import harness_signals
+    state = json.loads((qa_root / "state.json").read_text(encoding="utf-8"))
+    assert harness_signals(state, qa_root)["facts_measured"], \
+        "the facts a run was finalized from are the facts its root holds"

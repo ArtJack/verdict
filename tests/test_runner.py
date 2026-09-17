@@ -473,3 +473,33 @@ def test_an_edited_provision_is_the_operators_and_is_kept(tmp_path, repo):
     assert "kept existing .claude/agents/verdict.md" in proc.stderr and "edited since" in proc.stderr
     assert json.loads(local.read_text(encoding="utf-8"))["hooks"]["Stop"] == []
     assert "kept existing hooks" in proc.stderr
+
+
+# --- a tester in the background is waited for, not killed at ten minutes ------
+
+def _ceiling_seen_by_the_cli(tmp_path, repo, **env_extra):
+    seen = tmp_path / "seen.txt"
+    stub = write_stub(tmp_path, (
+        "import os\n"
+        f"open({str(seen)!r}, 'w').write(os.environ.get('CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS', 'unset'))\n"),
+        name="envdump")
+    env = {k: v for k, v in os.environ.items()
+           if not k.startswith(("VERDICT_", "CLAUDE_CODE_PRINT_BG"))}
+    env.update(VERDICT_HOME=str(tmp_path / "home"), **env_extra)
+    subprocess.run([sys.executable, str(RUNNER), "--repo", str(repo), "--claude-cmd", str(stub),
+                    "--model", "opus"], capture_output=True, text=True, encoding="utf-8", env=env)
+    return seen.read_text(encoding="utf-8")
+
+
+def test_the_cli_is_told_to_wait_for_a_backgrounded_tester(tmp_path, repo):
+    """In print mode the CLI waits 600 s for background tasks and then kills them. A headless
+    session that delegates the tester in the background and ends its turn — "I'll report back
+    when it completes" — therefore loses any run longer than ten minutes: no state, exit 5.
+    Measured on two Sonnet eval runs of three (2026-09-17). The bound on a run is the runner's
+    own --timeout-s; the CLI's ceiling only ever kills the work."""
+    assert _ceiling_seen_by_the_cli(tmp_path, repo) == "0"
+
+
+def test_an_operators_own_ceiling_is_kept(tmp_path, repo):
+    assert _ceiling_seen_by_the_cli(tmp_path, repo,
+                                    CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS="120000") == "120000"
