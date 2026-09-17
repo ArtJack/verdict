@@ -124,6 +124,20 @@ DELTA_PROMPT = (
     "delta run against the stored baseline." + _HANDOFF)
 
 
+def with_task_note(prompt: str, note) -> str:
+    """The fixture's task, and after it the sentence an orchestrator's packet adds.
+
+    It exists to measure one routing rule, and the rule is about the request, not the
+    agent: on 2026-09-17 two Sonnet root-cause runs of three answered the charter
+    correctly in chat and never called the harness, so an orchestrator now writes "this
+    is a run" into the packet. Whether that sentence closes the gap is a question about
+    the *task*, so it goes where the task goes and leaves the agent's prompt — and its
+    hash — alone. Recorded beside the result, because a row measured with a note is not
+    the row measured without one."""
+    note = (note or "").strip()
+    return f"{prompt}\n\n{note}" if note else prompt
+
+
 def sh(cmd, cwd=None, env=None, timeout=None):
     return subprocess.run(cmd, cwd=cwd, env=env, timeout=timeout,
                           capture_output=True, text=True)
@@ -406,6 +420,8 @@ def run_once(args, fixture, mode, base_env, prompt_text=None, arm=None, model=No
                "prompt_sha256": hashlib.sha256(
                    (prompt_text if prompt_text is not None else prompt_at(None))
                    .encode("utf-8")).hexdigest()}
+    if getattr(args, "task_note", None):
+        results["task_note"] = args.task_note
     if arm:
         results["arm"] = arm
     failed = False
@@ -435,7 +451,8 @@ def run_once(args, fixture, mode, base_env, prompt_text=None, arm=None, model=No
         rev_a = git(["rev-parse", "--short", "HEAD"], checkout, base_env)
 
         if mode in ("baseline", "live"):
-            run_agent(fixture["prompt"], checkout, qa_home, model,
+            run_agent(with_task_note(fixture["prompt"], getattr(args, "task_note", None)),
+                      checkout, qa_home, model,
                       args.timeout_s, base_env, workdir / "phase1.log")
             rc, out = score(qa_root, EVAL_DIR / fixture["expected_baseline"],
                             None, checkout, args.require_harness)
@@ -460,7 +477,8 @@ def run_once(args, fixture, mode, base_env, prompt_text=None, arm=None, model=No
             subprocess.run(["git", "add", "-A"], cwd=checkout, env=env, check=True)
             subprocess.run(["git", "commit", "-qm", "fixture rev B"],
                            cwd=checkout, env=env, check=True)
-            run_agent(DELTA_PROMPT, checkout, qa_home, model,
+            run_agent(with_task_note(DELTA_PROMPT, getattr(args, "task_note", None)),
+                      checkout, qa_home, model,
                       args.timeout_s, base_env, workdir / "phase2.log")
             rc, out = score(qa_root, EVAL_DIR / fixture["expected_delta"],
                             mode, checkout, args.require_harness)
@@ -510,6 +528,7 @@ def paired_summary(args, mode, head_runs, control_runs) -> dict:
            "prompt_sha256": {"head": head_runs[0]["prompt_sha256"] if head_runs else None,
                              "control": control_runs[0]["prompt_sha256"] if control_runs else None},
            "usage": {"head": bill(head_runs), "control": bill(control_runs)},
+           "task_note": getattr(args, "task_note", None),
            "phases": {}}
     for phase in phases:
         h, c = points(head_runs, phase), points(control_runs, phase)
@@ -556,6 +575,10 @@ def main() -> int:
                          "without the key passing through a command line. A run with a base "
                          "URL set also gets its own empty CLAUDE_CONFIG_DIR, or the CLI sends "
                          "its stored subscription credential and the gateway answers 401")
+    ap.add_argument("--task-note", default=None, metavar="TEXT",
+                    help="a sentence appended to the fixture's task prompt, the way an "
+                         "orchestrator's packet adds to a request; the agent prompt and its "
+                         "hash are unchanged, and the note is recorded with every result")
     ap.add_argument("--pair-model", default=None, metavar="MODEL",
                     help="paired A/B on the model axis: the same prompt and fixture, "
                          "--model against MODEL, runs interleaved, one table with per-row "
@@ -624,6 +647,7 @@ def main() -> int:
         summary = {
             "fixture": args.fixture, "mode": mode, "model": args.model,
             "repeat": args.repeat,
+            "task_note": args.task_note,
             "per_run": [_tag(r) for r in runs],
             "all_full": not any_failed,
             "runs": runs,
