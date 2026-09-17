@@ -387,6 +387,13 @@ def test_the_not_tested_list_is_counted_not_described(tmp_path):
     assert "no origin was traced" in lines
 
 
+def test_the_focus_list_and_the_blockers_do_not_grow_forever():
+    """A nightly that appends its own focus to the previous run's, every night,
+    ends up with a list nobody reads — which is the same as not having one."""
+    assert small._unique(["a", "b", "a", "b", "c"]) == ["a", "b", "c"]
+    assert small._unique([]) == []
+
+
 def test_a_state_on_disk_is_carried_even_when_the_delta_flag_was_forgotten(tmp_path):
     """The flag says what the operator expected; the state on disk says what the
     run must do. A caller that forgot it would otherwise get the 0.88.0 behaviour

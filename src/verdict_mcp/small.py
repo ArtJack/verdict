@@ -1292,6 +1292,21 @@ def needs_claude(facts: dict, filed: list, refiled: list, touched: list,
 NO_CODE_READ = ("No code was read this run: the range contains no parseable Python, and this "
                 "engine reads Python only. A green gate here means the suite did not fail; it "
                 "is not a QA pass.")
+# A focus list that only ever grows is a focus list nobody reads, which is the
+# same as not having one.
+FOCUS_LINES = 20
+
+
+def _unique(items) -> list:
+    """The list with its order kept and its repeats dropped."""
+    seen, out = set(), []
+    for item in items:
+        text = str(item)
+        if text in seen:
+            continue
+        seen.add(text)
+        out.append(item)
+    return out
 
 
 # ── the run ───────────────────────────────────────────────────────────────────
@@ -1644,15 +1659,19 @@ def run(repo: Path, qa_root: Path, model: Model, limit: int, gate: str | None,
 
     touched = touches_findings(reference, changed) if reference else []
     owed = needs_claude(facts, filed, refiled, touched, len(asked_questions),
-                        over_limit, non_python)
+                        over_limit and ranged, non_python)
 
-    blockers = [b for b in (previous or {}).get("release_blockers") or []
-                if not any(str(b).startswith(fid) for fid in resolved_ids)]
-    blockers += [f["id"] for f in filed if f.get("severity") == "Blocker"]
-    focus = [str(x) for x in (previous or {}).get("next_run_focus") or []]
-    focus += [f"{f['id']}: read the changed code under this finding — {ENGINE} re-filed it "
-              "without reading it" for f in refiled]
-    focus += [f"needs a model run — {key}: {value}" for key, value in sorted(owed.items())]
+    blockers = _unique([b for b in (previous or {}).get("release_blockers") or []
+                        if not any(str(b).startswith(fid) for fid in resolved_ids)]
+                       + [f["id"] for f in filed if f.get("severity") == "Blocker"])
+    # Deduplicated, and this run's lines first: a nightly that appends its own
+    # focus to the previous run's forever ends up with a list nobody reads, which
+    # is the same as having none.
+    focus = _unique(
+        [f"{f['id']}: read the changed code under this finding — {ENGINE} re-filed it "
+         "without reading it" for f in refiled]
+        + [f"needs a model run — {key}: {value}" for key, value in sorted(owed.items())]
+        + [str(x) for x in (previous or {}).get("next_run_focus") or []])[:FOCUS_LINES]
 
     for note in quarantine_notes:
         print(f"verdict-local: {note}", file=sys.stderr)
