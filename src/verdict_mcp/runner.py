@@ -565,8 +565,16 @@ def _save_record(path: Path, record: dict) -> None:
 # field a reader would look at.
 
 def _harness(sub: str, *args: str) -> subprocess.CompletedProcess:
+    # The child runs the code this runner is, installed or not. Measured on the Sales nightly:
+    # `python3 src/verdict_mcp/runner.py`, started by an interpreter that never installed the
+    # package, could not `-m verdict_mcp.harness`, and every sweep from 2026-09-17 ended
+    # "No module named 'verdict_mcp'" — exit 5, nothing measured, for two nights.
+    src = str(Path(__file__).resolve().parent.parent)
+    env = dict(os.environ, PYTHONPATH=os.pathsep.join(
+        p for p in (src, os.environ.get("PYTHONPATH")) if p))
     return subprocess.run([sys.executable, "-m", "verdict_mcp.harness", sub, *args],
-                          capture_output=True, text=True, encoding="utf-8", errors="replace")
+                          capture_output=True, text=True, encoding="utf-8", errors="replace",
+                          env=env)
 
 
 def _changed_files(repo, sha_range: str):

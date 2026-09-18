@@ -61,6 +61,15 @@ reported its empty range as too large for its caps. A range with nothing in it n
 nothing. (A scheduled night never meets this — `--skip-unless-drift` skips an unmoved HEAD before
 the engine starts — but a run started by hand does.) Mutant P40.
 
+**A nightly that never swept.** The author's own Sales nightly starts the runner from a checkout
+(`python3 src/verdict_mcp/runner.py`) with an interpreter that never installed the package, and
+the runner started the harness as `python -m verdict_mcp.harness` under that same interpreter.
+From 2026-09-17, the first night HEAD moved after the model-free sweep was switched on, every
+night ended `No module named 'verdict_mcp'` — exit 5, "needs a run", nothing measured, nothing
+spent. The harness child is now handed the runner's own source root on `PYTHONPATH`, ahead of
+whatever was set, so a runner finds the code it is, installed or not. Reproduced with that
+interpreter: the same call went from `ModuleNotFoundError` to the harness's usage line. Mutant P41.
+
 **A regression is REGRESSED, and an open finding is not filed twice.** The same proof showed the
 tier blind to the state it carried: the rounding defect the previous run had resolved came back,
 the engine described it correctly, and filed it as NEW — a regression reported as news, ranked

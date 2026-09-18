@@ -1381,5 +1381,11 @@
   "path": "src/verdict_mcp/small.py",
   "old": "        ranked = delta_candidates(facts, repo, changed) if changed else []\n",
   "new": "        ranked = delta_candidates(facts, repo, changed)\n"
+ },
+ {
+  "label": "0.90.0 P41 runner: the harness child is left to find the package itself, and a runner started from source cannot sweep",
+  "path": "src/verdict_mcp/runner.py",
+  "old": "    env = dict(os.environ, PYTHONPATH=os.pathsep.join(\n        p for p in (src, os.environ.get(\"PYTHONPATH\")) if p))\n",
+  "new": "    env = None\n"
  }
 ]

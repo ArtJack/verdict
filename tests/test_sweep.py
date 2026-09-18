@@ -254,3 +254,24 @@ def test_the_synthetic_judgment_carries_every_open_finding_by_id_and_nothing_els
     assert j["topic"] == "sweep" and j["isolation_check"]["result"] == "n/a"
     assert "3 commits (2 files changed, none cited by a finding)" in j["not_tested"][0]
     assert j["next_run_focus"] == ["re-verify P-F-1"] and j["questions"] == []
+
+
+def test_the_harness_child_imports_the_code_the_runner_is(monkeypatch):
+    """Measured on the Sales nightly: `python3 src/verdict_mcp/runner.py`, started by an
+    interpreter that never installed the package, could not `-m verdict_mcp.harness`, and
+    every sweep from 2026-09-17 ended `No module named 'verdict_mcp'` — exit 5, nothing
+    measured. The child is handed the runner's own source root, ahead of what was set."""
+    from verdict_mcp import runner
+    seen = {}
+
+    def fake_run(cmd, **kw):
+        seen["cmd"], seen["env"] = cmd, kw.get("env")
+        return subprocess.CompletedProcess(cmd, 0, "", "")
+
+    monkeypatch.setattr(runner.subprocess, "run", fake_run)
+    monkeypatch.setenv("PYTHONPATH", "elsewhere")
+    runner._harness("facts", "--help")
+    assert seen["cmd"][1:3] == ["-m", "verdict_mcp.harness"]
+    first, *rest = (seen["env"] or {}).get("PYTHONPATH", "").split(os.pathsep)
+    assert (Path(first) / "verdict_mcp" / "harness.py").is_file(), first
+    assert rest == ["elsewhere"], "added to, not replaced"
