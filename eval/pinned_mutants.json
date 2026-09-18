@@ -1345,5 +1345,11 @@
   "path": "src/verdict_mcp/small.py",
   "old": "    declared = [Path(r) for r in import_roots(repo)\n",
   "new": "    declared = [Path(r) for r in []\n"
+ },
+ {
+  "label": "0.90.0 P35 local: a second finding with the same identity is filed, and finalize refuses the night",
+  "path": "src/verdict_mcp/small.py",
+  "old": "        twin = next((f for f in into_list if finding_hash(f) == finding_hash(entry)), None)\n",
+  "new": "        twin = None\n"
  }
 ]

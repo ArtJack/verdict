@@ -31,7 +31,10 @@ gets an hour, 24 functions and 12 proofs, and says what it skipped; in a delta a
 reading is a **lead** — listed in the report and the focus list, not filed — while a proven one, a
 failing test, a skip without expiry, measured flakiness and a returning defect still are; and a
 proof imports through the project's own root (pytest's `pythonpath`, else the directory above the
-package chain). Mutants P28–P34.
+package chain). The re-run then found a fifth: two skip markers with the same reason in one
+test file became two findings with one identity, and finalize refused the night again. Skips
+are one finding per file and reason now, and any second finding with an identity this run
+already filed is folded into the first. Mutants P28–P35.
 
 **A regression is REGRESSED, and an open finding is not filed twice.** The same proof showed the
 tier blind to the state it carried: the rounding defect the previous run had resolved came back,

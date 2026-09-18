@@ -64,7 +64,7 @@ from pathlib import Path
 try:
     from .anchors import line_sha, refs_in
     from .harness import (RETRY_WINDOW_HOURS, _git, _parse_marker_time, _run_test, collect,
-                          finalize_main, is_test_file)
+                          finalize_main, finding_hash, is_test_file)
     from .filed import FINDINGS_DIR, archive_findings
     from .profile import ProfileError, gates_from
     from .profile import load as load_profile
@@ -79,7 +79,7 @@ except ImportError:  # bare-script execution
     import clock
     from anchors import line_sha, refs_in
     from harness import (RETRY_WINDOW_HOURS, _git, _parse_marker_time, _run_test, collect,
-                         finalize_main, is_test_file)
+                         finalize_main, finding_hash, is_test_file)
     from filed import FINDINGS_DIR, archive_findings
     from profile import ProfileError, gates_from
     from profile import load as load_profile
@@ -1128,15 +1128,31 @@ def flaky_finding(entry: dict, runs: int, ident: str) -> dict:
     }
 
 
+def group_skips(skips: list) -> list:
+    """One finding per file and reason, citing every line that carries it.
+
+    Measured on Sales (2026-09-18): two skip markers in one test file with the same reason
+    became two findings with one identity — path and title are what a finding's hash is
+    made of — and finalize refused the night for it. They are one decision somebody did
+    not make, in two places; they are filed as one finding with both sites."""
+    grouped: dict = {}
+    for skip in skips:
+        grouped.setdefault((skip["path"], skip["reason"]), []).append(skip["line"])
+    return [{"path": path, "reason": reason, "line": lines[0], "lines": lines}
+            for (path, reason), lines in grouped.items()]
+
+
 def skip_finding(skip: dict, ident: str) -> dict:
+    lines = skip.get("lines") or [skip["line"]]
     return {
         "id": ident,
         "title": f"A test is skipped with no expiry: {skip['reason'][:90]}"[:200],
         "severity": "Minor", "priority": "P2", "status": "open",
         "failure_classification": "BRITTLE_TEST", "confidence": "proven",
-        "evidence": [f"{skip['path']}:{skip['line']} — skip marker with reason "
-                     f"{skip['reason'][:200]!r}; no date or expiry in the reason",
-                     "found by a regular expression over the test files, not by a model"],
+        "evidence": [f"{skip['path']}:{line} — skip marker with reason "
+                     f"{skip['reason'][:200]!r}; no date or expiry in the reason"
+                     for line in lines]
+                    + ["found by a regular expression over the test files, not by a model"],
         "root_cause": {"mechanism": "A skip with no expiry is a deleted test that nobody "
                                     "decided to delete: it never runs again and no one is "
                                     "told.",
@@ -1839,6 +1855,19 @@ def run(repo: Path, qa_root: Path, model: Model, limit: int, gate: str | None,
 
     def mint(entry: dict, into: Path, into_list: list, keep_id: bool = False) -> None:
         """File a finding, or refuse it — the validator decides, never the model."""
+        # One identity, one finding. The harness recognises a finding by its cited path and
+        # its title, and refuses a run that files the same identity twice — a refusal that
+        # costs the whole night. Anything this run already filed under the same identity is
+        # the same finding: its evidence is added there, and no second file is written.
+        twin = next((f for f in into_list if finding_hash(f) == finding_hash(entry)), None)
+        if twin is not None:
+            twin["evidence"] = list(twin.get("evidence") or []) + [
+                e for e in entry.get("evidence") or [] if e not in (twin.get("evidence") or [])]
+            (into / f"{twin['id']}.json").write_text(json.dumps(twin, indent=1),
+                                                     encoding="utf-8")
+            print(f"verdict-local: {twin['id']} again — the same identity, folded into it",
+                  file=sys.stderr)
+            return
         if not keep_id:
             entry["id"] = f"{prefix}-{counter[0]}"
         problems = validate_finding(entry, f"{FINDINGS_DIR}/{entry['id']}.json",
@@ -1893,7 +1922,7 @@ def run(repo: Path, qa_root: Path, model: Model, limit: int, gate: str | None,
             mint(failure_finding(claim, "@"), findings_dir, filed)
 
     # 2. Skips with no expiry — a regular expression, no model call at all.
-    for skip in skips_without_expiry(repo, test_files(repo)):
+    for skip in group_skips(skips_without_expiry(repo, test_files(repo))):
         mint(skip_finding(skip, "@"), findings_dir, filed)
 
     # 3. What reading says, function by function — the source, then the tests.

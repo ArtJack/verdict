@@ -869,3 +869,89 @@ def test_the_night_with_an_inherited_conflict_finalizes_and_asks_once(tmp_path):
     texts = [q.get("question", "") for q in (asked.get("questions") or {}).values()]
     assert len(texts) == 1, "asked once"
     assert any("PROJ-F-1 cites cited.py:3" in t and "already held" in t for t in texts), texts
+
+
+class _ByPrompt(ScriptedModel):
+    """Answers by what is asked, not by order — for runs whose question order is the
+    engine's business, not the test's."""
+
+    def __init__(self, rules, default=MATCHES):
+        super().__init__(default=default)
+        self.rules = rules
+
+    def ask(self, prompt, max_tokens=1200):
+        for needle, reply in self.rules:
+            if needle in prompt:
+                self.prompts.append(prompt)
+                self.calls += 1
+                return json.dumps(reply)
+        return super().ask(prompt, max_tokens)
+
+
+def test_in_a_delta_a_models_opinion_that_a_green_test_is_brittle_is_a_lead(tmp_path):
+    repo, qa = project(tmp_path)
+    (repo / "test_cited.py").write_text(TEST + "\n\ndef test_rate_again():\n"
+                                        "    assert rate(3) == 6\n", encoding="utf-8")
+    git(repo, "commit", "-qam", "a second test")
+    model = _ByPrompt([("currently passes", {"brittle": True, "line": 5,
+                                             "why": "it pins the doubling the spec says is a bug"})])
+    delta(repo, qa, model)
+    state = state_of(qa)
+    assert not [f for f in state["findings"] if f.get("failure_classification") == "BRITTLE_TEST"]
+    report = (qa / state["last_run"]["report"]).read_text(encoding="utf-8")
+    assert "may assert something incidental" in report, "said as a lead, in the report"
+
+
+def test_a_counterfactual_proves_a_packaged_file_through_the_projects_root(tmp_path, monkeypatch):
+    """The Sales failure, end to end through the proof itself: with the import rooted at the
+    repository, `shop`'s own import reaches the decoy and the probe cannot run at all."""
+    repo = tmp_path / "repo"
+    pkg = repo / "core" / "src" / "shop"
+    pkg.mkdir(parents=True)
+    (pkg / "__init__.py").write_text("", encoding="utf-8")
+    (pkg / "labels.py").write_text("WIDTH = 4\n", encoding="utf-8")
+    (pkg / "cli.py").write_text("from shop.labels import WIDTH\n\n\ndef width():\n"
+                                "    \"\"\"Twice the label width.\"\"\"\n    return WIDTH\n",
+                                encoding="utf-8")
+    decoy = tmp_path / "decoy" / "shop"
+    decoy.mkdir(parents=True)
+    (decoy / "__init__.py").write_text("", encoding="utf-8")
+    monkeypatch.setenv("PYTHONPATH", str(tmp_path / "decoy"))
+
+    chunk = next(c for c in small.chunks_of(repo, "core/src/shop/cli.py") if c.name == "width")
+    model = ScriptedModel([{"expression": "m.width()", "fix_line": 6,
+                            "fix_replacement": "    return WIDTH * 2"}])
+    proof = small.counterfactual(model, repo, chunk,
+                                 {"mechanism": "returns the width, not twice it", "line": 6},
+                                 sys.executable)
+    assert proof["status"] == "proven", proof
+    assert (proof["before"], proof["after"]) == (4, 8)
+
+
+def test_two_findings_with_one_identity_in_one_run_are_one_finding(tmp_path):
+    """The harness knows a finding by its path and title and refuses a run that files one
+    identity twice — on Sales that refusal cost the night. The second is folded into the
+    first, its evidence added, and the run is recorded."""
+    repo = tmp_path / "Two"
+    repo.mkdir()
+    git(repo, "init", "-qb", "main")
+    (repo / "two.py").write_text("def f(x):\n    \"\"\"Double.\"\"\"\n    return x\n\n\n"
+                                 "def g(x):\n    \"\"\"Double.\"\"\"\n    return x\n",
+                                 encoding="utf-8")
+    (repo / "test_two.py").write_text("from two import f\n\n\ndef test_f():\n"
+                                      "    assert f(0) == 0\n", encoding="utf-8")
+    git(repo, "add", "-A")
+    git(repo, "commit", "-qm", "two")
+    qa = tmp_path / "qa"
+    qa.mkdir()
+    (qa / "profile.md").write_text(f"---\ngates:\n  suite: {GATE}\n---\n\nProject-Key: two\n",
+                                   encoding="utf-8")
+    same = {"is_real": True, "severity": "Minor", "title": "doubling is missing", "impact": "x"}
+    model = _ByPrompt([("software tester reading one function", {
+                           "verdict": "mismatch", "line": 3,
+                           "mechanism": "returns x where the docstring promises double"}),
+                       ("A defect has been claimed", same)])
+    assert small.run(repo, qa, model, limit=4, gate=None, reruns=0, prove=False, delta=False) == 0
+    mine = [f for f in state_of(qa)["findings"] if f["title"] == "doubling is missing"]
+    assert len(mine) == 1, "one identity, one finding"
+    assert sum("two.py:" in e for e in mine[0]["evidence"]) >= 2, "both sites are on it"
