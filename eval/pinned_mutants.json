@@ -1391,13 +1391,19 @@
  {
   "label": "0.90.0 P41 runner: the harness child is left to find the package itself, and a runner started from source cannot sweep",
   "path": "src/verdict_mcp/runner.py",
-  "old": "    env = dict(os.environ, PYTHONPATH=os.pathsep.join(\n        p for p in (src, os.environ.get(\"PYTHONPATH\")) if p))\n",
-  "new": "    env = None\n"
+  "old": "    return subprocess.run([sys.executable, \"-c\", _BOOT, src, sub, *args],\n",
+  "new": "    return subprocess.run([sys.executable, \"-m\", \"verdict_mcp.harness\", sub, *args],\n"
  },
  {
   "label": "A2 pin_check: the scratch copy is not a git checkout, and code that lists files as git sees them stops the control run",
   "path": "eval/pin_check.py",
   "old": "        make_checkout(dest)\n",
   "new": ""
+ },
+ {
+  "label": "0.90.1 P42 runner: the harness child's source root leaks into the project's test command through PYTHONPATH",
+  "path": "src/verdict_mcp/runner.py",
+  "old": "    return subprocess.run([sys.executable, \"-c\", _BOOT, src, sub, *args],\n                          capture_output=True, text=True, encoding=\"utf-8\", errors=\"replace\")\n",
+  "new": "    return subprocess.run([sys.executable, \"-c\", _BOOT, src, sub, *args],\n                          capture_output=True, text=True, encoding=\"utf-8\", errors=\"replace\",\n                          env=dict(os.environ, PYTHONPATH=src))\n"
  }
 ]

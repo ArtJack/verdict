@@ -3,6 +3,20 @@
 Plugin and `verdict-mcp` share one version line; `.claude-plugin/plugin.json` and
 `pyproject.toml` are bumped together.
 
+## 0.90.1 — 2026-09-18 · "the path stays in the child"
+
+**0.90.0's runner fix leaked into the project's tests.** To let a runner started from a checkout
+find its own harness, 0.90.0 put the runner's source root on `PYTHONPATH` for the harness child
+— and every process that child started inherited it. From an installed verdict that root is
+the whole `site-packages` of Verdict's own environment, so the project's test command imported
+Verdict's packages ahead of its own. Found on the author's Sales nightly the evening 0.90.0
+shipped, in the lab-down drill before the nightly was switched over: Sales' pytest exited 2 with
+925 of ~3,450 tests collected, the sweep read the gate as failed and refused itself, and the
+test-id set looked as if 2,561 tests had been deleted. The harness child now receives the path
+as an argument and puts it on its own `sys.path` only; the environment is inherited untouched.
+A sweep started through `verdict-run` from any installed 0.90.0 over a project with its own
+environment is affected — upgrade. Mutant P42 (and P41 re-anchored on the new launch).
+
 ## 0.90.0 — 2026-09-18 · "the local tier"
 
 **Every run nobody asked for spends zero Claude tokens.** `verdict-run --on-drift

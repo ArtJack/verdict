@@ -260,18 +260,29 @@ def test_the_harness_child_imports_the_code_the_runner_is(monkeypatch):
     """Measured on the Sales nightly: `python3 src/verdict_mcp/runner.py`, started by an
     interpreter that never installed the package, could not `-m verdict_mcp.harness`, and
     every sweep from 2026-09-17 ended `No module named 'verdict_mcp'` — exit 5, nothing
-    measured. The child is handed the runner's own source root, ahead of what was set."""
+    measured. The child is handed the runner's own source root — on its own sys.path, never
+    in the environment: 0.90.0 used PYTHONPATH, every grandchild inherited it, and from an
+    installed verdict that was the whole site-packages of Verdict's environment. The Sales
+    pytest imported Verdict's packages and collected 925 of ~3,450 tests (2026-09-18)."""
     from verdict_mcp import runner
     seen = {}
 
     def fake_run(cmd, **kw):
-        seen["cmd"], seen["env"] = cmd, kw.get("env")
+        seen["cmd"], seen["kw"] = cmd, kw
         return subprocess.CompletedProcess(cmd, 0, "", "")
 
     monkeypatch.setattr(runner.subprocess, "run", fake_run)
-    monkeypatch.setenv("PYTHONPATH", "elsewhere")
     runner._harness("facts", "--help")
-    assert seen["cmd"][1:3] == ["-m", "verdict_mcp.harness"]
-    first, *rest = (seen["env"] or {}).get("PYTHONPATH", "").split(os.pathsep)
-    assert (Path(first) / "verdict_mcp" / "harness.py").is_file(), first
-    assert rest == ["elsewhere"], "added to, not replaced"
+    exe, flag, _boot, src, *rest = seen["cmd"]
+    assert (exe, flag, rest) == (sys.executable, "-c", ["facts", "--help"])
+    assert (Path(src) / "verdict_mcp" / "harness.py").is_file(), src
+    assert seen["kw"].get("env") is None, "the environment is inherited untouched"
+
+
+def test_the_harness_bootstrap_runs_the_subcommand_it_is_given():
+    """The bootstrap for real: it takes its path argument off argv before the harness
+    parses it, and dispatches the subcommand that follows."""
+    from verdict_mcp import runner
+    proc = runner._harness("facts", "--help")
+    assert proc.returncode == 0, proc.stderr[-400:]
+    assert proc.stdout.startswith("usage: verdict-facts"), proc.stdout[:200]
