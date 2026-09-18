@@ -488,6 +488,7 @@ No Claude tokens.
 | `19619bc` | pricer, seeded delta | **0/9 ×3** by protocol | **`pass with risks` — a false green** | three tests failing |
 | `5e00d00` (red gate = `fail`) | pricer, seeded delta | 0/9 ×3 by protocol, **6/9 ×3 on substance** | `fail` ✓ | zero false greens |
 | `5e00d00` | pricer, baseline | **9/10 · 9/10 · 10/10** | ✓ | no hard fails |
+| `8190963` (a returning defect is REGRESSED) | pricer, seeded delta | **7/9 · 7/9 · 7/9**, no hard fails | `fail` ✓ | zero false greens; the regression reported as REGRESSED in every run |
 
 **The false green, and why the gate exists.** The first valid run carried all five prior
 findings by id, resolved nothing by silence and nothing without measurement — and reported
@@ -496,6 +497,14 @@ severities, and a reading no counterfactual proved is held at Minor, so a real r
 as an unproven Major could never force a fail; nothing in the rule looked at the gate. A red
 gate now outranks every finding (mutant P21). That is the whole reason this tier is measured by
 "zero false greens" rather than by points.
+
+**The hard fail that was left, fixed.** On `5e00d00` every seeded run scored 0 by protocol on one
+hard fail, and the paragraph below describes it as it was measured. `8190963` matches a claim to
+an earlier finding before filing it — by the line hashes the finding's anchors recorded, else by
+the function the finding names — so a resolved finding that returns comes back under its own id
+and is REGRESSED, and an open one is not filed a second time. Measured the same day: 7/9 in all
+three runs, no hard fail, the rounding regression ranked first; 54–75 minutes a run. The baseline
+arm was not re-run: the change matches against a previous state, and the baseline has none.
 
 **What it still misses, declared.** Every seeded run scores 0 by protocol on one hard fail,
 `regressed_not_first`: the rounding defect the golden state had resolved comes back as a **NEW**
