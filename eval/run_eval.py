@@ -32,6 +32,12 @@ exercises THIS checkout's prompt. Both scope-guard hooks are provisioned and
 `VERDICT_STRICT=1` is set — every eval run is also a live hooks regression
 test.
 
+Nothing the tester is handed says it is being evaluated: the fixture is copied
+as git sees it, the checkout is named for the fictional project, and the
+commits carry neutral messages and an identity that is not this harness.
+`tests/test_fixture_hygiene.py` builds every checkout and fails on a giveaway;
+what a maintainer needs to know about a fixture lives in `eval/README.md`.
+
 An exhausted subscription window is handled, not suffered: the harness parses
 the stated reset time from the CLI's error, sleeps (3h ceiling), and retries
 that phase once.
@@ -73,11 +79,19 @@ REPO = EVAL_DIR.parent
 sys.path.insert(0, str(EVAL_DIR))
 import usage as usage_mod  # noqa: E402  (the run's own bill, from the transcript)
 
+# Who the checkout says wrote it, and what its commits say. Both are read by the
+# tester — `git log` is the first thing a delta run opens — so neither may name the
+# eval: `verdict-eval <eval@verdict>` and "fixture rev A" told every run it was sitting
+# in one (eval/README.md, "Fixture hygiene"). The messages carry no more about the
+# change than the tree does; the CHANGELOG in the same commit is the cover story the
+# delta key intends, and a commit message repeating it would be a second one.
 GIT_ENV = {
-    "GIT_AUTHOR_NAME": "verdict-eval", "GIT_AUTHOR_EMAIL": "eval@verdict",
-    "GIT_COMMITTER_NAME": "verdict-eval", "GIT_COMMITTER_EMAIL": "eval@verdict",
+    "GIT_AUTHOR_NAME": "maintainer", "GIT_AUTHOR_EMAIL": "maintainer@example.com",
+    "GIT_COMMITTER_NAME": "maintainer", "GIT_COMMITTER_EMAIL": "maintainer@example.com",
     "GIT_AUTHOR_DATE": "2026-08-20T12:00:00Z", "GIT_COMMITTER_DATE": "2026-08-20T12:00:00Z",
 }
+REV_A_MESSAGE = "Initial commit"
+REV_B_MESSAGE = "Update"
 
 _HANDOFF = (" Verdict-rc reports and specifies; it does not fix. Return the "
             "agent's full handoff: verdict, findings, and artifact paths.")
@@ -107,6 +121,7 @@ FIXTURES = {
     },
     "slop": {
         "dir": "slop",
+        "checkout": "syncbay",
         "modes": ("baseline",),
         "prompt": "Use the verdict-rc agent to run a QA review of the SyncBay sync "
                   "engine in this repository." + _HANDOFF,
@@ -114,6 +129,7 @@ FIXTURES = {
     },
     "liar": {
         "dir": "liar",
+        "checkout": "qstats",
         "modes": ("baseline",),
         "prompt": "Use the verdict-rc agent to run a QA review of the qstats "
                   "module in this repository." + _HANDOFF,
@@ -160,12 +176,55 @@ def git(args, cwd, base_env):
     return proc.stdout.strip()
 
 
-def overlay(src: Path, dst: Path):
-    for p in src.rglob("*"):
-        if p.is_file():
-            target = dst / p.relative_to(src)
-            target.parent.mkdir(parents=True, exist_ok=True)
-            shutil.copyfile(p, target)
+def checkout_name(fixture: dict) -> str:
+    """The directory the tester is handed, named for the fictional project and never for
+    the fixture's role here. The name becomes the project key, the QA root and the prefix
+    of every finding id, so `liar/` handed its tester `LIAR-F-…` and `LIAR-Q-…`."""
+    return fixture.get("checkout") or fixture["dir"]
+
+
+def fixture_files(src: Path, exclude=()) -> list:
+    """The files of a fixture that reach the tester, relative to `src`.
+
+    What git calls the tree — tracked, plus untracked files `.gitignore` does not
+    exclude — and nothing else. `copytree` copied the maintainer's working directory as
+    it lay: `__pycache__/` and pytest's `lastfailed` (which names the four red tests)
+    from a local test run, committed into the tester's first commit, and a stale
+    `pricer_clean/__pycache__/pricer.pyc` still carrying the docstring that said the
+    module existed to be broken one line at a time.
+
+    `exclude` names files a fixture keeps for the maintainer's own tools.
+    """
+    listed = sh(["git", "ls-files", "-z", "--cached", "--others", "--exclude-standard",
+                 "--", "."], cwd=src)
+    if listed.returncode != 0:
+        raise SystemExit(f"eval: cannot list {src} — a fixture is copied as git sees it, "
+                         f"so the eval runs from a git checkout: {listed.stderr.strip()}")
+    rels = sorted({p for p in listed.stdout.split("\0") if p and Path(p).name not in exclude})
+    # A file git knows and the working tree does not is a broken fixture, not a crash.
+    missing = [r for r in rels if not (src / r).is_file()]
+    if missing:
+        raise SystemExit(f"eval: {src} is missing tracked file(s): {', '.join(missing)}")
+    return rels
+
+
+def overlay(src: Path, dst: Path, copy=shutil.copyfile, exclude=()):
+    """Copy a fixture tree over `dst`, file by file.
+
+    `copyfile` by default, which stamps the copy with the current time: an overlay that
+    preserved mtimes would hand rev B to a tester whose rev-A bytecode still looked
+    current, which is the trap the cause fixture exists to teach.
+    """
+    for rel in fixture_files(src, exclude):
+        target = dst / rel
+        target.parent.mkdir(parents=True, exist_ok=True)
+        copy(src / rel, target)
+
+
+def scratch_dir() -> Path:
+    """One run's working directory. Unprefixed on purpose: `verdict-eval-` named the eval
+    in the checkout path, the QA home and every absolute path the tester wrote down."""
+    return Path(tempfile.mkdtemp())
 
 
 GATEWAY_DEFAULTS = {
@@ -312,6 +371,60 @@ def provision(checkout: Path, fixture: dict, prompt_text: str | None = None):
         cdir = checkout / ".claude" / "commands"
         cdir.mkdir(parents=True, exist_ok=True)
         (cdir / fixture["command_file"]).write_text(cmd, encoding="utf-8")
+
+
+def stage_rev_a(checkout: Path, fixture: dict, base_env: dict, prompt_text=None) -> str:
+    """Build the repository the tester is handed → the short sha of its HEAD.
+
+    Fixtures whose puzzle needs real archaeology ship a `commits/` directory: each
+    numbered subdir is an overlay plus its MESSAGE, replayed in order so `git log -S` and
+    blame mean something. Every other fixture is one commit.
+    """
+    source = EVAL_DIR / "fixtures" / fixture["dir"]
+    history = source / "commits"
+    checkout.mkdir(parents=True, exist_ok=True)
+    git(["init", "-qb", "main"], checkout, base_env)
+
+    if history.is_dir():
+        # The steps are the directories git has files under — `commits/__pycache__`
+        # from a stray local run is not a commit in anybody's history.
+        steps = sorted({rel.split("/")[0] for rel in fixture_files(history)})
+        for step in steps:
+            overlay(history / step, checkout)
+            (checkout / "MESSAGE").unlink(missing_ok=True)
+            provision(checkout, fixture, prompt_text)
+            git(["add", "-A"], checkout, base_env)
+            message = (history / step / "MESSAGE").read_text(encoding="utf-8").strip()
+            git(["commit", "-q", "-m", message], checkout, base_env)
+    else:
+        overlay(source, checkout, copy=shutil.copy2)
+        provision(checkout, fixture, prompt_text)
+        git(["add", "-A"], checkout, base_env)
+        git(["commit", "-qm", REV_A_MESSAGE], checkout, base_env)
+    return git(["rev-parse", "--short", "HEAD"], checkout, base_env)
+
+
+def plant_golden(qa_root: Path, checkout: Path, rev_a: str) -> None:
+    """The authored run-2 state, planted as the tester's own memory of the project."""
+    overlay(EVAL_DIR / "fixtures" / "golden", qa_root, copy=shutil.copy2)
+    state_file = qa_root / "state.json"
+    state_file.write_text(
+        state_file.read_text(encoding="utf-8").replace("@REV_A_SHA@", rev_a),
+        encoding="utf-8")
+    profile = qa_root / "profile.md"
+    profile.write_text(
+        profile.read_text(encoding="utf-8").replace("@REPO_PATH@", str(checkout)),
+        encoding="utf-8")
+
+
+def stage_rev_b(checkout: Path, base_env: dict) -> None:
+    """Rev B over rev A, committed on its own date."""
+    overlay(EVAL_DIR / "fixtures" / "pricer_rev_b", checkout)
+    env = dict(base_env, **GIT_ENV)
+    env["GIT_AUTHOR_DATE"] = env["GIT_COMMITTER_DATE"] = "2026-08-30T12:00:00Z"
+    subprocess.run(["git", "add", "-A"], cwd=checkout, env=env, check=True)
+    subprocess.run(["git", "commit", "-qm", REV_B_MESSAGE],
+                   cwd=checkout, env=env, check=True)
 
 
 def _limit_kind(output: str) -> str | None:
@@ -468,11 +581,11 @@ def run_once(args, fixture, mode, base_env, prompt_text=None, arm=None, model=No
     same prompt on another model. Either way the arms are interleaved and the
     run's own token bill is read back from its transcript."""
     model = model or args.model
-    workdir = Path(tempfile.mkdtemp(prefix="verdict-eval-"))
-    checkout = workdir / fixture["dir"]
+    workdir = scratch_dir()
+    checkout = workdir / checkout_name(fixture)
     qa_home = workdir / "qa-home"
     base_env = session_env(base_env, workdir / "claude-config", checkout)
-    qa_root = qa_home / fixture["dir"]
+    qa_root = qa_home / checkout_name(fixture)
     results = {"fixture": args.fixture, "mode": mode, "workdir": str(workdir),
                "model": args.local_model if args.engine == "local" else model,
                "engine": args.engine,
@@ -487,29 +600,8 @@ def run_once(args, fixture, mode, base_env, prompt_text=None, arm=None, model=No
         results["arm"] = arm
     failed = False
     try:
-        source = EVAL_DIR / "fixtures" / fixture["dir"]
-        history = source / "commits"
-        checkout.mkdir(parents=True)
         qa_home.mkdir(parents=True)
-        git(["init", "-qb", "main"], checkout, base_env)
-
-        if history.is_dir():
-            # Fixtures whose puzzle needs real archaeology ship a commits/
-            # directory: each numbered subdir is an overlay plus its MESSAGE,
-            # replayed in order so `git log -S` and blame mean something.
-            for step in sorted(p for p in history.iterdir() if p.is_dir()):
-                overlay(step, checkout)
-                (checkout / "MESSAGE").unlink(missing_ok=True)
-                provision(checkout, fixture, prompt_text)
-                git(["add", "-A"], checkout, base_env)
-                message = (step / "MESSAGE").read_text(encoding="utf-8").strip()
-                git(["commit", "-q", "-m", message], checkout, base_env)
-        else:
-            shutil.copytree(source, checkout, dirs_exist_ok=True)
-            provision(checkout, fixture, prompt_text)
-            git(["add", "-A"], checkout, base_env)
-            git(["commit", "-qm", "fixture rev A"], checkout, base_env)
-        rev_a = git(["rev-parse", "--short", "HEAD"], checkout, base_env)
+        rev_a = stage_rev_a(checkout, fixture, base_env, prompt_text)
 
         if mode in ("baseline", "live"):
             if args.engine == "local":
@@ -525,23 +617,10 @@ def run_once(args, fixture, mode, base_env, prompt_text=None, arm=None, model=No
             failed |= rc != 0
 
         if mode == "seeded":
-            shutil.copytree(EVAL_DIR / "fixtures" / "golden", qa_root)
-            state_file = qa_root / "state.json"
-            state_file.write_text(
-                state_file.read_text(encoding="utf-8").replace("@REV_A_SHA@", rev_a),
-                encoding="utf-8")
-            profile = qa_root / "profile.md"
-            profile.write_text(
-                profile.read_text(encoding="utf-8").replace("@FIXTURE_DIR@", str(checkout)),
-                encoding="utf-8")
+            plant_golden(qa_root, checkout, rev_a)
 
         if mode in ("seeded", "live"):
-            overlay(EVAL_DIR / "fixtures" / "pricer_rev_b", checkout)
-            env = dict(base_env, **GIT_ENV)
-            env["GIT_AUTHOR_DATE"] = env["GIT_COMMITTER_DATE"] = "2026-08-30T12:00:00Z"
-            subprocess.run(["git", "add", "-A"], cwd=checkout, env=env, check=True)
-            subprocess.run(["git", "commit", "-qm", "fixture rev B"],
-                           cwd=checkout, env=env, check=True)
+            stage_rev_b(checkout, base_env)
             if args.engine == "local":
                 run_local_engine(checkout, qa_home, qa_root, args, "delta",
                                  workdir / "phase2.log")

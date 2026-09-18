@@ -1,4 +1,4 @@
-# Pricer — mutation base (spec of record)
+# Pricer (spec of record)
 
 A tiny marketplace listing pricer. **This README is the requirement spec** the code and
 tests must satisfy.

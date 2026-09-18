@@ -1,8 +1,7 @@
-# Pricer — eval fixture (spec of record)
+# Pricer (spec of record)
 
 A tiny marketplace listing pricer. **This README is the requirement spec** the code and
-tests must satisfy. It intentionally contains seeded defects — see `../../EXPECTED.md` for
-the answer key (do not read it during an eval run).
+tests must satisfy.
 
 ## Requirements
 

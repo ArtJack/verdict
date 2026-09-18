@@ -56,6 +56,11 @@ Behavioural regressions still need a scored run. Neither substitutes for the oth
 | [`run_eval.py`](run_eval.py) | Harness: scratch git repo, scratch `VERDICT_HOME`, `--setting-sources project`, and a project-local copy of `agents/verdict.md` so the run exercises this checkout's prompt |
 | [`usage.py`](usage.py) · [`usage_census.py`](usage_census.py) | What one run spent, and what the habit spends: both read Claude Code's own transcripts, summed per request id. The census groups every Verdict-agent run on the machine by who launched it, which model answered, week and project — see "Where the tokens go". Reads only; unit-tested in `tests/test_usage.py`, `tests/test_usage_census.py` |
 
+A fixture's own files are the fictional project and nothing else. What a maintainer needs
+to know about one — what it seeds, which key scores it, why its suite has the gaps it has
+— lives in this file, which is copied nowhere: see
+[Fixture hygiene](#fixture-hygiene--the-checkout-stopped-announcing-itself-2026-09-17).
+
 ## Protocol
 
 Every published row reproduces with one command:
@@ -75,8 +80,10 @@ python3 eval/run_eval.py --fixture cause --repeat 2 --pair v0.83.0   # paired A/
 Every run provisions both scope-guard hooks and sets `VERDICT_STRICT=1` — each eval is
 also a live hooks regression test. Model runs cost tokens: in CI this is
 `workflow_dispatch` / weekly only, never per-PR. Do **not** open any `EXPECTED*` or
-`expected*` file during a run — the fixture READMEs warn the agent the same way, and a
-run's evidence list should show it never looked.
+`expected*` file during a run. The fixtures no longer warn the agent off them, because
+the warning was itself the disclosure (see [Fixture hygiene](#fixture-hygiene--the-checkout-stopped-announcing-itself-2026-09-17));
+the keys stay outside every tree the harness copies, and a run's evidence list should
+show it never looked.
 
 ### Paired runs, and rows that read the state
 
@@ -99,6 +106,11 @@ state an older harness measured, so the archived corpus keeps scoring; and `mode
 only one mode can reach.
 
 ## Published results
+
+Every row below that was measured against a fixture in `eval/fixtures/` was measured with
+the fixture announcing itself to the tester — see
+[Fixture hygiene](#fixture-hygiene--the-checkout-stopped-announcing-itself-2026-09-17),
+which is why rows measured after 2026-09-17 are not strictly comparable with these.
 
 | Date | Model | Fixture / mode | Score | Notes |
 |---|---|---|---|---|
@@ -738,14 +750,20 @@ about the number a tester is actually judged on — **what did you miss?**
 So there is a second instrument, and it uses defects nobody authored:
 
 1. [`fixtures/pricer_clean/`](fixtures/pricer_clean/) is the same little pricer with every
-   spec rule implemented *correctly*, and a suite that is realistic rather than exhaustive.
+   spec rule implemented *correctly*, and a suite that is realistic rather than exhaustive:
+   the happy paths and the two boundaries anyone would think of, with the gaps a careful
+   reader would notice left in deliberately, because a mutant the suite fails to kill is
+   exactly the defect a tester has to find by reading. Nothing in the fixture says so —
+   that is the point of Fixture hygiene, and it used to be the fixture's own docstrings.
 2. [`mutate.py`](mutate.py) breaks one line at a time with mechanical operators, then asks
    two questions of each mutant. **Does the suite kill it?** A killed mutant takes no
    insight to find — the tester should report the red test, and that is all. **Does it
    change behaviour at all?** Each fixture ships a `probe.py` that fingerprints the module
    over an input grid; identical output everywhere means an *equivalent mutant*, a source
    change that is not a defect, and scoring a tester for missing it would be scoring a
-   question with no answer.
+   question with no answer. The probe stays with the maintainer's tools —
+   `run_mutation.py` does not copy it into the checkout, because a file that fingerprints
+   every public function over a grid tells a tester what it is standing in.
 3. What survives both filters — the suite misses it, and it provably changes behaviour —
    is the only honest denominator: real defects that can be found solely by reading.
    [`run_mutation.py`](run_mutation.py) plants each one in a fresh repo, alone, runs
@@ -790,6 +808,18 @@ about recall on classes a suite tends to miss differently. Widening the survivor
 population (more modules, other languages, subtler operators) is what makes the number
 harder to earn.
 
+**Re-counted 2026-09-17, and it moved.** Taking the announcement out of the module
+(Fixture hygiene) also takes out the one mutant those five docstring lines produced — the
+asterisk in `*correct*`, rewritten to a slash — so the census goes from 33 mutants to 32
+and from one equivalent mutant to none; the eleven survivors are the same eleven,
+renumbered. Neither count is the 21 / 7 / 6 above. Run today with the same operators and
+the same probe (`python3 eval/mutate.py`, free): **33 → 21 killed / 1 equivalent / 11
+survivors** before the change, **32 → 21 / 0 / 11** after. The five survivors August did
+not have are `is_listable`'s negative-price guard deleted outright, and four that change
+only the text of an error message — which the probe sees, because it records the message.
+Why the August census split them 7 / 6 was not chased here: that row stands as measured on
+the day, over the six mutants it names.
+
 ### Suite fault-detection power — mutation testing, on ourselves
 
 §11 tells every project "a suite that always passes may be testing nothing — measure it."
@@ -805,8 +835,12 @@ first measurement, 66.4% after one hardening pass** (+44 targeted tests, 110 →
 | eval/score.py · server.py · state.py | 74% · 67% · 59% | unchanged this pass — next hardening targets |
 
 Reproduce: copy the tree, `pip install -e . pytest "mutmut>=2.5,<3"`, then
-`mutmut run --paths-to-mutate <files> --runner "python -m pytest -x -q tests/"`. Not a CI
-job — it takes an hour; it is a periodic exam, and the numbers go here, misses included.
+`mutmut run --paths-to-mutate <files> --runner "python -m pytest -x -q tests/ --deselect
+tests/test_pin_check.py::test_every_catalogue_anchor_matches_exactly_once"`. That test
+checks the pinned catalogue's anchors against the tree, so it fails under any mutant of an
+anchored line and would score it killed; it did not exist when the numbers above were
+measured. Not a CI job — it takes an hour; it is a periodic exam, and the numbers go here,
+misses included.
 
 ### The other mutation question: is a rule we fixed actually pinned?
 
@@ -925,6 +959,37 @@ it supports. It carries a class the hand-written scripts never had: mutants that
 **call site** while leaving the code correct, because "the code is right" and "the code
 runs" are different claims and only the first was ever being tested.
 
+**Four anchors went stale, and the badge went on counting them (fixed 2026-09-17).** A
+mutant is applied by exact replacement, and an `old` text that does not occur exactly once
+is reported STALE and scored as a survivor. Four scored entries lost their anchors and
+stayed lost through 0.89.0: T02 matched twice once `_git_operands` repeated the tar
+parser's `--` line (0.80.0); 0.78.0 R2 matched nothing once the call beside the fold gained
+`measured_at` (0.83.0); 0.78.0 R5 and 0.79.0 S7 matched nothing once the finding checks
+moved into `validate_finding`, one indent shallower (0.84.0). The equivalent T08 went
+ambiguous with T02. No published run reported them, because each release measured its own
+entries with `--filter`. Meanwhile the badge, which a test ties to the catalogue's *size*
+rather than to a run, went on saying N/N: no full `pin_check` on any tree from 0.80.0 to
+0.89.0 could have produced that number. 0.89.0 found them by checking every anchor while
+adding its own mutants, and `git log -S` on each old anchor named the change that moved it.
+
+Each entry is re-anchored on the code its rule lives in now, changing only the text that
+moved, and re-measured against the whole suite — 1,244 tests per mutant in a scratch copy,
+green control before each run: **T02 killed · 0.78.0 R1–R15 killed, R2 and R5 among them ·
+0.79.0 S7 killed**, and T08 survives, the equivalent it is marked. `tests/test_pin_check.py`
+now counts every anchor on every run of the suite, so the edit that moves an anchored line
+is the edit that goes red; against the catalogue as it stood, that test fails and names
+exactly those five entries.
+
+It is also the one test a campaign must not run. Applying a mutant takes its own anchor out
+of the tree — 184 of today's 191 entries — so inside a mutant it goes red for the tree
+having moved rather than for the rule, and `classify` reads that failure as a kill.
+Measured: with the anchor test in the suite, **T08 — an equivalent mutant no test can tell
+apart — scores KILLED**. `pin_check.SUITE` deselects it and `eval/sweep.py` shares that
+command; pytest says nothing about a deselect that matches nothing, so the node id is tied
+to the test function by a test of its own, and the rule is pinned as **A1** (killed). That
+is the 189th scored entry, and why the badge reads 189 rather than 188. What has still not
+happened is a full catalogue run: 19 mutants were measured here, not 189.
+
 v0.90.0 added eighteen (P1–P18) for the local tier, and they are the shape a safety rule
 wants: each one puts back a defect whose symptom is *silence*. A drifted finding carried
 instead of re-filed; an unmentioned finding left to the merge's silence rule; a resolution on
@@ -1020,6 +1085,90 @@ Deliberately **not** amended away. The key is right that the three things need s
 name; the runs are right about the substance. Either move is a prompt change, and a prompt
 change is eval-paid — so it is filed for the next run rather than smuggled into the release
 that found it.
+
+### Fixture hygiene — the checkout stopped announcing itself (2026-09-17)
+
+Every fixture README carried a line like this one, from `fixtures/liar/README.md`:
+
+> It intentionally contains seeded defects — see `../../expected-liar.json` for the answer
+> key (do not read it during an eval run).
+
+The key itself was never copied into the checkout and could not be read. The sentence was
+enough. In a paid Opus run on 2026-09-17 the outer session wrote: *"the agent noticed an
+answer key at `../../expected-liar.json`. So the defects are planted fixtures, not a real
+product regression — which bears directly on its LIAR-Q-1 and LIAR-Q-2."* What a tester
+does with that knowledge cannot be read off one run, and that is exactly the problem: a
+tester that knows it is being graded on seeded defects is not the tester a user gets, and
+not the one these rows claim to measure.
+
+It was never only the READMEs. Everything the harness handed over said the same thing:
+
+- **Seven fixture READMEs** (and the spec fixture's `SPEC.md`) named the eval, the seeded
+  defects and the key. Gone. The requirement spec they also carry — which is what the
+  defects are defects *against* — is untouched, so the puzzle is the same one.
+- **`fixtures/golden/`**, planted in the seeded mode as the tester's own memory of the
+  project, listed under *Forbidden* in its own profile: "Reading `eval/EXPECTED*.md` or
+  `eval/expected*.json` anywhere on disk — answer keys". Its run-2 report opened with
+  "Golden-history stub: this file exists so run history is navigable during the delta
+  eval". A profile that names the keys is a map to them.
+- **`fixtures/pricer_clean/`**, the mutation base, was the loudest: its module docstring
+  said it "exists to be broken one line at a time by `eval/mutate.py`, so that recall can
+  be measured", its suite's docstring said the gaps "are the point — a mutant the suite
+  fails to kill is exactly the defect a tester has to find", and `run_mutation.py` copied
+  `probe.py`, the census's behavioural oracle, into the checkout beside them. The recall
+  number in "Recall — what the tester *misses*" was measured on a module that told its
+  tester it had been broken on purpose.
+- **`git log`.** Every commit was authored by `verdict-eval <eval@verdict>`; every
+  single-commit fixture opened with "fixture rev A", and the delta fixture's second commit
+  was "fixture rev B". Not hypothetical: the
+  archived corpus has testers quoting both back ("HEAD is 'fixture rev A'", "commit
+  5a1184b \"fixture rev B\""). The identity is a plain maintainer now and the messages say
+  nothing the tree does not.
+- **The paths.** The workdir was `verdict-eval-XXXXXXXX/`, so the checkout, the QA home
+  and every absolute path a finding cited named the eval; the mutation workdir added the
+  mutant's own id (`verdict-mut-M03-`). And the checkout's directory name becomes the
+  project key, so `liar/` and `slop/` stamped `LIAR-F-…` and `SLOP-F-…` on every finding
+  filed — the ids the contaminated run quoted. They are `qstats/` and `syncbay/` now, the
+  names their own READMEs use, and the scratch directory is named by the platform.
+- **The copy.** `shutil.copytree` copied the maintainer's working directory as it lay. In
+  the author's checkout that meant `fixtures/pricer/.pytest_cache/v/cache/lastfailed`,
+  which names the four red tests, and `fixtures/pricer_clean/__pycache__/pricer.pyc`,
+  which still carries the docstring quoted above — both committed into the tester's own
+  first commit. A fixture is now copied as git sees it: tracked files, plus untracked ones
+  `.gitignore` does not exclude, which is the definition
+  [`fixture_freshness.py`](fixture_freshness.py) already uses.
+
+**Enforced, not merely done.** [`tests/test_fixture_hygiene.py`](../tests/test_fixture_hygiene.py)
+builds every checkout the harness builds — each fixture, the golden state, rev B, and a
+mutation run's — with no model and no tokens, then reads what the tester would: every line
+any commit ever added, every file name, every commit message and identity, the planted QA
+state, and the directory names themselves. Words that genuinely belong to the fictional
+project are allowlisted one at a time with the reason, and an allowlist entry that stops
+matching fails the suite. Each of the seven giveaways above was put back and watched go
+red before this was trusted.
+
+**What this does not close**, stated rather than buried:
+
+- The checkout is still a one- or three-commit repository in a temp directory, which is not
+  what a real project looks like.
+- `.claude/agents/verdict-rc.md` and `.claude/settings.json` are provisioned into it with
+  `${CLAUDE_PLUGIN_ROOT}` resolved, so a tester can read this repository's absolute path,
+  and `eval/` is under it. Nothing in the checkout points there any more, but a tester that
+  goes looking can still find the keys. Closing it means provisioning from a copy of the
+  plugin root with `eval/` removed — a change to what the run exercises, not made here.
+- The agent is provisioned as `verdict-rc`, so the tester can tell it is a release
+  candidate of itself.
+- [`swebench.py`](swebench.py) builds the external key's checkouts under
+  `~/.cache/verdict-swebench/work/<instance id>/`, which names the benchmark and the
+  instance to anyone who reads `pwd`. Same class of leak, different harness; not audited
+  here.
+
+**Comparability.** Every published row measured against a fixture in `eval/fixtures/` —
+the whole results table, and the recall run — was measured with the giveaway present.
+Rows measured after 2026-09-17 are therefore **not strictly comparable** with them: the
+instrument changed, in the direction of the conditions a user's repository actually has.
+Which way the scores move is not predicted here and nothing is re-run: a re-measurement is
+model spend, and that is the owner's call.
 
 ### Answer-key amendments
 
