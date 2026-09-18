@@ -503,3 +503,59 @@ def test_the_cli_is_told_to_wait_for_a_backgrounded_tester(tmp_path, repo):
 def test_an_operators_own_ceiling_is_kept(tmp_path, repo):
     assert _ceiling_seen_by_the_cli(tmp_path, repo,
                                     CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS="120000") == "120000"
+
+
+# ── --on-drift: which engine a night nobody asked for may spend ────────────
+
+def test_the_local_endpoint_comes_from_a_file_or_the_environment(tmp_path):
+    """The credential reaches the run through a file the operator owns, never
+    through a command line, a crontab, or a log."""
+    from verdict_mcp.runner import local_endpoint
+    path = tmp_path / "gw.env"
+    path.write_text("# a comment\nANTHROPIC_BASE_URL='http://gw:4000'\n"
+                    "ANTHROPIC_AUTH_TOKEN=sk-local\n", encoding="utf-8")
+    assert local_endpoint(path, {}) == ("http://gw:4000", "sk-local")
+    assert local_endpoint(None, {"ANTHROPIC_BASE_URL": "http://amb:1",
+                                 "ANTHROPIC_AUTH_TOKEN": "t"}) == ("http://amb:1", "t")
+    assert local_endpoint(tmp_path / "absent", {"ANTHROPIC_BASE_URL": "x"}) == (None, None), \
+        "a named file that is not there is a refusal, not a silent fallback"
+    assert local_endpoint(None, {}) == (None, None)
+
+
+def test_a_night_that_never_started_leaves_no_marker(tmp_path):
+    """A blocked sweep has already run verdict-facts, which stakes a claim on the
+    QA root. When nothing follows it, that marker would tell tomorrow's run that
+    tonight died mid-flight — a lie about a night that never began."""
+    from verdict_mcp.runner import clear_marker
+    root = tmp_path / "qa"
+    root.mkdir()
+    (root / "run-in-progress.json").write_text("{}", encoding="utf-8")
+    clear_marker(root)
+    assert not (root / "run-in-progress.json").exists()
+    clear_marker(root)              # absent already: never raises
+    clear_marker(tmp_path / "nope")
+
+
+def test_the_local_command_line_carries_the_delta_and_the_caps(monkeypatch):
+    """The runner hands `verdict-local` a delta with the caps a night runs under,
+    and nothing in it could reach the claude CLI."""
+    import verdict_mcp.small as small_mod
+    from verdict_mcp import runner
+    seen = {}
+
+    def fake_local(argv):
+        seen["argv"] = list(argv)
+        seen["base"] = os.environ.get("ANTHROPIC_BASE_URL")
+        return 0
+
+    monkeypatch.setattr(small_mod, "main", fake_local)
+    monkeypatch.delenv("ANTHROPIC_BASE_URL", raising=False)
+    args = type("A", (), {"local_model": "qwen3", "local_limit": 6, "local_env_file": None})()
+    assert runner.run_local(Path("/repo"), Path("/qa"), args, "http://gw:4000", "t") == 0
+    assert "--delta" in seen["argv"] and "--reruns" in seen["argv"]
+    assert seen["argv"][seen["argv"].index("--limit") + 1] == "6"
+    assert seen["base"] == "http://gw:4000"
+    assert "claude" not in " ".join(seen["argv"])
+    assert os.environ.get("ANTHROPIC_BASE_URL") is None, \
+        "the endpoint is put back: a runner that leaves a credential in its own " \
+        "process environment leaves it for whatever runs next"

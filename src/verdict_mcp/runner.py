@@ -27,6 +27,14 @@ What it does, in order:
      `--require-harness` on by default, because unattended is exactly where
      hand-written state regresses silently.
 
+`--on-drift` decides what step 4 is. `model` is the default and the behaviour
+above. `local` and `none` are for a night nobody asked for: both imply
+`--skip-unless-drift`, and neither can reach the `claude` CLI at all — `local`
+hands a blocked sweep to `verdict-local` against a gateway, `none` writes nothing
+and exits 5. A local night with no endpoint is refused before anything runs,
+because "quietly spend the expensive model instead" is the one outcome an
+unattended run must never have.
+
 Exit code = the gate's exit code. Everything after a bare `--` is passed to
 the `claude` CLI verbatim (MCP configs, permission modes, extra flags).
 """
@@ -557,8 +565,16 @@ def _save_record(path: Path, record: dict) -> None:
 # field a reader would look at.
 
 def _harness(sub: str, *args: str) -> subprocess.CompletedProcess:
+    # The child runs the code this runner is, installed or not. Measured on the Sales nightly:
+    # `python3 src/verdict_mcp/runner.py`, started by an interpreter that never installed the
+    # package, could not `-m verdict_mcp.harness`, and every sweep from 2026-09-17 ended
+    # "No module named 'verdict_mcp'" — exit 5, nothing measured, for two nights.
+    src = str(Path(__file__).resolve().parent.parent)
+    env = dict(os.environ, PYTHONPATH=os.pathsep.join(
+        p for p in (src, os.environ.get("PYTHONPATH")) if p))
     return subprocess.run([sys.executable, "-m", "verdict_mcp.harness", sub, *args],
-                          capture_output=True, text=True, encoding="utf-8", errors="replace")
+                          capture_output=True, text=True, encoding="utf-8", errors="replace",
+                          env=env)
 
 
 def _changed_files(repo, sha_range: str):
@@ -628,9 +644,17 @@ def sweep_blockers(facts: dict, previous: dict, changed, today) -> list[str]:
     return why
 
 
-def sweep_judgment(facts: dict, previous: dict, changed: list, commits) -> dict:
+def sweep_judgment(facts: dict, previous: dict, changed: list, commits,
+                   notes: list | None = None) -> dict:
     """The synthetic judgment of a sweep: the previous verdict, every open
-    finding carried by id, and a not_tested that says what a sweep does not do."""
+    finding carried by id, and a not_tested that says what a sweep does not do.
+
+    `verified_intact` is carried, not emptied. It used to be written `[]`, so a
+    sweep silently dropped the list of invariants the NEXT sweep is supposed to
+    guard — the one thing the first external user said he was paying for, deleted
+    by the cheapest run in the system (P-32). `notes` carries anything the caller
+    measured and the sweep itself cannot know, such as a gateway that was down.
+    """
     open_ids = [str(f["id"]) for f in previous.get("findings") or []
                 if isinstance(f, dict) and f.get("id") and norm_status(f.get("status")) == "open"]
     sha_range = (facts.get("last_run") or {}).get("sha_range")
@@ -646,8 +670,11 @@ def sweep_judgment(facts: dict, previous: dict, changed: list, commits) -> dict:
         "findings": [], "still_open": open_ids, "resolved": [], "questions": [],
         "not_tested": [f"everything a judgment covers — this run measured only: HEAD moved {n} "
                        f"({m} changed, none cited by a finding), every gate green, the collected "
-                       "test-id set unchanged, no quarantine due, no cited line moved"],
-        "verified_intact": [],
+                       "test-id set unchanged, no quarantine due, no cited line moved",
+                       "nothing outside the checkout was read — no database, no MCP tools, no "
+                       "production numbers — so a standing blocker that quotes one was NOT "
+                       "re-read"] + [str(x) for x in (notes or [])],
+        "verified_intact": list(previous.get("verified_intact") or []),
         "next_run_focus": list(previous.get("next_run_focus") or []),
         "flaky_quarantine": list(previous.get("flaky_quarantine") or []),
         "prose": {"scope": f"Model-free sweep over `{sha_range}`: {n}, {m} changed, none cited by "
@@ -657,7 +684,7 @@ def sweep_judgment(facts: dict, previous: dict, changed: list, commits) -> dict:
     }
 
 
-def sweep(repo, qa_root, project, fail_on, require_harness, before) -> int | None:
+def sweep(repo, qa_root, project, fail_on, require_harness, before, notes=None) -> int | None:
     """Try the model-free sweep → the gate's exit code, or None to run the model."""
     try:
         previous = json.loads((Path(qa_root) / "state.json").read_text(encoding="utf-8"))
@@ -685,7 +712,7 @@ def sweep(repo, qa_root, project, fail_on, require_harness, before) -> int | Non
     count = subprocess.run(["git", "-C", str(repo), "rev-list", "--count", sha_range],
                            capture_output=True, text=True)
     commits = int(count.stdout.strip()) if count.returncode == 0 and count.stdout.strip().isdigit() else None
-    judgment = sweep_judgment(facts, previous, changed or [], commits)
+    judgment = sweep_judgment(facts, previous, changed or [], commits, notes)
     jpath = Path(qa_root) / "judgment.json"
     jpath.write_text(json.dumps(judgment, indent=2) + "\n", encoding="utf-8")
     fin = _harness("finalize", "--qa-root", str(qa_root), "--judgment", str(jpath), "--sweep")
@@ -706,6 +733,65 @@ def sweep(repo, qa_root, project, fail_on, require_harness, before) -> int | Non
     if result.get("report"):
         print(f"verdict-run: report {result['report']}")
     return result["exit_code"]
+
+
+# ── the tier below the sweep ──────────────────────────────────────────────
+#
+# The sweep answers "nothing a finding cites moved". `--on-drift` answers the
+# harder half: something DID move, and the owner has decided that a run nobody
+# asked for spends no Claude tokens at all. So the night steps down a tier
+# instead of reaching for the expensive model — skip, then sweep, then the local
+# engine, and if that cannot run, nothing, loudly. What it may never do is fall
+# through to `claude` quietly: an unattended run that silently costs money is the
+# exact failure this release was measured to close.
+
+
+def local_endpoint(env_file, env: dict) -> tuple:
+    """(base_url, token) for the local engine, from an env file or the ambient
+    environment — the same `KEY=VALUE` file the rest of the runner reads."""
+    values = dict(env)
+    if env_file:
+        if not Path(env_file).is_file():
+            return None, None
+        values.update(read_env_file(env_file))
+    return values.get("ANTHROPIC_BASE_URL"), values.get("ANTHROPIC_AUTH_TOKEN")
+
+
+def clear_marker(qa_root) -> None:
+    """Drop the run marker this runner's own facts pass left behind.
+
+    A sweep that was refused has already run `verdict-facts`, which stakes a
+    claim on the QA root before the gates. When nothing follows it — the local
+    engine cannot run and no model will — that marker would tell tomorrow's run
+    that tonight died mid-flight, which is a lie about a night that never
+    started.
+    """
+    try:
+        (Path(qa_root) / "run-in-progress.json").unlink()
+    except OSError:
+        pass
+
+
+def run_local(repo, qa_root, args, base_url, token) -> int:
+    """Hand the night to `verdict-local` → its exit code. No `claude` is launched."""
+    try:
+        from .small import main as local_main
+    except ImportError:  # bare-script execution
+        from small import main as local_main
+    argv = ["--repo", str(repo), "--qa-root", str(qa_root), "--delta",
+            "--model", args.local_model, "--limit", str(args.local_limit), "--reruns", "0"]
+    if args.local_env_file:
+        argv += ["--env-file", str(args.local_env_file)]
+    env_before = {k: os.environ.get(k) for k in ("ANTHROPIC_BASE_URL", "ANTHROPIC_AUTH_TOKEN")}
+    os.environ["ANTHROPIC_BASE_URL"], os.environ["ANTHROPIC_AUTH_TOKEN"] = base_url, token
+    try:
+        return local_main(argv)
+    finally:
+        for key, value in env_before.items():
+            if value is None:
+                os.environ.pop(key, None)
+            else:
+                os.environ[key] = value
 
 
 def main(argv=None) -> int:
@@ -740,6 +826,18 @@ def main(argv=None) -> int:
                          "is green, the test-id set is unchanged and no quarantine is due, "
                          "finalize a model-free sweep instead of spending a model run "
                          "(implies --skip-unchanged); any condition failing runs the model")
+    ap.add_argument("--on-drift", choices=("model", "local", "none"), default="model",
+                    help="what a night does when the sweep is blocked: spend a Claude run "
+                         "(`model`, the default), hand it to `verdict-local` on a gateway "
+                         "(`local`), or do nothing and exit 5 (`none`). `local` and `none` "
+                         "imply --skip-unless-drift, and neither ever launches `claude`")
+    ap.add_argument("--local-env-file", type=Path, default=None, metavar="PATH",
+                    help="KEY=VALUE file with ANTHROPIC_BASE_URL and ANTHROPIC_AUTH_TOKEN for "
+                         "--on-drift local (default: the ambient environment)")
+    ap.add_argument("--local-model", default=os.environ.get("VERDICT_LOCAL_MODEL", "qwen3"),
+                    metavar="NAME", help="the model name the gateway serves")
+    ap.add_argument("--local-limit", type=int, default=6, metavar="N",
+                    help="how many files the local engine may read (default 6)")
     ap.add_argument("--max-commits-behind", type=int, default=None,
                     help="gate exit 5 when the run's state is more than N commits "
                          "behind the profile's repository HEAD")
@@ -773,7 +871,25 @@ def main(argv=None) -> int:
         ap.error("--prompt and --prompt-file are mutually exclusive")
     prompt = (args.prompt_file.read_text(encoding="utf-8") if args.prompt_file
               else args.prompt or DEFAULT_PROMPT)
-    if shutil.which(args.claude_cmd) is None and not Path(args.claude_cmd).exists():
+    # `local` and `none` imply the sweep, and neither will ever reach `claude` —
+    # so a missing CLI is not this night's problem and must not refuse the run.
+    spends_claude = args.on_drift == "model"
+    if args.on_drift in ("local", "none"):
+        args.skip_unless_drift = True
+    base_url = token = None
+    if args.on_drift == "local":
+        base_url, token = local_endpoint(args.local_env_file, dict(os.environ))
+        if not base_url or not token:
+            # Refused before anything runs. A night told to be local and given no
+            # endpoint has exactly two honest outcomes, and "quietly spend the
+            # expensive model instead" is not one of them.
+            print("verdict-run: --on-drift local needs ANTHROPIC_BASE_URL and "
+                  "ANTHROPIC_AUTH_TOKEN — in --local-env-file or in the environment. "
+                  "Refusing before anything runs: a local night with no endpoint must not "
+                  "fall through to a Claude run nobody asked for.", file=sys.stderr)
+            return 2
+    if spends_claude and shutil.which(args.claude_cmd) is None \
+            and not Path(args.claude_cmd).exists():
         print(f"verdict-run: {args.claude_cmd!r} not found on PATH", file=sys.stderr)
         return 2
 
@@ -796,10 +912,53 @@ def main(argv=None) -> int:
                   f"{result['exit_code']} ({result['reason']})", file=sys.stderr)
             return result["exit_code"]
 
+    alive, detail = True, ""
+    if args.on_drift == "local":
+        # Asked before the sweep, because the answer changes both branches: a
+        # sweep that IS allowed says in its own not_tested that the model was
+        # unreachable, and a sweep that is blocked has nowhere left to go.
+        try:
+            from .small import gateway_alive
+        except ImportError:  # bare-script execution
+            from small import gateway_alive
+        alive, detail = gateway_alive(base_url, token)
+        print(f"verdict-run: local engine — {detail}", file=sys.stderr)
+
     if args.skip_unless_drift:
-        code = sweep(repo, qa_root, project, args.fail_on, args.require_harness, before)
+        notes = None if alive else [
+            f"the local model was unreachable this run ({detail}), so nothing beyond the "
+            "sweep's own measurements was judged — not even the bounded reading a local "
+            "delta would have done"]
+        code = sweep(repo, qa_root, project, args.fail_on, args.require_harness, before, notes)
         if code is not None:
             return code
+
+    if args.on_drift == "none":
+        clear_marker(qa_root)
+        print("verdict-run: the sweep was refused and --on-drift none forbids a model run — "
+              "nothing was judged and no state was written. The standing verdict is left as "
+              "it is, and this exit says the run did not happen.", file=sys.stderr)
+        return 5
+
+    if args.on_drift == "local":
+        if not alive:
+            clear_marker(qa_root)
+            print(f"verdict-run: the sweep was refused and the local gateway is down "
+                  f"({detail}) — nothing ran and no state was written. A night with no "
+                  "judge is a lost night, not a verdict.", file=sys.stderr)
+            return 5
+        code = run_local(repo, qa_root, args, base_url, token)
+        if code != 0:
+            print(f"verdict-run: verdict-local exited {code} without finalizing — no state "
+                  "was written and no Claude run was started in its place", file=sys.stderr)
+            return 5 if code == 5 else code
+        result = evaluate(project, args.fail_on, None, before + 1,
+                          require_harness=args.require_harness)
+        print(f"verdict-run: verdict {result.get('verdict')!r} → exit {result['exit_code']} "
+              f"({result['reason']}) · judged locally, no Claude tokens spent")
+        if result.get("report"):
+            print(f"verdict-run: report {result['report']}")
+        return result["exit_code"]
 
     if args.provision:
         problem, notes = provision(repo, plugin_root(args.plugin_root))

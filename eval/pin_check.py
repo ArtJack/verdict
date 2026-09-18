@@ -148,11 +148,28 @@ def scratch_copy(root) -> pathlib.Path:
             target = dest / rel
             target.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(src, target)
+        make_checkout(dest)
     else:
         shutil.copytree(root, dest, dirs_exist_ok=True,
                         ignore=shutil.ignore_patterns(".git", ".venv", "__pycache__",
                                                       "node_modules", ".pin_check.lock"))
     return dest
+
+
+def make_checkout(dest: pathlib.Path) -> None:
+    """Give the copy a repository of its own: one commit of the tree in hand, none of the
+    original's history.
+
+    Code under test that lists files the way git sees them (`run_eval.fixture_files`, since
+    #124) stops in a directory git knows nothing about, and on 2026-09-18 that turned the
+    control run red before a single mutant was applied — no campaign could start. Everything
+    copied is force-added, because the copy holds exactly what git listed in the original,
+    tracked files under an ignored path included."""
+    env = {**os.environ, "GIT_AUTHOR_NAME": "pin_check", "GIT_AUTHOR_EMAIL": "pin_check@localhost",
+           "GIT_COMMITTER_NAME": "pin_check", "GIT_COMMITTER_EMAIL": "pin_check@localhost"}
+    for args in (["init", "-q"], ["add", "-A", "-f"],
+                 ["commit", "-q", "--no-verify", "-m", "pin_check scratch"]):
+        subprocess.run(["git", "-C", str(dest), *args], capture_output=True, text=True, env=env)
 
 
 def scratch_env(scratch) -> dict:

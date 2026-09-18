@@ -489,6 +489,93 @@ quality-for-quality — local mode proves nothing by execution and says so in ev
 and it does not attempt archaeology, an exploratory charter, or an adversarial reading of
 the suite — but on this fixture's answer key it is not behind.
 
+### The local tier as a delta — measured 2026-09-17/18, and a false green it caught
+
+`run_eval.py --engine local`, `qwen3:8b` through the author's LiteLLM gateway on a GTX 1070,
+every question sent with an 8,192-token window, the fixtures' pytest on PATH, n=3 per mode.
+No Claude tokens.
+
+| Tree | Fixture | Runs | Verdict row | Notes |
+|---|---|---|---|---|
+| `19619bc` | pricer, seeded delta | **0/9 ×3** by protocol | **`pass with risks` — a false green** | three tests failing |
+| `5e00d00` (red gate = `fail`) | pricer, seeded delta | 0/9 ×3 by protocol, **6/9 ×3 on substance** | `fail` ✓ | zero false greens |
+| `5e00d00` | pricer, baseline | **9/10 · 9/10 · 10/10** | ✓ | no hard fails |
+| `8190963` (a returning defect is REGRESSED) | pricer, seeded delta | **7/9 · 7/9 · 7/9**, no hard fails | `fail` ✓ | zero false greens; the regression reported as REGRESSED in every run |
+| `1b7f1cb` · `1b7f1cb` · `a976243` (the Sales shadow fixes) | pricer, seeded delta | **7/9 · 7/9 · 7/9**, no hard fails | `fail` ✓ | zero false greens; one more run on `1b7f1cb` was lost to a gateway outage mid-run — the engine refused to finalize without its model (exit 5, no state), as designed |
+
+**The false green, and why the gate exists.** The first valid run carried all five prior
+findings by id, resolved nothing by silence and nothing without measurement — and reported
+`pass with risks` over a suite with three failing tests. The verdict was arithmetic over finding
+severities, and a reading no counterfactual proved is held at Minor, so a real regression filed
+as an unproven Major could never force a fail; nothing in the rule looked at the gate. A red
+gate now outranks every finding (mutant P21). That is the whole reason this tier is measured by
+"zero false greens" rather than by points.
+
+**The hard fail that was left, fixed.** On `5e00d00` every seeded run scored 0 by protocol on one
+hard fail, and the paragraph below describes it as it was measured. `8190963` matches a claim to
+an earlier finding before filing it — by the line hashes the finding's anchors recorded, else by
+the function the finding names — so a resolved finding that returns comes back under its own id
+and is REGRESSED, and an open one is not filed a second time. Measured the same day: 7/9 in all
+three runs, no hard fail, the rounding regression ranked first; 54–75 minutes a run. The baseline
+arm was not re-run: the change matches against a previous state, and the baseline has none.
+
+**What it still misses, declared.** Every seeded run scores 0 by protocol on one hard fail,
+`regressed_not_first`: the rounding defect the golden state had resolved comes back as a **NEW**
+finding rather than **REGRESSED**, because the engine files its own finding instead of recognising
+the prior one — so the report's first entry is not the regression. The expired quarantine stays
+quarantined, because this fixture's profile names no `test_one_cmd` and the tier releases a
+quarantine only by measuring the test, never by the date. `resolved-env-fixture` stays open
+because the golden state declares no `verification_test`, and a resolution this tier cannot
+measure it does not make. Rows earned in every run: `new-bulk-threshold`, `still-open-floor`,
+`still-open-by-id`, `findings-filed-as-files`, `questions-not-reasked`, `verdict`.
+
+**What that means for a nightly.** Safe and blunt: it will not invent a pass, close a finding by
+silence, or improve a standing verdict, and a red suite is a `fail`. It will under-rate what it
+cannot prove and will not tell a regression from a new defect. The judgment a strong model adds —
+is this failure stale, brittle, or real; is this the bug that came back — stays with a run
+somebody asks for. **It is slow:** 50–55 model calls and **76–93 minutes** per delta run on
+this GPU, 29–31 calls and 37–43 minutes per baseline — about 90 seconds a question, against a
+design estimate of 10–15 (the counters each run writes into `last_run.local`). Fine for a night;
+too slow to sit in front of a merge.
+
+### The local tier on a real project — Sales shadow nights, 2026-09-18
+
+The fixtures are small and written by the author; the question a nightly answers is whether the
+tier survives a real record. So it ran against the author's own Sales project the way a night
+would — `verdict-local --delta` on a detached checkout of `origin/main`, against a **copy** of the
+live QA root (run 32: 69 open findings, verdict `fail`), with `VERDICT_HOME` in scratch so nothing
+real could be written. Each night that failed was diagnosed from its own output and fixed with a
+test and a pinned mutant before the next.
+
+| Night | Tree | Result | What it taught |
+|---|---|---|---|
+| 1 | `2372410`* | refused, **4 h 10 min** | a class conflict the record already held refused the night; no time budget over a 744-line range nothing executes; 27 unproven Minor readings filed onto a backlog of 69; every proof failed to import — `core/src/sales_core/cli.py` was imported from the repository root |
+| 2 | `1b7f1cb` | refused, 1 h 03 min | two skip markers with one reason in one file became two findings with one identity |
+| — | replay, offline | — | night 2's own output replayed through finalize: the *following* night would file the same skip markers again under new ids and be refused — every night after the first (fixed in `fc5ddfb`, before any night ran into it) |
+| 3 | `a976243` | **finalized**, 1 h 04 min | ids: the night minted `SALES-F-1` beside `F-162` — a second numbering (fixed in `2747910`) |
+| 4 — the next night, over night 3's record | `2747910` | **finalized**, 7 min 48 s | the four skip findings recognised as already on the record and not filed again; 73 carried, 0 resolved by silence. At the same commit its range was empty, and an empty range fell through to the whole repository's reading map and was reported as too large (fixed after it) |
+
+\* Night 1 ran on `649797e`, the same change set before the branch was rebased onto main as `2372410`.
+
+**Night 3, as recorded:** run 33, verdict `fail` (carried — this tier cannot improve a verdict),
+`last_run.model` `local:qwen3`; **69 carried by id, 0 resolved by silence**, the 6 withdrawn
+findings kept; 4 new Minor findings, each a skip marker with no expiry (the two same-reason
+markers on one finding); the inherited conflict asked once as a question; 17 functions read and
+302 skipped when the hour ran out, both counted in `not_tested`; 9 unproven readings listed as
+leads in the report and the focus list, none filed; 60 model calls, 90,891 tokens, 8 unanswered,
+0 transport errors. **No Claude tokens.**
+
+**The fixture after the shadow fixes.** The seeded delta was re-run on the trees the shadow
+nights produced (table above): 7/9 in all three, the same two declared misses, zero false greens.
+The two rules added after the last of those runs — an identity already on the record, and a
+failing test this engine already filed — were replayed against the kept workdirs of those runs:
+neither matches anything the fixture files, so the numbers stand for the final tree.
+
+**What it does not do on this project.** Most counterfactual proofs over `cli.py` fail on the
+original code with `click.exceptions.Exit: 2`: the 8B model calls a click command as if it were a
+function, and click exits on the missing arguments. Those readings stay leads. The night reads
+about a sixth of what a 744-line range asks for, and says so under `needs_claude`.
+
 ### The model axis — Opus against Sonnet, paired
 
 Every published row above is Opus. The question a maintainer actually asks is whether a
@@ -902,6 +989,46 @@ command; pytest says nothing about a deselect that matches nothing, so the node 
 to the test function by a test of its own, and the rule is pinned as **A1** (killed). That
 is the 189th scored entry, and why the badge reads 189 rather than 188. What has still not
 happened is a full catalogue run: 19 mutants were measured here, not 189.
+
+v0.90.0 added eighteen (P1–P18) for the local tier, and they are the shape a safety rule
+wants: each one puts back a defect whose symptom is *silence*. A drifted finding carried
+instead of re-filed; an unmentioned finding left to the merge's silence rule; a resolution on
+a test that merely passes at HEAD; a verdict computed from this run's findings alone, so a
+`fail` or a `blocked` can improve on its own; the previous quarantine or `verified_intact` wiped; a run with
+no answers finalizing anyway; a liveliness probe that always says alive; a quarantine released
+on its expiry date alone; `--on-drift local` falling through to a Claude run; a sweep dropping
+`verified_intact`; the report omitting its Judge line; a range run falling back to the reading
+map; `--range` without `--qa-root` writing the key's own state root; a non-Python diff
+finalizing an unqualified pass; `needs_claude` dropping the changed lines nothing executed; the
+reference state opened for writing. None of those turns the suite red on its own — which is
+exactly why each one is in the catalogue.
+
+Twenty more (P19–P38) came from measuring the tier rather than reading it: the proofs on the
+seeded fixture (a red suite under-rated, a regression filed as news, a duplicate of an open
+finding) and the shadow runs on the author's own Sales project (an inherited class conflict
+refused instead of asked, a night with no budget, unproven readings filed as findings, proofs
+imported from the wrong root, one identity filed twice in a night, and — found by replaying the
+first night's output through finalize — the same identity filed again on the second night,
+which would have lost every night after the first). 38 in all for the tier.
+
+**P4 survived its first campaign, and that is the tool earning its keep.** The rule is "a
+standing verdict may not improve"; the test asserted a standing `fail` beside *nothing filed*,
+which is a case the rule never has to fire on, so deleting the rule changed nothing the suite
+could see. The missing case — a standing `fail` beside a finding this run filed itself — is
+pinned now, and reading the survivor is what found the same hole on the `blocked` side, which
+is worse: it turns the gate's exit 3 into exit 0. That is P18.
+
+### Scoring the local engine — `run_eval.py --engine local`
+
+`--engine local` runs the `pricer` fixture through `verdict-local` instead of a `claude -p`
+session, scored by the same answer key. The question it has to survive is not "does it find as
+much" — it will not, and the report says so in numbers — but the hard gate: **zero false
+greens.** No `pass` where the key says `fail`, and nothing marked RESOLVED without a
+verification record. Its deterministic rows (the still-open floor, still-open by id, findings
+filed as files, questions not re-asked, the verdict, quarantine released on expiry) should be
+3/3; the model rows are a small model's, and are published as whatever they are. The wiring has
+an injectable engine, so the protocol is a unit test rather than something only a gateway can
+check.
 
 ### Variance — a score is n=1 until repeated
 

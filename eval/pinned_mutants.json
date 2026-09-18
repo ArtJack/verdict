@@ -851,7 +851,7 @@
  {
   "label": "0.84.0 M5 validate: a second finding filed inside another finding's class passes",
   "path": "src/verdict_mcp/validate.py",
-  "old": "    bad.extend(class_conflicts([f for f in findings if isinstance(f, dict)] + carried))\n",
+  "old": "    bad.extend(c for c in class_conflicts([f for f in findings if isinstance(f, dict)] + carried)\n               if c not in inherited)\n",
   "new": "    pass\n"
  },
  {
@@ -1147,5 +1147,257 @@
   "path": "eval/pin_check.py",
   "old": "\"-o\", \"addopts=\", \"--deselect\", ANCHOR_TEST]",
   "new": "\"-o\", \"addopts=\"]"
+ },
+ {
+  "label": "0.90.0 P1 local delta: a drifted finding is carried instead of re-filed",
+  "path": "src/verdict_mcp/small.py",
+  "old": "        elif drift in (\"changed\", \"missing\"):\n            refile.append((f, drift, moved))",
+  "new": "        elif False:\n            refile.append((f, drift, moved))"
+ },
+ {
+  "label": "0.90.0 P2 local delta: an unmentioned finding is left to the merge's silence rule",
+  "path": "src/verdict_mcp/small.py",
+  "old": "        else:\n            still_open.append(fid)",
+  "new": "        else:\n            pass"
+ },
+ {
+  "label": "0.90.0 P3 local delta: a resolution on a test that merely passes at HEAD",
+  "path": "src/verdict_mcp/small.py",
+  "old": "    if rec.get(\"at_previous\") != \"fail\" or rec.get(\"at_head\") != \"pass\":\n        return None",
+  "new": "    if rec.get(\"at_head\") != \"pass\":\n        return None"
+ },
+ {
+  "label": "0.90.0 P4 local verdict: computed from this run's findings only, so a fail can improve",
+  "path": "src/verdict_mcp/small.py",
+  "old": "    if previous_verdict in (\"fail\", \"blocked\"):\n        return str(previous_verdict)",
+  "new": "    if previous_verdict == \"never\":\n        return str(previous_verdict)"
+ },
+ {
+  "label": "0.90.0 P5 local delta: the previous flaky quarantine is wiped",
+  "path": "src/verdict_mcp/small.py",
+  "old": "    quarantine_out = merge_quarantine(carried_quarantine, fresh_quarantine)",
+  "new": "    quarantine_out = merge_quarantine([], fresh_quarantine)"
+ },
+ {
+  "label": "0.90.0 P6 local delta: verified_intact is wiped",
+  "path": "src/verdict_mcp/small.py",
+  "old": "        \"verified_intact\": list((previous or {}).get(\"verified_intact\") or []),",
+  "new": "        \"verified_intact\": [],"
+ },
+ {
+  "label": "0.90.0 P7 local delta: a run that got no answers finalizes anyway",
+  "path": "src/verdict_mcp/small.py",
+  "old": "    if (model.answered + model.unanswered) and not model.answered:",
+  "new": "    if False:"
+ },
+ {
+  "label": "0.90.0 P8 local: the gateway liveliness probe always says alive",
+  "path": "src/verdict_mcp/small.py",
+  "old": "        return False, f\"{url} is unreachable: {str(exc)[:160]}\"",
+  "new": "        return True, f\"{url} is unreachable: {str(exc)[:160]}\""
+ },
+ {
+  "label": "0.90.0 P9 local quarantine: released on the expiry date alone, unmeasured",
+  "path": "src/verdict_mcp/small.py",
+  "old": "        outcomes = [_run_test(test_one_cmd, str(entry[\"test_id\"]), repo, repo,\n                              REQUARANTINE_TIMEOUT_S)[\"result\"] for _ in range(runs)]",
+  "new": "        outcomes = [\"pass\" for _ in range(runs)]"
+ },
+ {
+  "label": "0.90.0 P10 runner: --on-drift local falls through to a claude run",
+  "path": "src/verdict_mcp/runner.py",
+  "old": "    if args.on_drift == \"local\":\n        if not alive:\n            clear_marker(qa_root)",
+  "new": "    if False:\n        if not alive:\n            clear_marker(qa_root)"
+ },
+ {
+  "label": "0.90.0 P11 sweep: verified_intact is dropped, so the next sweep guards nothing",
+  "path": "src/verdict_mcp/runner.py",
+  "old": "        \"verified_intact\": list(previous.get(\"verified_intact\") or []),",
+  "new": "        \"verified_intact\": [],"
+ },
+ {
+  "label": "0.90.0 P12 report: the Judge line is omitted, so a local run reads like an agent run",
+  "path": "src/verdict_mcp/harness.py",
+  "old": "    engine = last.get(\"engine\")\n    if not engine:",
+  "new": "    engine = None\n    if not engine:"
+ },
+ {
+  "label": "0.90.0 P13 local gate: a range run falls back to the reading map",
+  "path": "src/verdict_mcp/small.py",
+  "old": "    if not changed:\n        return candidates(facts, repo)",
+  "new": "    if True:\n        return candidates(facts, repo)"
+ },
+ {
+  "label": "0.90.0 P14 local gate: --range without --qa-root writes the key's own state root",
+  "path": "src/verdict_mcp/small.py",
+  "old": "    if (args.sha_range or args.base) and not args.qa_root:",
+  "new": "    if False:"
+ },
+ {
+  "label": "0.90.0 P15 local gate: a non-Python diff finalizes an unqualified pass",
+  "path": "src/verdict_mcp/small.py",
+  "old": "    non_python = bool(ranged and changed and not python_in(changed))",
+  "new": "    non_python = False"
+ },
+ {
+  "label": "0.90.0 P16 local gate: needs_claude drops the changed lines nothing executed",
+  "path": "src/verdict_mcp/small.py",
+  "old": "    cold = unexercised_diff(facts)\n    if cold:\n        out[\"unexercised_changed_lines\"] = cold",
+  "new": "    cold = 0\n    if cold:\n        out[\"unexercised_changed_lines\"] = cold"
+ },
+ {
+  "label": "0.90.0 P17 local gate: the reference state is opened for writing",
+  "path": "src/verdict_mcp/small.py",
+  "old": "    try:\n        doc = json.loads(Path(path).read_text(encoding=\"utf-8\"))\n    except (OSError, json.JSONDecodeError) as exc:",
+  "new": "    try:\n        Path(path).write_text(\"{}\", encoding=\"utf-8\")\n        doc = json.loads(Path(path).read_text(encoding=\"utf-8\"))\n    except (OSError, json.JSONDecodeError) as exc:"
+ },
+ {
+  "label": "0.90.0 P18 local verdict: a standing blocked verdict is improved by a local run that filed something",
+  "path": "src/verdict_mcp/small.py",
+  "old": "    if previous_verdict in (\"fail\", \"blocked\"):\n        return str(previous_verdict)",
+  "new": "    if previous_verdict in (\"fail\",):\n        return str(previous_verdict)"
+ },
+ {
+  "label": "0.90.0 P19 local: no window is asked for, so a long question arrives with its front cut off",
+  "path": "src/verdict_mcp/small.py",
+  "old": "        if self.num_ctx:\n            body[\"num_ctx\"] = self.num_ctx\n",
+  "new": "        if False:\n            body[\"num_ctx\"] = self.num_ctx\n"
+ },
+ {
+  "label": "0.90.0 P20 local: a gateway that refuses num_ctx fails every question instead of being asked again without it",
+  "path": "src/verdict_mcp/small.py",
+  "old": "            if self.num_ctx and exc.code in (400, 422) and \"num_ctx\" in detail:",
+  "new": "            if False:"
+ },
+ {
+  "label": "0.90.0 P21 local verdict: a red suite is reported as whatever the findings say",
+  "path": "src/verdict_mcp/small.py",
+  "old": "    if gates_failed:\n        # Red suite, red verdict. Not \"pass with risks over three failing tests\".\n        return \"fail\"\n",
+  "new": "    if False:\n        # Red suite, red verdict. Not \"pass with risks over three failing tests\".\n        return \"fail\"\n"
+ },
+ {
+  "label": "0.90.0 P22 local: the prior-finding index is never consulted, so a returning defect is NEW and an open one is filed twice",
+  "path": "src/verdict_mcp/small.py",
+  "old": "                                                prior_index=PriorIndex(previous),\n",
+  "new": "                                                prior_index=None,\n"
+ },
+ {
+  "label": "0.90.0 P23 local: a resolved finding that comes back is not re-filed under its own id",
+  "path": "src/verdict_mcp/small.py",
+  "old": "            elif status == \"resolved\":\n",
+  "new": "            elif False:\n"
+ },
+ {
+  "label": "0.90.0 P24 local: a claim about an open finding's function is filed again as NEW",
+  "path": "src/verdict_mcp/small.py",
+  "old": "                if already_open is not None:\n                    already_open.append((str(prior[\"id\"]), chunk.name, how))\n",
+  "new": "                mint(entry, findings_dir, filed)\n"
+ },
+ {
+  "label": "0.90.0 P25 local: a common function name links a claim to any finding that mentions it",
+  "path": "src/verdict_mcp/small.py",
+  "old": "        if len(name) < 4 or name in _TOO_COMMON:\n",
+  "new": "        if len(name) < 4:\n"
+ },
+ {
+  "label": "0.90.0 P26 local: a withdrawn finding is matched as if it were a real one",
+  "path": "src/verdict_mcp/small.py",
+  "old": "            if status not in (\"open\", \"accepted\", \"resolved\"):\n                continue\n",
+  "new": "            if False:\n                continue\n"
+ },
+ {
+  "label": "0.90.0 P27 local: a finding that cites another file claims this one by name",
+  "path": "src/verdict_mcp/small.py",
+  "old": "            if name in e[\"words\"] and (not e[\"paths\"] or chunk.path in e[\"paths\"]):\n",
+  "new": "            if name in e[\"words\"]:\n"
+ },
+ {
+  "label": "0.90.0 P28 local: in a delta an unproven reading is filed as a finding, not listed as a lead",
+  "path": "src/verdict_mcp/small.py",
+  "old": "            if prior is None and leads is not None and entry.get(\"confidence\") != \"proven\":\n",
+  "new": "            if False:\n"
+ },
+ {
+  "label": "0.90.0 P29 local: a green test a small model calls brittle is filed on a project with a record",
+  "path": "src/verdict_mcp/small.py",
+  "old": "            if leads is not None:\n                # A green test a small model thinks is brittle is an opinion about a\n",
+  "new": "            if False:\n                # A green test a small model thinks is brittle is an opinion about a\n"
+ },
+ {
+  "label": "0.90.0 P30 local: a night on a project with a record runs without a budget",
+  "path": "src/verdict_mcp/small.py",
+  "old": "    night = not ranged and (qa_root / \"state.json\").is_file()\n",
+  "new": "    night = False\n"
+ },
+ {
+  "label": "0.90.0 P31 validate: a class conflict the record already held refuses the run again",
+  "path": "src/verdict_mcp/validate.py",
+  "old": "               if c not in inherited)\n",
+  "new": "               if True)\n"
+ },
+ {
+  "label": "0.90.0 P32 harness: an inherited class conflict is carried silently, never asked",
+  "path": "src/verdict_mcp/harness.py",
+  "old": "    for conflict in inherited_conflicts(judgment, (previous or {}).get(\"findings\") or []):\n",
+  "new": "    for conflict in []:\n"
+ },
+ {
+  "label": "0.90.0 P33 local: a proof imports a packaged file from the repository root",
+  "path": "src/verdict_mcp/small.py",
+  "old": "    root_rel, module = probe_root(repo, chunk.path)\n",
+  "new": "    root_rel, module = source_root(repo, chunk.path), module_name(repo, chunk.path)\n"
+ },
+ {
+  "label": "0.90.0 P34 local: the project's declared pythonpath is ignored",
+  "path": "src/verdict_mcp/small.py",
+  "old": "    declared = [Path(r) for r in import_roots(repo)\n",
+  "new": "    declared = [Path(r) for r in []\n"
+ },
+ {
+  "label": "0.90.0 P35 local: a second finding with the same identity is filed, and finalize refuses the night",
+  "path": "src/verdict_mcp/small.py",
+  "old": "        twin = next((f for f in into_list if finding_hash(f) == finding_hash(entry)), None)\n",
+  "new": "        twin = None\n"
+ },
+ {
+  "label": "0.90.0 P36 local: an identity the record already holds is filed again, and the second night is refused",
+  "path": "src/verdict_mcp/small.py",
+  "old": "        prior = None if keep_id else prior_by_hash.get(finding_hash(entry))\n",
+  "new": "        prior = None\n"
+ },
+ {
+  "label": "0.90.0 P37 local: a resolved identity that comes back is dropped instead of REGRESSED",
+  "path": "src/verdict_mcp/small.py",
+  "old": "        if prior is not None and status != \"resolved\":\n",
+  "new": "        if prior is not None:\n"
+ },
+ {
+  "label": "0.90.0 P38 local: a failing test this engine already filed is classified and filed again every night",
+  "path": "src/verdict_mcp/small.py",
+  "old": "        cited = failure_on_record(previous, failure[\"id\"])\n",
+  "new": "        cited = None\n"
+ },
+ {
+  "label": "0.90.0 P39 harness: finding ids without a prefix (Sales' F-162) are not read, and a second numbering starts",
+  "path": "src/verdict_mcp/harness.py",
+  "old": "_FID = re.compile(r\"^(?:(?P<prefix>.+)-)?F-(?P<n>\\d+)$\")\n",
+  "new": "_FID = re.compile(r\"^(?P<prefix>.+)-F-(?P<n>\\d+)$\")\n"
+ },
+ {
+  "label": "0.90.0 P40 local: a range with nothing in it falls back to the whole repository's reading map",
+  "path": "src/verdict_mcp/small.py",
+  "old": "        ranked = delta_candidates(facts, repo, changed) if changed else []\n",
+  "new": "        ranked = delta_candidates(facts, repo, changed)\n"
+ },
+ {
+  "label": "0.90.0 P41 runner: the harness child is left to find the package itself, and a runner started from source cannot sweep",
+  "path": "src/verdict_mcp/runner.py",
+  "old": "    env = dict(os.environ, PYTHONPATH=os.pathsep.join(\n        p for p in (src, os.environ.get(\"PYTHONPATH\")) if p))\n",
+  "new": "    env = None\n"
+ },
+ {
+  "label": "A2 pin_check: the scratch copy is not a git checkout, and code that lists files as git sees them stops the control run",
+  "path": "eval/pin_check.py",
+  "old": "        make_checkout(dest)\n",
+  "new": ""
  }
 ]

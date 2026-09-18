@@ -3,6 +3,189 @@
 Plugin and `verdict-mcp` share one version line; `.claude-plugin/plugin.json` and
 `pyproject.toml` are bumped together.
 
+## 0.90.0 — 2026-09-18 · "the local tier"
+
+**Every run nobody asked for spends zero Claude tokens.** `verdict-run --on-drift
+{model,local,none}` decides what a night does when the sweep is blocked: spend a Claude run
+(the default, unchanged), hand it to `verdict-local` against a gateway, or do nothing and exit
+5. `local` and `none` imply `--skip-unless-drift` and **cannot reach the `claude` CLI at all** —
+that is the property, not a side effect. A local night with no endpoint is refused before
+anything runs, exit 2, because the alternative is the one an unattended run must never have:
+quietly spending the expensive model instead. A blocked sweep with a dead gateway writes
+nothing and clears the run marker its own facts pass left, so tomorrow is not told that tonight
+died mid-flight. A sweep that *is* allowed while the gateway is down still runs, and says in
+its own `not_tested` that the model was unreachable. The decision table is in
+[docs/nightly.md](docs/nightly.md).
+
+**What a shadow run on a real project found, and fixed.** The seeded fixtures passed; then the
+tier ran on the author's own Sales project, against a copy of its QA state, and failed four ways
+the fixtures could not show. It never finalized: the record already held two findings claiming
+one site (a class conflict an earlier run left), the tier cannot settle that, and the refusal
+would have lost every night. It ran for four hours — a day's range of 744 changed lines no test
+executes and no time budget. It would have filed 27 unproven Minor readings onto a backlog of 69.
+And not one counterfactual ran, because `core/src/sales_core/cli.py` was imported from the
+repository root and the package's own imports reached a stale install elsewhere. Now: a class
+conflict between two findings a run only carries is asked as a question, once, instead of
+refused — anything the run files is still held to the rule; a night on a project with a record
+gets an hour, 24 functions and 12 proofs, and says what it skipped; in a delta an unproven
+reading is a **lead** — listed in the report and the focus list, not filed — while a proven one, a
+failing test, a skip without expiry, measured flakiness and a returning defect still are; and a
+proof imports through the project's own root (pytest's `pythonpath`, else the directory above the
+package chain). The re-run then found a fifth: two skip markers with the same reason in one
+test file became two findings with one identity, and finalize refused the night again. Skips
+are one finding per file and reason now, and any second finding with an identity this run
+already filed is folded into the first. Mutants P28–P35.
+
+**The second night.** Replaying that first night's output through finalize showed the next
+failure before it happened: the skip markers it filed are still in the code tomorrow, the second
+night files them again under new ids, and a state holding one identity under two ids is refused —
+every night after the first would have been lost. An identity the record already holds is now
+that finding: open, it is carried by id and not filed again; accepted or withdrawn, it stays the
+decision a person made; resolved, it comes back under its own id and is REGRESSED. A failing test
+this engine already filed is not classified again either — the model words its title differently
+each night, so the identity rule alone would have added a duplicate every night the test stayed
+red, at about ninety seconds of the night's budget each. `not_tested` counts both. Mutants
+P36–P38.
+
+**One numbering per record.** The night that finalized minted `SALES-F-1` beside `F-162`: the
+harness's next-id rule only recognised prefixed ids (`PRICER-F-003`), so none of Sales' 75
+matched and a new sequence started under the key's name. Nothing collided, but a record with two
+numberings is one nobody can read by eye. Ids without a prefix are read now, and the next Sales
+id is `F-163`. Mutant P39.
+
+**Then the second night ran, and finalized** — in 7 minutes 48 seconds, the four skip findings
+recognised as already on the record, 73 carried, none resolved by silence. It ran at the commit
+the first night had measured, and that showed one more thing: a range with nothing in it fell
+through to the reading map, so the run ranked the whole repository's least-covered files and
+reported its empty range as too large for its caps. A range with nothing in it now reads
+nothing. (A scheduled night never meets this — `--skip-unless-drift` skips an unmoved HEAD before
+the engine starts — but a run started by hand does.) Mutant P40.
+
+**A nightly that never swept.** The author's own Sales nightly starts the runner from a checkout
+(`python3 src/verdict_mcp/runner.py`) with an interpreter that never installed the package, and
+the runner started the harness as `python -m verdict_mcp.harness` under that same interpreter.
+From 2026-09-17, the first night HEAD moved after the model-free sweep was switched on, every
+night ended `No module named 'verdict_mcp'` — exit 5, "needs a run", nothing measured, nothing
+spent. The harness child is now handed the runner's own source root on `PYTHONPATH`, ahead of
+whatever was set, so a runner finds the code it is, installed or not. Reproduced with that
+interpreter: the same call went from `ModuleNotFoundError` to the harness's usage line. Mutant P41.
+
+**The mutation campaign could not start.** Merging main into this release brought #124's fixture
+hygiene tests, which stage every fixture the way the eval harness does — listing its files as
+git sees them — and `pin_check` copies the tree into a directory git knows nothing about. The
+control run went red before a single mutant was applied, on main as much as here. The scratch
+copy is now a checkout of its own: one commit of the tree in hand, none of the original's
+history. Mutant A2.
+
+**A regression is REGRESSED, and an open finding is not filed twice.** The same proof showed the
+tier blind to the state it carried: the rounding defect the previous run had resolved came back,
+the engine described it correctly, and filed it as NEW — a regression reported as news, ranked
+below everything. The same blindness filed a second finding for a defect that was already open,
+which on a project with a backlog is a new duplicate every night the function changes. A claim is
+now matched to an earlier finding before it is filed: first by the finding's anchors (a line it
+cited, unchanged, is in this function again — measured), else by the function's name when the
+finding names it and cites no other file (said so in the evidence, because it is weaker). A
+resolved match is re-filed under its own id, so the harness calls it REGRESSED; an open or
+accepted one is not filed again, and `not_tested` counts the claims that were held back. Names
+that say nothing (`main`, `run`) never match, and a withdrawn finding never does. Mutants P22–P27.
+
+**A red gate is a `fail`.** The zero-false-greens gate this release is measured by caught the
+tier under-rating a red suite: on the seeded delta it carried all five prior findings honestly,
+filed the new defect, and still said `pass with risks` over three failing tests — because the
+verdict was arithmetic over finding severities and a reading nobody proved is held at Minor. A
+failing gate now outranks the findings. A strong model classifies a failure and may ship anyway;
+this one cannot be trusted to, so a person or a real model decides.
+
+**The window a question arrives in.** Ollama serves every model at 4,096 tokens unless told
+otherwise, and past that it keeps only the end of the prompt — the instructions first, and
+`/no_think` with them. Measured through the author's gateway: a ~6k-token prompt with a code word
+on its first line arrived as 2,050 tokens and the model invented the code; asked with `num_ctx:
+8192` it arrived whole and answered correctly in 49 seconds instead of 137. `verdict-local` now
+asks for 8,192 on every request (`--num-ctx`, `VERDICT_LOCAL_NUM_CTX`), so nobody's server needs
+root to be usable, and a gateway that refuses the parameter is asked again without it. The eval
+rig's `--engine local` also stopped printing the engine's summary into its result JSON.
+
+**`verdict-local` is a delta now, and it cannot close a finding by silence.** 0.89.0 said
+plainly that it must not be pointed at a project that already has Verdict state. Here is why,
+and here is the fix. It wrote `still_open: []`, and `merge()` reads an unmentioned finding as
+resolved unless five or more AND over half the backlog goes quiet at once — so a key with four
+open findings lost all four to a run that never looked at them, and a key with sixty lost the
+ten whose code had drifted. Now every prior open finding leaves a delta in exactly one of three
+places: **resolved** by a measured fail→pass on a test somebody chose (`verification_test`, or
+one the collector saw for the first time this run — the `harness._chosen` rule, and the only
+resolution path there is), **carried by id** because its cited code is where it was, or
+**re-filed** under its own id with the drift that moved it, because `still_open` over changed
+code is refused by the harness and silence would close it. The invariant — every prior open id
+is in one of the three — is asserted before anything is finalized, and a gap refuses the run
+rather than writing a state.
+
+**The verdict is monotone.** Six functions read by an 8B model may make a verdict worse or
+leave it alone, never better. Two verdicts are sticky, for different reasons: a previous `fail`
+stays `fail` because something with judgment found a defect and nothing here has the standing to
+say it is gone, and a previous `blocked` stays `blocked` because a previous run could not test
+at all — an environment, a tool, a requirement nobody answered — and this engine cannot tell
+whether that reason has cleared. The second was the more expensive one to get wrong: it turns
+the gate's exit 3 into exit 0. A carried `blocked` says so in `not_tested` and in the report.
+No gate counts is `blocked`, not `pass`. An open Blocker is `fail` whatever the standing verdict
+was. Anything newly filed, an open Critical, or changed lines nothing executed caps the run at
+`pass with risks`.
+
+**A quarantine is released by measurement, not by its expiry date.** A due entry's test is run
+five times; 5/5 passes releases it and the FLAKY finding is re-filed with that measurement
+rather than left standing on words that are no longer true. Anything less moves the expiry with
+the counts it measured. A project with no `test_one_cmd` keeps the quarantine, parks a question
+and says so in `not_tested` — it never releases one it could not measure.
+
+**A branch no longer writes the trunk's record.** `verdict-local --range BASE..HEAD` / `--base
+REF` (through the merge base) now **require** `--qa-root`: in a linked worktree `derive_key`
+returns the *main* worktree's key, so a judgment about an unmerged branch resolved and would
+have overwritten the project's own state. `collect()` takes the range from the caller, so diff
+coverage exists on a run that has no previous state — the one measurement a PR gate exists to
+make. `--reference-state` reads the real state read-only to say which of its open findings the
+diff touches. A range with no parseable Python in it reads nothing, says so in one fixed
+sentence, and cannot rise above `pass with risks`; it used to fall through to the reading map
+and report a clean pass over files the change never touched. Caps: six files, twenty-four
+functions, six counterfactuals, two minutes a call, fifteen minutes of model time — and when a
+cap bites, the run says how many candidates it never looked at.
+
+**The record says who judged it.** `last_run.engine`, `last_run.model: local:<name>` and
+`last_run.local` (calls, tokens, answered, unanswered, retries, transport errors, functions
+read and skipped, seconds, and the gateway's *hostname* — never its credential). The report
+gains a **Judge** line beside the Harness line, ending `no Claude tokens spent`; a sweep's
+reads `none (model-free sweep)`. 0.89.0's `usage.jsonl` row carries `engine`, a Claude bill of
+a measured zero, and those counters under `local`. `facts.needs_claude` names what a real model
+run is still owed, each entry something the harness counted. The gate prints at most fifteen
+lines, ending `Claude tokens: 0`.
+
+**The housekeeping it never did.** The whole profile reaches `collect()`, so `test_one_cmd`,
+`test_ids_cmd` and `coverage_suite_cmd` exist here as they do for the agent — without them no
+fix could be verified, no id ledger was written, and diff coverage was permanently unavailable,
+which are the measurements the safety rules above rest on. Plus the run marker before the
+gates, last run's finding files moved aside, `test-ids.txt` written, and the gateway's
+liveliness asked *before* the suite instead of at the first question. A run that got no answers
+writes no state and leaves its marker: a judgment assembled from no answers is a run that
+measured the suite and called it QA.
+
+**Four smaller things a nightly would have found later.** The state on disk is carried whether
+or not `--delta` was passed, so one missing argument cannot restore the old behaviour. A prior
+state with no verdict in it reads as `blocked` — unknown, not clean. One test gets one
+quarantine entry and one finding, with this run's measurement winning, instead of last night's
+counts sitting beside tonight's with nothing to say which expiry governs. And `next_run_focus`
+and `release_blockers` are deduplicated and capped, because a list a nightly appends to forever
+is a list nobody reads.
+
+**And one line in the sweep (P-32):** `sweep_judgment` wrote `verified_intact: []`, so the
+cheapest run in the system silently deleted the list the *next* sweep is built to guard.
+
+Eighteen pinned mutants (P1–P18), whole suite. P4 — "the verdict is computed from this run's
+findings only" — **survived its first campaign**, and the survivor was the instrument working:
+the test asserted a standing `fail` beside *nothing filed*, where the rule cannot fire. The
+missing case (a standing `fail` beside a freshly filed Minor) is pinned now, and P18 pins the
+`blocked` half beside it. `run_eval.py --engine local` runs the pricer
+fixture through the local engine against the same answer key, with an injectable engine so the
+wiring is a unit test rather than a nightly. No change to `agents/verdict.md`, `commands/`,
+`skills/` or `hooks/`, so no eval payment.
+
 ## 0.89.0 — 2026-09-17 · "a default nobody chose"
 
 **Who was spending it.** A census of the author's own machine — every Verdict-agent run in
