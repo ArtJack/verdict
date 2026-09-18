@@ -17,6 +17,18 @@ died mid-flight. A sweep that *is* allowed while the gateway is down still runs,
 its own `not_tested` that the model was unreachable. The decision table is in
 [docs/nightly.md](docs/nightly.md).
 
+**A regression is REGRESSED, and an open finding is not filed twice.** The same proof showed the
+tier blind to the state it carried: the rounding defect the previous run had resolved came back,
+the engine described it correctly, and filed it as NEW — a regression reported as news, ranked
+below everything. The same blindness filed a second finding for a defect that was already open,
+which on a project with a backlog is a new duplicate every night the function changes. A claim is
+now matched to an earlier finding before it is filed: first by the finding's anchors (a line it
+cited, unchanged, is in this function again — measured), else by the function's name when the
+finding names it and cites no other file (said so in the evidence, because it is weaker). A
+resolved match is re-filed under its own id, so the harness calls it REGRESSED; an open or
+accepted one is not filed again, and `not_tested` counts the claims that were held back. Names
+that say nothing (`main`, `run`) never match, and a withdrawn finding never does. Mutants P22–P27.
+
 **A red gate is a `fail`.** The zero-false-greens gate this release is measured by caught the
 tier under-rating a red suite: on the seeded delta it carried all five prior findings honestly,
 filed the new defect, and still said `pass with risks` over three failing tests — because the

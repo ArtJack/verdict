@@ -61,7 +61,7 @@ from datetime import date, timedelta
 from pathlib import Path
 
 try:
-    from .anchors import refs_in
+    from .anchors import line_sha, refs_in
     from .harness import (RETRY_WINDOW_HOURS, _git, _parse_marker_time, _run_test, collect,
                           finalize_main, is_test_file)
     from .filed import FINDINGS_DIR, archive_findings
@@ -76,7 +76,7 @@ try:
 except ImportError:  # bare-script execution
     sys.path.insert(0, str(Path(__file__).resolve().parent))
     import clock
-    from anchors import refs_in
+    from anchors import line_sha, refs_in
     from harness import (RETRY_WINDOW_HOURS, _git, _parse_marker_time, _run_test, collect,
                          finalize_main, is_test_file)
     from filed import FINDINGS_DIR, archive_findings
@@ -1446,8 +1446,101 @@ class Budget:
         return True
 
 
+# ── a finding that already exists ─────────────────────────────────────────────
+
+_IDENT = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
+# Names too common to say which function a finding meant. A finding that mentions
+# `run` has not named the function `run`.
+_TOO_COMMON = frozenset({"main", "init", "__init__", "run", "get", "set", "call", "test",
+                         "setup", "teardown", "update", "process", "handle", "__call__",
+                         "__repr__", "__str__", "__eq__", "__hash__"})
+
+
+class PriorIndex:
+    """Which earlier finding a claim about this function already is.
+
+    Measured on the seeded delta (2026-09-18): the rounding defect the previous run had
+    resolved came back, the engine read `round_cents`, described the bug correctly — and
+    filed it as a NEW finding, because it minted its own id and never looked at the state
+    it was carrying. A regression is the most important thing a nightly can say, and it
+    was reported as news. The same blindness filed a second finding for a defect that was
+    already open, which on a project with a backlog is a new duplicate every night.
+
+    Two ways to know, strongest first. **The finding's anchors** (0.83.0 hashes every
+    line a finding cites): if a line this function holds now has the same hash, it is the
+    same code. **The function's name**, when the finding names it — in its title, its
+    evidence or its root cause — and cites no other file: an old finding written before
+    anchors, or one whose line has been edited. The name is a weaker signal, so a name
+    that says nothing (`run`, `main`) never matches, and every match says which signal
+    it rested on. Withdrawn findings are the tester's own errors and never match.
+    """
+
+    def __init__(self, previous):
+        self.entries = []
+        for f in (previous or {}).get("findings") or []:
+            if not isinstance(f, dict) or not f.get("id"):
+                continue
+            status = norm_status(f.get("status"))
+            if status not in ("open", "accepted", "resolved"):
+                continue
+            anchors = [a for a in f.get("anchors") or [] if isinstance(a, dict)]
+            text = " ".join([str(f.get("title") or "")]
+                            + [str(e) for e in f.get("evidence") or []]
+                            + [json.dumps(f.get("root_cause") or {})])
+            paths = {str(a["path"]) for a in anchors if a.get("path")}
+            paths |= {str(path) for path, _line in refs_in([text])}
+            shas = {(str(a.get("path")), str(a.get("line_sha")))
+                    for a in anchors if a.get("path") and a.get("line_sha")}
+            self.entries.append({"finding": f, "status": status, "paths": paths,
+                                 "shas": shas, "words": set(_IDENT.findall(text))})
+
+    def match(self, repo: Path, chunk) -> tuple:
+        """→ (prior finding, its status, how it was recognised) or (None, None, None)."""
+        try:
+            lines = (repo / chunk.path).read_bytes().splitlines()[chunk.start - 1:chunk.end]
+        except OSError:
+            lines = []
+        here = {(chunk.path, line_sha(line)) for line in lines if line.strip()}
+        for e in self.entries:
+            hit = here & e["shas"]
+            if hit:
+                return e["finding"], e["status"], (
+                    f"a line it cited when it was filed is in `{chunk.name}` again, "
+                    f"unchanged (line hash {sorted(hit)[0][1]})")
+        name = chunk.name
+        if len(name) < 4 or name in _TOO_COMMON:
+            return None, None, None
+        for e in self.entries:
+            if name in e["words"] and (not e["paths"] or chunk.path in e["paths"]):
+                return e["finding"], e["status"], (
+                    f"it names `{name}`, the function this claim is about — matched by "
+                    "name, not by line, so read it before trusting the link")
+        return None, None, None
+
+
+def regressed_finding(prior: dict, claim_entry: dict, how: str) -> dict:
+    """A resolved finding, back: its own id, so the harness calls it REGRESSED.
+
+    The title is the original's — the id names that finding — and this run's reading
+    goes into the evidence beside the reason the two were linked. Severity stays what
+    this engine can justify (held at Minor unless a counterfactual proved it): being the
+    same bug is measured, how bad it is now is not. No `confidence`: the claim was made
+    once, when the finding was first filed, and `merge` keeps that one.
+    """
+    entry = dict(claim_entry)
+    entry.pop("confidence", None)
+    entry["id"] = prior["id"]
+    entry["title"] = str(prior.get("title") or claim_entry.get("title"))
+    entry["evidence"] = [
+        f"REGRESSED — {prior['id']} was resolved, and this run found it again: {how}.",
+        f"this run's reading: {claim_entry.get('title')}",
+    ] + list(claim_entry.get("evidence") or [])
+    return entry
+
+
 def file_findings(model: Model, repo: Path, targets: list, mint, findings_dir: Path,
-                  filed: list, python: str, prove: bool, budget: Budget) -> tuple:
+                  filed: list, python: str, prove: bool, budget: Budget,
+                  prior_index: PriorIndex | None = None, already_open: list | None = None) -> tuple:
     """Read the source, one function at a time, and try to prove each claim by flipping
     the line in a scratch copy. Returns (examined, proven, disproven).
 
@@ -1478,7 +1571,24 @@ def file_findings(model: Model, repo: Path, targets: list, mint, findings_dir: P
                 continue
             if proof and proof.get("status") == "proven":
                 proven += 1
-            mint(finding_of(claim, "@", chunk.source, proof), findings_dir, filed)
+            entry = finding_of(claim, "@", chunk.source, proof)
+            prior, status, how = (prior_index.match(repo, chunk) if prior_index
+                                  else (None, None, None))
+            if prior is None:
+                mint(entry, findings_dir, filed)
+            elif any(str(f.get("id")) == str(prior["id"]) for f in filed):
+                continue            # this run already filed that finding once
+            elif status == "resolved":
+                print(f"verdict-local: {prior['id']} is back — {how}", file=sys.stderr)
+                mint(regressed_finding(prior, entry, how), findings_dir, filed, keep_id=True)
+            else:
+                # Open or accepted already: it is carried by id, re-filed if its code
+                # moved, or the maintainer's. A second finding for it is a duplicate
+                # the backlog grows by every night.
+                if already_open is not None:
+                    already_open.append((str(prior["id"]), chunk.name, how))
+                print(f"verdict-local: not filed again — `{chunk.name}` is {prior['id']} "
+                      f"({status}): {how}", file=sys.stderr)
     return examined, proven, disproven
 
 
@@ -1687,8 +1797,11 @@ def run(repo: Path, qa_root: Path, model: Model, limit: int, gate: str | None,
         mint(skip_finding(skip, "@"), findings_dir, filed)
 
     # 3. What reading says, function by function — the source, then the tests.
+    already_open: list = []
     examined, proven, disproven = file_findings(model, repo, targets, mint, findings_dir,
-                                                filed, python, prove, budget)
+                                                filed, python, prove, budget,
+                                                prior_index=PriorIndex(previous),
+                                                already_open=already_open)
     suite_files = ([p for p in python_in(changed) if is_test_file(p)] if ranged
                    else test_files(repo)[:limit])
     examined += brittle_findings(model, repo, suite_files, mint, findings_dir, filed, budget)
@@ -1786,6 +1899,13 @@ def run(repo: Path, qa_root: Path, model: Model, limit: int, gate: str | None,
 
     not_tested = not_tested_lines(model, files, examined, prior_open, still_open_ids,
                                   refiled, prove, budget, quarantine_notes, non_python)
+    if already_open:
+        # Said, not swallowed: a claim that was not filed is still something this run read.
+        ids = ", ".join(sorted({fid for fid, _name, _how in already_open}))
+        not_tested.append(
+            f"{len(already_open)} claim(s) about function(s) that already carry an open finding "
+            f"({ids}) were not filed again — whether each is that finding or a second defect "
+            "in the same function was not settled")
     carried_blocked = prior_verdict == "blocked" and verdict == "blocked"
     if carried_blocked:
         not_tested.append(CARRIED_BLOCKED)

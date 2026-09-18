@@ -1267,5 +1267,41 @@
   "path": "src/verdict_mcp/small.py",
   "old": "    if gates_failed:\n        # Red suite, red verdict. Not \"pass with risks over three failing tests\".\n        return \"fail\"\n",
   "new": "    if False:\n        # Red suite, red verdict. Not \"pass with risks over three failing tests\".\n        return \"fail\"\n"
+ },
+ {
+  "label": "0.90.0 P22 local: the prior-finding index is never consulted, so a returning defect is NEW and an open one is filed twice",
+  "path": "src/verdict_mcp/small.py",
+  "old": "                                                prior_index=PriorIndex(previous),\n",
+  "new": "                                                prior_index=None,\n"
+ },
+ {
+  "label": "0.90.0 P23 local: a resolved finding that comes back is not re-filed under its own id",
+  "path": "src/verdict_mcp/small.py",
+  "old": "            elif status == \"resolved\":\n",
+  "new": "            elif False:\n"
+ },
+ {
+  "label": "0.90.0 P24 local: a claim about an open finding's function is filed again as NEW",
+  "path": "src/verdict_mcp/small.py",
+  "old": "                if already_open is not None:\n                    already_open.append((str(prior[\"id\"]), chunk.name, how))\n",
+  "new": "                mint(entry, findings_dir, filed)\n"
+ },
+ {
+  "label": "0.90.0 P25 local: a common function name links a claim to any finding that mentions it",
+  "path": "src/verdict_mcp/small.py",
+  "old": "        if len(name) < 4 or name in _TOO_COMMON:\n",
+  "new": "        if len(name) < 4:\n"
+ },
+ {
+  "label": "0.90.0 P26 local: a withdrawn finding is matched as if it were a real one",
+  "path": "src/verdict_mcp/small.py",
+  "old": "            if status not in (\"open\", \"accepted\", \"resolved\"):\n                continue\n",
+  "new": "            if False:\n                continue\n"
+ },
+ {
+  "label": "0.90.0 P27 local: a finding that cites another file claims this one by name",
+  "path": "src/verdict_mcp/small.py",
+  "old": "            if name in e[\"words\"] and (not e[\"paths\"] or chunk.path in e[\"paths\"]):\n",
+  "new": "            if name in e[\"words\"]:\n"
  }
 ]

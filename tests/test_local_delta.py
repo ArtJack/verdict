@@ -653,3 +653,76 @@ def test_a_red_suite_is_a_fail_whatever_the_findings_say():
         "a suite that produced no counts at all is still `blocked`, not `fail`"
     assert small.local_verdict("pass with risks", [], [], True, gates_failed=False) \
         == "pass with risks", "a green suite is left where it was"
+
+
+# ── a finding that already exists ─────────────────────────────────────────────
+
+CLAIM = {"verdict": "mismatch", "line": 3,
+         "mechanism": "rate multiplies by two where the docstring's spec says three"}
+REAL = {"is_real": True, "severity": "Major", "title": "rate doubles instead of tripling",
+        "impact": "every quote is a third too low"}
+
+
+def test_a_resolved_finding_that_comes_back_is_regressed_not_new(tmp_path):
+    """Measured on the seeded delta: the rounding defect the last run had resolved came
+    back, the engine described it correctly and filed it as NEW — a regression reported
+    as news. Its own id is what lets the harness call it REGRESSED, and rank it first."""
+    repo, qa = project(tmp_path, findings=[{
+        "id": "PROJ-F-1", "title": "rate doubles where the spec says triples",
+        "severity": "Major", "priority": "P1", "status": "resolved",
+        "failure_classification": "REAL_DEFECT", "confidence": "proven",
+        "evidence": ["cited.py:3 — `return weight * 2`"]}])
+    (repo / "other.py").write_text("def other(x):\n    return x + 0\n", encoding="utf-8")
+    (repo / "cited.py").write_text(CITED + "\n# touched\n", encoding="utf-8")
+    git(repo, "commit", "-qam", "the fix is reverted along with a touch")
+
+    delta(repo, qa, ScriptedModel([CLAIM, REAL]))
+    state = state_of(qa)
+    back = [f for f in state["findings"] if f["id"] == "PROJ-F-1"]
+    assert len(back) == 1 and back[0]["delta"] == "REGRESSED" and back[0]["status"] == "open"
+    assert back[0]["title"] == "rate doubles where the spec says triples", "the id names that finding"
+    assert any(e.startswith("REGRESSED — PROJ-F-1 was resolved") for e in back[0]["evidence"])
+    assert not [f for f in state["findings"] if f.get("delta") == "NEW"], "and no NEW twin"
+
+
+def test_a_claim_about_an_open_findings_function_is_not_filed_twice(tmp_path):
+    """The same blindness filed a second finding for a defect already open — on a project
+    with a backlog, a new duplicate every night the function changes."""
+    repo, qa = project(tmp_path)
+    (repo / "cited.py").write_text(CITED + "\n# touched\n", encoding="utf-8")
+    git(repo, "commit", "-qam", "touch the function's file")
+
+    delta(repo, qa, ScriptedModel([CLAIM, REAL]))
+    state = state_of(qa)
+    assert [f["id"] for f in state["findings"]] == ["PROJ-F-1"], "one defect, one finding"
+    assert any("not filed again" in line and "PROJ-F-1" in line for line in state["not_tested"]), \
+        "a claim that was not filed is still said"
+
+
+def test_the_index_matches_by_line_first_by_name_second_and_never_by_a_common_name(tmp_path):
+    repo = tmp_path / "r"
+    repo.mkdir()
+    (repo / "m.py").write_text("def round_cents(x):\n    return round(x, 2)\n\n"
+                               "def main(x):\n    return x\n", encoding="utf-8")
+    from verdict_mcp.anchors import line_sha
+    anchored = {"id": "A-F-1", "status": "resolved", "title": "an old reading",
+                "anchors": [{"path": "m.py", "line": 2,
+                             "line_sha": line_sha(b"    return round(x, 2)")}]}
+    named = {"id": "A-F-2", "status": "resolved", "title": "round_cents uses banker's rounding",
+             "evidence": ["resolved in run 2"]}
+    common = {"id": "A-F-3", "status": "open", "title": "main swallows errors"}
+    elsewhere = {"id": "A-F-4", "status": "resolved", "title": "round_cents in another module",
+                 "evidence": ["other.py:9 — round_cents"]}
+    withdrawn = {"id": "A-F-5", "status": "withdrawn", "title": "round_cents is fine"}
+    chunks = {c.name: c for c in small.chunks_of(repo, "m.py")}
+
+    idx = small.PriorIndex({"findings": [withdrawn, elsewhere, named, anchored, common]})
+    prior, status, how = idx.match(repo, chunks["round_cents"])
+    assert prior["id"] == "A-F-1" and status == "resolved" and "line hash" in how, \
+        "the measured link wins over the named one"
+
+    idx = small.PriorIndex({"findings": [withdrawn, elsewhere, named, common]})
+    prior, _, how = idx.match(repo, chunks["round_cents"])
+    assert prior["id"] == "A-F-2" and "by name" in how, \
+        "a finding citing another file does not claim this one; a withdrawn one never matches"
+    assert idx.match(repo, chunks["main"]) == (None, None, None), "`main` names nothing"
