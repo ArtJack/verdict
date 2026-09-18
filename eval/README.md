@@ -525,6 +525,37 @@ this GPU, 29–31 calls and 37–43 minutes per baseline — about 90 seconds a 
 design estimate of 10–15 (the counters each run writes into `last_run.local`). Fine for a night;
 too slow to sit in front of a merge.
 
+### The local tier on a real project — Sales shadow nights, 2026-09-18
+
+The fixtures are small and written by the author; the question a nightly answers is whether the
+tier survives a real record. So it ran against the author's own Sales project the way a night
+would — `verdict-local --delta` on a detached checkout of `origin/main`, against a **copy** of the
+live QA root (run 32: 69 open findings, verdict `fail`), with `VERDICT_HOME` in scratch so nothing
+real could be written. Each night that failed was diagnosed from its own output and fixed with a
+test and a pinned mutant before the next.
+
+| Night | Tree | Result | What it taught |
+|---|---|---|---|
+| 1 | `2372410`* | refused, **4 h 10 min** | a class conflict the record already held refused the night; no time budget over a 744-line range nothing executes; 27 unproven Minor readings filed onto a backlog of 69; every proof failed to import — `core/src/sales_core/cli.py` was imported from the repository root |
+| 2 | `1b7f1cb` | refused, 1 h 03 min | two skip markers with one reason in one file became two findings with one identity |
+| — | replay, offline | — | night 2's own output replayed through finalize: the *following* night would file the same skip markers again under new ids and be refused — every night after the first (fixed in `fc5ddfb`, before any night ran into it) |
+| 3 | `a976243` | **finalized**, 1 h 04 min | ids: the night minted `SALES-F-1` beside `F-162` — a second numbering (fixed in `2747910`) |
+
+\* Night 1 ran on `649797e`, the same change set before the branch was rebased onto main as `2372410`.
+
+**Night 3, as recorded:** run 33, verdict `fail` (carried — this tier cannot improve a verdict),
+`last_run.model` `local:qwen3`; **69 carried by id, 0 resolved by silence**, the 6 withdrawn
+findings kept; 4 new Minor findings, each a skip marker with no expiry (the two same-reason
+markers on one finding); the inherited conflict asked once as a question; 17 functions read and
+302 skipped when the hour ran out, both counted in `not_tested`; 9 unproven readings listed as
+leads in the report and the focus list, none filed; 60 model calls, 90,891 tokens, 8 unanswered,
+0 transport errors. **No Claude tokens.**
+
+**What it does not do on this project.** Most counterfactual proofs over `cli.py` fail on the
+original code with `click.exceptions.Exit: 2`: the 8B model calls a click command as if it were a
+function, and click exits on the missing arguments. Those readings stay leads. The night reads
+about a sixth of what a 744-line range asks for, and says so under `needs_claude`.
+
 ### The model axis — Opus against Sonnet, paired
 
 Every published row above is Opus. The question a maintainer actually asks is whether a
