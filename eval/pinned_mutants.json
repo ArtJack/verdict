@@ -851,7 +851,7 @@
  {
   "label": "0.84.0 M5 validate: a second finding filed inside another finding's class passes",
   "path": "src/verdict_mcp/validate.py",
-  "old": "    bad.extend(class_conflicts([f for f in findings if isinstance(f, dict)] + carried))\n",
+  "old": "    bad.extend(c for c in class_conflicts([f for f in findings if isinstance(f, dict)] + carried)\n               if c not in inherited)\n",
   "new": "    pass\n"
  },
  {
