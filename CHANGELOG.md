@@ -53,6 +53,14 @@ matched and a new sequence started under the key's name. Nothing collided, but a
 numberings is one nobody can read by eye. Ids without a prefix are read now, and the next Sales
 id is `F-163`. Mutant P39.
 
+**Then the second night ran, and finalized** — in 7 minutes 48 seconds, the four skip findings
+recognised as already on the record, 73 carried, none resolved by silence. It ran at the commit
+the first night had measured, and that showed one more thing: a range with nothing in it fell
+through to the reading map, so the run ranked the whole repository's least-covered files and
+reported its empty range as too large for its caps. A range with nothing in it now reads
+nothing. (A scheduled night never meets this — `--skip-unless-drift` skips an unmoved HEAD before
+the engine starts — but a run started by hand does.) Mutant P40.
+
 **A regression is REGRESSED, and an open finding is not filed twice.** The same proof showed the
 tier blind to the state it carried: the rounding defect the previous run had resolved came back,
 the engine described it correctly, and filed it as NEW — a regression reported as news, ranked

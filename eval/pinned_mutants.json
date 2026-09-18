@@ -1375,5 +1375,11 @@
   "path": "src/verdict_mcp/harness.py",
   "old": "_FID = re.compile(r\"^(?:(?P<prefix>.+)-)?F-(?P<n>\\d+)$\")\n",
   "new": "_FID = re.compile(r\"^(?P<prefix>.+)-F-(?P<n>\\d+)$\")\n"
+ },
+ {
+  "label": "0.90.0 P40 local: a range with nothing in it falls back to the whole repository's reading map",
+  "path": "src/verdict_mcp/small.py",
+  "old": "        ranked = delta_candidates(facts, repo, changed) if changed else []\n",
+  "new": "        ranked = delta_candidates(facts, repo, changed)\n"
  }
 ]

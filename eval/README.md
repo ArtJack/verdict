@@ -489,6 +489,7 @@ No Claude tokens.
 | `5e00d00` (red gate = `fail`) | pricer, seeded delta | 0/9 ×3 by protocol, **6/9 ×3 on substance** | `fail` ✓ | zero false greens |
 | `5e00d00` | pricer, baseline | **9/10 · 9/10 · 10/10** | ✓ | no hard fails |
 | `8190963` (a returning defect is REGRESSED) | pricer, seeded delta | **7/9 · 7/9 · 7/9**, no hard fails | `fail` ✓ | zero false greens; the regression reported as REGRESSED in every run |
+| `1b7f1cb` · `1b7f1cb` · `a976243` (the Sales shadow fixes) | pricer, seeded delta | **7/9 · 7/9 · 7/9**, no hard fails | `fail` ✓ | zero false greens; one more run on `1b7f1cb` was lost to a gateway outage mid-run — the engine refused to finalize without its model (exit 5, no state), as designed |
 
 **The false green, and why the gate exists.** The first valid run carried all five prior
 findings by id, resolved nothing by silence and nothing without measurement — and reported
@@ -540,6 +541,7 @@ test and a pinned mutant before the next.
 | 2 | `1b7f1cb` | refused, 1 h 03 min | two skip markers with one reason in one file became two findings with one identity |
 | — | replay, offline | — | night 2's own output replayed through finalize: the *following* night would file the same skip markers again under new ids and be refused — every night after the first (fixed in `fc5ddfb`, before any night ran into it) |
 | 3 | `a976243` | **finalized**, 1 h 04 min | ids: the night minted `SALES-F-1` beside `F-162` — a second numbering (fixed in `2747910`) |
+| 4 — the next night, over night 3's record | `2747910` | **finalized**, 7 min 48 s | the four skip findings recognised as already on the record and not filed again; 73 carried, 0 resolved by silence. At the same commit its range was empty, and an empty range fell through to the whole repository's reading map and was reported as too large (fixed after it) |
 
 \* Night 1 ran on `649797e`, the same change set before the branch was rebased onto main as `2372410`.
 
@@ -550,6 +552,12 @@ markers on one finding); the inherited conflict asked once as a question; 17 fun
 302 skipped when the hour ran out, both counted in `not_tested`; 9 unproven readings listed as
 leads in the report and the focus list, none filed; 60 model calls, 90,891 tokens, 8 unanswered,
 0 transport errors. **No Claude tokens.**
+
+**The fixture after the shadow fixes.** The seeded delta was re-run on the trees the shadow
+nights produced (table above): 7/9 in all three, the same two declared misses, zero false greens.
+The two rules added after the last of those runs — an identity already on the record, and a
+failing test this engine already filed — were replayed against the kept workdirs of those runs:
+neither matches anything the fixture files, so the numbers stand for the final tree.
 
 **What it does not do on this project.** Most counterfactual proofs over `cli.py` fail on the
 original code with `click.exceptions.Exit: 2`: the 8B model calls a click command as if it were a

@@ -1044,3 +1044,16 @@ def test_a_failing_test_this_engine_filed_is_not_classified_again(tmp_path):
     assert not [p for p in night_two.prompts if "classifying one failing test" in p], \
         "and no question spent on it"
     assert any(f"{red[0]['id']} (open)" in x for x in state["not_tested"])
+
+
+def test_a_range_with_nothing_in_it_reads_nothing(tmp_path):
+    """The second Sales shadow night ran at the commit the first had measured. Its empty range
+    fell through to the reading map — the least-covered files of the whole repository — and the
+    run reported the range as larger than its caps. Nothing changed; nothing is read."""
+    repo, qa = project(tmp_path)
+    model = ScriptedModel()
+    assert delta(repo, qa, model) == 0
+    assert model.prompts == [], "no question about code no commit touched"
+    facts = json.loads((qa / "facts.json").read_text(encoding="utf-8"))
+    assert "diff_over_limit" not in (facts.get("needs_claude") or {})
+    assert state_of(qa)["run_number"] == 2

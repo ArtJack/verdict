@@ -1851,7 +1851,11 @@ def run(repo: Path, qa_root: Path, model: Model, limit: int, gate: str | None,
     changed = changed_files(repo, measured_range)
     if ranged:
         cold_by_file = changed_lines_of(facts)
-        ranked = delta_candidates(facts, repo, changed)
+        # A range with nothing in it — the commit the last run measured — has nothing to
+        # read. Handing it an empty list fell through to the reading map: the second Sales
+        # shadow night re-ranked the whole repository's least-covered files and reported
+        # its empty range as too large for the caps.
+        ranked = delta_candidates(facts, repo, changed) if changed else []
         targets = [(rel, cold_by_file.get(rel)) for rel in ranked[:limit]]
     else:
         ranked = candidates(facts, repo)
