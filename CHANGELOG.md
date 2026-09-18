@@ -17,6 +17,22 @@ died mid-flight. A sweep that *is* allowed while the gateway is down still runs,
 its own `not_tested` that the model was unreachable. The decision table is in
 [docs/nightly.md](docs/nightly.md).
 
+**What a shadow run on a real project found, and fixed.** The seeded fixtures passed; then the
+tier ran on the author's own Sales project, against a copy of its QA state, and failed four ways
+the fixtures could not show. It never finalized: the record already held two findings claiming
+one site (a class conflict an earlier run left), the tier cannot settle that, and the refusal
+would have lost every night. It ran for four hours — a day's range of 744 changed lines no test
+executes and no time budget. It would have filed 27 unproven Minor readings onto a backlog of 69.
+And not one counterfactual ran, because `core/src/sales_core/cli.py` was imported from the
+repository root and the package's own imports reached a stale install elsewhere. Now: a class
+conflict between two findings a run only carries is asked as a question, once, instead of
+refused — anything the run files is still held to the rule; a night on a project with a record
+gets an hour, 24 functions and 12 proofs, and says what it skipped; in a delta an unproven
+reading is a **lead** — listed in the report and the focus list, not filed — while a proven one, a
+failing test, a skip without expiry, measured flakiness and a returning defect still are; and a
+proof imports through the project's own root (pytest's `pythonpath`, else the directory above the
+package chain). Mutants P28–P34.
+
 **A regression is REGRESSED, and an open finding is not filed twice.** The same proof showed the
 tier blind to the state it carried: the rounding defect the previous run had resolved came back,
 the engine described it correctly, and filed it as NEW — a regression reported as news, ranked

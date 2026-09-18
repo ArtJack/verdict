@@ -46,6 +46,7 @@ from __future__ import annotations
 
 import argparse
 import ast
+import configparser
 import json
 import os
 import re
@@ -110,6 +111,14 @@ GATE_MAX_FUNCTIONS = 24
 GATE_MAX_PROBES = 6
 GATE_CALL_TIMEOUT_S = 120
 GATE_MODEL_BUDGET_S = 900
+# A night on a project with state. Measured on Sales (2026-09-18): with no model-time budget
+# a day's range of 744 unexercised changed lines kept the engine asking for 4 h 10 min — 190
+# questions, 60 functions read, 259 skipped at the function cap — and a nightly that runs into
+# the working day is a nightly nobody keeps. An hour, 24 functions, 12 proofs: the
+# ranking puts the riskiest changed functions first, and what is left is counted, not hidden.
+NIGHT_MAX_FUNCTIONS = 24
+NIGHT_MAX_PROBES = 12
+NIGHT_MODEL_BUDGET_S = 3600
 # Five identical runs is what releases a quarantine. Arithmetic, not judgment:
 # the model is never asked whether a test has stopped being flaky.
 REQUARANTINE_RUNS = 5
@@ -570,6 +579,72 @@ def source_root(repo: Path, rel: str) -> Path:
     return repo / "src" if rel.startswith("src/") and (repo / "src").is_dir() else repo
 
 
+def import_roots(repo: Path) -> list:
+    """The directories the project's own test runner puts on the import path — pytest's
+    `pythonpath`, from pytest.ini, tox.ini, setup.cfg or pyproject.toml — relative to the
+    repository, existing ones only, in the order declared."""
+    found: list = []
+    for name, section in (("pytest.ini", "pytest"), ("tox.ini", "pytest"),
+                          ("setup.cfg", "tool:pytest")):
+        cfg = repo / name
+        if not cfg.is_file():
+            continue
+        parser = configparser.ConfigParser(interpolation=None)
+        try:
+            parser.read(cfg, encoding="utf-8")
+            if parser.has_option(section, "pythonpath"):
+                found += parser.get(section, "pythonpath").split()
+        except (configparser.Error, OSError, UnicodeDecodeError):
+            continue
+    pyproject = repo / "pyproject.toml"
+    if pyproject.is_file():
+        try:
+            import tomllib              # Python 3.11+; the ini files above still count on 3.9
+            doc = tomllib.loads(pyproject.read_text(encoding="utf-8"))
+        except Exception:               # noqa: BLE001 — a config we cannot read adds nothing
+            doc = {}
+        value = (((doc.get("tool") or {}).get("pytest") or {}).get("ini_options") or {}) \
+            .get("pythonpath")
+        found += value.split() if isinstance(value, str) else \
+            [str(v) for v in value] if isinstance(value, list) else []
+    out: list = []
+    for entry in found:
+        entry = entry.strip().rstrip("/")
+        if entry and entry != "." and (repo / entry).is_dir() and entry not in out:
+            out.append(entry)
+    return out
+
+
+def probe_root(repo: Path, rel: str) -> tuple:
+    """(import root, module name) a counterfactual imports a file through.
+
+    Measured on Sales (2026-09-18): `core/src/sales_core/cli.py` was imported as
+    `core.src.sales_core.cli` from the repository root, so the package's own imports of
+    `sales_core.*` fell through to an editable install of another worktree — one without
+    the module the day's commits had added — and every one of the night's probes failed
+    before it could prove anything. The root is the project's own: the deepest `pythonpath`
+    its test runner declares that contains the file; else, for a file inside a package, the
+    first directory above the package chain; else the repository, as before.
+    """
+    path = Path(rel)
+    declared = [Path(r) for r in import_roots(repo)
+                if path.parts[:len(Path(r).parts)] == Path(r).parts]
+    if declared:
+        base = max(declared, key=lambda r: len(r.parts))
+    elif path.name == "__init__.py" or (repo / path.parent / "__init__.py").is_file():
+        base = path.parent
+        while base.parts and (base == path.parent and path.name == "__init__.py"
+                              or (repo / base / "__init__.py").is_file()):
+            base = base.parent
+    else:
+        return source_root(repo, rel), module_name(repo, rel)
+    parts = list(path.relative_to(base).with_suffix("").parts) if base.parts \
+        else list(path.with_suffix("").parts)
+    if parts and parts[-1] == "__init__":
+        parts = parts[:-1]
+    return (repo / base if base.parts else repo), ".".join(parts)
+
+
 def scratch_copy(repo: Path, into: Path) -> bool:
     """A copy of the tree that runs its own code — the discipline §3.5 demands, done by
     the harness so the model cannot get it wrong. Returns False when the tree is too
@@ -590,7 +665,8 @@ def scratch_copy(repo: Path, into: Path) -> bool:
     return True
 
 
-def run_probe(python: str, root: Path, module: str, expression: str) -> tuple:
+def run_probe(python: str, root: Path, module: str, expression: str,
+              extra_paths=()) -> tuple:
     """Evaluate one expression against one tree → (value_json, error).
 
     The tree is put first on `PYTHONPATH` and the module's resolved file is checked to be
@@ -612,7 +688,8 @@ def run_probe(python: str, root: Path, module: str, expression: str) -> tuple:
         "'imported ' + m.__file__\n"
         f"print('<<<' + json.dumps({expression}, default=repr) + '>>>')\n")
     env = dict(os.environ, PYTHONDONTWRITEBYTECODE="1",
-               PYTHONPATH=str(root) + os.pathsep + os.environ.get("PYTHONPATH", ""))
+               PYTHONPATH=os.pathsep.join([str(root)] + [str(p) for p in extra_paths]
+                                          + [os.environ.get("PYTHONPATH", "")]))
     try:
         proc = subprocess.run([python, "-c", script], cwd=str(root), env=env,
                               capture_output=True, text=True, timeout=PROBE_TIMEOUT_S)
@@ -635,7 +712,7 @@ def counterfactual(model: Model, repo: Path, chunk: Chunk, claim: dict,
     (`proven`), the value does not move (`disproven` — the claim is withdrawn before it is
     ever filed), or the probe cannot run (unchanged, still a hypothesis).
     """
-    module = module_name(repo, chunk.path)
+    root_rel, module = probe_root(repo, chunk.path)
     if not module:
         return {"status": "unavailable",
                 "reason": f"{chunk.path} is not importable from the repository root"}
@@ -665,8 +742,9 @@ def counterfactual(model: Model, repo: Path, chunk: Chunk, claim: dict,
         scratch = Path(tmp) / "tree"
         if not scratch_copy(repo, scratch):
             return {"status": "unavailable", "reason": "the tree is too large to copy"}
-        root_before = source_root(repo, chunk.path)
-        before, err = run_probe(python, root_before, module, expression)
+        others = [r for r in import_roots(repo)]
+        before, err = run_probe(python, root_rel, module, expression,
+                                [repo / r for r in others])
         if err:
             return {"status": "unavailable", "reason": f"probe failed on the original: {err}"}
         target = scratch / chunk.path
@@ -676,7 +754,9 @@ def counterfactual(model: Model, repo: Path, chunk: Chunk, claim: dict,
         original_line = lines[line - 1]
         lines[line - 1] = replacement
         target.write_text("\n".join(lines) + "\n", encoding="utf-8")
-        after, err = run_probe(python, source_root(scratch, chunk.path), module, expression)
+        scratch_root = scratch / root_rel.relative_to(repo) if root_rel != repo else scratch
+        after, err = run_probe(python, scratch_root, module, expression,
+                               [scratch / r for r in others])
         if err:
             return {"status": "unavailable", "reason": f"probe failed on the scratch: {err}"}
 
@@ -829,7 +909,7 @@ Reply with JSON only:
 
 
 def brittle_findings(model: Model, repo: Path, files: list, mint, findings_dir: Path,
-                     filed: list, budget) -> int:
+                     filed: list, budget, leads: list | None = None) -> int:
     """One bounded question per passing test — the suite is under review too, and a green
     test asserting the wrong thing is invisible to every gate.
 
@@ -854,6 +934,13 @@ def brittle_findings(model: Model, repo: Path, files: list, mint, findings_dir: 
             line = answer.get("line")
             line = int(line) if isinstance(line, (int, float)) and chunk.start <= line <= chunk.end \
                 else chunk.start
+            if leads is not None:
+                # A green test a small model thinks is brittle is an opinion about a
+                # test that passes — nothing executed disagrees with it.
+                leads.append({"path": rel, "line": line, "function": chunk.name,
+                              "title": f"{chunk.name} may assert something incidental: {why}"[:200],
+                              "severity": "Minor", "why": "an opinion about a passing test"})
+                continue
             mint({
                 "id": "@", "title": f"{chunk.name} asserts something incidental: {why}"[:200],
                 "severity": "Minor", "priority": "P2", "status": "open",
@@ -1387,6 +1474,8 @@ NO_CODE_READ = ("No code was read this run: the range contains no parseable Pyth
 # A focus list that only ever grows is a focus list nobody reads, which is the
 # same as not having one.
 FOCUS_LINES = 20
+LEADS_IN_FOCUS = 5
+LEADS_IN_REPORT = 25
 
 
 def _unique(items) -> list:
@@ -1540,7 +1629,8 @@ def regressed_finding(prior: dict, claim_entry: dict, how: str) -> dict:
 
 def file_findings(model: Model, repo: Path, targets: list, mint, findings_dir: Path,
                   filed: list, python: str, prove: bool, budget: Budget,
-                  prior_index: PriorIndex | None = None, already_open: list | None = None) -> tuple:
+                  prior_index: PriorIndex | None = None, already_open: list | None = None,
+                  leads: list | None = None) -> tuple:
     """Read the source, one function at a time, and try to prove each claim by flipping
     the line in a scratch copy. Returns (examined, proven, disproven).
 
@@ -1574,7 +1664,17 @@ def file_findings(model: Model, repo: Path, targets: list, mint, findings_dir: P
             entry = finding_of(claim, "@", chunk.source, proof)
             prior, status, how = (prior_index.match(repo, chunk) if prior_index
                                   else (None, None, None))
-            if prior is None:
+            if prior is None and leads is not None and entry.get("confidence") != "proven":
+                # A project with state is a backlog somebody has to read. Measured on Sales:
+                # 27 unproven Minor readings in one night, on top of 69 open findings. What a
+                # small model read and could not prove is a lead for the next run that can
+                # judge it — listed in the report, not added to the record.
+                leads.append({"path": chunk.path, "line": claim["line"], "function": chunk.name,
+                              "title": claim["title"], "severity": claim["severity"],
+                              "why": (proof or {}).get("reason") or
+                              ("no counterfactual was attempted" if not prove
+                               else "the proof budget was spent")})
+            elif prior is None:
                 mint(entry, findings_dir, filed)
             elif any(str(f.get("id")) == str(prior["id"]) for f in filed):
                 continue            # this run already filed that finding once
@@ -1798,13 +1898,15 @@ def run(repo: Path, qa_root: Path, model: Model, limit: int, gate: str | None,
 
     # 3. What reading says, function by function — the source, then the tests.
     already_open: list = []
+    leads: list | None = [] if previous else None      # a project with a record to protect
     examined, proven, disproven = file_findings(model, repo, targets, mint, findings_dir,
                                                 filed, python, prove, budget,
                                                 prior_index=PriorIndex(previous),
-                                                already_open=already_open)
+                                                already_open=already_open, leads=leads)
     suite_files = ([p for p in python_in(changed) if is_test_file(p)] if ranged
                    else test_files(repo)[:limit])
-    examined += brittle_findings(model, repo, suite_files, mint, findings_dir, filed, budget)
+    examined += brittle_findings(model, repo, suite_files, mint, findings_dir, filed, budget,
+                                 leads=leads)
 
     # 4. The quarantine, re-measured rather than expired by the calendar.
     carried_quarantine, released, quarantine_notes = requarantine(
@@ -1887,6 +1989,8 @@ def run(repo: Path, qa_root: Path, model: Model, limit: int, gate: str | None,
         [f"{f['id']}: read the changed code under this finding — {ENGINE} re-filed it "
          "without reading it" for f in refiled]
         + [f"needs a model run — {key}: {value}" for key, value in sorted(owed.items())]
+        + [f"lead, unproven: {x['path']}:{x['line']} `{x['function']}` — {x['title'][:120]}"
+           for x in (leads or [])[:LEADS_IN_FOCUS]]
         + [str(x) for x in (previous or {}).get("next_run_focus") or []])[:FOCUS_LINES]
 
     for note in quarantine_notes:
@@ -1899,6 +2003,10 @@ def run(repo: Path, qa_root: Path, model: Model, limit: int, gate: str | None,
 
     not_tested = not_tested_lines(model, files, examined, prior_open, still_open_ids,
                                   refiled, prove, budget, quarantine_notes, non_python)
+    if leads:
+        not_tested.append(
+            f"{len(leads)} reading(s) this engine could not prove were listed as leads in the "
+            "report, not filed — a lead is a question for a run that can judge it, not a finding")
     if already_open:
         # Said, not swallowed: a claim that was not filed is still something this run read.
         ids = ", ".join(sorted({fid for fid, _name, _how in already_open}))
@@ -1930,7 +2038,8 @@ def run(repo: Path, qa_root: Path, model: Model, limit: int, gate: str | None,
                       "its own: a previous `fail` stays `fail`, and a previous `blocked` "
                       "stays `blocked`, until something with judgment looks at it."
                       + (" " + CARRIED_BLOCKED[0].upper() + CARRIED_BLOCKED[1:] + "."
-                         if carried_blocked else "")),
+                         if carried_blocked else "")
+                      + leads_text(leads)),
         },
         "isolation_check": {"result": "pass", "note": "local mode reads the checkout and "
                                                       "runs the suite gate; it writes nothing "
@@ -1965,6 +2074,22 @@ def run(repo: Path, qa_root: Path, model: Model, limit: int, gate: str | None,
     print_summary(model, files, examined, filed, refiled, resolved_ids, still_open_ids,
                   verdict, owed, budget)
     return code
+
+
+def leads_text(leads) -> str:
+    """The report's list of what was read and not proven — for a person, or for the next
+    run that can judge it. Capped, and it says so when it is."""
+    if not leads:
+        return ""
+    shown = leads[:LEADS_IN_REPORT]
+    lines = [f"\n\n**Leads — read by a small model, not proven, not filed ({len(leads)}).** "
+             "Each is a question for a run that can judge it; none is on the record."]
+    for x in shown:
+        lines.append(f"- `{x['path']}:{x['line']}` `{x['function']}` — {x['title']} "
+                     f"(read as {x['severity']}; {x['why']})")
+    if len(leads) > len(shown):
+        lines.append(f"- … and {len(leads) - len(shown)} more, not listed")
+    return "\n".join(lines)
 
 
 def not_tested_lines(model: Model, files: list, examined: int, prior_open: list,
@@ -2166,13 +2291,19 @@ def main(argv=None) -> int:
               file=sys.stderr)
         return 5
     os.environ["VERDICT_MODEL"] = f"local:{model.name}"
+    # Three shapes, three budgets: a gate over a range, a night over a project that already
+    # has a record, and a first pass over a fresh one (unbounded in time, as before).
+    night = not ranged and (qa_root / "state.json").is_file()
     budget = Budget(
         functions=(args.max_functions if args.max_functions is not None
-                   else (GATE_MAX_FUNCTIONS if ranged else MAX_FUNCTIONS)),
+                   else GATE_MAX_FUNCTIONS if ranged
+                   else NIGHT_MAX_FUNCTIONS if night else MAX_FUNCTIONS),
         probes=(args.max_probes if args.max_probes is not None
-                else (GATE_MAX_PROBES if ranged else None)),
+                else GATE_MAX_PROBES if ranged
+                else NIGHT_MAX_PROBES if night else None),
         seconds=(args.max_model_s if args.max_model_s is not None
-                 else (GATE_MODEL_BUDGET_S if ranged else None)))
+                 else GATE_MODEL_BUDGET_S if ranged
+                 else NIGHT_MODEL_BUDGET_S if night else None))
     # A named range is a gate somebody is waiting for, so it takes the caps
     # unless the operator overrode them: six files, and no repeat runs of the
     # whole suite — three green suites prove nothing about a diff.

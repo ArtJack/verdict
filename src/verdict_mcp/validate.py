@@ -253,7 +253,13 @@ def validate_judgment(judgment, previous=None, known_tests=None):
     prev_by_id = {str(f.get("id")): f for f in prev_findings if f.get("id")}
     carried = [prev_by_id[x] for x in (judgment.get("still_open") or [])
                if isinstance(x, str) and x in prev_by_id]
-    bad.extend(class_conflicts([f for f in findings if isinstance(f, dict)] + carried))
+    # A contradiction between two findings this run only CARRIED was already in the record;
+    # it is not this run's to settle, and refusing the run for it loses the run — every night,
+    # for an engine that cannot judge it (measured on Sales, 2026-09-18). Anything this run
+    # files is still held to the rule. `verdict-finalize` asks the inherited one as a question.
+    inherited = set(inherited_conflicts(judgment, prev_findings))
+    bad.extend(c for c in class_conflicts([f for f in findings if isinstance(f, dict)] + carried)
+               if c not in inherited)
 
     blocking = [str(f.get("id")) for f in findings if isinstance(f, dict) and _is_open(f)
                 and f.get("severity") in ("Critical", "Blocker")]
@@ -392,6 +398,16 @@ def _questions_shape(judgment, ids: set) -> list:
         if q.get("context") is not None and not isinstance(q["context"], str):
             bad.append(f"{where} context must be a string")
     return bad
+
+
+def inherited_conflicts(judgment, prev_findings) -> list:
+    """Class conflicts between findings the judgment carries by id from the previous state —
+    true of the record before this run started, and asked about rather than refused."""
+    prev_by_id = {str(f.get("id")): f for f in prev_findings or []
+                  if isinstance(f, dict) and f.get("id")}
+    carried = [prev_by_id[x] for x in (judgment.get("still_open") or [])
+               if isinstance(x, str) and x in prev_by_id]
+    return class_conflicts(carried)
 
 
 def class_conflicts(findings) -> list:

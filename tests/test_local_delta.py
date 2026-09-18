@@ -726,3 +726,146 @@ def test_the_index_matches_by_line_first_by_name_second_and_never_by_a_common_na
     assert prior["id"] == "A-F-2" and "by name" in how, \
         "a finding citing another file does not claim this one; a withdrawn one never matches"
     assert idx.match(repo, chunks["main"]) == (None, None, None), "`main` names nothing"
+
+
+# ── what the Sales shadow run taught (2026-09-18) ─────────────────────────────
+
+def test_in_a_delta_an_unproven_reading_is_a_lead_not_a_finding(tmp_path):
+    """27 unproven Minor readings in one Sales night, on top of 69 open findings. On a
+    project with a record, what a small model read and could not prove is a question for
+    a run that can judge it — in the report and the focus list, not in the state."""
+    repo, qa = project(tmp_path)
+    (repo / "other.py").write_text("def other(x):\n    \"\"\"Return x doubled.\"\"\"\n"
+                                   "    return x\n", encoding="utf-8")
+    git(repo, "commit", "-qam", "other() drifts from its docstring")
+    claim = {"verdict": "mismatch", "line": 3,
+             "mechanism": "other returns x where its docstring promises x doubled"}
+    real = {"is_real": True, "severity": "Major", "title": "other forgets to double",
+            "impact": "every caller gets half"}
+
+    delta(repo, qa, ScriptedModel([claim, real]), prove=False)
+    state = state_of(qa)
+    assert [f["id"] for f in state["findings"]] == ["PROJ-F-1"], "nothing unproven was filed"
+    assert any("listed as leads in the report" in x for x in state["not_tested"])
+    assert any(x.startswith("lead, unproven: other.py:3 `other`") for x in state["next_run_focus"])
+    report = (qa / state["last_run"]["report"]).read_text(encoding="utf-8")
+    assert "**Leads — read by a small model, not proven, not filed (1).**" in report
+    assert "other forgets to double" in report
+
+
+def test_a_first_pass_over_a_fresh_project_still_files_what_it_reads(tmp_path):
+    """The lead rule protects a record; a first pass has none to protect."""
+    assert small.leads_text([]) == ""
+    lines = small.leads_text([{"path": "a.py", "line": 3, "function": "f", "title": "t",
+                               "severity": "Minor", "why": "w"}] * 30).splitlines()
+    assert any("… and 5 more, not listed" in x for x in lines), "capped, and says so"
+
+
+def test_a_night_on_a_project_with_a_record_has_a_budget(tmp_path, monkeypatch):
+    """Measured on Sales: 4 h 10 min, 190 questions, 259 functions skipped at the cap. A
+    night gets an hour, 24 functions and 12 proofs; a fresh project and a gate keep theirs."""
+    seen = {}
+    monkeypatch.setattr(small, "gateway_alive", lambda *a, **k: (True, "ok"))
+    monkeypatch.setattr(small, "run", lambda *a, **k: seen.update(budget=k["budget"]) or 0)
+    monkeypatch.setenv("ANTHROPIC_BASE_URL", "http://gw")
+    monkeypatch.setenv("ANTHROPIC_AUTH_TOKEN", "t")
+
+    repo, qa = project(tmp_path)
+    small.main(["--repo", str(repo), "--qa-root", str(qa), "--delta"])
+    b = seen["budget"]
+    assert (b.functions, b.probes, b.seconds) == (small.NIGHT_MAX_FUNCTIONS,
+                                                  small.NIGHT_MAX_PROBES,
+                                                  small.NIGHT_MODEL_BUDGET_S) == (24, 12, 3600)
+    fresh = tmp_path / "fresh-qa"
+    fresh.mkdir()
+    small.main(["--repo", str(repo), "--qa-root", str(fresh)])
+    b = seen["budget"]
+    assert (b.functions, b.probes, b.seconds) == (small.MAX_FUNCTIONS, None, None)
+
+
+def test_a_conflict_the_record_already_held_is_asked_not_refused(tmp_path):
+    """Sales run 32 holds F-144 citing a line F-149 claims as a site of its class. A run that
+    only carries both cannot settle it, and refusing it lost the whole night."""
+    from verdict_mcp.validate import validate_judgment
+    a = {"id": "S-F-1", "title": "a", "severity": "Major", "priority": "P1", "status": "open",
+         "failure_classification": "REAL_DEFECT", "evidence": ["cfg.yaml:9 the live edit"]}
+    b = {"id": "S-F-2", "title": "b", "severity": "Major", "priority": "P1", "status": "open",
+         "failure_classification": "REAL_DEFECT", "evidence": ["x.py:1 the root"],
+         "root_cause": {"mechanism": "m", "class": {"sites": ["cfg.yaml:9 the same edit"]}}}
+    previous = {"findings": [a, b]}
+    carried_only = {"verdict": "fail", "isolation_check": {"result": "pass"},
+                    "release_blockers": [], "not_tested": ["x"], "findings": [],
+                    "still_open": ["S-F-1", "S-F-2"], "resolved": []}
+    assert not [p for p in validate_judgment(carried_only, previous, set()) if "site" in p]
+
+    new = dict(a, id="S-F-3", confidence="hypothesis")
+    filing = dict(carried_only, findings=[new])
+    assert any("S-F-3 cites cfg.yaml:9" in p for p in validate_judgment(filing, previous, set())), \
+        "a finding filed THIS run is still held to the rule"
+
+
+def test_a_proof_imports_a_packaged_file_through_the_projects_own_root(tmp_path, monkeypatch):
+    """Every Sales probe failed: `core/src/sales_core/cli.py` was imported from the repository
+    root, so `sales_core`'s own imports reached a stale install elsewhere that lacked the day's
+    new module. Reproduced here with a decoy package ahead on the path."""
+    repo = tmp_path / "repo"
+    pkg = repo / "core" / "src" / "shop"
+    pkg.mkdir(parents=True)
+    (pkg / "__init__.py").write_text("", encoding="utf-8")
+    (pkg / "labels.py").write_text("WIDTH = 4\n", encoding="utf-8")
+    (pkg / "cli.py").write_text("from shop.labels import WIDTH\n\ndef width():\n"
+                                "    return WIDTH\n", encoding="utf-8")
+    decoy = tmp_path / "decoy" / "shop"                 # an older install: no labels.py
+    decoy.mkdir(parents=True)
+    (decoy / "__init__.py").write_text("", encoding="utf-8")
+    monkeypatch.setenv("PYTHONPATH", str(tmp_path / "decoy"))
+
+    root, module = small.probe_root(repo, "core/src/shop/cli.py")
+    assert (root, module) == (repo / "core" / "src", "shop.cli")
+    value, err = small.run_probe(sys.executable, root, module, "m.width()")
+    assert (value, err) == (4, None), err
+
+    (repo / "pytest.ini").write_text("[pytest]\npythonpath = core/src\n", encoding="utf-8")
+    assert small.import_roots(repo) == ["core/src"]
+    assert small.probe_root(repo, "core/src/shop/cli.py") == (repo / "core" / "src", "shop.cli")
+
+
+def test_a_declared_root_wins_and_a_plain_file_keeps_the_old_rule(tmp_path):
+    repo = tmp_path / "repo"
+    (repo / "app").mkdir(parents=True)
+    (repo / "app" / "models.py").write_text("X = 1\n", encoding="utf-8")
+    (repo / "pricer.py").write_text("X = 1\n", encoding="utf-8")
+    assert small.probe_root(repo, "app/models.py") == (repo, "app.models"), "no package, no config"
+    assert small.probe_root(repo, "pricer.py") == (repo, "pricer")
+    (repo / "setup.cfg").write_text("[tool:pytest]\npythonpath = app\n", encoding="utf-8")
+    assert small.probe_root(repo, "app/models.py") == (repo / "app", "models"), \
+        "the project's own test runner says where imports start"
+
+
+def test_the_night_with_an_inherited_conflict_finalizes_and_asks_once(tmp_path):
+    """End to end, the Sales shape: the record already holds two findings claiming one site,
+    the night carries both, and the run is recorded with the conflict parked as a question."""
+    repo, qa = project(tmp_path, findings=[
+        {"id": "PROJ-F-1", "title": "rate doubles where the spec says triples",
+         "severity": "Major", "priority": "P1", "status": "open",
+         "failure_classification": "REAL_DEFECT", "confidence": "proven",
+         "evidence": ["cited.py:3 — `return weight * 2`"]},
+        {"id": "PROJ-F-2", "title": "other passes its input through",
+         "severity": "Minor", "priority": "P2", "status": "open",
+         "failure_classification": "REAL_DEFECT", "confidence": "hypothesis",
+         "evidence": ["other.py:2 — `return x`"],
+         "root_cause": {"mechanism": "m", "class": {"sites": ["other.py:2 — the pass-through"]}}}])
+    state = state_of(qa)
+    for f in state["findings"]:            # an older run left the contradiction in the record
+        if f["id"] == "PROJ-F-2":
+            f["root_cause"]["class"]["sites"].append("cited.py:3 — claimed by PROJ-F-1 too")
+    (qa / "state.json").write_text(json.dumps(state), encoding="utf-8")
+    (repo / "test_cited.py").write_text(TEST + "\n# touched\n", encoding="utf-8")
+    git(repo, "commit", "-qam", "touch nothing a finding cites")
+
+    assert delta(repo, qa) == 0, "the night is recorded, not refused"
+    assert state_of(qa)["run_number"] == 2
+    asked = json.loads((qa / "questions.json").read_text(encoding="utf-8"))
+    texts = [q.get("question", "") for q in (asked.get("questions") or {}).values()]
+    assert len(texts) == 1, "asked once"
+    assert any("PROJ-F-1 cites cited.py:3" in t and "already held" in t for t in texts), texts

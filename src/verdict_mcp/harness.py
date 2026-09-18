@@ -73,7 +73,8 @@ try:
     from .state import home as state_home
     from .usage import ENTRYPOINT_ENV, SESSION_ENV, run_usage
     from .usage import FIELDS as USAGE_FIELDS
-    from .validate import known_tests, validate, validate_judgment
+    from .validate import (inherited_conflicts, known_tests, validate,
+                           validate_judgment)
     from . import clock
 except ImportError:  # bare-script execution
     sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -95,7 +96,8 @@ except ImportError:  # bare-script execution
     from state import home as state_home
     from usage import ENTRYPOINT_ENV, SESSION_ENV, run_usage
     from usage import FIELDS as USAGE_FIELDS
-    from validate import known_tests, validate, validate_judgment
+    from validate import (inherited_conflicts, known_tests, validate,
+                          validate_judgment)
 
 RE_BASELINE_AFTER_DAYS = 7
 # A run marker at the same commit, this recent, is a retry rather than a night
@@ -2634,6 +2636,14 @@ def finalize_main(argv=None) -> int:
               "— fix the judgment, not the check:\n  " + "\n  ".join(author_problems),
               file=sys.stderr)
         return 1
+    # Asked, not refused: a class conflict the record already held between two findings this
+    # run only carried. Folded by text in the questions ledger, so it is asked once, not nightly.
+    for conflict in inherited_conflicts(judgment, (previous or {}).get("findings") or []):
+        fid = conflict.split(" ", 1)[0]
+        judgment.setdefault("questions", []).append({
+            "question": ("Two findings claim one site, and the record already held it before this "
+                         f"run: {conflict}"),
+            "finding": fid})
     verb_problems = _re_report(judgment, previous, facts)
     if verb_problems:
         print(f"verdict-finalize: {len(verb_problems)} problem(s) with the ids you carried — "

@@ -285,6 +285,14 @@ that make it usable over a project with a backlog:
   `not_tested`. This tier can make a verdict worse or leave it alone, never better.
 - **A quarantine is released by measurement, not by its expiry date** — five identical runs of
   the one test, and the FLAKY finding stays open with the measurement added to it.
+- **On a project with a record, an unproven reading is a lead, not a finding.** What the small
+  model read and could not prove by counterfactual is listed in the report and the focus list for
+  a run that can judge it. Proven claims, failing tests, skips without expiry, measured flakiness
+  and returning defects are still filed.
+- **A night has a budget:** one hour of model time, 24 functions, 12 proofs, riskiest changed
+  functions first; what it skipped is counted.
+- **A contradiction the record already held is asked, not refused** — two findings this run only
+  carried, claiming one site, become one parked question instead of a lost night.
 - **A returning defect is REGRESSED; an open one is not filed twice.** Before filing, a claim
   is matched to earlier findings — by a line hash the finding's anchors recorded, else by
   the function the finding names. A resolved match comes back under its own id; an open one

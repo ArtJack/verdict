@@ -1303,5 +1303,47 @@
   "path": "src/verdict_mcp/small.py",
   "old": "            if name in e[\"words\"] and (not e[\"paths\"] or chunk.path in e[\"paths\"]):\n",
   "new": "            if name in e[\"words\"]:\n"
+ },
+ {
+  "label": "0.90.0 P28 local: in a delta an unproven reading is filed as a finding, not listed as a lead",
+  "path": "src/verdict_mcp/small.py",
+  "old": "            if prior is None and leads is not None and entry.get(\"confidence\") != \"proven\":\n",
+  "new": "            if False:\n"
+ },
+ {
+  "label": "0.90.0 P29 local: a green test a small model calls brittle is filed on a project with a record",
+  "path": "src/verdict_mcp/small.py",
+  "old": "            if leads is not None:\n                # A green test a small model thinks is brittle is an opinion about a\n",
+  "new": "            if False:\n                # A green test a small model thinks is brittle is an opinion about a\n"
+ },
+ {
+  "label": "0.90.0 P30 local: a night on a project with a record runs without a budget",
+  "path": "src/verdict_mcp/small.py",
+  "old": "    night = not ranged and (qa_root / \"state.json\").is_file()\n",
+  "new": "    night = False\n"
+ },
+ {
+  "label": "0.90.0 P31 validate: a class conflict the record already held refuses the run again",
+  "path": "src/verdict_mcp/validate.py",
+  "old": "               if c not in inherited)\n",
+  "new": "               if True)\n"
+ },
+ {
+  "label": "0.90.0 P32 harness: an inherited class conflict is carried silently, never asked",
+  "path": "src/verdict_mcp/harness.py",
+  "old": "    for conflict in inherited_conflicts(judgment, (previous or {}).get(\"findings\") or []):\n",
+  "new": "    for conflict in []:\n"
+ },
+ {
+  "label": "0.90.0 P33 local: a proof imports a packaged file from the repository root",
+  "path": "src/verdict_mcp/small.py",
+  "old": "    root_rel, module = probe_root(repo, chunk.path)\n",
+  "new": "    root_rel, module = source_root(repo, chunk.path), module_name(repo, chunk.path)\n"
+ },
+ {
+  "label": "0.90.0 P34 local: the project's declared pythonpath is ignored",
+  "path": "src/verdict_mcp/small.py",
+  "old": "    declared = [Path(r) for r in import_roots(repo)\n",
+  "new": "    declared = [Path(r) for r in []\n"
  }
 ]
