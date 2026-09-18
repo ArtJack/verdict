@@ -477,6 +477,45 @@ quality-for-quality — local mode proves nothing by execution and says so in ev
 and it does not attempt archaeology, an exploratory charter, or an adversarial reading of
 the suite — but on this fixture's answer key it is not behind.
 
+### The local tier as a delta — measured 2026-09-17/18, and a false green it caught
+
+`run_eval.py --engine local`, `qwen3:8b` through the author's LiteLLM gateway on a GTX 1070,
+every question sent with an 8,192-token window, the fixtures' pytest on PATH, n=3 per mode.
+No Claude tokens.
+
+| Tree | Fixture | Runs | Verdict row | Notes |
+|---|---|---|---|---|
+| `19619bc` | pricer, seeded delta | **0/9 ×3** by protocol | **`pass with risks` — a false green** | three tests failing |
+| `5e00d00` (red gate = `fail`) | pricer, seeded delta | 0/9 ×3 by protocol, **6/9 ×3 on substance** | `fail` ✓ | zero false greens |
+| `5e00d00` | pricer, baseline | **9/10 · 9/10 · 10/10** | ✓ | no hard fails |
+
+**The false green, and why the gate exists.** The first valid run carried all five prior
+findings by id, resolved nothing by silence and nothing without measurement — and reported
+`pass with risks` over a suite with three failing tests. The verdict was arithmetic over finding
+severities, and a reading no counterfactual proved is held at Minor, so a real regression filed
+as an unproven Major could never force a fail; nothing in the rule looked at the gate. A red
+gate now outranks every finding (mutant P21). That is the whole reason this tier is measured by
+"zero false greens" rather than by points.
+
+**What it still misses, declared.** Every seeded run scores 0 by protocol on one hard fail,
+`regressed_not_first`: the rounding defect the golden state had resolved comes back as a **NEW**
+finding rather than **REGRESSED**, because the engine files its own finding instead of recognising
+the prior one — so the report's first entry is not the regression. The expired quarantine stays
+quarantined, because this fixture's profile names no `test_one_cmd` and the tier releases a
+quarantine only by measuring the test, never by the date. `resolved-env-fixture` stays open
+because the golden state declares no `verification_test`, and a resolution this tier cannot
+measure it does not make. Rows earned in every run: `new-bulk-threshold`, `still-open-floor`,
+`still-open-by-id`, `findings-filed-as-files`, `questions-not-reasked`, `verdict`.
+
+**What that means for a nightly.** Safe and blunt: it will not invent a pass, close a finding by
+silence, or improve a standing verdict, and a red suite is a `fail`. It will under-rate what it
+cannot prove and will not tell a regression from a new defect. The judgment a strong model adds —
+is this failure stale, brittle, or real; is this the bug that came back — stays with a run
+somebody asks for. **It is slow:** 50–55 model calls and **76–93 minutes** per delta run on
+this GPU, 29–31 calls and 37–43 minutes per baseline — about 90 seconds a question, against a
+design estimate of 10–15 (the counters each run writes into `last_run.local`). Fine for a night;
+too slow to sit in front of a merge.
+
 ### The model axis — Opus against Sonnet, paired
 
 Every published row above is Opus. The question a maintainer actually asks is whether a
