@@ -352,7 +352,15 @@ def test_the_scratch_copy_is_the_working_tree_not_the_last_commit(tmp_path):
     try:
         assert (scratch / "tracked.py").read_text(encoding="utf-8").startswith("v2")
         assert (scratch / "new.py").is_file()
-        assert not (scratch / ".venv").exists() and not (scratch / ".git").exists()
+        assert not (scratch / ".venv").exists()
+        # A repository of its own — code that lists files as git sees them runs in it (the
+        # control went red on 2026-09-18 without one) — holding the tree in hand, not the
+        # original's history.
+        def git(*args):
+            return subprocess.run(["git", "-C", str(scratch), *args], capture_output=True,
+                                  text=True).stdout.split("\n")
+        assert [x for x in git("log", "--format=%s") if x] == ["pin_check scratch"]
+        assert sorted(x for x in git("ls-files") if x) == [".gitignore", "new.py", "tracked.py"]
     finally:
         import shutil
         shutil.rmtree(scratch, ignore_errors=True)

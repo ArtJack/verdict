@@ -1393,5 +1393,11 @@
   "path": "src/verdict_mcp/runner.py",
   "old": "    env = dict(os.environ, PYTHONPATH=os.pathsep.join(\n        p for p in (src, os.environ.get(\"PYTHONPATH\")) if p))\n",
   "new": "    env = None\n"
+ },
+ {
+  "label": "A2 pin_check: the scratch copy is not a git checkout, and code that lists files as git sees them stops the control run",
+  "path": "eval/pin_check.py",
+  "old": "        make_checkout(dest)\n",
+  "new": ""
  }
 ]

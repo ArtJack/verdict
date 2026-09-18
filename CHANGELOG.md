@@ -70,6 +70,13 @@ spent. The harness child is now handed the runner's own source root on `PYTHONPA
 whatever was set, so a runner finds the code it is, installed or not. Reproduced with that
 interpreter: the same call went from `ModuleNotFoundError` to the harness's usage line. Mutant P41.
 
+**The mutation campaign could not start.** Merging main into this release brought #124's fixture
+hygiene tests, which stage every fixture the way the eval harness does — listing its files as
+git sees them — and `pin_check` copies the tree into a directory git knows nothing about. The
+control run went red before a single mutant was applied, on main as much as here. The scratch
+copy is now a checkout of its own: one commit of the tree in hand, none of the original's
+history. Mutant A2.
+
 **A regression is REGRESSED, and an open finding is not filed twice.** The same proof showed the
 tier blind to the state it carried: the rounding defect the previous run had resolved came back,
 the engine described it correctly, and filed it as NEW — a regression reported as news, ranked
