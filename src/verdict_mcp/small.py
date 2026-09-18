@@ -1547,7 +1547,9 @@ class Budget:
 
     def take_function(self) -> bool:
         if not self.stopped:
-            if self.seconds is not None and self.elapsed_s() > self.seconds:
+            # `>=`: a budget of 0 s is spent at once. With `>`, Windows' 15.6 ms monotonic
+            # clock reads 0.0 right after construction and a spent budget reads as unspent.
+            if self.seconds is not None and self.elapsed_s() >= self.seconds:
                 self.stopped = "the %ds model budget ran out" % int(self.seconds)
             elif self.used_functions >= self.functions:
                 self.stopped = f"the cap of {self.functions} function(s) was reached"
