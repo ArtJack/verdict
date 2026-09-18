@@ -36,6 +36,17 @@ test file became two findings with one identity, and finalize refused the night 
 are one finding per file and reason now, and any second finding with an identity this run
 already filed is folded into the first. Mutants P28–P35.
 
+**The second night.** Replaying that first night's output through finalize showed the next
+failure before it happened: the skip markers it filed are still in the code tomorrow, the second
+night files them again under new ids, and a state holding one identity under two ids is refused —
+every night after the first would have been lost. An identity the record already holds is now
+that finding: open, it is carried by id and not filed again; accepted or withdrawn, it stays the
+decision a person made; resolved, it comes back under its own id and is REGRESSED. A failing test
+this engine already filed is not classified again either — the model words its title differently
+each night, so the identity rule alone would have added a duplicate every night the test stayed
+red, at about ninety seconds of the night's budget each. `not_tested` counts both. Mutants
+P36–P38.
+
 **A regression is REGRESSED, and an open finding is not filed twice.** The same proof showed the
 tier blind to the state it carried: the rounding defect the previous run had resolved came back,
 the engine described it correctly, and filed it as NEW — a regression reported as news, ranked

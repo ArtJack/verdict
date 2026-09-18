@@ -1348,6 +1348,24 @@ def flaky_findings_by_test(previous: dict | None, test_ids) -> dict:
     return out
 
 
+def failure_on_record(previous: dict | None, test_id: str) -> dict | None:
+    """The open or accepted finding this engine filed for this failing test, or None.
+
+    Matched on the exact sentence `failure_finding` writes — `<id> fails at HEAD` — and
+    nothing looser: a finding that merely mentions a test may be about something else in
+    it, and treating it as this failure would hide a new one. A resolved finding is not
+    matched here; a failure that returns goes through the identity rule like any other."""
+    sentence = f"{test_id} fails at HEAD"
+    for f in (previous or {}).get("findings") or []:
+        if not isinstance(f, dict) or not f.get("id"):
+            continue
+        if norm_status(f.get("status")) not in ("open", "accepted"):
+            continue
+        if any(str(e).startswith(sentence) for e in f.get("evidence") or []):
+            return f
+    return None
+
+
 def released_ids(previous: dict | None, released: list) -> list:
     """The FLAKY findings whose quarantine this run released — they are re-filed
     with the measurement, not left standing on a claim that is no longer true."""
@@ -1852,6 +1870,9 @@ def run(repo: Path, qa_root: Path, model: Model, limit: int, gate: str | None,
     collected = known_tests(qa_root)
     prior_ids = {str(f.get("id")) for f in (previous or {}).get("findings") or []
                  if isinstance(f, dict) and f.get("id")}
+    prior_by_hash = {finding_hash(f): f for f in (previous or {}).get("findings") or []
+                     if isinstance(f, dict) and f.get("id")}
+    on_record: list = []
 
     def mint(entry: dict, into: Path, into_list: list, keep_id: bool = False) -> None:
         """File a finding, or refuse it — the validator decides, never the model."""
@@ -1859,7 +1880,10 @@ def run(repo: Path, qa_root: Path, model: Model, limit: int, gate: str | None,
         # its title, and refuses a run that files the same identity twice — a refusal that
         # costs the whole night. Anything this run already filed under the same identity is
         # the same finding: its evidence is added there, and no second file is written.
+        prior = None if keep_id else prior_by_hash.get(finding_hash(entry))
         twin = next((f for f in into_list if finding_hash(f) == finding_hash(entry)), None)
+        if twin is None and prior is not None:
+            twin = next((f for f in into_list if str(f.get("id")) == str(prior["id"])), None)
         if twin is not None:
             twin["evidence"] = list(twin.get("evidence") or []) + [
                 e for e in entry.get("evidence") or [] if e not in (twin.get("evidence") or [])]
@@ -1868,6 +1892,24 @@ def run(repo: Path, qa_root: Path, model: Model, limit: int, gate: str | None,
             print(f"verdict-local: {twin['id']} again — the same identity, folded into it",
                   file=sys.stderr)
             return
+        # The same across nights: an identity the record already holds is that finding.
+        # Open, it is carried by id, and filing it again puts one identity under two ids —
+        # found by replaying the first Sales shadow night, whose skip markers would all have
+        # come back on the second, so finalize would have refused every night after the
+        # first. Accepted or withdrawn, it is a person's decision that a regular expression
+        # does not overturn. Resolved, it came back: under its own id, so it is REGRESSED.
+        status = norm_status((prior or {}).get("status"))
+        if prior is not None and status != "resolved":
+            on_record.append((str(prior["id"]), status))
+            print(f"verdict-local: not filed again — {prior['id']} ({status}) is this finding "
+                  "already", file=sys.stderr)
+            return
+        if prior is not None:
+            print(f"verdict-local: {prior['id']} is back — the identity it was resolved under",
+                  file=sys.stderr)
+            entry = regressed_finding(prior, entry,
+                                      "the same file and title it was resolved under")
+            keep_id = True
         if not keep_id:
             entry["id"] = f"{prefix}-{counter[0]}"
         problems = validate_finding(entry, f"{FINDINGS_DIR}/{entry['id']}.json",
@@ -1916,6 +1958,17 @@ def run(repo: Path, qa_root: Path, model: Model, limit: int, gate: str | None,
         mint(flaky_finding(entry, len(repeats) + 1, "@"), findings_dir, filed)
     for failure in failures:
         if failure["id"] in flaky:
+            continue
+        # A failing test this engine already filed is that finding, still open: carried by
+        # id, not classified again. The model words its title differently from night to
+        # night, so the identity rule alone would file a new duplicate every night the test
+        # stays red — at about ninety seconds of the night's model budget each.
+        cited = failure_on_record(previous, failure["id"])
+        if cited is not None:
+            status = norm_status(cited.get("status"))
+            on_record.append((str(cited["id"]), status))
+            print(f"verdict-local: not classified again — {failure['id']} is {cited['id']} "
+                  f"({status})", file=sys.stderr)
             continue
         claim = classify(model, repo, failure)
         if claim:
@@ -2043,6 +2096,12 @@ def run(repo: Path, qa_root: Path, model: Model, limit: int, gate: str | None,
             f"{len(already_open)} claim(s) about function(s) that already carry an open finding "
             f"({ids}) were not filed again — whether each is that finding or a second defect "
             "in the same function was not settled")
+    if on_record:
+        ids = ", ".join(sorted({f"{fid} ({status})" for fid, status in on_record}))
+        not_tested.append(
+            f"{len(on_record)} finding(s) this run found again are already on the record "
+            f"({ids}) and were not filed again — the same identity, or a failing test this "
+            "engine already filed; each stays as the record has it")
     carried_blocked = prior_verdict == "blocked" and verdict == "blocked"
     if carried_blocked:
         not_tested.append(CARRIED_BLOCKED)

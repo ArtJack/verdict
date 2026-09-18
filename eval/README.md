@@ -899,6 +899,14 @@ finalizing an unqualified pass; `needs_claude` dropping the changed lines nothin
 reference state opened for writing. None of those turns the suite red on its own — which is
 exactly why each one is in the catalogue.
 
+Twenty more (P19–P38) came from measuring the tier rather than reading it: the proofs on the
+seeded fixture (a red suite under-rated, a regression filed as news, a duplicate of an open
+finding) and the shadow runs on the author's own Sales project (an inherited class conflict
+refused instead of asked, a night with no budget, unproven readings filed as findings, proofs
+imported from the wrong root, one identity filed twice in a night, and — found by replaying the
+first night's output through finalize — the same identity filed again on the second night,
+which would have lost every night after the first). 38 in all for the tier.
+
 **P4 survived its first campaign, and that is the tool earning its keep.** The rule is "a
 standing verdict may not improve"; the test asserted a standing `fail` beside *nothing filed*,
 which is a case the rule never has to fire on, so deleting the rule changed nothing the suite

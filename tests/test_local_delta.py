@@ -955,3 +955,92 @@ def test_two_findings_with_one_identity_in_one_run_are_one_finding(tmp_path):
     mine = [f for f in state_of(qa)["findings"] if f["title"] == "doubling is missing"]
     assert len(mine) == 1, "one identity, one finding"
     assert sum("two.py:" in e for e in mine[0]["evidence"]) >= 2, "both sites are on it"
+
+
+# ── what replaying the shadow night taught (2026-09-18) ───────────────────────
+
+SKIPPED = ("import pytest\n\n\n@pytest.mark.skip(reason=\"the fixture file is not in the repo\")\n"
+           "def test_later():\n    assert True\n")
+
+
+def test_the_second_night_carries_what_the_first_filed_and_is_not_refused(tmp_path):
+    """Replaying the first Sales shadow night's output: every skip marker it filed would come
+    back on the second night, be filed again under a new id, and finalize refuses a state
+    holding one identity twice — every night after the first would have been lost."""
+    repo, qa = project(tmp_path)
+    (repo / "test_skip.py").write_text(SKIPPED, encoding="utf-8")
+    git(repo, "add", "-A")
+    git(repo, "commit", "-qm", "a skip with no expiry")
+    assert delta(repo, qa) == 0
+    first = [f["id"] for f in state_of(qa)["findings"] if "skipped with no expiry" in f["title"]]
+    assert len(first) == 1
+
+    (repo / "other.py").write_text("def other(x):\n    return x  # night two\n", encoding="utf-8")
+    git(repo, "commit", "-qam", "night two")
+    assert delta(repo, qa) == 0, "the second night is recorded, not refused"
+    state = state_of(qa)
+    assert state["run_number"] == 3
+    again = [f for f in state["findings"] if "skipped with no expiry" in f["title"]]
+    assert [f["id"] for f in again] == first, "one identity, one id, night after night"
+    assert again[0]["status"] == "open" and again[0]["delta"] == "STILL_OPEN"
+    assert any("already on the record" in x and f"{first[0]} (open)" in x
+               for x in state["not_tested"]), "not filed again, and said"
+
+
+def test_a_resolved_identity_that_comes_back_is_regressed_under_its_own_id(tmp_path):
+    """A skip marker a person removed — its finding resolved — is put back. The regular
+    expression finds it under the identity it was resolved under: its own id, REGRESSED."""
+    scratch = tmp_path / "scan"             # the finding exactly as the scanner files it
+    scratch.mkdir()
+    (scratch / "test_skip.py").write_text(SKIPPED, encoding="utf-8")
+    skip = small.group_skips(small.skips_without_expiry(scratch, ["test_skip.py"]))[0]
+    gone = dict(small.skip_finding(skip, "PROJ-F-2"), status="resolved")
+    repo, qa = project(tmp_path, findings=[
+        {"id": "PROJ-F-1", "title": "rate doubles where the spec says triples",
+         "severity": "Major", "priority": "P1", "status": "open",
+         "failure_classification": "REAL_DEFECT", "confidence": "proven",
+         "evidence": ["cited.py:3 — `return weight * 2`"]}, gone])
+    (repo / "test_skip.py").write_text(SKIPPED, encoding="utf-8")
+    git(repo, "add", "-A")
+    git(repo, "commit", "-qm", "the skip is back")
+
+    assert delta(repo, qa) == 0
+    state = state_of(qa)
+    back = [f for f in state["findings"] if f["title"] == gone["title"]]
+    assert [(f["id"], f["delta"], f["status"]) for f in back] == [("PROJ-F-2", "REGRESSED", "open")]
+    assert any(e.startswith("REGRESSED — PROJ-F-2 was resolved") for e in back[0]["evidence"])
+
+
+def test_a_failing_test_this_engine_filed_is_not_classified_again(tmp_path):
+    """The model words a failure differently each night, so the identity rule alone would file
+    a new duplicate every night the test stays red — and spend a question on it each time."""
+    repo, qa = project(tmp_path)
+    # A different size, not only different bytes: a same-size rewrite inside the second the
+    # gate compiled the file reuses the cached bytecode, and the test stays green.
+    (repo / "test_cited.py").write_text(TEST.replace("== 4", "== 6, 'the spec triples'"),
+                                        encoding="utf-8")
+    git(repo, "commit", "-qam", "a test goes red")
+
+    def asked(title):
+        return _ByPrompt([("classifying one failing test", {
+            "classification": "REAL_DEFECT", "severity": "Major", "title": title,
+            "mechanism": "rate doubles where the test expects triple"})])
+
+    night_one = asked("rate(2) returns 4 where the test expects 6")
+    delta(repo, qa, night_one)
+    red = [f for f in state_of(qa)["findings"]
+           if any(" fails at HEAD" in e for e in f.get("evidence") or [])]
+    assert len(red) == 1 and red[0]["delta"] == "NEW"
+    assert sum("classifying one failing test" in p for p in night_one.prompts) == 1
+
+    (repo / "other.py").write_text("def other(x):\n    return x  # night two\n", encoding="utf-8")
+    git(repo, "commit", "-qam", "night two, the test still red")
+    night_two = asked("the rate test fails: doubling instead of tripling")
+    assert delta(repo, qa, night_two) == 0
+    state = state_of(qa)
+    again = [f for f in state["findings"]
+             if any(" fails at HEAD" in e for e in f.get("evidence") or [])]
+    assert [f["id"] for f in again] == [red[0]["id"]], "the same failure, the same finding"
+    assert not [p for p in night_two.prompts if "classifying one failing test" in p], \
+        "and no question spent on it"
+    assert any(f"{red[0]['id']} (open)" in x for x in state["not_tested"])

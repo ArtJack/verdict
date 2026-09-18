@@ -1351,5 +1351,23 @@
   "path": "src/verdict_mcp/small.py",
   "old": "        twin = next((f for f in into_list if finding_hash(f) == finding_hash(entry)), None)\n",
   "new": "        twin = None\n"
+ },
+ {
+  "label": "0.90.0 P36 local: an identity the record already holds is filed again, and the second night is refused",
+  "path": "src/verdict_mcp/small.py",
+  "old": "        prior = None if keep_id else prior_by_hash.get(finding_hash(entry))\n",
+  "new": "        prior = None\n"
+ },
+ {
+  "label": "0.90.0 P37 local: a resolved identity that comes back is dropped instead of REGRESSED",
+  "path": "src/verdict_mcp/small.py",
+  "old": "        if prior is not None and status != \"resolved\":\n",
+  "new": "        if prior is not None:\n"
+ },
+ {
+  "label": "0.90.0 P38 local: a failing test this engine already filed is classified and filed again every night",
+  "path": "src/verdict_mcp/small.py",
+  "old": "        cited = failure_on_record(previous, failure[\"id\"])\n",
+  "new": "        cited = None\n"
  }
 ]
