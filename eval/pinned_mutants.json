@@ -1369,5 +1369,11 @@
   "path": "src/verdict_mcp/small.py",
   "old": "        cited = failure_on_record(previous, failure[\"id\"])\n",
   "new": "        cited = None\n"
+ },
+ {
+  "label": "0.90.0 P39 harness: finding ids without a prefix (Sales' F-162) are not read, and a second numbering starts",
+  "path": "src/verdict_mcp/harness.py",
+  "old": "_FID = re.compile(r\"^(?:(?P<prefix>.+)-)?F-(?P<n>\\d+)$\")\n",
+  "new": "_FID = re.compile(r\"^(?P<prefix>.+)-F-(?P<n>\\d+)$\")\n"
  }
 ]

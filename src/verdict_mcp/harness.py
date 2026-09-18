@@ -1545,7 +1545,7 @@ def collect(repo: Path, qa_root: Path, gates: list[tuple[str, str]],
 
 _LINE_NUMBERS = re.compile(r"\d+")
 _WS = re.compile(r"\s+")
-_FID = re.compile(r"^(?P<prefix>.+)-F-(?P<n>\d+)$")
+_FID = re.compile(r"^(?:(?P<prefix>.+)-)?F-(?P<n>\d+)$")
 _SHA = re.compile(r"(?<![0-9a-zA-Z])[0-9a-f]{7,40}(?![0-9a-zA-Z])")
 
 
@@ -1553,8 +1553,13 @@ def next_finding_id(key: str, previous: dict | None, ledger: dict | None) -> str
     """The id the next NEW finding takes: one past the highest ever minted for
     this project, in the state or in the outcome ledger (a finding resolved
     runs ago is gone from the state, and §6 forbids reusing its number). The
-    prefix is the one the project already uses, or the key upper-cased on a
-    first run; zero-padding is kept when the project pads (`PRICER-F-003`)."""
+    prefix is the one the project already uses — none, when its ids have none
+    (`F-162`) — or the key upper-cased on a first run; zero-padding is kept
+    when the project pads (`PRICER-F-003`).
+
+    Measured on the Sales shadow run (2026-09-18): the pattern required a
+    prefix, so not one of Sales' 75 ids matched, and the first local night
+    minted `SALES-F-1` beside `F-162` — a second numbering in one record."""
     ids = [f.get("id") for f in (previous or {}).get("findings") or [] if isinstance(f, dict)]
     ids += [row.get("id") for row in ((ledger or {}).get("findings") or {}).values()
             if isinstance(row, dict)]
@@ -1564,12 +1569,13 @@ def next_finding_id(key: str, previous: dict | None, ledger: dict | None) -> str
         m = _FID.match(str(fid or ""))
         if not m:
             continue
-        prefixes[m["prefix"]] = prefixes.get(m["prefix"], 0) + 1
+        prefixes[m["prefix"] or ""] = prefixes.get(m["prefix"] or "", 0) + 1
         n = int(m["n"])
         if n > top:
             top, width = n, (len(m["n"]) if m["n"].startswith("0") else 0)
     prefix = max(prefixes, key=prefixes.get) if prefixes else str(key).upper()
-    return f"{prefix}-F-{top + 1:0{width}d}" if width else f"{prefix}-F-{top + 1}"
+    head = f"{prefix}-F-" if prefix else "F-"
+    return f"{head}{top + 1:0{width}d}" if width else f"{head}{top + 1}"
 
 
 def _anchor_texts(finding: dict) -> list[str]:

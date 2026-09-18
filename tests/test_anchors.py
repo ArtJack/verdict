@@ -294,6 +294,10 @@ def test_facts_name_the_next_finding_id(repo, qa_root):
     ledger = {"findings": {"h": {"id": "W-F-9"}}}   # resolved runs ago, gone from state
     assert next_finding_id("widget", prev, ledger) == "W-F-10"
     assert next_finding_id("pricer", {"findings": [{"id": "PRICER-F-003"}]}, None) == "PRICER-F-004"
+    # Sales' ids carry no prefix; the pattern used to need one, and a first local night
+    # minted `SALES-F-1` beside `F-162`. A record that already holds both keeps the majority's.
+    sales = {"findings": [{"id": "F-021"}, {"id": "F-162"}, {"id": "SALES-F-4"}]}
+    assert next_finding_id("sales", sales, None) == "F-163"
     assert collect(repo, qa_root, [])["next_finding_id"] == "WIDGET-F-1"
     finalize(repo, qa_root, judgment(findings=[finding()]))
     assert collect(repo, qa_root, [])["next_finding_id"] == "W-F-2"

@@ -47,6 +47,12 @@ each night, so the identity rule alone would have added a duplicate every night 
 red, at about ninety seconds of the night's budget each. `not_tested` counts both. Mutants
 P36–P38.
 
+**One numbering per record.** The night that finalized minted `SALES-F-1` beside `F-162`: the
+harness's next-id rule only recognised prefixed ids (`PRICER-F-003`), so none of Sales' 75
+matched and a new sequence started under the key's name. Nothing collided, but a record with two
+numberings is one nobody can read by eye. Ids without a prefix are read now, and the next Sales
+id is `F-163`. Mutant P39.
+
 **A regression is REGRESSED, and an open finding is not filed twice.** The same proof showed the
 tier blind to the state it carried: the rounding defect the previous run had resolved came back,
 the engine described it correctly, and filed it as NEW — a regression reported as news, ranked
