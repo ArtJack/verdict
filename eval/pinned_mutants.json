@@ -1405,5 +1405,11 @@
   "path": "src/verdict_mcp/runner.py",
   "old": "    return subprocess.run([sys.executable, \"-c\", _BOOT, src, sub, *args],\n                          capture_output=True, text=True, encoding=\"utf-8\", errors=\"replace\")\n",
   "new": "    return subprocess.run([sys.executable, \"-c\", _BOOT, src, sub, *args],\n                          capture_output=True, text=True, encoding=\"utf-8\", errors=\"replace\",\n                          env=dict(os.environ, PYTHONPATH=src))\n"
+ },
+ {
+  "label": "0.90.1 P43 filed: a finding file named with the project's prefix-less id (Sales' F-163) is refused at finalize",
+  "path": "src/verdict_mcp/filed.py",
+  "old": "_NAME = re.compile(r\"^(?P<id>(?:[A-Za-z0-9_.-]+-)?F-\\d+)\\.json$\")\n",
+  "new": "_NAME = re.compile(r\"^(?P<id>[A-Za-z0-9_.-]+-F-\\d+)\\.json$\")\n"
  }
 ]

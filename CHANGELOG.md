@@ -17,6 +17,14 @@ as an argument and puts it on its own `sys.path` only; the environment is inheri
 A sweep started through `verdict-run` from any installed 0.90.0 over a project with its own
 environment is affected — upgrade. Mutant P42 (and P41 re-anchored on the new launch).
 
+**A finding file named with the project's own numbering was refused.** 0.90.0 taught the id rule
+to read ids without a prefix, so the next Sales id is `F-163`, the record's own numbering. But
+the finding-file rule still demanded `<PROJECT>-F-<n>.json`. The dress rehearsal of the Sales
+nightly filed `findings/F-163.json` through `F-166.json` and finalize refused all four, which
+lost the whole night at its last step. The same rule is why the write-time check never
+recognised Sales' finding files, and plausibly why its runs had been filing findings inline. A
+finding file is the finding's id, with the project's prefix or with none. Mutant P43.
+
 ## 0.90.0 — 2026-09-18 · "the local tier"
 
 **Every run nobody asked for spends zero Claude tokens.** `verdict-run --on-drift

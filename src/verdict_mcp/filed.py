@@ -25,7 +25,11 @@ from pathlib import Path
 
 FINDINGS_DIR = "findings"
 PREV_DIR = "findings.prev"
-_NAME = re.compile(r"^(?P<id>[A-Za-z0-9_.-]+-F-\d+)\.json$")
+# The project's own numbering, prefix or none: Sales has filed `F-1` … `F-162` since before the
+# harness existed. Requiring `<PROJECT>-F-<n>` here refused every finding file its first local
+# night wrote (the dress rehearsal, 2026-09-18) once the next id was read as `F-163` — the
+# harness's id rule and this one must agree, and the id rule reads the record.
+_NAME = re.compile(r"^(?P<id>(?:[A-Za-z0-9_.-]+-)?F-\d+)\.json$")
 
 
 def finding_file(path) -> tuple[Path, str] | None:
@@ -79,7 +83,8 @@ def load_filed(qa_root: Path) -> tuple[list[dict], list[str]]:
         rel = f"{FINDINGS_DIR}/{p.name}"
         m = _NAME.match(p.name)
         if not m:
-            problems.append(f"{rel}: the filename must be `<PROJECT>-F-<n>.json`, the finding's id")
+            problems.append(f"{rel}: the filename must be the finding's id — `<PROJECT>-F-<n>.json`, "
+                            "or `F-<n>.json` where the project's ids carry no prefix")
             continue
         try:
             data = json.loads(p.read_text(encoding="utf-8"))
