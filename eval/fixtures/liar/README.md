@@ -1,8 +1,7 @@
-# qstats — eval fixture (spec of record)
+# qstats (spec of record)
 
 Tiny message-queue statistics helpers. **This README is the requirement spec** the code
-and tests must satisfy. The fixture is adversarial by design — see
-`../../expected-liar.json` for the answer key (do not read it during an eval run).
+and tests must satisfy.
 
 ## Requirements
 

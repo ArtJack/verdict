@@ -41,18 +41,27 @@ import os
 import re
 import shutil
 import sys
-import tempfile
 from pathlib import Path
 
 EVAL_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(EVAL_DIR))
 
 from mutate import apply_to, census                      # noqa: E402
-from run_eval import git, provision, run_agent  # noqa: E402
+from run_eval import git, overlay, provision, run_agent, scratch_dir  # noqa: E402
 
 PROMPT = ("Use the verdict-rc agent to run a QA review of the pricer module in this "
           "repository. Verdict-rc reports and specifies; it does not fix. Return the "
           "agent's full handoff: verdict, findings, and artifact paths.")
+
+# The checkout is named for the project, never for its role here: the name becomes the
+# project key, the QA root and the prefix of every finding id, and `pricer_clean`
+# announced a module someone had already declared correct.
+CHECKOUT_NAME = {"pricer_clean": "pricer"}
+
+# The census's behavioural oracle stays with the maintainer's tools. A `probe.py` that
+# fingerprints every public function over an input grid is not a file a small project
+# has; it tells a tester it is standing inside a mutation run.
+MAINTAINER_ONLY = ("probe.py",)
 
 
 def enclosing_function(source: str, line: int) -> str | None:
@@ -80,25 +89,35 @@ def classify(state: dict, module: str, function: str | None, line: int) -> dict:
     return {"caught_by": caught, "other_findings": others}
 
 
+def stage(mutant, fixture_dir, module, work, base_env) -> tuple:
+    """The repository the tester is handed: the base with one line broken, one commit.
+
+    The workdir carries no name of its own — `verdict-mut-M03-` put the eval, the
+    protocol and the mutant's own id in every absolute path the tester wrote down.
+    """
+    name = CHECKOUT_NAME.get(fixture_dir.name, fixture_dir.name)
+    checkout, qa_home = work / name, work / "qa-home"
+    overlay(fixture_dir, checkout, copy=shutil.copy2, exclude=MAINTAINER_ONLY)
+    qa_home.mkdir(parents=True, exist_ok=True)
+    source = (fixture_dir / module).read_text(encoding="utf-8")
+    (checkout / module).write_text(apply_to(source, mutant), encoding="utf-8")
+
+    git(["init", "-qb", "main"], checkout, base_env)
+    provision(checkout, {})
+    git(["add", "-A"], checkout, base_env)
+    git(["commit", "-qm", "Initial commit"], checkout, base_env)
+    return checkout, qa_home, qa_home / name
+
+
 def run_one(mutant, fixture_dir, module, args, base_env):
-    work = Path(tempfile.mkdtemp(prefix=f"verdict-mut-{mutant['id']}-"))
-    checkout = work / fixture_dir.name
-    qa_home = work / "qa-home"
-    qa_root = qa_home / fixture_dir.name
+    work = scratch_dir()
     result = {"mutant": mutant["id"], "operator": mutant["operator"],
               "line": mutant["line"], "before": mutant["before"],
               "after": mutant["after"], "workdir": str(work)}
     try:
-        shutil.copytree(fixture_dir, checkout)
-        qa_home.mkdir(parents=True)
+        checkout, qa_home, qa_root = stage(mutant, fixture_dir, module, work, base_env)
         source = (fixture_dir / module).read_text(encoding="utf-8")
-        (checkout / module).write_text(apply_to(source, mutant), encoding="utf-8")
         result["function"] = enclosing_function(source, mutant["line"])
-
-        git(["init", "-qb", "main"], checkout, base_env)
-        provision(checkout, {})
-        git(["add", "-A"], checkout, base_env)
-        git(["commit", "-qm", "pricer"], checkout, base_env)
 
         run_agent(PROMPT, checkout, qa_home, args.model, args.timeout_s,
                   base_env, work / "run.log")

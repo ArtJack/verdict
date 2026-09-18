@@ -1,7 +1,6 @@
 # rates — freight quoting (spec of record)
 
-**This README is the requirement spec.** It intentionally contains a seeded defect — see
-`../../expected-cause.json` for the answer key (do not read it during an eval run).
+**This README is the requirement spec.**
 
 ## Requirements
 

@@ -1,8 +1,7 @@
 # SyncBay — inventory sync (spec of record)
 
 A tiny marketplace inventory sync engine. **This README is the requirement spec** the code
-and tests must satisfy. It intentionally pairs with seeded defects — the answer key is
-`eval/expected-slop.json`; do not read it during an eval run.
+and tests must satisfy.
 
 ## Requirements
 
