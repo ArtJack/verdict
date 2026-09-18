@@ -3,7 +3,7 @@
 Plugin and `verdict-mcp` share one version line; `.claude-plugin/plugin.json` and
 `pyproject.toml` are bumped together.
 
-## 0.90.0 — 2026-09-17 · "the local tier"
+## 0.90.0 — 2026-09-18 · "the local tier"
 
 **Every run nobody asked for spends zero Claude tokens.** `verdict-run --on-drift
 {model,local,none}` decides what a night does when the sweep is blocked: spend a Claude run
