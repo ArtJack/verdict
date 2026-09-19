@@ -156,10 +156,17 @@ def facts_view(qa_root, today: date) -> dict | None:
     return out
 
 
-def fold(qa_root, prefix: str, asked, run_number, today: date) -> tuple[dict, list[str]]:
+def fold(qa_root, prefix: str, asked, run_number, today: date) -> tuple[dict, list[str], dict]:
     """finalize's step: mint this run's questions, fold the answers, acknowledge
-    them, write the ledger → (view for the state, notes). `prefix` is the
-    project's finding-id prefix (see `id_prefix`)."""
+    them → (view for the state, notes, the ledger for `save`). `prefix` is the
+    project's finding-id prefix (see `id_prefix`).
+
+    Nothing is written here. Finalize saves the ledger once the validator has
+    accepted the state, because a refused run is not a run — and a ledger written
+    before the verdict on it kept what the refused run asked: on a copy of Sales'
+    root, 2026-09-18, SALES-Q-17 was parked at a run number no state or runs.jsonl
+    ever held, the next recorded run was told it was already asked, and an answer
+    acknowledged there would never have reached a run that counted."""
     ledger = load_questions(qa_root)
     notes = []
     _fold_answers(ledger, load_answers(qa_root))
@@ -185,9 +192,13 @@ def fold(qa_root, prefix: str, asked, run_number, today: date) -> tuple[dict, li
     out = view(ledger, today)
     for row in out["answered_since_last_run"]:
         ledger["questions"][row["id"]]["acknowledged_at_run"] = run_number
+    return out, notes, ledger
+
+
+def save(qa_root, ledger: dict) -> None:
+    """Write the ledger `fold` returned; a project that never asked has no file."""
     if ledger["questions"]:
         _write(qa_root, ledger)
-    return out, notes
 
 
 # ── the maintainer's pen ────────────────────────────────────────────────────
