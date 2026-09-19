@@ -564,17 +564,26 @@ def _save_record(path: Path, record: dict) -> None:
 # prints why and runs the model. The judgment is synthetic and says so in every
 # field a reader would look at.
 
+#: The harness child's first act: put the runner's own source root on ITS path, and only there.
+_BOOT = ("import sys; sys.path.insert(0, sys.argv.pop(1)); "
+         "from verdict_mcp.harness import main; sys.exit(main())")
+
+
 def _harness(sub: str, *args: str) -> subprocess.CompletedProcess:
     # The child runs the code this runner is, installed or not. Measured on the Sales nightly:
     # `python3 src/verdict_mcp/runner.py`, started by an interpreter that never installed the
     # package, could not `-m verdict_mcp.harness`, and every sweep from 2026-09-17 ended
     # "No module named 'verdict_mcp'" — exit 5, nothing measured, for two nights.
+    #
+    # 0.90.0 fixed that with PYTHONPATH, and every grandchild inherited it: from an installed
+    # verdict the root is the whole site-packages of Verdict's own environment, and the
+    # project's test command imported Verdict's packages ahead of its own. Measured the same
+    # day on the pinned nightly's lab-down drill: Sales' pytest exited 2 with 925 of ~3,450
+    # tests collected, the gate read as failed and the sweep was refused. The path goes into
+    # the child's sys.path and nowhere else; the environment is inherited untouched.
     src = str(Path(__file__).resolve().parent.parent)
-    env = dict(os.environ, PYTHONPATH=os.pathsep.join(
-        p for p in (src, os.environ.get("PYTHONPATH")) if p))
-    return subprocess.run([sys.executable, "-m", "verdict_mcp.harness", sub, *args],
-                          capture_output=True, text=True, encoding="utf-8", errors="replace",
-                          env=env)
+    return subprocess.run([sys.executable, "-c", _BOOT, src, sub, *args],
+                          capture_output=True, text=True, encoding="utf-8", errors="replace")
 
 
 def _changed_files(repo, sha_range: str):

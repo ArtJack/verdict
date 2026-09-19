@@ -1057,3 +1057,23 @@ def test_a_range_with_nothing_in_it_reads_nothing(tmp_path):
     facts = json.loads((qa / "facts.json").read_text(encoding="utf-8"))
     assert "diff_over_limit" not in (facts.get("needs_claude") or {})
     assert state_of(qa)["run_number"] == 2
+
+
+def test_a_project_whose_ids_carry_no_prefix_files_and_finalizes(tmp_path):
+    """The dress rehearsal on the Sales copy (2026-09-18): the next id was `F-163` — the record's
+    own numbering — and finalize refused every finding file the night wrote, because the file
+    rule still demanded `<PROJECT>-F-<n>.json`. The whole night was lost at its last step."""
+    repo, qa = project(tmp_path, findings=[{
+        "id": "F-1", "title": "rate doubles where the spec says triples",
+        "severity": "Major", "priority": "P1", "status": "open",
+        "failure_classification": "REAL_DEFECT", "confidence": "proven",
+        "evidence": ["cited.py:3 — `return weight * 2`"]}])
+    (repo / "test_skip.py").write_text(SKIPPED, encoding="utf-8")
+    git(repo, "add", "-A")
+    git(repo, "commit", "-qm", "a skip with no expiry")
+    assert delta(repo, qa) == 0, "the night is recorded"
+    ids = [f["id"] for f in state_of(qa)["findings"]]
+    assert ids.count("F-2") == 1 and "F-1" in ids, ids
+    from verdict_mcp.filed import finding_file
+    assert finding_file(qa / "findings" / "F-2.json") == (qa, "F-2"), \
+        "and the write-time check recognises the file as a finding"
