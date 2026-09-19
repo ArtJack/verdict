@@ -84,6 +84,44 @@ def test_the_same_question_asked_again_is_not_minted_twice(repo, qa_root, capsys
     assert list(q.load_questions(qa_root)["questions"]) == ["W-Q-1"]
 
 
+def test_a_refused_finalize_asks_nothing_and_leaves_no_report(repo, qa_root, capsys):
+    """A run the validator refuses is not a run. Finalize folded the questions and wrote the
+    ledger before the state was judged, so a refusal kept what it had asked: on a copy of
+    Sales' QA root, 2026-09-18, a refused local run parked SALES-Q-17 at a run number no
+    state or runs.jsonl ever held, and the next recorded run was told the question was
+    already on the ledger. The report it rendered for the validator stayed behind too."""
+    ask(repo, qa_root, capsys)                      # run 1 parks W-Q-1 ...
+    assert answer(qa_root) == 0                     # ... and the maintainer answers it
+    run_facts(repo, qa_root)
+    second = "Is a cent rounded before or after the discount is applied to the line total?"
+    # One identity filed twice — same title, same cited file: two ids pass the judgment
+    # check, one hash fails the state's.
+    twin = dict(finding("W-F-2"), title=finding()["title"])
+    refused = judgment(findings=[finding(), twin],
+                       questions=[{"question": second, "finding": "W-F-2"}])
+    ledger = qa_root / q.QUESTIONS_FILE
+    before = ledger.read_bytes()
+    reports = {p.name: p.read_bytes() for p in (qa_root / "reports").iterdir()}
+    # Over run 1's own report (this judgment names it), then over a name finalize mints.
+    for j in (refused, {k: v for k, v in refused.items() if k != "report"}):
+        rc, _ = run_finalize(qa_root, j)
+        err = capsys.readouterr().err
+        assert rc == 1 and "refusing to write an invalid state" in err and "shares hash" in err
+        assert ledger.read_bytes() == before, "a refused run parked or acknowledged a question"
+        assert {p.name: p.read_bytes() for p in (qa_root / "reports").iterdir()} == reports
+    # The answer is still news, and the run that is recorded asks the question itself.
+    assert run_facts(repo, qa_root)["questions"]["answered_since_last_run"][0]["id"] == "W-Q-1"
+    recorded = judgment(findings=[finding()], questions=[{"question": second, "finding": "W-F-1"}])
+    rc, state = run_finalize(qa_root, recorded)
+    err = capsys.readouterr().err
+    assert rc == 0, err
+    assert "already on the ledger" not in err
+    entries = q.load_questions(qa_root)["questions"]
+    assert entries["W-Q-2"]["asked_at_run"] == state["run_number"] == 2
+    assert entries["W-Q-1"]["acknowledged_at_run"] == 2
+    assert state["questions"]["answered_since_last_run"][0]["id"] == "W-Q-1"
+
+
 def test_a_judgment_question_needs_a_sentence_and_a_known_finding(repo, qa_root, capsys):
     run_facts(repo, qa_root)
     rc, _ = run_finalize(qa_root, judgment(findings=[finding()],
