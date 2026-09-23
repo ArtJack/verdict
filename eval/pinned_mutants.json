@@ -1411,5 +1411,11 @@
   "path": "src/verdict_mcp/filed.py",
   "old": "_NAME = re.compile(r\"^(?P<id>(?:[A-Za-z0-9_.-]+-)?F-\\d+)\\.json$\")\n",
   "new": "_NAME = re.compile(r\"^(?P<id>[A-Za-z0-9_.-]+-F-\\d+)\\.json$\")\n"
+ },
+ {
+  "label": "0.90.2 P44 finalize: the questions ledger is saved before the state is judged, so a refused run parks what it asked (Sales' SALES-Q-17)",
+  "path": "src/verdict_mcp/harness.py",
+  "old": "    problems = write_state(qa_root, state)\n",
+  "new": "    questions.save(qa_root, qledger)\n    problems = write_state(qa_root, state)\n"
  }
 ]

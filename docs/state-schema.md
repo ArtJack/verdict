@@ -560,6 +560,8 @@ maintainer's**, written by `verdict-answer <project> <Q-id> --answer "…"` or
 `--dismiss --reason "…"`; the scope guards refuse it to the tester, as they refuse
 `accepted.json`, and a judgment cannot write an answer. finalize folds each answer into
 the question it answers and marks it `acknowledged_at_run` the first time a run reads it.
+A finalize the validator refuses writes none of this: the ledger is saved only after the
+state is.
 
 ```json
 {"schema_version": 1, "questions": {

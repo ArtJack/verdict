@@ -3,6 +3,19 @@
 Plugin and `verdict-mcp` share one version line; `.claude-plugin/plugin.json` and
 `pyproject.toml` are bumped together.
 
+## 0.90.2 — 2026-09-23 · "a refused run asks nothing"
+
+**A refused finalize kept the questions it asked.** `verdict-finalize` folded the judgment's
+questions into `questions.json` — an id minted for each, every waiting answer marked
+acknowledged — before the validator had judged the state. So a run it refused still parked its
+questions, at a run number no `state.json` or `runs.jsonl` ever held, and swallowed the answers
+it acknowledged: the next recorded run was never told they had arrived. Found on a copy of the
+Sales QA root on 2026-09-18: a local run refused for a duplicate finding hash left its
+inherited-conflict question on the ledger as SALES-Q-17, and the next successful finalize
+reported it "already on the ledger". The ledger is now written only once the state is accepted,
+and the report rendered for the validator goes with a refusal too — removed, or the file it
+overwrote put back — instead of staying behind as a "run N" the record never held. Mutant P44.
+
 ## 0.90.1 — 2026-09-18 · "the path stays in the child"
 
 **0.90.0's runner fix leaked into the project's tests.** To let a runner started from a checkout

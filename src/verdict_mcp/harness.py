@@ -2415,7 +2415,9 @@ _REPORT_RUN = re.compile(r"·\s*run\s+(\d+)\b")
 
 def _report_belongs_to(path: Path, run_number) -> bool:
     """True when the report on disk is this run's own — its header names the
-    run number — so a retry after a refused finalize reuses its file."""
+    run number — so a retry reuses the file an earlier attempt at the same run
+    left. A refusal takes its report back now (finalize_main); a finalize killed
+    after rendering still leaves one, as every refusal used to."""
     try:
         head = path.read_text(encoding="utf-8", errors="replace")[:200]
     except OSError:
@@ -2663,8 +2665,10 @@ def finalize_main(argv=None) -> int:
 
     state = merge(facts, judgment, previous, ledger=load_outcomes(qa_root),
                   accepted=load_accepted(qa_root))
-    asked, qnotes = questions.fold(qa_root, questions.id_prefix(state["findings"], state["project"]),
-                                   judgment.get("questions"), state["run_number"], run_date(facts))
+    # Folded in memory; the ledger is saved only once the state is accepted (questions.fold).
+    asked, qnotes, qledger = questions.fold(
+        qa_root, questions.id_prefix(state["findings"], state["project"]),
+        judgment.get("questions"), state["run_number"], run_date(facts))
     if asked["parked"] or asked["answered_since_last_run"]:
         state["questions"] = asked
     else:
@@ -2674,7 +2678,7 @@ def finalize_main(argv=None) -> int:
 
     # Render the report before validating: the validator requires the file to
     # exist, and writing it here is what makes "the report went missing"
-    # impossible rather than merely forbidden.
+    # impossible rather than merely forbidden. A refusal takes it back (below).
     report_rel = (state.get("last_run") or {}).get("report") or ""
     if not report_rel or not report_rel.endswith(".md"):
         stamp = facts.get("measured_at", "")[:10]
@@ -2683,13 +2687,24 @@ def finalize_main(argv=None) -> int:
         state["last_run"]["report"] = report_rel
     report_path = qa_root / report_rel
     report_path.parent.mkdir(parents=True, exist_ok=True)
+    displaced = report_path.read_bytes() if report_path.is_file() else None
     report_path.write_text(render_report(state, judgment.get("prose")), encoding="utf-8")
 
     problems = write_state(qa_root, state)
     if problems:
+        # Not left as an orphan: removed if this call created it, its bytes put back if
+        # it replaced a file (a judgment may name an earlier run's report). Left behind, it
+        # is a "run N" no state, INDEX row or runs.jsonl line records, naming question ids
+        # the ledger never minted; a retry renders it again, and a next attempt dated
+        # another day writes a second "run N" beside it.
+        if displaced is None:
+            report_path.unlink(missing_ok=True)
+        else:
+            report_path.write_bytes(displaced)
         print(f"verdict-finalize: refusing to write an invalid state "
               f"({len(problems)} problem(s)):\n  " + "\n  ".join(problems), file=sys.stderr)
         return 1
+    questions.save(qa_root, qledger)
     marker = qa_root / "run-in-progress.json"
     marker.unlink(missing_ok=True)
     _record_bill(qa_root, state, bill)
