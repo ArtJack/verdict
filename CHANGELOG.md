@@ -3,7 +3,7 @@
 Plugin and `verdict-mcp` share one version line; `.claude-plugin/plugin.json` and
 `pyproject.toml` are bumped together.
 
-## 0.90.2
+## 0.90.2 — 2026-09-23 · "a refused run asks nothing"
 
 **A refused finalize kept the questions it asked.** `verdict-finalize` folded the judgment's
 questions into `questions.json` — an id minted for each, every waiting answer marked
