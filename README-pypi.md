@@ -38,6 +38,7 @@ memory is public API; the tester's pen is not.
 | `get_verdict(project)` | last verdict, release blockers, report path, not-tested list |
 | `get_findings(project, status)` | `open` (default), `all`, or `NEW / STILL_OPEN / RESOLVED / REGRESSED` — REGRESSED ranked first |
 | `get_quarantine(project)` | the flaky ledger, each entry with a computed `expired` flag |
+| `get_questions(project)` | the questions the tester parked for a person, each with its age, and answers no run has read yet — answer with `verdict-answer` |
 | `get_history(project)` | run-over-run trend parsed from the report index |
 | `get_report(project, report?)` | full report content, path-guarded to the QA root — so CI can quote the evidence, not just link it |
 | `get_profile(project)` | isolation rules, risk areas, real test commands, and the lessons ledger when one exists |

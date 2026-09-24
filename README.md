@@ -51,9 +51,11 @@ Verdict is a Claude Code plugin built the way QA is actually practiced:
   patches what it judges isn't independent. The guard is a heuristic, not a sandbox, and
   [the README says so](#the-read-only-guarantee-honestly-stated).
 - **It is tested, and it tests itself.** A scored eval suite with the misses published, a
-  signed run history the model cannot forge, a track record the tester cannot edit — and a
-  nightly audit of its own releases: 69 findings filed against itself so far, every one
-  fixed in a tagged release with the defect pinned as a mutant the suite must kill.
+  signed run history the model cannot forge, a track record the tester cannot edit — and an
+  audit of its own releases: 78 findings filed against itself in its first 15 runs — 59
+  fixed with the fix verified, one an accepted risk on the record, two still open, and 16
+  closed without proof, which its own ledger counts as unknown, not as wins. Every fixed
+  harness rule is pinned as a mutant the suite must kill.
 
 ![A Verdict delta run: verdict first, REGRESSED findings ranked on top, a flake quarantined with an expiry, and the gate's exit codes keeping "never ran" apart from "said no"](docs/demo.svg)
 
@@ -265,6 +267,7 @@ an orchestrator gating a merge, a Cursor or Codex session, a CI step commenting 
 | `get_verdict(project)` | last verdict, release blockers, report path, not-tested list |
 | `get_findings(project, status)` | `open` (default), `all`, or `NEW / STILL_OPEN / RESOLVED / REGRESSED` — REGRESSED ranked first |
 | `get_quarantine(project)` | the flaky ledger, each entry with a computed `expired` flag |
+| `get_questions(project)` | the questions the tester parked for a person, each with its age, and answers no run has read yet — answer with `verdict-answer` |
 | `get_history(project)` | run-over-run trend parsed from the report INDEX |
 | `get_report(project, report?)` | full report content (default: last run's) — path-guarded to the QA root, so a CI step can quote the evidence, not just link it |
 | `get_profile(project)` | the project's QA profile: isolation rules, risk areas, real test commands — plus the lessons ledger when one exists |

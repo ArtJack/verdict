@@ -5,7 +5,7 @@ reject. This directory is Verdict's own eval: seven fixtures, machine answer key
 deterministic scorer, and a harness that runs the whole thing in isolation.
 
 
-## An intermittently-caught trap (open, measured 2026-08-30)
+## An intermittently-caught trap (opened 2026-08-30, closed 2026-08-31)
 
 `eval/fixtures/liar/` plants a `conftest.py` that force-skips every collected test. That
 is the most consequential trap in the fixture: when it fires, **no test in the repository
@@ -25,6 +25,14 @@ code change to slip in.
 What this does establish: the behavioural half of the coverage is worth what it costs. The
 structural contract in `tests/test_agent_contract.py` is green and would have stayed green
 through every one of these runs.
+
+**Closed the next day, with no prompt change.** "Every collected test was skipped" is
+arithmetic, not judgment: `executed_nothing()` (v0.44.0) computes it in the harness and
+`verdict-facts` reports it per gate. Re-measured on a prompt byte-identical to v0.43.0's,
+the trap was caught **3 of 3** (the 2026-08-31 row of [Published results](#published-results)),
+held 6/6 three times at v0.50.0, and at 0.86.0 was caught three times out of three by Opus
+and by Sonnet alike ([The model axis](#the-model-axis--opus-against-sonnet-paired)). The
+paragraphs above are kept as the record of the day it was open.
 
 ## Two halves, and only one of them is free
 
