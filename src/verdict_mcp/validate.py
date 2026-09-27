@@ -211,6 +211,14 @@ def validate_judgment(judgment, previous=None, known_tests=None):
         bad.append("verified_intact must be a list of checked-and-held invariants, "
                    "each carrying its evidence like any finding would")
     bad.extend(_not_tested_shape(judgment))
+    # A hygiene finding is the scan's, filed and resolved by verdict-finalize alone: a
+    # judgment that marks one as its own is claiming a measurement it did not make.
+    listed = judgment.get("findings")
+    for i, f in enumerate(listed if isinstance(listed, list) else []):
+        if isinstance(f, dict) and (f.get("source") == "hygiene" or "hygiene" in f):
+            bad.append(f"findings[{i}] ({f.get('id')}) is marked as a hygiene finding — those are "
+                       "filed by verdict-finalize from the hygiene scan, never by a judgment. File "
+                       "the harm it causes as your own finding, citing the same line")
     if not isinstance(judgment.get("isolation_check"), dict):
         bad.append("isolation_check must be an object recording the §0 check you ran")
     if "full_sweep" in judgment and not isinstance(judgment["full_sweep"], bool):
@@ -234,6 +242,8 @@ def validate_judgment(judgment, previous=None, known_tests=None):
 
     prev_findings = [f for f in ((previous or {}).get("findings") or []) if isinstance(f, dict)]
     known_ids = {str(f.get("id")) for f in prev_findings if f.get("id")}
+    hygiene_ids = {str(f.get("id")) for f in prev_findings
+                   if f.get("source") == "hygiene" and f.get("id")}
     seen = {}
     for i, f in enumerate(findings):
         where = f"findings[{i}]"
@@ -246,6 +256,10 @@ def validate_judgment(judgment, previous=None, known_tests=None):
                        "id is one finding; if these are two problems, mint a second id")
         elif fid:
             seen[fid] = i
+        if fid in hygiene_ids and f.get("source") != "hygiene" and "hygiene" not in f:
+            bad.append(f"{where} ({fid}) reuses the id of a hygiene finding — the scan files and "
+                       "resolves those itself, and one id is one finding. Mint an id of your "
+                       "own for yours")
         bad.extend(validate_finding(f, where, known_ids, known_tests))
 
     bad.extend(_verbs_shape(judgment, prev_findings, set(seen)))

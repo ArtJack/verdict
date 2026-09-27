@@ -452,3 +452,31 @@ def test_evidence_drift_leaves_the_harnesss_own_findings_out(repo, qa_root):
     drift = collect(repo, qa_root, [])["evidence_drift"]
     assert drift["summary"]["drifted_findings"] == ["W-F-1"]
     assert "W-F-2" not in drift["findings"]
+
+
+# ── the validator: a judgment never files, nor edits, a hygiene finding ───
+
+def test_a_judgment_may_not_file_a_hygiene_finding():
+    from verdict_mcp.validate import validate_judgment
+    j = judgment()
+    j["findings"][0]["source"] = "hygiene"
+    problems = validate_judgment(j)
+    assert any("filed by verdict-finalize" in p for p in problems)
+    marked = judgment()
+    marked["findings"][0]["hygiene"] = {"kind": "secret_in_code", "fingerprint": "fp1"}
+    assert any("filed by verdict-finalize" in p for p in validate_judgment(marked))
+    assert not validate_judgment(judgment()), "the tester's own finding is untouched"
+
+
+def test_a_judgment_may_not_file_its_own_finding_under_a_hygiene_id(repo, qa_root):
+    # Filed beside the harness's finding it would put one id in the state twice, and
+    # the state would be refused in the vocabulary of a structure the tester never wrote.
+    from verdict_mcp.validate import validate_judgment
+    committed(repo, {"k.py": f'K = "{LIVE}"\n'}, "key")
+    previous = merge(collect(repo, qa_root, []), judgment(), None)
+    [key] = hygiene_findings(previous)
+    j = judgment()
+    j["findings"][0]["id"] = key["id"]
+    problems = validate_judgment(j, previous)
+    assert any(key["id"] in p and "hygiene finding" in p for p in problems), problems
+    assert not validate_judgment(judgment(), previous)
