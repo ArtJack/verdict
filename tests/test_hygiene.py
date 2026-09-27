@@ -1087,3 +1087,36 @@ def test_a_google_key_is_one_lead_per_platform_across_the_repository(tmp_path):
     assert leads == [("android/app/src/main/AndroidManifest.xml", 1), ("templates/about.html", 1),
                      ("web/src/maps.js", 2)]
     assert gkey not in json.dumps(out) and other not in json.dumps(out)
+
+
+def test_admin_and_master_qualify_a_key_and_never_name_a_credential_alone(tmp_path):
+    # ADMIN_WALLET holds an address anyone may see, and MASTER_PUBLIC_KEY an xpub; an
+    # admin's key, token or password is still one. Every value here looks live, so
+    # the name alone decides.
+    hexd, b58 = "0123456789abcdef", "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz"
+    uid = token(34, 338, hexd)
+    not_credentials = {
+        "ADMIN_WALLET": "0x" + token(40, 331, hexd),
+        "MASTER_PUBLIC_KEY": "xpub6" + token(105, 332, b58),
+        "ADMIN_ADDRESS": "0x" + token(40, 333, hexd),
+        "ADMIN_PUBLIC_KEY": token(44, 334),
+        "ADMIN_ROLE_ARN": "arn:aws:iam::" + token(12, 335, "0123456789")[:12] + ":role/" + token(12, 336),
+        "ADMIN_DOMAIN": token(12, 337).lower() + ".acme-corp.io",
+        "ADMIN_USER_UUID": f"{uid[:8]}-{uid[8:12]}-{uid[12:16]}-{uid[16:20]}-{uid[20:32]}",
+    }
+    credentials = {
+        "AZURE_SEARCH_ADMIN_KEY": token(52, 341),
+        "SITE_ADMIN_PASSWORD": token(24, 342),
+        "WALLET_PRIVATE_KEY": token(64, 343, hexd),
+        "MASTER_KEY": token(40, 344),
+        "ADMIN_TOKEN": token(40, 345),
+        "STRIPE_ADMIN_API_KEY": token(40, 346),
+    }
+    public = {"ALGOLIA_SEARCH_KEY": token(32, 347, hexd), "RECAPTCHA_SITE_KEY": "6Lc" + token(37, 348)}
+    everything = {**not_credentials, **credentials, **public}
+    out = hygiene_census(make_repo(tmp_path, {f"{name.lower()}/.env": f"{name}={value}\n"
+                                              for name, value in everything.items()}))
+    filed = sorted(i["excerpt"] for i in out["items"] if i["kind"] == "secret_file_tracked")
+    assert filed == sorted(f".env committed, sets {name}" for name in credentials)
+    committed = sorted(lead["path"] for lead in out["leads"] if lead["kind"] == "env_file_committed")
+    assert committed == sorted(f"{name.lower()}/.env" for name in {**not_credentials, **public})

@@ -166,15 +166,16 @@ _ENV_FILE = re.compile(r"(?:^|/)\.env(?:\.[\w.-]+)?$")
 _ENV_TEMPLATE = re.compile(r"\.(?:example|sample|template|dist|defaults|test|ci)$", re.IGNORECASE)
 _ENV_ASSIGN = re.compile(r"^(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)$")
 _CLIENT_PREFIXES = ("NEXT_PUBLIC_", "VITE_", "EXPO_PUBLIC_", "REACT_APP_", "NUXT_PUBLIC_", "PUBLIC_")
-# Two kinds of credential word. A name holding one of the first kind is a secret's
-# whatever else it says. KEY and TOKEN are the second kind: RECAPTCHA_SITE_KEY and
-# ALGOLIA_SEARCH_KEY are meant for the browser, and a public word says so. Their
-# RECAPTCHA_SECRET_KEY and ALGOLIA_ADMIN_KEY siblings are not, and a public word
-# never reaches the first kind: SITE_ADMIN_PASSWORD and AZURE_SEARCH_ADMIN_KEY stay
-# credentials.
-_SECRET_WORDS = frozenset(("SECRET", "PASSWORD", "PASSWD", "PASS", "PWD", "PRIVATE", "ADMIN",
-                           "MASTER", "CREDENTIALS", "SALT"))
+# What makes an env name a credential's (_credential_name). A secret word makes it
+# one whatever else it says: SITE_ADMIN_PASSWORD is a password. KEY and TOKEN make it
+# one unless a public word says otherwise — RECAPTCHA_SITE_KEY and ALGOLIA_SEARCH_KEY
+# are meant for the browser. ADMIN and MASTER only qualify a key: an admin's key is
+# one (AZURE_SEARCH_ADMIN_KEY, MASTER_KEY), but ADMIN_WALLET holds an address anyone
+# may see, and MASTER_PUBLIC_KEY an xpub.
+_SECRET_WORDS = frozenset(("SECRET", "PASSWORD", "PASSWD", "PASS", "PWD", "PRIVATE",
+                           "CREDENTIALS", "SALT"))
 _KEY_WORDS = frozenset(("KEY", "APIKEY", "TOKEN"))
+_KEY_QUALIFIERS = frozenset(("ADMIN", "MASTER"))
 _PUBLIC_WORDS = frozenset(("PUBLIC", "PUBLISHABLE", "ANON", "SITE", "SEARCH"))
 # Values that are public by design whatever the variable is called: a Google
 # browser key, a Stripe publishable key, a Mapbox public token (`pk.`; its secret
@@ -184,7 +185,7 @@ _NOT_A_SECRET_TAIL = frozenset((
     "TTL", "URL", "URI", "PATH", "FILE", "DIR", "ID", "NAME", "PREFIX", "EXPIRY", "EXPIRES",
     "LENGTH", "LEN", "SIZE", "MIN", "MAX", "TIMEOUT", "HEADER", "TYPE", "ALG", "ALGORITHM",
     "VERSION", "REGION", "HOST", "PORT", "USER", "USERNAME", "EMAIL", "ENABLED", "COUNT",
-    "FORMAT", "MODE"))
+    "FORMAT", "MODE", "WALLET", "ADDRESS", "ACCOUNT", "PUBKEY", "PHONE"))
 _KEY_CONTAINER = re.compile(r"\.(?:p12|pfx|jks|keystore)$|^id_(?:rsa|dsa|ecdsa|ed25519)$",
                             re.IGNORECASE)
 _ENCRYPTED_LAST = frozenset(("sops", "enc", "age", "gpg", "asc", "vault", "encrypted"))
@@ -723,18 +724,25 @@ def _env_value(raw: str) -> str:
 
 
 def _credential_name(name: str) -> bool:
-    """A name that says credential: SECRET, PASSWORD, ADMIN… among its words, or KEY
-    or TOKEN with nothing marking it public — and not a setting about one
-    (ACCESS_TOKEN_TTL, KEYCLOAK_URL). A client-prefixed name is F9's to judge, not
-    this one's."""
+    """A name that says credential, read in order: not a setting about one
+    (ACCESS_TOKEN_TTL, KEYCLOAK_URL, ADMIN_WALLET); a secret word; else a KEY or
+    TOKEN, unless a public word stands right before it (MASTER_PUBLIC_KEY); an admin's
+    or a master key; else a key only when no public word marks the name. A
+    client-prefixed name is F9's to judge, not this one's."""
     up = name.upper()
     if up.startswith(_CLIENT_PREFIXES):
         return False
     words = up.split("_")
     if words[-1] in _NOT_A_SECRET_TAIL:
         return False
-    return not _SECRET_WORDS.isdisjoint(words) or (
-        not _KEY_WORDS.isdisjoint(words) and _PUBLIC_WORDS.isdisjoint(words))
+    if not _SECRET_WORDS.isdisjoint(words):
+        return True
+    keys = [n for n, word in enumerate(words) if word in _KEY_WORDS]
+    if not keys:
+        return False
+    if keys[-1] > 0 and words[keys[-1] - 1] in _PUBLIC_WORDS:
+        return False
+    return not _KEY_QUALIFIERS.isdisjoint(words) or _PUBLIC_WORDS.isdisjoint(words)
 
 
 def _env_value_live(v: str) -> bool:
