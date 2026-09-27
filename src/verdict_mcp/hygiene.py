@@ -1488,6 +1488,10 @@ def hygiene_census(repo, filing: str = "on") -> dict:
         "leads": leads[:LEAD_CAP],
         "leads_total": len(leads),
         "reading": hygiene_reading(),
+        # Every path that could not be read, uncapped: scope.failed_paths is for
+        # reading, and a ledger that resolves rows per path needs them all
+        # (harness.split_hygiene moves this list to the side file).
+        **({"unread_paths": sorted(rel for rel, _why in failures)} if failures else {}),
     }
 
 

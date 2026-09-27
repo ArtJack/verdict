@@ -2289,11 +2289,13 @@ def split_hygiene(facts: dict, qa_root: Path) -> None:
     on Sales the hygiene block was 1,301 lines of it, 1,070 of them tier-2 rows
     there for no decision the tester makes. What stays is what reading needs — the
     status, the scope, exact counts of every tier, the tier-1 items and the leads
-    — and the name of the file the ledger reads the rest from (`tier2_items`). A
-    block with no items (the scan was unavailable) moves nothing and names no file;
-    a block already split is left as it is, so a second call cannot empty the file.
-    A side file that cannot be written costs the run nothing: tier 2 stays inline,
-    where `tier2_items` reads it, and `tier2_note` says why."""
+    — and the name of the file the ledger reads the rest from (`tier2_items`). The
+    uncapped list of paths the scan could not read goes with the rows
+    (`unread_paths`). A block with no items (the scan was unavailable) moves nothing
+    and names no file; a block already split is left as it is, so a second call
+    cannot empty the file. A side file that cannot be written costs the run
+    nothing: tier 2 and the list stay inline, where the readers find them, and
+    `tier2_note` says why."""
     block = facts.get("hygiene")
     if not isinstance(block, dict) or not isinstance(block.get("items"), list) \
             or "tier2_file" in block:
@@ -2301,14 +2303,15 @@ def split_hygiene(facts: dict, qa_root: Path) -> None:
     rows, kept = [], []
     for it in block["items"]:
         (rows if isinstance(it, dict) and it.get("tier") == 2 else kept).append(it)
+    side = {"schema": 1, "items": rows, "unread_paths": block.get("unread_paths", [])}
     try:
-        _atomic_write(Path(qa_root) / HYGIENE_ITEMS_FILE,
-                      json.dumps({"schema": 1, "items": rows}, indent=1) + "\n")
+        _atomic_write(Path(qa_root) / HYGIENE_ITEMS_FILE, json.dumps(side, indent=1) + "\n")
     except OSError as exc:
         block["tier2_note"] = (f"{HYGIENE_ITEMS_FILE} could not be written "
                                f"({exc.strerror or type(exc).__name__}): tier 2 stays in items")
         return
     block.pop("tier2_note", None)
+    block.pop("unread_paths", None)
     block["items"] = kept
     block["tier2_file"] = HYGIENE_ITEMS_FILE
     block["tier2_count"] = len(rows)
@@ -2329,6 +2332,21 @@ def tier2_items(facts_hygiene: dict, qa_root: Path) -> list:
         side = _hygiene_side(facts_hygiene, qa_root)
         rows = side.get("items") if side else None
     return [it for it in rows if _tier2_row(it)] if isinstance(rows, list) else []
+
+
+def unread_paths(facts_hygiene: dict, qa_root: Path) -> set:
+    """Every path this run's scan could not read, so that a ledger never resolves a
+    row in a file nobody read. From the side file, uncapped; else from the block,
+    which keeps the list while it is not split; else scope.failed_paths — capped at
+    twenty for display, so then a floor, not the whole."""
+    side = _hygiene_side(facts_hygiene, qa_root)
+    listed = side.get("unread_paths") if side else None
+    if not isinstance(listed, list) and isinstance(facts_hygiene, dict):
+        listed = facts_hygiene.get("unread_paths")
+        scope = facts_hygiene.get("scope")
+        if not isinstance(listed, list) and isinstance(scope, dict):
+            listed = scope.get("failed_paths")
+    return {p for p in listed if isinstance(p, str)} if isinstance(listed, list) else set()
 
 
 def _hygiene_side(facts_hygiene: dict, qa_root: Path):

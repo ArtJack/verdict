@@ -201,3 +201,31 @@ def test_a_side_file_that_cannot_be_written_costs_the_run_nothing(tmp_path):
     assert [i["kind"] for i in harness.tier2_items(block, qa)] == ["unused_import", "todo_comment",
                                                                    "broad_swallow"]
     assert not list(qa.glob("*.tmp")), "a failed write leaves nothing half-written behind"
+
+
+def test_every_unread_path_is_kept_for_the_ledger_though_the_display_is_capped(tmp_path, monkeypatch):
+    # A ledger resolves a row when its file was read and the row is gone. A file in
+    # none of the lists would have every row in it resolved by a scan that never
+    # read it, so the side file keeps them all; scope shows twenty.
+    from verdict_mcp import harness, hygiene
+    broken = {f"m{n:02d}.py": "import os\n" for n in range(25)}
+    repo = make_repo(tmp_path, {**broken, "ok.py": "import os\n"})
+    real = hygiene._scan_file
+
+    def breaks(rel, *args, **kwargs):
+        if rel in broken:
+            raise RuntimeError("a detector broke")
+        return real(rel, *args, **kwargs)
+    monkeypatch.setattr(hygiene, "_scan_file", breaks)
+    qa = tmp_path / "qa"
+    qa.mkdir()
+    block = harness_facts(repo, qa)["hygiene"]
+    assert block["status"] == "partial" and block["scope"]["failed"] == 25
+    assert block["scope"]["failed_paths"] == sorted(broken)[:20], "the display stays capped"
+    assert "unread_paths" not in block, "the full list is the side file's, not the tester's"
+    side = json.loads((qa / "hygiene-items.json").read_text(encoding="utf-8"))
+    assert side["unread_paths"] == sorted(broken)
+    assert harness.unread_paths(block, qa) == set(broken)
+    assert harness.unread_paths(hygiene.hygiene_census(repo), qa) == set(broken), "never split: inline"
+    (qa / "hygiene-items.json").unlink()
+    assert harness.unread_paths(block, qa) == set(sorted(broken)[:20]), "no side file: the capped list"
