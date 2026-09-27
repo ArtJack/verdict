@@ -98,7 +98,7 @@ def _added_lines(repo, sha_range):
     if diff is None:
         return None
     out, path, lineno = [], None, 0
-    for raw in diff.splitlines():
+    for raw in diff.split("\n"):
         if raw.startswith("+++ b/"):
             path = raw[6:]
         elif raw.startswith("@@"):
@@ -130,7 +130,7 @@ def _tree_lines(repo):
         except OSError:
             continue
         rel = p.relative_to(repo).as_posix()
-        out.extend((rel, i, line) for i, line in enumerate(text.splitlines(), 1))
+        out.extend((rel, i, line.rstrip("\r")) for i, line in enumerate(text.split("\n"), 1))
     return out, len(files), capped
 
 
