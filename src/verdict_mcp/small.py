@@ -66,6 +66,7 @@ try:
     from .harness import (RETRY_WINDOW_HOURS, _git, _parse_marker_time, _run_test, collect,
                           finalize_main, finding_hash, is_test_file)
     from .filed import FINDINGS_DIR, archive_findings
+    from .gitenv import git_env
     from .profile import ProfileError, gates_from
     from .profile import load as load_profile
     from .reports import read_report
@@ -81,6 +82,7 @@ except ImportError:  # bare-script execution
     from harness import (RETRY_WINDOW_HOURS, _git, _parse_marker_time, _run_test, collect,
                          finalize_main, finding_hash, is_test_file)
     from filed import FINDINGS_DIR, archive_findings
+    from gitenv import git_env
     from profile import ProfileError, gates_from
     from profile import load as load_profile
     from reports import read_report
@@ -317,7 +319,7 @@ def changed_files(repo: Path, sha_range: str | None) -> list:
     if not sha_range:
         return []
     proc = subprocess.run(["git", "-C", str(repo), "diff", "--name-only", sha_range],
-                          capture_output=True, text=True)
+                          capture_output=True, text=True, env=git_env())
     if proc.returncode != 0:
         return []
     return sorted({ln.strip().replace("\\", "/") for ln in proc.stdout.splitlines() if ln.strip()})

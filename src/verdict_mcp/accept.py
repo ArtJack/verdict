@@ -45,10 +45,12 @@ from pathlib import Path
 
 try:
     from .state import ACCEPTED_FILE, is_open, load_state, norm_status
+    from .gitenv import git_env
     from . import clock
 except ImportError:  # invoked as a bare script
     sys.path.insert(0, str(Path(__file__).resolve().parent))
     from state import ACCEPTED_FILE, is_open, load_state, norm_status  # type: ignore
+    from gitenv import git_env  # type: ignore
     import clock  # type: ignore
 
 # A citation or a reason shorter than this is a placeholder, not a record.
@@ -59,7 +61,7 @@ def _who() -> str:
     """The name that signs the entry: git's, else the login, else a word."""
     try:
         out = subprocess.run(["git", "config", "user.name"], capture_output=True,
-                             text=True, timeout=3)
+                             text=True, timeout=3, env=git_env())
         if out.returncode == 0 and out.stdout.strip():
             return out.stdout.strip()
     except (OSError, subprocess.SubprocessError):

@@ -39,6 +39,12 @@ import subprocess
 import sys
 from pathlib import Path
 
+try:
+    from .gitenv import git_env
+except ImportError:  # bare-script execution
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    from gitenv import git_env
+
 _SOURCE_SUFFIXES = {".py", ".js", ".jsx", ".ts", ".tsx", ".mjs", ".cjs"}
 _SKIP_DIRS = {".git", ".venv", "venv", "node_modules", "__pycache__", ".qa",
               "dist", "build", ".mypy_cache", ".ruff_cache", ".pytest_cache"}
@@ -88,7 +94,7 @@ _SAMPLE_CAP = 12  # locations shown per category; the count is always complete
 
 def _git(args, repo):
     proc = subprocess.run(["git", "-C", str(repo), *args],
-                          capture_output=True, text=True)
+                          capture_output=True, text=True, env=git_env())
     return proc.stdout if proc.returncode == 0 else None
 
 
