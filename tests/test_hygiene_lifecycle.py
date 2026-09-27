@@ -414,3 +414,41 @@ def test_the_local_tier_finalizes_a_night_the_scan_files_a_critical_on(tmp_path)
     state = json.loads((qa / "state.json").read_text(encoding="utf-8"))
     assert [f["hygiene"]["kind"] for f in hygiene_findings(state)] == ["secret_in_code"]
     assert state["verdict"] == "pass with risks"
+
+
+# ── exemptions: the drift a sweep reads, and the sweep itself ─────────────
+# A hygiene finding is re-measured by the scan on every run, sweeps included. The
+# code it cites moving says nothing a model must read, so neither the drift the
+# next run is handed nor the free sweep's blockers count it.
+
+def test_a_file_only_hygiene_cites_does_not_block_the_free_sweep():
+    from datetime import date
+
+    from verdict_mcp.runner import sweep_blockers
+    previous = {"findings": [{"id": "W-F-9", "status": "open", "source": "hygiene",
+                              "anchors": [{"path": "web/app.js", "line": 3}]}]}
+    facts_ = {"evidence_drift": {"status": "measured", "summary": {}},
+              "gates": {"suite": {"result": "pass", "counts": {"passed": 1}}},
+              "test_ids": {"status": "measured"}}
+    why = sweep_blockers(facts_, previous, ["web/app.js"], date(2026, 10, 1))
+    assert not any("cites" in w for w in why)
+    tester = {"findings": [dict(previous["findings"][0], source=None)]}
+    assert any("cites" in w for w in sweep_blockers(facts_, tester, ["web/app.js"], date(2026, 10, 1))), \
+        "the tester's own finding on the same file still blocks it"
+
+
+def test_evidence_drift_leaves_the_harnesss_own_findings_out(repo, qa_root):
+    from verdict_mcp.anchors import anchors_for
+    anchors = anchors_for(repo, ["a.py:1 the assignment"])
+    cited = {"status": "open", "severity": "Minor", "priority": "P3", "anchors": anchors,
+             "evidence": ["a.py:1 the assignment"]}
+    previous = {"project": "widget", "run_number": 1, "verdict": "pass with risks",
+                "findings": [{**cited, "id": "W-F-1", "title": "the tester's"},
+                             {**cited, "id": "W-F-2", "title": "the scan's", "source": "hygiene",
+                              "hygiene": {"kind": "debugger_statement", "fingerprint": "d1",
+                                          "path": "a.py"}}]}
+    (qa_root / "state.json").write_text(json.dumps(previous), encoding="utf-8")
+    committed(repo, {"a.py": "x = 2\n"}, "move the cited line")
+    drift = collect(repo, qa_root, [])["evidence_drift"]
+    assert drift["summary"]["drifted_findings"] == ["W-F-1"]
+    assert "W-F-2" not in drift["findings"]

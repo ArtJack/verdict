@@ -1528,9 +1528,11 @@ def collect(repo: Path, qa_root: Path, gates: list[tuple[str, str]],
     # everything, and "the code under an accepted risk changed" is measured.
     if previous:
         prev_findings = [f for f in (previous.get("findings") or []) if isinstance(f, dict)]
+        # A hygiene finding is the scan's, re-measured below: where its line moved is
+        # nothing the tester must read, and nothing that should buy a model run.
         drift = evidence_drift(
             repo,
-            [f for f in prev_findings if is_open(f)],
+            [f for f in prev_findings if is_open(f) and not is_hygiene(f)],
             [f for f in prev_findings if norm_status(f.get("status")) == "accepted"],
             list(zip(previous.get("verified_intact") or [],
                      previous.get("verified_intact_anchors") or [])))

@@ -613,7 +613,10 @@ def sweep_blockers(facts: dict, previous: dict, changed, today) -> list[str]:
     else:
         cited = set()
         for f in previous.get("findings") or []:
-            if not isinstance(f, dict) or norm_status(f.get("status")) in ("resolved", "withdrawn"):
+            # A hygiene finding is re-measured by the sweep's own scan: a file only it
+            # cites has nothing a model must read.
+            if not isinstance(f, dict) or f.get("source") == "hygiene" \
+                    or norm_status(f.get("status")) in ("resolved", "withdrawn"):
                 continue
             cited |= {str(a.get("path")).replace("\\", "/") for a in (f.get("anchors") or [])
                       if isinstance(a, dict) and a.get("path")}
