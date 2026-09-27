@@ -59,7 +59,7 @@ try:
     from . import questions
     from .anchors import DRIFTED, anchors_for, evidence_drift
     from .census import code_census
-    from .hygiene import hygiene_census
+    from .hygiene import TIER2_KINDS, hygiene_census, hygiene_reading
     from .filed import FINDINGS_DIR, archive_findings, load_filed
     from .reports import read_report
     from .profile import ProfileError, gates_from, hygiene_filing_from
@@ -83,7 +83,7 @@ except ImportError:  # bare-script execution
     import questions
     from anchors import DRIFTED, anchors_for, evidence_drift
     from census import code_census
-    from hygiene import hygiene_census
+    from hygiene import TIER2_KINDS, hygiene_census, hygiene_reading
     from filed import FINDINGS_DIR, archive_findings, load_filed
     from reports import read_report
     from profile import ProfileError, gates_from, hygiene_filing_from
@@ -2270,6 +2270,53 @@ def _resolve_root(repo: Path, explicit: str | None) -> Path:
     return home / derive_key(repo)[0]
 
 
+# The tier-2 rows of this run's hygiene scan, beside facts.json rather than in it.
+HYGIENE_ITEMS_FILE = "hygiene-items.json"
+
+
+def split_hygiene(facts: dict, qa_root: Path) -> None:
+    """Move the tier-2 rows out of facts.json, into `<qa_root>/hygiene-items.json`.
+
+    The tester reads facts.json whole on every run, and junk is never a finding:
+    on Sales the hygiene block was 1,301 lines of it, 1,070 of them tier-2 rows
+    there for no decision the tester makes. What stays is what reading needs — the
+    status, the scope, exact counts of every tier, the tier-1 items and the leads
+    — and the name of the file the ledger reads the rest from (`tier2_items`). A
+    block with no items (the scan was unavailable) moves nothing and names no file;
+    a block already split is left as it is, so a second call cannot empty the file."""
+    block = facts.get("hygiene")
+    if not isinstance(block, dict) or not isinstance(block.get("items"), list) \
+            or "tier2_file" in block:
+        return
+    rows, kept = [], []
+    for it in block["items"]:
+        (rows if isinstance(it, dict) and it.get("tier") == 2 else kept).append(it)
+    _atomic_write(Path(qa_root) / HYGIENE_ITEMS_FILE,
+                  json.dumps({"schema": 1, "items": rows}, indent=1) + "\n")
+    block["items"] = kept
+    block["tier2_file"] = HYGIENE_ITEMS_FILE
+    block["tier2_count"] = len(rows)
+    block["reading"] = hygiene_reading(HYGIENE_ITEMS_FILE)
+
+
+def tier2_items(facts_hygiene: dict, qa_root: Path) -> list:
+    """This run's tier-2 rows, read back from the file `split_hygiene` names — the
+    way the ledger reads them. [] when the block names no file, or the file is
+    missing or unreadable; a row that is not a tier-2 item is passed over."""
+    name = facts_hygiene.get("tier2_file") if isinstance(facts_hygiene, dict) else None
+    if not isinstance(name, str) or not name or Path(name).name != name:
+        return []               # nothing named, or a name reaching out of the QA root
+    try:
+        doc = json.loads((Path(qa_root) / name).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return []
+    rows = doc.get("items") if isinstance(doc, dict) and doc.get("schema") == 1 else None
+    if not isinstance(rows, list):
+        return []
+    return [it for it in rows
+            if isinstance(it, dict) and it.get("tier") == 2 and it.get("kind") in TIER2_KINDS]
+
+
 def facts_main(argv=None) -> int:
     ap = argparse.ArgumentParser(
         prog="verdict-facts",
@@ -2409,6 +2456,7 @@ def facts_main(argv=None) -> int:
     ids = facts.pop("_test_ids", None)
     if ids is not None:
         (qa_root / "test-ids.txt").write_text("\n".join(ids) + "\n", encoding="utf-8")
+    split_hygiene(facts, qa_root)
     text = json.dumps(facts, indent=2)
     # The QA root's copy is the one the gate, the scorer and the stop hook read as "facts
     # were measured for this run"; `--out` is a second copy, as its help has always said.

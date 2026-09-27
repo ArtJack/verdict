@@ -64,7 +64,7 @@ from pathlib import Path
 try:
     from .anchors import line_sha, refs_in
     from .harness import (RETRY_WINDOW_HOURS, _git, _parse_marker_time, _run_test, collect,
-                          finalize_main, finding_hash, is_test_file)
+                          finalize_main, finding_hash, is_test_file, split_hygiene)
     from .filed import FINDINGS_DIR, archive_findings
     from .profile import ProfileError, gates_from, hygiene_filing_from
     from .profile import load as load_profile
@@ -79,7 +79,7 @@ except ImportError:  # bare-script execution
     import clock
     from anchors import line_sha, refs_in
     from harness import (RETRY_WINDOW_HOURS, _git, _parse_marker_time, _run_test, collect,
-                         finalize_main, finding_hash, is_test_file)
+                         finalize_main, finding_hash, is_test_file, split_hygiene)
     from filed import FINDINGS_DIR, archive_findings
     from profile import ProfileError, gates_from, hygiene_filing_from
     from profile import load as load_profile
@@ -1794,7 +1794,9 @@ def measure(repo: Path, qa_root: Path, gates: list, config: dict, sha_range,
     the run marker before the gates, last run's finding files moved aside, and
     the collected ids written down. So does the profile's `hygiene:` setting,
     which 0.91.0 read in `facts_main` alone: `hygiene: off` filed nothing there
-    and everything here, on the engine that runs every night.
+    and everything here, on the engine that runs every night. And the junk rows
+    leave the facts for their own file, as they do there, before `run` writes
+    facts.json for the first time.
     """
     filing = hygiene_filing_from(config, profile_notes)
     marker_path = qa_root / "run-in-progress.json"
@@ -1815,6 +1817,7 @@ def measure(repo: Path, qa_root: Path, gates: list, config: dict, sha_range,
     ids = facts.pop("_test_ids", None)
     if ids is not None:
         (qa_root / "test-ids.txt").write_text("\n".join(ids) + "\n", encoding="utf-8")
+    split_hygiene(facts, qa_root)
     if archived:
         facts["findings_archived"] = archived
     if profile_notes:

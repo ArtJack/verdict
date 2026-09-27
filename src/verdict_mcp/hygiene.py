@@ -1444,9 +1444,18 @@ def hygiene_census(repo, filing: str = "on") -> dict:
         "items": items,
         "leads": leads[:LEAD_CAP],
         "leads_total": len(leads),
-        "reading": ("tier 1 is filed by verdict-finalize as findings (source: hygiene); tier 2 is "
-                    "the junk ledger, never a finding; leads are where to read first, never "
-                    "findings by themselves; a partial scan could not read the files in "
-                    "scope.failed_paths: what it found is real, and its silence about those "
-                    "files is no proof they are clean"),
+        "reading": hygiene_reading(),
     }
+
+
+def hygiene_reading(tier2_file: str | None = None) -> str:
+    """How to read the block. Once the tier-2 rows have left facts.json for
+    `tier2_file` (harness.split_hygiene), it says where they went."""
+    tier2 = "tier 2 is the junk ledger, never a finding"
+    if tier2_file:
+        tier2 += (f": its rows are in the ledger, not here — this run's are in {tier2_file}, "
+                  "and counts_by_kind counts every tier")
+    return (f"tier 1 is filed by verdict-finalize as findings (source: hygiene); {tier2}; leads are "
+            "where to read first, never findings by themselves; a partial scan could not read the "
+            "files in scope.failed_paths: what it found is real, and its silence about those files "
+            "is no proof they are clean")
