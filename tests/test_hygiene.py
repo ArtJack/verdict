@@ -681,3 +681,307 @@ def test_facts_carry_hygiene_and_the_profile_can_turn_filing_off(tmp_path):
     assert facts["hygiene"]["status"] == "measured"
     assert facts["hygiene"]["filing"] == "off"
     assert facts["hygiene"]["counts_by_kind"] == {"unused_import": 1}
+
+
+# ── the second review: what a scan could not read, and what it must not file ─
+# One regression per item of the 2026-09-27 re-check. Credentials are built at
+# run time, as above.
+
+def test_a_scan_that_could_read_nothing_is_unavailable_and_one_that_missed_a_file_is_partial(
+        tmp_path, monkeypatch):
+    live = "sk_" + "live_" + token(24, 201)
+    r = make_repo(tmp_path, {"app/pay.py": f'KEY = "{live}"\n', "app/ok.py": "import os\n"})
+
+    def broken(self, oid):
+        raise OSError("git cat-file stopped answering")
+    with monkeypatch.context() as m:
+        m.setattr(hygiene._Blobs, "_read", broken)
+        out = hygiene_census(r)
+    assert out["status"] == "unavailable" and "items" not in out
+    assert out["reason"].startswith("no file could be read: 2 failed, first: app/ok.py: OSError")
+    real = hygiene._scan_file
+
+    def raises_on_ok(rel, *args, **kwargs):
+        if rel == "app/ok.py":
+            raise RuntimeError("a detector broke")
+        return real(rel, *args, **kwargs)
+    monkeypatch.setattr(hygiene, "_scan_file", raises_on_ok)
+    out = hygiene_census(r)
+    assert out["status"] == "partial" and kinds(out, 1) == ["secret_in_code"]
+    assert out["scope"] == {"files": 1, "capped": False, "file_cap": hygiene.FILE_CAP, "failed": 1,
+                            "failed_paths": ["app/ok.py"]}
+    assert "no proof" in out["reading"]
+
+
+def test_the_file_cap_keeps_code_ahead_of_documents_and_data(tmp_path, monkeypatch):
+    monkeypatch.setattr(hygiene, "FILE_CAP", 3)
+    files = {f"content/post_{i:04d}.md": f"# Post {i}\n" for i in range(6)}
+    files["content/data.json"] = "{}\n"
+    files["config/site.yml"] = "title: shop\n"
+    files["src/app.js"] = "function f(){\n  debugger;\n}\n"
+    out = hygiene_census(make_repo(tmp_path, files))
+    assert [i["path"] for i in out["items"] if i["kind"] == "debugger_statement"] == ["src/app.js"]
+    assert out["scope"] == {"files": 3, "capped": True, "file_cap": 3, "failed": 0}
+
+
+def test_values_public_by_design_in_a_committed_env_file_leave_it_a_lead(tmp_path):
+    hexd = "0123456789abcdef"
+    public = {
+        "m1/.env": "FIREBASE_API_KEY=AI" + "za" + token(35, 211) + "\n",
+        "m2/.env": "MAPBOX_ACCESS_TOKEN=pk.eyJ1Ijoi" + token(40, 212) + "." + token(22, 213) + "\n",
+        "m3/.env": "RECAPTCHA_SITE_KEY=6Lc" + token(37, 214) + "\n",
+        "m4/.env": "ALGOLIA_SEARCH_KEY=" + token(32, 215, hexd) + "\n",
+        "m5/.env": "POSTHOG_API_KEY=phc_" + token(43, 216) + "\n",
+        "m6/.env": "STRIPE_KEY=pk_" + "live_" + token(24, 217) + "\n",
+    }
+    secret = {
+        "s1/.env": "RECAPTCHA_SECRET_KEY=6Lc" + token(37, 218) + "\n",
+        "s2/.env": "ALGOLIA_ADMIN_KEY=" + token(32, 219, hexd) + "\n",
+        "s3/.env": "MAPBOX_SECRET_TOKEN=sk.eyJ1Ijoi" + token(40, 220) + "." + token(22, 221) + "\n",
+    }
+    out = hygiene_census(make_repo(tmp_path, {**public, **secret}))
+    assert sorted(i["path"] for i in out["items"] if i["tier"] == 1) == sorted(secret)
+    committed = sorted(lead["path"] for lead in out["leads"] if lead["kind"] == "env_file_committed")
+    assert committed == sorted(public)
+
+
+def test_a_down_section_or_a_seed_file_never_decides_a_tables_state(tmp_path):
+    r = make_repo(tmp_path, {
+        "db/migrations/20240101_orders.sql": ("-- migrate:up\nalter table orders enable row level security;\n\n"
+                                              "-- migrate:down\nalter table orders disable row level security;\n"),
+        "db/goose/00002_rls.sql": ("-- +goose Up\nALTER TABLE invoices ENABLE ROW LEVEL SECURITY;\n"
+                                   "-- +goose Down\nALTER TABLE invoices DISABLE ROW LEVEL SECURITY;\n"),
+        "db/migrations/20240102_audit.sql": ("-- migrate:up\nalter table audit disable row level security;\n"
+                                             "-- migrate:down\nalter table audit enable row level security;\n"),
+        "supabase/migrations/001_profiles.sql": ("create table profiles(id uuid);\n"
+                                                 "alter table profiles enable row level security;\n"),
+        "supabase/seed.sql": "alter table profiles disable row level security;\n",
+        "supabase/seeds/demo.sql": "alter table profiles disable row level security;\n",
+    })
+    rules = [(i["path"], i["line"]) for i in hygiene_census(r)["items"] if i["kind"] == "open_database_rules"]
+    assert rules == [("db/migrations/20240102_audit.sql", 2)]
+
+
+def test_a_table_whose_migrations_were_not_all_read_is_never_filed_as_open(tmp_path, monkeypatch):
+    r = make_repo(tmp_path, {"db/001_orders.sql": "alter table orders disable row level security;\n",
+                             "db/002_orders.sql": "alter table orders enable row level security;\n"})
+    monkeypatch.setattr(hygiene, "FILE_CAP", 1)
+    out = hygiene_census(r)
+    assert out["scope"]["capped"] and kinds(out, 1) == [], "the enable was past the cap, unread"
+    monkeypatch.setattr(hygiene, "FILE_CAP", 5000)
+    real = hygiene._scan_file
+
+    def fails_on_the_enable(rel, *args, **kwargs):
+        if rel == "db/002_orders.sql":
+            raise RuntimeError("a detector broke")
+        return real(rel, *args, **kwargs)
+    monkeypatch.setattr(hygiene, "_scan_file", fails_on_the_enable)
+    out = hygiene_census(r)
+    assert out["status"] == "partial" and kinds(out, 1) == []
+
+def test_a_secret_split_by_a_slash_or_held_in_a_url_never_reaches_the_output(tmp_path):
+    b64 = string.ascii_letters + string.digits + "+"
+    aws = token(18, 231, b64) + "/" + token(21, 232, b64)
+    pw = "Tr0ub4dor" + token(8, 233)
+    r = make_repo(tmp_path, {
+        "app/aws.py": f"# TODO: rotate the AWS secret {aws}\nx = 1\n",
+        "app/db.py": (f'# engine = create_engine("postgresql://admin:{pw}@prod-db.internal:5432/app")\n'
+                      "# engine.connect()\nx = 1\n"),
+    })
+    out = hygiene_census(r)
+    blob = json.dumps(out)
+    assert aws not in blob and pw not in blob
+    shown = {i["kind"]: i["excerpt"] for i in out["items"]}
+    assert "secret <redacted>" in shown["todo_comment"]
+    assert "admin:<redacted>@prod-db" in shown["commented_out_code"]
+
+
+def test_a_file_whose_checks_raise_keeps_its_tier_one_items_and_is_named(tmp_path, monkeypatch):
+    live = "sk_" + "live_" + token(24, 241)
+    r = make_repo(tmp_path, {"app/pay.py": f'KEY = "{live}"\nimport requests\n'})
+    monkeypatch.setattr(hygiene, "_line_leads", lambda rel, lines: 1 / 0)
+    out = hygiene_census(r)
+    assert kinds(out, 1) == ["secret_in_code"] and out["status"] == "partial"
+    assert out["scope"]["failed_paths"] == ["app/pay.py"]
+    assert live not in json.dumps(out)
+
+
+def test_an_inherited_git_dir_never_points_the_scan_at_another_repository(tmp_path, monkeypatch):
+    (tmp_path / "a").mkdir()
+    (tmp_path / "b").mkdir()
+    a = make_repo(tmp_path / "a", {"web/app.js": "function f(){\n  debugger;\n}\n"})
+    b = make_repo(tmp_path / "b", {"README.md": "hello\n"})
+    monkeypatch.setenv("GIT_DIR", str(a / ".git"))
+    monkeypatch.setenv("GIT_WORK_TREE", str(a))
+    out = hygiene_census(b)
+    assert out["status"] == "measured" and kinds(out) == [] and out["scope"]["files"] == 1
+
+
+def test_a_debugger_inside_a_multi_line_template_literal_is_text(tmp_path):
+    r = make_repo(tmp_path, {
+        "web/src/playground.js": "export const sample = `\nfunction f() {\ndebugger;\n}\n`;\n",
+        "web/src/real.js": "const t = `inline`;\nfunction g() {\n  debugger;\n}\n",
+    })
+    found = [(i["path"], i["line"]) for i in hygiene_census(r)["items"] if i["kind"] == "debugger_statement"]
+    assert found == [("web/src/real.js", 3)]
+
+
+def test_a_client_secret_named_only_in_a_comment_is_not_a_finding(tmp_path):
+    r = make_repo(tmp_path, {
+        "web/src/env.ts": ("// never add NEXT_PUBLIC_STRIPE_SECRET_KEY: the secret stays on the server\n"
+                           "/* nor VITE_ADMIN_PASSWORD */\nexport const url = process.env.NEXT_PUBLIC_API_URL;\n"),
+        "svc/settings.py": ('"""Settings. The browser must never see NEXT_PUBLIC_STRIPE_SECRET_KEY."""\n'
+                            "# PUBLIC_SECRET is never read here\nX = 1\n"),
+        "web/src/read.ts": "export const p = import.meta.env.VITE_ADMIN_PASSWORD; // read here\n",
+    })
+    found = [(i["path"], i["line"]) for i in hygiene_census(r)["items"] if i["kind"] == "public_env_secret"]
+    assert found == [("web/src/read.ts", 1)]
+
+
+def test_a_document_quoting_a_sops_value_is_read_but_a_sops_file_is_not(tmp_path):
+    live = "sk_" + "live_" + token(24, 251)
+    enc = f"ENC[AES256_GCM,data:{token(40, 252)},iv:{token(43, 253)}=,tag:{token(22, 254)}==,type:str]"
+    r = make_repo(tmp_path, {
+        "docs/secrets.md": f"We use sops; values look like {enc}.\nOld key, rotate: {live}\n",
+        "deploy/secrets.yaml": f"db_password: {enc}\nsops:\n    mac: {enc}\n    version: 3.8.1\n",
+    })
+    out = hygiene_census(r)
+    assert [(i["kind"], i["path"], i["line"]) for i in out["items"] if i["tier"] == 1] == [
+        ("secret_in_code", "docs/secrets.md", 2)]
+    assert out["scope"]["files"] == 1, "the SOPS file is skipped whole"
+
+
+def test_rules_written_across_lines_are_read_whole(tmp_path):
+    r = make_repo(tmp_path, {
+        "firestore.rules": ("service cloud.firestore {\n  match /databases/{database}/documents {\n"
+                            "    match /{document=**}\n    {\n      allow read: if true;\n    }\n"
+                            "    match /orders/{id} {\n      allow read, write:\n        if true;\n    }\n"
+                            "  }\n}\n"),
+        "database.rules.json": '{\n  "rules": {\n    ".write":\n      true\n  }\n}\n',
+    })
+    rules = sorted((i["path"], i["line"]) for i in hygiene_census(r)["items"] if i["kind"] == "open_database_rules")
+    assert rules == [("database.rules.json", 3), ("firestore.rules", 5), ("firestore.rules", 8)]
+
+
+def test_only_json_small_enough_to_be_a_key_is_read_past_the_cap(tmp_path, monkeypatch):
+    monkeypatch.setattr(hygiene, "FILE_CAP", 1)
+    pem = ("-----BEGIN PRIVATE KEY-----\n" + token(64, 261, string.ascii_letters + string.digits + "+/")
+           + "\n-----END PRIVATE KEY-----\n")
+    small = json.dumps({"type": "service_account", "private_key": pem})
+    large = json.dumps({"type": "service_account", "private_key": pem, "pad": "x" * 20000})
+    r = make_repo(tmp_path, {"app.py": "x = 1\n", "gcp/sa.json": small, "data/big.json": large})
+    reads = []
+    real = hygiene._Blobs._read
+    monkeypatch.setattr(hygiene._Blobs, "_read", lambda self, oid: reads.append(oid) or real(self, oid))
+    out = hygiene_census(r)
+    assert [(i["kind"], i["path"]) for i in out["items"] if i["tier"] == 1] == [
+        ("secret_file_tracked", "gcp/sa.json")]
+    assert len(reads) == 2, "app.py and the small JSON; the 20 KB one is never requested"
+
+
+def test_a_timestamped_path_in_a_reason_is_left_as_it_is(tmp_path):
+    body = "".join(f"    op.x({i})\n" for i in range(9))
+    r = make_repo(tmp_path, {"db/migrations/20240101120000_create_users_table.py": f"def up(op):\n{body}",
+                             "db/migrations/20240102120000_create_orders_table.py": f"def up(op):\n{body}"})
+    dup = [i for i in hygiene_census(r)["items"] if i["kind"] == "duplicate_function"]
+    assert len(dup) == 1 and "db/migrations/20240101120000_create_users_table.py:1 up" in dup[0]["why"]
+
+
+def test_vendored_imports_and_kebab_case_vue_tags_are_not_junk(tmp_path):
+    r = make_repo(tmp_path, {
+        "vendor/lib.js": "import { a } from './a';\nexport const b = 1;\n",
+        "third_party/tool.py": "import os\n",
+        "web/src/App.vue": ("<template>\n  <user-card />\n</template>\n<script setup>\n"
+                            "import UserCard from './UserCard.vue'\n</script>\n"),
+        "web/src/Other.vue": ("<template>\n  <div />\n</template>\n<script setup>\n"
+                              "import UserCard from './UserCard.vue'\n</script>\n"),
+    })
+    unused = [i["path"] for i in hygiene_census(r)["items"] if i["kind"] == "unused_import"]
+    assert unused == ["web/src/Other.vue"]
+
+
+def test_a_google_key_repeated_in_a_file_is_one_lead(tmp_path):
+    gkey = "AI" + "za" + token(35, 271)
+    other = "AI" + "za" + token(35, 272)
+    page = "".join(f'<script src="https://maps.example.io/js?key={gkey}&v={i}"></script>\n' for i in range(5))
+    r = make_repo(tmp_path, {"web/index.html": page + f'<meta name="maps" content="{other}">\n'})
+    leads = [(lead["path"], lead["line"]) for lead in hygiene_census(r)["leads"] if lead["kind"] == "google_api_key"]
+    assert leads == [("web/index.html", 1), ("web/index.html", 6)]
+
+
+def test_more_provider_keys_are_found_and_never_shown(tmp_path):
+    keys = {
+        "npm": "npm_" + token(36, 281),
+        "pypi": "pypi-" + "AgEIcHlwaS5vcmc" + token(60, 282, string.ascii_letters + string.digits + "_-"),
+        "gitlab": "glpat-" + token(20, 283),
+        "huggingface": "hf_" + token(34, 284),
+        "sendgrid": "SG." + token(22, 285) + "." + token(43, 286),
+        "google_oauth": "GOCSPX-" + token(28, 287),
+    }
+    r = make_repo(tmp_path, {"app/keys.py": "".join(f'{k.upper()} = "{v}"\n' for k, v in keys.items())})
+    out = hygiene_census(r)
+    assert sorted(i["line"] for i in out["items"] if i["kind"] == "secret_in_code") == [1, 2, 3, 4, 5, 6]
+    blob = json.dumps(out)
+    assert not any(v in blob for v in keys.values())
+
+
+def test_a_committed_private_key_file_is_one_finding(tmp_path):
+    b64 = string.ascii_letters + string.digits + "+/"
+    body = "\n".join(token(70, 290 + n, b64) for n in range(5))
+    pem = f"-----BEGIN OPENSSH PRIVATE KEY-----\n{body}\n-----END OPENSSH PRIVATE KEY-----\n"
+    out = hygiene_census(make_repo(tmp_path, {"deploy/id_rsa": pem}))
+    assert [(i["kind"], i["path"]) for i in out["items"] if i["tier"] == 1] == [
+        ("secret_file_tracked", "deploy/id_rsa")]
+
+
+def test_code_that_quotes_an_encryption_marker_still_has_its_keys_found(tmp_path):
+    live = "sk_" + "live_" + token(24, 301)
+    r = make_repo(tmp_path, {
+        "tools/sops_helper.py": f'MAC_LINE = "mac: ENC[AES256_GCM,"\nKEY = "{live}"\n',
+        "web/pgp.ts": f'const armor = "-----BEGIN PGP MESSAGE-----";\nconst k = "{live}";\n',
+        "cmd/crypt.go": f'package main\nconst armor = "-----BEGIN PGP MESSAGE-----"\nconst key = "{live}"\n',
+    })
+    found = sorted((i["path"], i["line"]) for i in hygiene_census(r)["items"] if i["tier"] == 1)
+    assert found == [("cmd/crypt.go", 3), ("tools/sops_helper.py", 2), ("web/pgp.ts", 2)]
+
+
+def git_version():
+    words = subprocess.run(["git", "--version"], capture_output=True, text=True).stdout.split()
+    try:
+        return tuple(int(n) for n in words[2].split(".")[:2])
+    except (IndexError, ValueError):
+        return (0, 0)
+
+
+@pytest.mark.skipif(git_version() < (2, 44), reason="git before 2.44 ignores GIT_NO_LAZY_FETCH")
+def test_a_partial_clone_is_read_offline_and_says_what_it_could_not_read(tmp_path):
+    src = tmp_path / "src"
+    src.mkdir()
+    git(["init", "-qb", "main"], src)
+    (src / "small.py").write_text("import os\n", encoding="utf-8")
+    (src / "large.py").write_text("x = 1\n" + "# padding\n" * 50, encoding="utf-8")
+    git(["add", "-A"], src)
+    git(["commit", "-qm", "c"], src)
+    git(["config", "uploadpack.allowFilter", "true"], src)
+
+    def clone(name, spec):
+        dst = tmp_path / name
+        subprocess.run(["git", "clone", "-q", "--no-checkout", f"--filter={spec}", src.as_uri(), str(dst)],
+                       check=True, capture_output=True)
+        return dst
+
+    def objects(repo):
+        return subprocess.run(["git", "-C", str(repo), "count-objects", "-v"],
+                              capture_output=True, text=True).stdout
+
+    part = clone("part", "blob:limit=100")
+    before = objects(part)
+    out = hygiene_census(part)
+    assert objects(part) == before, "the scan fetched a missing blob"
+    assert out["status"] == "partial" and out["scope"]["failed"] == 1
+    assert out["scope"]["failed_paths"] == ["large.py"] and out["counts_by_kind"] == {"unused_import": 1}
+    none = clone("none", "blob:none")
+    before = objects(none)
+    out = hygiene_census(none)
+    assert objects(none) == before, "the scan fetched a missing blob"
+    assert out["status"] == "unavailable" and out["reason"].startswith("no file could be read: 2 failed")

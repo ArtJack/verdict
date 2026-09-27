@@ -27,19 +27,27 @@ out of the repository, a FIFO — none of them is ever opened. Outside a git
 checkout, or before the first commit, the scan reports itself unavailable rather
 than walking the directory and calling what it finds there committed.
 
+A file git cannot hand over (a partial clone's missing blob, a stream that broke)
+or whose checks raise is named in `scope.failed_paths`, and the scan says
+`partial`: what it found is real, and its silence about those files is no proof
+they are clean. When no file could be read at all, it says unavailable.
+
 Every item carries a fingerprint (kind, path, normalized line, occurrence), so a
 line that moves keeps its identity and a line that goes away resolves. A secret
-is redacted where it is found, and every excerpt and every reason is scrubbed on
-its way out: a value never reaches facts, state or a report, whichever item its
-line lands in. Lines are numbered by splitting on "\\n", never `splitlines()`,
-which also breaks on U+2028 inside a string literal and shifts every later line
-number — once CRLF and a lone CR are made "\\n", as Python's own parser does.
+is redacted where it is found, and every other excerpt and reason is scrubbed on
+its way out: provider-format keys, JWTs, the password in a URL and runs that look
+random are removed. A digit-free, word-like token cannot be told from prose, so
+no scrub can promise to catch one. Lines are numbered by splitting on "\\n",
+never `splitlines()`, which also breaks on U+2028 inside a string literal and
+shifts every later line number — once CRLF and a lone CR are made "\\n", as
+Python's own parser does.
 """
 
 from __future__ import annotations
 
 import ast
 import base64
+import bisect
 import hashlib
 import io
 import json
@@ -101,6 +109,17 @@ _SCRIPT_DIRS = {"scripts", "script", "bin", "tools", "tool"}
 _VENDOR_DIRS = {"vendor", "vendors", "third_party"}
 _DOC_SUFFIXES = {".md", ".mdx", ".txt", ".rst", ".adoc"}
 _MINIFIED = re.compile(r"(?:\.min\.(?:js|mjs|cjs)|-min\.js|\.bundle\.js)$", re.IGNORECASE)
+# What the file cap keeps first. Five thousand blog posts must not push the app
+# out of the scan: code and the files that hold secrets or rules come first,
+# config next, documents and data last.
+_CODE_CLASS = {*CODE_SUFFIXES, ".go", ".rb", ".php", ".java", ".kt", ".kts", ".swift", ".cs", ".rs",
+               ".dart", ".scala"}
+_DATA_CLASS = {".md", ".mdx", ".txt", ".rst", ".adoc", ".json", ".html", ".htm", ".ipynb"}
+SERVICE_ACCOUNT_MAX = 16_384   # a service-account key is ~2.4 KB; larger JSON is read only if scanned
+# Inherited from a git hook or a wrapper, any of these would point git at another
+# repository than the one asked for, and the scan would report that one's files.
+_GIT_REPO_VARS = ("GIT_DIR", "GIT_WORK_TREE", "GIT_COMMON_DIR", "GIT_INDEX_FILE",
+                  "GIT_OBJECT_DIRECTORY", "GIT_ALTERNATE_OBJECT_DIRECTORIES", "GIT_NAMESPACE")
 
 # ── tier 1 patterns ───────────────────────────────────────────────────────
 _SECRET_PATTERNS = (
@@ -113,6 +132,12 @@ _SECRET_PATTERNS = (
     ("telegram bot token", re.compile(r"\b\d{8,10}:AA[A-Za-z0-9_-]{33}\b")),
     ("stripe live key", re.compile(r"\b[rs]k_live_[A-Za-z0-9]{20,}")),
     ("supabase secret key", re.compile(r"\bsb_secret_[A-Za-z0-9_-]{20,}")),
+    ("npm token", re.compile(r"\bnpm_[A-Za-z0-9]{36}\b")),
+    ("pypi token", re.compile(r"\bpypi-AgEIcHlwaS5vcmc[A-Za-z0-9_-]{50,}")),
+    ("gitlab token", re.compile(r"\bglpat-[A-Za-z0-9_-]{20,}")),
+    ("hugging face token", re.compile(r"\bhf_[A-Za-z0-9]{34,}")),
+    ("sendgrid key", re.compile(r"\bSG\.[A-Za-z0-9_-]{22}\.[A-Za-z0-9_-]{43}(?![A-Za-z0-9_-])")),
+    ("google oauth client secret", re.compile(r"\bGOCSPX-[A-Za-z0-9_-]{28}(?![A-Za-z0-9_-])")),
 )
 # A Google API key is public by design in a Firebase or Maps web config: a lead
 # for the tester, never a finding — and scrubbed from every excerpt all the same.
@@ -142,7 +167,13 @@ _ENV_ASSIGN = re.compile(r"^(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)$")
 _CLIENT_PREFIXES = ("NEXT_PUBLIC_", "VITE_", "EXPO_PUBLIC_", "REACT_APP_", "NUXT_PUBLIC_", "PUBLIC_")
 _CREDENTIAL_WORDS = frozenset(("SECRET", "PASSWORD", "PASSWD", "PASS", "PWD", "TOKEN", "KEY",
                                "APIKEY", "PRIVATE", "CREDENTIALS", "SALT"))
-_PUBLIC_WORDS = frozenset(("PUBLIC", "PUBLISHABLE", "ANON"))
+# RECAPTCHA_SITE_KEY and ALGOLIA_SEARCH_KEY are meant for the browser; their
+# RECAPTCHA_SECRET_KEY and ALGOLIA_ADMIN_KEY siblings are not, and stay credentials.
+_PUBLIC_WORDS = frozenset(("PUBLIC", "PUBLISHABLE", "ANON", "SITE", "SEARCH"))
+# Values that are public by design whatever the variable is called: a Google
+# browser key, a Stripe publishable key, a Mapbox public token (`pk.`; its secret
+# tokens start `sk.`), a PostHog project key.
+_PUBLIC_VALUES = ("AIza", "pk_live_", "pk_test_", "pk.", "phc_")
 _NOT_A_SECRET_TAIL = frozenset((
     "TTL", "URL", "URI", "PATH", "FILE", "DIR", "ID", "NAME", "PREFIX", "EXPIRY", "EXPIRES",
     "LENGTH", "LEN", "SIZE", "MIN", "MAX", "TIMEOUT", "HEADER", "TYPE", "ALG", "ALGORITHM",
@@ -152,29 +183,42 @@ _KEY_CONTAINER = re.compile(r"\.(?:p12|pfx|jks|keystore)$|^id_(?:rsa|dsa|ecdsa|e
                             re.IGNORECASE)
 _ENCRYPTED_LAST = frozenset(("sops", "enc", "age", "gpg", "asc", "vault", "encrypted"))
 _ENCRYPTED_INNER = frozenset(("sops", "enc"))
+# A SOPS file carries its MAC in its own metadata, whatever the format (dotenv,
+# YAML, JSON, INI). A value alone (`ENC[AES256_GCM,…`) is only a quote of one.
+_SOPS_MAC = re.compile(r"(?:\bsops_mac\s*=\s*|\"mac\"\s*:\s*\"|\bmac\s*[:=]\s*)ENC\[AES256_GCM,")
 _READS_TEXT = ("env", "pem", "json")       # the secret-file checks that need a file's content
-# Firestore and Storage rules, read one token at a time so that a one-line block
-# (`match /a/{id} { allow read: if true; }`) nests like any other. A match path
-# carries braces of its own ({id}, {document=**}), which are part of the path.
+# Firestore and Storage rules, read as one text so that a statement or a block
+# split across lines is still one, and a one-line block (`match /a/{id} { allow
+# read: if true; }`) nests like any other. A match path carries braces of its own
+# ({id}, {document=**}), and a string may hold braces; neither opens a block.
 _RULES_TOKEN = re.compile(
-    r"\bmatch\s+(?P<path>(?:[^\s{}]|\{[^{}]*\})+)\s*\{"
+    r"\bmatch\s+(?P<path>(?:[^\s{}]|\{[^{}\n]*\})+)\s*\{"
     r"|\ballow\s+(?P<methods>[a-z]+(?:\s*,\s*[a-z]+)*)\s*(?::\s*if\s+true\s*)?;"
+    r"|\"(?:\\.|[^\"\\\n])*\"|'(?:\\.|[^'\\\n])*'"
     r"|(?P<brace>[{}])")
-_RTDB_WRITE = re.compile(r"\"\.write\"\s*:\s*(?:true|\"true\")")
-_RTDB_READ = re.compile(r"\"\.read\"\s*:\s*(?:true|\"true\")")
+_RTDB_RULE = re.compile(r"\"\.(?P<op>read|write)\"\s*:\s*(?:true|\"true\")")
 _PUBLIC_RULE_WHY = "a rule anyone can use for reads or creates — check the data is meant to be public"
 _DOWN_MIGRATION = re.compile(r"(?:^|[/._-])down\.sql$")
+# One migration file, two directions (dbmate, goose, sql-migrate): only what is
+# above the down marker is ever applied going forward.
+_DOWN_SECTION = re.compile(r"^\s*--\s*(?:migrate:down|\+goose\s+down|\+migrate\s+down)\b",
+                           re.IGNORECASE)
 _RLS_SWITCH = re.compile(
     r"\balter\s+table\s+(?:if\s+exists\s+)?(?:only\s+)?"
     r"((?:\"[^\"]+\"|[\w$]+)(?:\s*\.\s*(?:\"[^\"]+\"|[\w$]+))?)"
     r"\s+(enable|disable)\s+row\s+level\s+security\b", re.IGNORECASE)
 _JS_DEBUGGER = re.compile(r"^\s*debugger\s*;?\s*$")
 _PY_DEBUGGER_MODULES = ("pdb", "ipdb", "pudb")
-# What `_uncomment` looks for, in C-like code and rules and in SQL: the opening of
-# a block comment, a line comment, or a string — kept whole, so a `//` in a URL or
-# a `/*` in a glob is not taken for a comment.
-_C_TOKENS = re.compile(r"/\*|//|\"(?:\\.|[^\"\\])*\"|'(?:\\.|[^'\\])*'|`(?:\\.|[^`\\])*`")
+# What `_uncomment` looks for, in C-like code and rules, in SQL, and in Python or
+# Ruby: the opening of a block comment, a line comment, or a string — kept whole,
+# so a `//` in a URL or a `/*` in a glob is not taken for a comment. A template
+# literal left open at the end of a line (no `tick`) stays open on the next.
+_C_TOKENS = re.compile(
+    r"/\*|//|\"(?:\\.|[^\"\\])*\"|'(?:\\.|[^'\\])*'|`(?:\\.|[^`\\])*(?P<tick>`)?")
 _SQL_TOKENS = re.compile(r"/\*|--|\"[^\"]*\"|'[^']*'")
+_HASH_TOKENS = re.compile(r"#|\"(?:\\.|[^\"\\])*\"|'(?:\\.|[^'\\])*'")
+_TEMPLATE_END = re.compile(r"(?:\\.|[^`\\])*`")
+_TRIPLE_QUOTED = re.compile(r'"""[\s\S]*?"""|\'\'\'[\s\S]*?\'\'\'')
 
 # ── tier 2 patterns ───────────────────────────────────────────────────────
 _JS_EMPTY_CATCH = re.compile(
@@ -242,6 +286,10 @@ _ENTRY_FILE = re.compile(
 # ── scrubbing: what may leave in an excerpt or a reason ───────────────────
 _SCRUBBED = _SECRET_PATTERNS + (_GOOGLE_KEY,)
 _SCRUB_RUN = re.compile(r"[A-Za-z0-9+_=-]{24,}")
+# A base64 secret split by `/` (an AWS secret access key) is no run for the rule
+# above; as one run it is mixed case, carries digits, and is near-random.
+_SCRUB_BASE64 = re.compile(r"(?<![A-Za-z0-9+/])[A-Za-z0-9+/]{30,}={0,2}(?![A-Za-z0-9+/=])")
+_URL_CREDENTIALS = re.compile(r"(://[^/\s:@]+:)[^@\s/]+@")
 
 
 def is_test_path(rel: str) -> bool:
@@ -275,13 +323,15 @@ def _encrypted_name(name: str) -> bool:
 
 
 def _encrypted_text(name: str, text: str) -> bool:
-    """SOPS, Ansible Vault, PGP or age content. Source code is never such a payload,
-    as by name: a scanner, its tests or a SOPS helper that quotes a marker is still
-    read whole — else quoting `ENC[AES256_GCM,` would hide every key in the file."""
-    if Path(name).suffix.lower() in CODE_SUFFIXES:
+    """SOPS (its MAC in the file's own metadata), Ansible Vault, PGP or age content.
+    Source code and documents are never such a payload: a scanner, its tests, a
+    SOPS helper or a page that explains SOPS may quote a marker, and quoting one
+    must not hide every key in the file."""
+    suffix = Path(name).suffix.lower()
+    if suffix in _CODE_CLASS or suffix in _DOC_SUFFIXES:
         return False
     head = text[:4096].lstrip()
-    return ("ENC[AES256_GCM," in text or "-----BEGIN PGP MESSAGE-----" in text
+    return (_SOPS_MAC.search(text) is not None or "-----BEGIN PGP MESSAGE-----" in text
             or head.startswith(("$ANSIBLE_VAULT;", "age-encryption.org/v1")))
 
 
@@ -291,10 +341,13 @@ class _Unavailable(Exception):
 
 
 def _git_env() -> dict:
-    """git that never reaches for the network. In a partial clone a blob HEAD names
-    may be absent, and git would fetch it — or sit at a credential prompt — for
-    every such file; here it is a file the scan could not read instead."""
-    return dict(os.environ, GIT_NO_LAZY_FETCH="1", GIT_TERMINAL_PROMPT="0")
+    """git that reads the repository asked for and never reaches for the network.
+    An inherited GIT_DIR and its kin are dropped. In a partial clone a blob HEAD
+    names may be absent, and git would fetch it — or sit at a credential prompt —
+    for every such file; here it is a file the scan could not read instead."""
+    env = {k: v for k, v in os.environ.items() if k not in _GIT_REPO_VARS}
+    env.update(GIT_NO_LAZY_FETCH="1", GIT_TERMINAL_PROMPT="0")
+    return env
 
 
 def _head_files(repo: Path) -> list:
@@ -401,12 +454,15 @@ def _lines(text: str) -> list[str]:
 # ── items, identity, scrubbing ────────────────────────────────────────────
 def _scrub(s: str) -> str:
     """Every credential-shaped run replaced by what it is, live-looking or not: a
-    provider key by its name, a JWT, and any long high-entropy run of letters and
-    digits. An excerpt is for recognising the line, never for reading the value."""
+    provider key by its name, a JWT, a URL's password, and a long run that looks
+    random. An excerpt is for recognising the line, never for reading the value; a
+    digit-free, word-like token is the one shape no rule can tell from prose."""
     for name, rx in _SCRUBBED:
         s = rx.sub(f"<{name}>", s)
     s = _JWT.sub("<jwt>", s)
-    return _SCRUB_RUN.sub(_scrub_run, s)
+    s = _URL_CREDENTIALS.sub(r"\1<redacted>@", s)
+    s = _SCRUB_RUN.sub(_scrub_run, s)
+    return _SCRUB_BASE64.sub(_scrub_base64, s)
 
 
 def _scrub_run(m) -> str:
@@ -416,11 +472,24 @@ def _scrub_run(m) -> str:
     return "<redacted>" if digits >= 3 and letters >= 3 and _entropy(run[-32:]) >= 3.3 else run
 
 
+def _scrub_base64(m) -> str:
+    run = m.group(0)
+    upper = sum(c.isupper() for c in run)
+    lower = sum(c.islower() for c in run)
+    digits = sum(c.isdigit() for c in run)
+    return "<redacted>" if upper >= 3 and lower >= 3 and digits >= 2 and _entropy(run) >= 4.2 else run
+
+
 def _item(kind, tier, rel, line, text, why, *, redacted=None, key=None):
+    # A caller that hands over `redacted` built the excerpt and the reason from
+    # names, paths and counts, never from the line: scrubbing them again only
+    # turns a timestamped migration path into "<redacted>". Where a reason does
+    # carry text from the file (the comment above a lead), it is scrubbed as it
+    # is built.
     if redacted is None:
-        text = _scrub(text)
+        text, why = _scrub(text), _scrub(why)
     shown = redacted if redacted is not None else text.strip()[:120]
-    return {"kind": kind, "tier": tier, "path": rel, "line": line, "excerpt": shown, "why": _scrub(why),
+    return {"kind": kind, "tier": tier, "path": rel, "line": line, "excerpt": shown, "why": why,
             "_key": key if key is not None else (redacted if redacted is not None
                                                  else " ".join(text.split()))}
 
@@ -500,18 +569,23 @@ def _service_role(middle: str) -> bool:
 
 
 def _google_keys(rel, lines):
-    out = []
+    """One lead per distinct key in a file, at its first line: a Maps key pasted
+    into every page template is one thing to check, not fifty."""
+    out, seen = [], set()
     for i, line in enumerate(lines, 1):
-        m = _GOOGLE_KEY[1].search(line)
-        if m:
-            out.append(_item("google_api_key", 3, rel, i, line, _GOOGLE_WHY,
-                             redacted=_redact(_GOOGLE_KEY[0], m.group(0))))
+        for m in _GOOGLE_KEY[1].finditer(line):
+            if m.group(0) not in seen:
+                seen.add(m.group(0))
+                out.append(_item("google_api_key", 3, rel, i, line, _GOOGLE_WHY,
+                                 redacted=_redact(_GOOGLE_KEY[0], m.group(0))))
     return out
 
 
-def _secret_file_kind(rel: str, name: str):
-    """Which committed-secret-file check a path gets, decided by its name alone:
-    "env", "container", "pem", "json" or None."""
+def _secret_file_kind(rel: str, name: str, size: int):
+    """Which committed-secret-file check a path gets, decided by its name and its
+    size in the tree, before anything is read: "env", "container", "pem", "json"
+    or None. These checks run past the file cap, so a JSON file is a candidate
+    service-account key only while it is small enough to be one."""
     low = name.lower()
     # Android and React Native templates commit debug.keystore on purpose, and a
     # mkcert certificate for localhost guards nothing.
@@ -523,7 +597,7 @@ def _secret_file_kind(rel: str, name: str):
         return "container"
     if low.endswith((".pem", ".key")):
         return None if "localhost" in low else "pem"
-    return "json" if low.endswith(".json") else None
+    return "json" if low.endswith(".json") and size <= SERVICE_ACCOUNT_MAX else None
 
 
 def _secret_file(kind, rel, name, text, lines, found):
@@ -626,8 +700,11 @@ def _credential_name(name: str) -> bool:
 
 def _env_value_live(v: str) -> bool:
     """A value that could be a credential: not empty, not a reference ($VAR, <…>, a
-    path, a URL), not a sentence, not a port or a word — and then live-looking."""
+    path, a URL), not a sentence, not a port or a word, not a key that is public
+    by design (_PUBLIC_VALUES) — and then live-looking."""
     if not v or v.startswith(("ENC[", "encrypted:", "$", "<", "/", "./", "../", "~/")):
+        return False
+    if v.startswith(_PUBLIC_VALUES):
         return False
     if "://" in v or re.search(r"\s", v) or len(v) < 20 or v.isdigit():
         return False
@@ -636,7 +713,17 @@ def _env_value_live(v: str) -> bool:
     return _looks_live(v)
 
 
-def _public_env_sites(rel, lines):
+def _public_env_sites(rel, text, lines):
+    """Where a client-side variable named as a secret appears. In code the comments
+    are cut first: `// never add NEXT_PUBLIC_STRIPE_SECRET_KEY` reads nothing. In
+    Python a docstring is the same prose in another form, and is cut too."""
+    if _PUBLIC_ENV_SECRET.search(text) is None:
+        return []               # almost every file: no need to cut its comments
+    suffix = Path(rel).suffix.lower()
+    if suffix == ".py":
+        lines = _lines(_TRIPLE_QUOTED.sub(lambda m: "\n" * m.group(0).count("\n"), "\n".join(lines)))
+    if suffix in _CODE_CLASS:
+        lines = _uncomment(lines, _HASH_TOKENS if suffix in (".py", ".rb") else _C_TOKENS)
     return [(m.group(0), rel, i) for i, line in enumerate(lines, 1)
             for m in _PUBLIC_ENV_SECRET.finditer(line)]
 
@@ -664,8 +751,10 @@ def _public_env(sites):
 
 def _uncomment(lines, tokens):
     """The lines with their comments cut out and their strings kept whole, one for
-    one, so line numbers hold. A block comment stays open across lines."""
-    out, in_block = [], False
+    one, so line numbers hold. A block comment stays open across lines, and so does
+    a template literal: the lines inside one are text, never code, and come out
+    blank like a comment's."""
+    out, in_block, in_template = [], False, False
     for line in lines:
         kept, pos = [], 0
         while True:
@@ -675,20 +764,37 @@ def _uncomment(lines, tokens):
                     break
                 in_block, pos = False, end + 2
                 kept.append(" ")
+            elif in_template:
+                end = _TEMPLATE_END.match(line, pos)
+                if end is None:
+                    break
+                in_template, pos = False, end.end()
+                kept.append(" ")
             m = tokens.search(line, pos)
             if m is None:
                 kept.append(line[pos:])
                 break
             kept.append(line[pos:m.start()])
-            if m.group(0) == "/*":
+            tok = m.group(0)
+            if tok == "/*":
                 in_block, pos = True, m.end()
-            elif m.group(0) in ("//", "--"):
+            elif tok in ("//", "--", "#"):
                 break
             else:
-                kept.append(m.group(0))
+                kept.append(tok)
                 pos = m.end()
+                in_template = tok[0] == "`" and m.groupdict().get("tick") is None
         out.append("".join(kept))
     return out
+
+
+def _line_starts(text: str) -> list:
+    return [0] + [m.end() for m in re.finditer("\n", text)]
+
+
+def _line_at(starts: list, pos: int) -> int:
+    """The 1-based line holding offset `pos` of a joined text."""
+    return bisect.bisect_right(starts, pos)
 
 
 def _database_rules(rel, low, suffix, lines, found):
@@ -701,32 +807,43 @@ def _database_rules(rel, low, suffix, lines, found):
 
 
 def _realtime_rules(rel, lines, found):
-    for i, line in enumerate(_uncomment(lines, _C_TOKENS), 1):
-        if _RTDB_WRITE.search(line):
-            found["items"].append(_item("open_database_rules", 1, rel, i, lines[i - 1],
-                                        'anyone can write here: the rule sets ".write" to true'))
-        elif _RTDB_READ.search(line):
-            found["leads"].append(_item("public_database_rule", 3, rel, i, lines[i - 1], _PUBLIC_RULE_WHY))
+    """Realtime Database rules, read as one text so that `".write":` and its `true`
+    on the next line are one rule: one finding per line with an open write, one
+    lead per line with an open read and no open write."""
+    text = "\n".join(_uncomment(lines, _C_TOKENS))
+    starts = _line_starts(text)
+    writes, reads = [], []
+    for m in _RTDB_RULE.finditer(text):
+        (writes if m.group("op") == "write" else reads).append(_line_at(starts, m.start()))
+    for i in sorted(set(writes)):
+        found["items"].append(_item("open_database_rules", 1, rel, i, lines[i - 1],
+                                    'anyone can write here: the rule sets ".write" to true'))
+    for i in sorted(set(reads) - set(writes)):
+        found["leads"].append(_item("public_database_rule", 3, rel, i, lines[i - 1], _PUBLIC_RULE_WHY))
 
 
 def _allow_rules(rel, low, lines, found):
     """Firestore and Storage `allow` statements with `if true` or no condition. An
     allow belongs to the innermost match still open, tracked with a brace stack: an
-    allow after a recursive child block closes is its parent's, not recursive."""
-    code = _uncomment(lines, _C_TOKENS)
-    firestore = low == "firestore.rules" or any("cloud.firestore" in ln for ln in code)
+    allow after a recursive child block closes is its parent's, not recursive. The
+    file is read as one text, so a `{` on the line after its match, or an `if true`
+    on the line after its allow, is still where it belongs."""
+    text = "\n".join(_uncomment(lines, _C_TOKENS))
+    starts = _line_starts(text)
+    firestore = low == "firestore.rules" or "cloud.firestore" in text
     stack: list = []
-    for i, line in enumerate(code, 1):
-        for m in _RULES_TOKEN.finditer(line):
-            if m.group("path") is not None:
-                stack.append(m.group("path"))
-            elif m.group("brace") == "{":
-                stack.append(None)
-            elif m.group("brace") == "}":
-                stack = stack[:-1]
-            else:
-                inside = next((p for p in reversed(stack) if p is not None), "")
-                _open_allow(rel, i, lines[i - 1], m.group("methods"), inside, firestore, found)
+    for m in _RULES_TOKEN.finditer(text):
+        if m.group("path") is not None:
+            stack.append(m.group("path"))
+        elif m.group("methods") is not None:
+            i = _line_at(starts, m.start())
+            inside = next((p for p in reversed(stack) if p is not None), "")
+            _open_allow(rel, i, lines[i - 1], m.group("methods"), inside, firestore, found)
+        elif m.group("brace") == "{":
+            stack.append(None)
+        elif m.group("brace") == "}":
+            stack = stack[:-1]
+        # anything else is a string: its braces are text, not blocks
 
 
 def _open_allow(rel, i, line, methods, inside, firestore, found):
@@ -746,16 +863,35 @@ def _open_allow(rel, i, line, methods, inside, firestore, found):
 def _sql(rel, lines, found):
     """Row-level security switches, kept as events and judged once every file is
     read: a table counts by its final state, not by a disable a later migration
-    undid. Comments are cut first, so prose that says "disable" is not a switch."""
-    code = _uncomment(lines, _SQL_TOKENS)
-    text = "\n".join(code)
-    for m in _RLS_SWITCH.finditer(text):
-        i = text.count("\n", 0, m.start()) + 1
-        found["events"].append((rel, i, _table(m.group(1)), m.group(2).lower(), lines[i - 1]))
-    found["leads"] += [
-        _item("rls_policy_using_true", 3, rel, i, lines[i - 1],
-              "a row-level-security policy that lets every row through — check it is meant to be public")
-        for i, line in enumerate(code, 1) if _RLS_OPEN_POLICY.search(line)]
+    undid. The file is cut at its down marker before anything else, then its
+    comments, so prose that says "disable" is not a switch. A seed file runs on a
+    developer's machine, never in production, so it records no switch."""
+    up = next((lines[:n] for n, ln in enumerate(lines) if _DOWN_SECTION.match(ln)), lines)
+    text = "\n".join(_uncomment(up, _SQL_TOKENS))
+    starts = _line_starts(text)
+    events = []
+    if not _seed(rel):
+        for m in _RLS_SWITCH.finditer(text):
+            i = _line_at(starts, m.start())
+            events.append((rel, i, _table(m.group(1)), m.group(2).lower(), lines[i - 1]))
+    leads = [_item("rls_policy_using_true", 3, rel, i, lines[i - 1],
+                   "a row-level-security policy that lets every row through — check it is meant to be public")
+             for i in sorted({_line_at(starts, m.start()) for m in _RLS_OPEN_POLICY.finditer(text)})]
+    found["events"] += events   # whole or not at all: a file that fails leaves none half-told
+    found["leads"] += leads
+
+
+def _seed(rel: str) -> bool:
+    parts = rel.lower().split("/")
+    return ((parts[-1].startswith("seed") and parts[-1].endswith(".sql"))
+            or any(p in ("seed", "seeds") for p in parts[:-1]))
+
+
+def _rls_source(rel: str) -> bool:
+    """A SQL file whose switches decide a table's state, were it read."""
+    low = rel.lower()
+    return (low.endswith(".sql") and not is_test_path(rel) and not _DOWN_MIGRATION.search(low)
+            and not _seed(rel))
 
 
 def _table(raw: str) -> str:
@@ -860,7 +996,7 @@ def _debugger_call(node) -> bool:
             and isinstance(f.value, ast.Name) and f.value.id in _PY_DEBUGGER_MODULES)
 
 
-def _python(rel, text, lines, test, items, leads, imported):
+def _python(rel, text, lines, test, items, leads, imported, generated=False):
     try:
         tree = ast.parse(text)
     except (SyntaxError, ValueError, RecursionError, MemoryError):
@@ -896,7 +1032,8 @@ def _python(rel, text, lines, test, items, leads, imported):
                         "a failed read of security state becomes an empty value — check whether the "
                         "check it feeds then passes"))
     if not test:
-        _unused_imports(rel, tree, lines, items)
+        if not generated:       # a vendored module's imports are its authors' business
+            _unused_imports(rel, tree, lines, items)
         _commented_out_python(rel, lines, items)
         _todo_python(rel, text, items)
     return tree
@@ -1033,9 +1170,11 @@ def _js_names(spec: str) -> list[str]:
     return [n for n in names if re.fullmatch(r"[A-Za-z_$][\w$]*", n)]
 
 
-def _javascript(rel, text, lines, items, generated):
-    if not generated:
-        _javascript_lines(rel, lines, items)
+def _javascript(rel, text, lines, items):
+    """The JS/TS junk checks, for code this project wrote: the caller passes over
+    minified, bundled and vendored files entirely."""
+    _javascript_lines(rel, lines, items)
+    vue = rel.lower().endswith(".vue")
     for m in _JS_IMPORT.finditer(text):
         rest = text[:m.start()] + text[m.end():]
         line_no = text.count("\n", 0, m.start()) + 1
@@ -1043,10 +1182,19 @@ def _javascript(rel, text, lines, items, generated):
             # The classic JSX runtime needs React in scope whatever the extension.
             if name == "React":
                 continue
-            if not re.search(_JS_USE + re.escape(name) + r"(?![\w$])", rest):
-                items.append(_item("unused_import", 2, rel, line_no,
-                                   f"{name}: {m.group(0).splitlines()[0]}",
-                                   f"`{name}` is imported and never used"))
+            if re.search(_JS_USE + re.escape(name) + r"(?![\w$])", rest):
+                continue
+            # A Vue template may write the component UserCard as <user-card>.
+            if vue and re.search("<" + re.escape(_kebab(name)) + r"(?![\w-])", rest):
+                continue
+            items.append(_item("unused_import", 2, rel, line_no,
+                               f"{name}: {m.group(0).splitlines()[0]}",
+                               f"`{name}` is imported and never used"))
+
+
+def _kebab(name: str) -> str:
+    """UserCard → user-card, the way Vue hyphenates a component name."""
+    return re.sub(r"\B([A-Z])", r"-\1", name).lower()
 
 
 def _javascript_lines(rel, lines, items):
@@ -1082,6 +1230,17 @@ def _eligible(rel: str, size: int) -> bool:
             or _ENTRY_FILE.search(rel) is not None)
 
 
+def _cap_rank(rel: str) -> int:
+    """0 for code and the files that hold secrets or rules, 1 for config and the
+    rest, 2 for documents and data — the order the file cap keeps them in."""
+    name = rel.rsplit("/", 1)[-1].lower()
+    suffix = Path(name).suffix
+    if (suffix in _CODE_CLASS or suffix == ".sql" or name.startswith(".env")
+            or name.endswith((".rules", ".rules.json"))):
+        return 0
+    return 2 if suffix in _DATA_CLASS else 1
+
+
 def _found() -> dict:
     return {"items": [], "leads": [], "imported": set(), "bodies": [], "entry": [], "sites": [],
             "events": [], "scanned": []}
@@ -1095,8 +1254,10 @@ def _merge(into: dict, part: dict) -> None:
             into[key] += value
 
 
-def _scan_file(rel, name, text, lines, found):
-    """Every per-file check on one committed file; `found` collects what it finds."""
+def _scan_file(rel, name, text, lines, found, tracked=False):
+    """Every per-file check on one committed file; `found` collects what it finds.
+    `tracked`: the file is already one secret_file_tracked finding (a committed
+    id_rsa, a service-account key), so its lines are not filed a second time."""
     suffix = Path(rel).suffix.lower()
     test = is_test_path(rel)
     items, leads = found["items"], found["leads"]
@@ -1106,12 +1267,12 @@ def _scan_file(rel, name, text, lines, found):
     # A committed env file is judged whole, as one item (_env_file); a template
     # still gets the line scan, since a real key pasted into an example leaks too.
     committed_env = _ENV_FILE.search(rel) is not None and not _ENV_TEMPLATE.search(name)
-    if not test and not committed_env:
+    if not test and not committed_env and not tracked:
         items += _secrets(rel, lines)
         leads += _google_keys(rel, lines)
     if not test:
         if suffix not in _DOC_SUFFIXES:
-            found["sites"] += _public_env_sites(rel, lines)
+            found["sites"] += _public_env_sites(rel, text, lines)
         _database_rules(rel, name.lower(), suffix, lines, found)
     if suffix in CODE_SUFFIXES:
         _scan_code(rel, suffix, text, lines, test, found)
@@ -1130,56 +1291,90 @@ def _scan_code(rel, suffix, text, lines, test, found):
                                f"{len(lines)} lines in one file — past what anyone, or any model, reads whole",
                                redacted=f"{len(lines)} lines", key=""))
     if suffix == ".py":
-        tree = _python(rel, text, lines, test, items, leads, found["imported"])
+        tree = _python(rel, text, lines, test, items, leads, found["imported"], generated)
         if tree is not None and not test:
             found["bodies"] += _function_bodies(rel, tree)
-    elif not test:
-        _javascript(rel, text, lines, items, generated)
+    elif not test and not generated:
+        _javascript(rel, text, lines, items)
+
+
+def _salvage(part: dict) -> dict:
+    """What a file whose checks raised still proves. Each detector appends a tier-1
+    item whole, so those stand, and so do its client-variable sites, which are
+    added whole or not at all. Its junk and leads are dropped; its RLS switches too,
+    since a failed migration leaves every table's final state unknown (no RLS item
+    is filed at all then, see `rls_known`)."""
+    kept = _found()
+    kept["items"] = [it for it in part["items"] if it["tier"] == 1]
+    kept["sites"] = part["sites"]
+    return kept
+
+
+def _failure(exc: Exception) -> str:
+    said = str(exc).strip().splitlines()
+    return _scrub(f"{type(exc).__name__}: {said[0]}" if said else type(exc).__name__)[:200]
 
 
 def _scan(files, blobs):
     """Every committed file at most once, in tree order: the secret-file checks over
     all of them, uncapped (they go by name and read few), and the per-file scan over
-    the eligible ones up to FILE_CAP. A file whose read or checks raise is counted
-    in `failed` and costs nothing else: what it found is merged only on success."""
+    the eligible ones up to FILE_CAP, code first (_cap_rank). A file whose read or
+    checks raise is named in `failures` and costs nothing else; what it proved
+    before it failed stands (_salvage). Returns what was found (with `rls_known`:
+    every migration was read), the scope, the failures as (path, why), and whether
+    any file could be read at all."""
     cap = FILE_CAP
-    eligible = [rel for rel, _oid, size in files if _eligible(rel, size)]
+    eligible = sorted((rel for rel, _oid, size in files if _eligible(rel, size)), key=_cap_rank)
     chosen = set(eligible[:cap])
     plan = []
     for rel, oid, size in files:
         name = rel.rsplit("/", 1)[-1]
         if _encrypted_name(name):
             continue            # neither a finding nor a lead
-        kind = _secret_file_kind(rel, name)
+        kind = _secret_file_kind(rel, name, size)
         if rel in chosen or kind:
             plan.append((rel, name, oid, size, rel in chosen, kind))
     last = {p[2]: n for n, p in enumerate(plan) if p[4] or p[5] in _READS_TEXT}
     found = _found()
-    failed = 0
+    failures: list = []
+    read_any = False
     for n, (rel, name, oid, size, scan, kind) in enumerate(plan):
         part = _found()
         try:
             reads = scan or kind in _READS_TEXT
             text = blobs.text(oid, size, keep=last[oid] > n) if reads else None
+            read_any = read_any or reads
             if text is not None and _encrypted_text(name, text):
                 continue        # SOPS, Ansible Vault, PGP, age: neither a finding nor a lead
             lines = None if text is None else _lines(text)
             if kind:
                 _secret_file(kind, rel, name, text, lines, part)
             if scan and text is not None:
-                _scan_file(rel, name, text, lines, part)
+                tracked = any(it["kind"] == "secret_file_tracked" for it in part["items"])
+                _scan_file(rel, name, text, lines, part, tracked)
                 part["scanned"].append(rel)
-        except Exception:
-            failed += 1
+        except Exception as exc:
+            failures.append((rel, _failure(exc)))
+            _merge(found, _salvage(part))
             continue
         _merge(found, part)
-    return found, {"files": len(found["scanned"]), "capped": len(eligible) > cap, "file_cap": cap,
-                   "failed": failed}
+    scope = {"files": len(found["scanned"]), "capped": len(eligible) > cap, "file_cap": cap,
+             "failed": len(failures)}
+    if failures:
+        scope["failed_paths"] = sorted(rel for rel, _why in failures)[:20]
+    # A table counts by its final state. With a migration unread — it failed, or
+    # the cap left it out — that state is not known, and a disable the unread file
+    # undid must not be filed.
+    found["rls_known"] = not any(_rls_source(rel) for rel in
+                                 [*eligible[cap:], *(rel for rel, _why in failures)])
+    return found, scope, failures, read_any
 
 
 def hygiene_census(repo, filing: str = "on") -> dict:
-    """The hygiene block for facts.json: tier-1 and tier-2 items, tier-3 leads — or
-    {"status": "unavailable", "reason": ...} when git cannot show a commit."""
+    """The hygiene block for facts.json: tier-1 and tier-2 items, tier-3 leads. The
+    status is "measured", or "partial" when some files could not be read (named in
+    scope.failed_paths) — or the result is {"status": "unavailable", "reason": ...}
+    when git cannot show a commit, or when no file could be read at all."""
     repo = Path(repo)
     try:
         files = [f for f in _head_files(repo) if _SKIP_DIRS.isdisjoint(f[0].split("/")[:-1])]
@@ -1187,12 +1382,17 @@ def hygiene_census(repo, filing: str = "on") -> dict:
     except _Unavailable as exc:
         return {"status": "unavailable", "reason": str(exc)}
     try:
-        found, scope = _scan(files, blobs)
+        found, scope, failures, read_any = _scan(files, blobs)
     finally:
         blobs.close()
+    if failures and not read_any:
+        rel, why = min(failures)
+        return {"status": "unavailable",
+                "reason": f"no file could be read: {len(failures)} failed, first: {rel}: {why}"}
     items, leads = found["items"], found["leads"]
     items += _public_env(found["sites"])
-    items += _rls_disabled(found["events"])
+    if found["rls_known"]:
+        items += _rls_disabled(found["events"])
     items += _duplicates(found["bodies"])
     leads += _unimported(found["scanned"], found["imported"], "\n".join(found["entry"]))
     # Occurrence numbers follow line order, whatever order the detectors ran in:
@@ -1205,7 +1405,7 @@ def hygiene_census(repo, filing: str = "on") -> dict:
     for it in items:
         counts[it["kind"]] = counts.get(it["kind"], 0) + 1
     return {
-        "status": "measured",
+        "status": "partial" if failures else "measured",
         "filing": "off" if filing == "off" else "on",
         "scope": scope,
         "counts_by_kind": dict(sorted(counts.items())),
@@ -1214,5 +1414,7 @@ def hygiene_census(repo, filing: str = "on") -> dict:
         "leads_total": len(leads),
         "reading": ("tier 1 is filed by verdict-finalize as findings (source: hygiene); tier 2 is "
                     "the junk ledger, never a finding; leads are where to read first, never "
-                    "findings by themselves"),
+                    "findings by themselves; a partial scan could not read the files in "
+                    "scope.failed_paths: what it found is real, and its silence about those "
+                    "files is no proof they are clean"),
     }
