@@ -191,11 +191,12 @@ def test_tree_lines_are_numbered_like_an_editor_even_with_u2028(tmp_path):
     assert [(p, n) for p, n, t in lines if "TODO" in t] == [("a.py", 2)]
 
 
-def test_a_lone_carriage_return_breaks_the_line_in_the_tree_and_in_the_diff(repo):
-    """Python's parser and an editor break a line at a lone CR, and so must the census,
-    or the TODO is misplaced. The diff lost it altogether: read in text mode, the CR
-    became a newline across the whole diff, and the piece after it no longer began
-    with "+". A CRLF file is numbered one line per CRLF, not two."""
+def test_a_lone_carriage_return_stays_inside_its_line_in_the_tree_and_in_the_diff(repo):
+    """Lines break at "\\n", as git numbers them, so a lone CR stays inside its line
+    and the TODO after one is on line 1 in the tree and in the diff alike. The diff
+    once lost it altogether: read in text mode, the CR became a newline across the
+    whole diff, and the piece after it no longer began with "+". A CRLF file is
+    numbered one line per CRLF, not two."""
     base = subprocess.run(["git", "rev-parse", "HEAD"], cwd=repo,
                           capture_output=True, text=True).stdout.strip()
     (repo / "a.py").write_bytes(b"x = 1\r# TODO: here\n")
@@ -204,7 +205,7 @@ def test_a_lone_carriage_return_breaks_the_line_in_the_tree_and_in_the_diff(repo
     git(["commit", "-qm", "a lone CR"], repo)
     for sha_range in (None, f"{base}..HEAD"):
         todo = code_census(repo, sha_range)["placeholders"]["samples"].get("todo")
-        assert todo == ["a.py:2 # TODO: here", "b.py:2 # TODO: there"], sha_range
+        assert todo == ["a.py:1 x = 1\r# TODO: here", "b.py:2 # TODO: there"], sha_range
 
 
 def _range_adding(repo, before: dict, after: dict):
@@ -245,3 +246,13 @@ def test_a_name_git_still_quotes_is_read_back(repo):
     sha_range = _range_adding(repo, {"seed.py": b"s = 1\n"},
                               {'a"b.py': b"w = 1\n", "tab\there.py": b"r = 1\n"})
     assert sorted(_added_lines(repo, sha_range)) == [('a"b.py', 1, "w = 1"), ("tab\there.py", 1, "r = 1")]
+
+
+def test_the_tree_and_the_diff_number_a_line_alike(repo):
+    """A -U0 diff cannot see a CR in a line it did not change, so neither function
+    breaks a line at a lone CR: `a = 1\\rb = 2` unchanged above an appended `c = 3`
+    puts it on line 2 in the tree and in the diff alike, as git numbers it."""
+    from verdict_mcp.census import _added_lines, _tree_lines
+    sha_range = _range_adding(repo, {"f.py": b"a = 1\rb = 2\n"}, {"f.py": b"a = 1\rb = 2\nc = 3\n"})
+    assert [(p, n) for p, n, t in _added_lines(repo, sha_range) if t == "c = 3"] == [("f.py", 2)]
+    assert [(p, n) for p, n, t in _tree_lines(repo)[0] if t == "c = 3"] == [("f.py", 2)]

@@ -92,12 +92,6 @@ def _git(args, repo, text=True):
     return proc.stdout if proc.returncode == 0 else None
 
 
-def _breaks(text: str) -> str:
-    """CRLF and a lone CR made "\\n": where Python's parser and an editor break
-    lines, so a line number here is the one a reader sees."""
-    return text.replace("\r\n", "\n").replace("\r", "\n")
-
-
 # git diff as this module parses it, whatever the user's configuration says: names
 # unquoted where git allows it, no colour codes, no external diff or text
 # conversion standing in for the content, and the a/ b/ prefixes the headers are
@@ -118,10 +112,12 @@ def _added_lines(repo, sha_range):
     the one line dropped and every later one misnumbered or charged to a file that
     does not exist.
 
-    git breaks lines at "\\n" alone, so a lone CR stays inside one added line; it
-    is split there and numbered on, the way `_tree_lines` numbers the file. The
-    diff is read as bytes for that: in text mode the CR became a newline across the
-    whole diff, and the piece after it, no longer starting with "+", was dropped."""
+    Lines are numbered as git numbers them, at "\\n" alone: CRLF is folded, and a
+    lone CR stays inside its line, as `_tree_lines` leaves it. A -U0 diff cannot see
+    a CR in a line it did not change, so breaking at one anywhere would number the
+    tree and the diff apart. The diff is read as bytes: in text mode every CR became
+    a newline across the whole diff, and the piece after one, no longer starting
+    with "+", was dropped."""
     diff = _git([*_DIFF, sha_range], repo, text=False)
     if diff is None:
         return None
@@ -136,10 +132,9 @@ def _added_lines(repo, sha_range):
             if raw.startswith("+++ "):
                 path = _header_path(raw[4:])
         elif raw.startswith("+"):
-            for piece in _breaks(raw[1:]).split("\n"):
-                if path is not None:
-                    out.append((path, lineno, piece))
-                lineno += 1
+            if path is not None:
+                out.append((path, lineno, raw[1:]))
+            lineno += 1
     return out
 
 
@@ -179,8 +174,9 @@ def _unquote(quoted: str):
 
 def _tree_lines(repo):
     """(path, lineno, text) over the tree, capped — with the cap reported. Each file
-    is read as bytes and its lines broken by `_breaks`, not by the platform's text
-    mode."""
+    is read as bytes and numbered the way `_added_lines` numbers a diff, at "\\n"
+    alone with CRLF folded, rather than by the platform's text mode, which also
+    breaks at a lone CR."""
     files, capped = [], False
     for p in sorted(Path(repo).rglob("*")):
         if p.suffix not in _SOURCE_SUFFIXES or not p.is_file():
@@ -194,7 +190,7 @@ def _tree_lines(repo):
     out = []
     for p in files:
         try:
-            text = _breaks(p.read_bytes().decode("utf-8", errors="replace"))
+            text = p.read_bytes().decode("utf-8", errors="replace").replace("\r\n", "\n")
         except OSError:
             continue
         rel = p.relative_to(repo).as_posix()
