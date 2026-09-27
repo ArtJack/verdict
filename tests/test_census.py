@@ -8,6 +8,7 @@ reader to ignore it, which is worse than not having it.
 """
 
 import json
+import os
 import subprocess
 
 import pytest
@@ -204,3 +205,43 @@ def test_a_lone_carriage_return_breaks_the_line_in_the_tree_and_in_the_diff(repo
     for sha_range in (None, f"{base}..HEAD"):
         todo = code_census(repo, sha_range)["placeholders"]["samples"].get("todo")
         assert todo == ["a.py:2 # TODO: here", "b.py:2 # TODO: there"], sha_range
+
+
+def _range_adding(repo, before: dict, after: dict):
+    """Commit `before`, then `after`, and return the range between them."""
+    for name, data in before.items():
+        (repo / name).write_bytes(data)
+    git(["add", "-A"], repo)
+    git(["commit", "-qm", "before"], repo)
+    base = subprocess.run(["git", "rev-parse", "HEAD"], cwd=repo,
+                          capture_output=True, text=True).stdout.strip()
+    for name, data in after.items():
+        (repo / name).write_bytes(data)
+    git(["add", "-A"], repo)
+    git(["commit", "-qm", "after"], repo)
+    return f"{base}..HEAD"
+
+
+def test_the_diff_is_read_by_position_so_content_never_passes_for_a_header(repo):
+    """Inside a hunk every `+` line is content: an added `++i;` is a line, not a header
+    to skip, and an added `++ b/x.py` under a removed `-- comment` names no file. A
+    new file is charged to its own name: a non-ASCII one, which git quotes by default,
+    and one holding a space, which git follows with a tab."""
+    from verdict_mcp.census import _added_lines
+    sha_range = _range_adding(
+        repo,
+        {"a.c": b"int x;\n", "m.sql": b"-- comment\nselect 1;\n", "z.py": b"z = 0\n"},
+        {"a.c": b"int x;\n++i;\nint y;\n", "m.sql": b"++ b/x.py\nselect 2;\n",
+         "z.py": b"z = 0\nz = 1\n", "ф.py": b"q = 1\n", "my file.py": b"e = 1\n"})
+    assert sorted(_added_lines(repo, sha_range)) == [
+        ("a.c", 2, "++i;"), ("a.c", 3, "int y;"),
+        ("m.sql", 1, "++ b/x.py"), ("m.sql", 2, "select 2;"),
+        ("my file.py", 1, "e = 1"), ("z.py", 2, "z = 1"), ("ф.py", 1, "q = 1")]
+
+
+@pytest.mark.skipif(os.name == "nt", reason="a double quote or a tab cannot be in a Windows file name")
+def test_a_name_git_still_quotes_is_read_back(repo):
+    from verdict_mcp.census import _added_lines
+    sha_range = _range_adding(repo, {"seed.py": b"s = 1\n"},
+                              {'a"b.py': b"w = 1\n", "tab\there.py": b"r = 1\n"})
+    assert sorted(_added_lines(repo, sha_range)) == [('a"b.py', 1, "w = 1"), ("tab\there.py", 1, "r = 1")]
