@@ -111,15 +111,15 @@ def test_tier2_items_reads_the_rows_back(tmp_path):
     assert harness.tier2_items(block, qa) == side["items"]
 
 
-def test_tier2_items_is_empty_without_a_readable_side_file_and_reads_only_tier_two(tmp_path):
+def test_tier2_items_is_none_without_a_readable_side_file_and_reads_only_tier_two(tmp_path):
     from verdict_mcp import harness
     _repo, qa, block = split_run(tmp_path)
     side_file = qa / "hygiene-items.json"
     rows = json.loads(side_file.read_text(encoding="utf-8"))["items"]
     side_file.unlink()
-    assert harness.tier2_items(block, qa) == []
+    assert harness.tier2_items(block, qa) is None
     side_file.write_bytes(b"\xff{not json")
-    assert harness.tier2_items(block, qa) == []
+    assert harness.tier2_items(block, qa) is None
     side_file.write_text(json.dumps({"schema": 1, "items": [
         {"kind": "debugger_statement", "tier": 1, "path": "web/app.js", "line": 2}, "a row", 7,
         *rows]}), encoding="utf-8")
@@ -156,17 +156,17 @@ def side_root(tmp_path, text: str):
     return qa
 
 
-def test_a_side_file_nested_past_what_the_parser_holds_reads_as_empty(tmp_path):
+def test_a_side_file_nested_past_what_the_parser_holds_reads_as_unreadable(tmp_path):
     from verdict_mcp import harness
     qa = side_root(tmp_path, '{"schema": 1, "items": ' + "[" * 100_000 + "]" * 100_000 + "}")
-    assert harness.tier2_items(NAMED, qa) == []
+    assert harness.tier2_items(NAMED, qa) is None
 
 
 @pytest.mark.parametrize("schema", [True, 1.0])
 def test_only_the_integer_schema_1_is_read(tmp_path, schema):
     from verdict_mcp import harness
     qa = side_root(tmp_path, json.dumps({"schema": schema, "items": [ROW]}))
-    assert harness.tier2_items(NAMED, qa) == []
+    assert harness.tier2_items(NAMED, qa) is None
 
 
 @pytest.mark.parametrize("field, value", [("path", ["svc/app.py"]), ("line", "2"), ("line", True),

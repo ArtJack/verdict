@@ -59,6 +59,7 @@ import os
 import re
 import subprocess
 import tokenize
+from datetime import date
 from pathlib import Path
 
 try:
@@ -81,7 +82,7 @@ MAX_BYTES = 1_000_000    # a minified bundle is not source anybody maintains
 OVERSIZED_LINES = 2000
 DUPLICATE_MIN_LINES = 8
 LEAD_CAP = 60            # leads written to facts; the total is always exact
-LEDGER_CAP = 5000        # ledger rows; past it the summary stays exact and deltas stop
+LEDGER_CAP = 5000        # ledger rows; past it the counts stay exact, rows with a history first
 LONG_LINE = 2000         # a minified line: junk and lead checks pass it by, the secret scan never does
 
 SEVERITY = {
@@ -813,7 +814,12 @@ def _public_env(sites):
         why = f"{name} is bundled into the client: every visitor can read it"
         if len(where) > 1:
             why += f" ({len(where)} places reference it)"
-        out.append(_item("public_env_secret", 1, rel, line, "", why, redacted=name))
+        it = _item("public_env_secret", 1, rel, line, "", why, redacted=name)
+        # Its identity across runs is the variable, wherever it is read, and it is
+        # gone only once every file that read it was scanned without it (reconcile).
+        it["variable"] = name
+        it["sites"] = sorted({r for r, _line in where})
+        out.append(it)
     return out
 
 
@@ -1200,9 +1206,11 @@ def _duplicates(bodies):
             continue
         rel, line, name = sites[0]
         where = ", ".join(f"{r}:{ln} {n}" for r, ln, n in sites[:4])
-        out.append(_item("duplicate_function", 2, rel, line, "",
-                         f"{len(sites)} identical function bodies — a fix to one misses the others: {where}",
-                         redacted=f"def {name} — {len(sites)} identical copies", key=h))
+        it = _item("duplicate_function", 2, rel, line, "",
+                   f"{len(sites)} identical function bodies — a fix to one misses the others: {where}",
+                   redacted=f"def {name} — {len(sites)} identical copies", key=h)
+        it["sites"] = sorted({r for r, _ln, _n in sites})   # resolved only once every copy's file is read
+        out.append(it)
     return out
 
 
@@ -1311,7 +1319,7 @@ def _cap_rank(rel: str) -> int:
 
 def _found() -> dict:
     return {"items": [], "leads": [], "imported": set(), "bodies": [], "entry": [], "sites": [],
-            "google": [], "events": [], "scanned": []}
+            "google": [], "events": [], "scanned": [], "checked": [], "parse_failed": []}
 
 
 def _merge(into: dict, part: dict) -> None:
@@ -1360,7 +1368,9 @@ def _scan_code(rel, suffix, text, lines, test, found):
                                redacted=f"{len(lines)} lines", key=""))
     if suffix == ".py":
         tree = _python(rel, text, lines, test, items, leads, found["imported"], generated)
-        if tree is not None and not test:
+        if tree is None:
+            found["parse_failed"].append(rel)   # what only the parser finds was not looked for
+        elif not test:
             found["bodies"] += _function_bodies(rel, tree)
     elif not test and not generated:
         _javascript(rel, text, lines, items)
@@ -1383,17 +1393,29 @@ def _failure(exc: Exception) -> str:
     return _scrub(f"{type(exc).__name__}: {said[0]}" if said else type(exc).__name__)[:200]
 
 
+def _vouched(eligible: bool, scan: bool, kind, text) -> bool:
+    """Whether every check that applies to a file ran over it: the per-file checks
+    where it is eligible for them — not when the cap cut it — and a key file's own
+    check, which reads a container by its name alone. Only such a file's silence
+    about an item filed there before is evidence the item is gone."""
+    if eligible:
+        return scan and text is not None
+    return kind == "container" or text is not None
+
+
 def _scan(files, blobs):
     """Every committed file at most once, in tree order: the secret-file checks over
     all of them, uncapped (they go by name and read few), and the per-file scan over
     the eligible ones up to FILE_CAP, code first (_cap_rank). A file whose read or
     checks raise is named in `failures` and costs nothing else; what it proved
     before it failed stands (_salvage). Returns what was found (with `rls_known`:
-    every migration was read), the scope, the failures as (path, why), and whether
-    any file could be read at all."""
+    every migration was read; `checked`: every file whose checks all ran;
+    `parse_failed`: the Python files the parser refused), the scope, the failures
+    as (path, why), and whether any file could be read at all."""
     cap = FILE_CAP
     eligible = sorted((rel for rel, _oid, size in files if _eligible(rel, size)), key=_cap_rank)
     chosen = set(eligible[:cap])
+    eligible_set = set(eligible)
     plan = []
     for rel, oid, size in files:
         name = rel.rsplit("/", 1)[-1]
@@ -1413,7 +1435,10 @@ def _scan(files, blobs):
             text = blobs.text(oid, size, keep=last[oid] > n) if reads else None
             read_any = read_any or reads
             if text is not None and _encrypted_text(name, text):
-                continue        # SOPS, Ansible Vault, PGP, age: neither a finding nor a lead
+                # SOPS, Ansible Vault, PGP, age: neither a finding nor a lead — read, and
+                # nothing in it can be filed, so what was filed there before is gone.
+                found["checked"].append(rel)
+                continue
             lines = None if text is None else _lines(text)
             if kind:
                 _secret_file(kind, rel, name, text, lines, part)
@@ -1421,6 +1446,8 @@ def _scan(files, blobs):
                 tracked = any(it["kind"] == "secret_file_tracked" for it in part["items"])
                 _scan_file(rel, name, text, lines, part, tracked)
                 part["scanned"].append(rel)
+            if _vouched(rel in eligible_set, scan, kind, text):
+                part["checked"].append(rel)
         except Exception as exc:
             failures.append((rel, _failure(exc)))
             _merge(found, _salvage(part))
@@ -1432,7 +1459,7 @@ def _scan(files, blobs):
         scope["failed_paths"] = sorted(rel for rel, _why in failures)[:20]
     # A migration over MAX_BYTES is never requested, yet it decides a table's final
     # state as much as any other. It is named apart, not as a failure: a committed
-    # dump would leave every run partial, and a partial scan resolves nothing.
+    # dump would leave every run partial for a file that blocks only the RLS rule.
     too_large = sorted(rel for rel, _oid, size in files if size > MAX_BYTES and _rls_source(rel))
     if too_large:
         scope["rls_unread"] = too_large
@@ -1492,6 +1519,13 @@ def hygiene_census(repo, filing: str = "on") -> dict:
         # reading, and a ledger that resolves rows per path needs them all
         # (harness.split_hygiene moves this list to the side file).
         **({"unread_paths": sorted(rel for rel, _why in failures)} if failures else {}),
+        # What this scan vouches for, for finalize (Evidence), never for reading, and
+        # moved to the side file with the tier-2 rows: every file whose checks all
+        # ran; the Python files the parser refused, whose syntax-tree checks did not;
+        # and whether every migration was read, without which no RLS switch is judged.
+        "scanned_paths": sorted(found["checked"]),
+        "parse_failed_paths": sorted(found["parse_failed"]),
+        "rls_judged": found["rls_known"],
     }
 
 
@@ -1506,3 +1540,346 @@ def hygiene_reading(tier2_file: str | None = None) -> str:
             "where to read first, never findings by themselves; a partial scan could not read the "
             "files in scope.failed_paths: what it found is real, and its silence about those files "
             "is no proof they are clean")
+
+
+# ── lifecycle: finalize calls these ───────────────────────────────────────
+# Tier 1 becomes findings the harness owns, tier 2 the junk ledger. Both follow
+# one rule for what this run did not see: it resolves only on evidence — every
+# file it lives in was scanned, or is gone from the tree — and is otherwise
+# carried open. Silence about a file nobody read is never a fix.
+
+# What a Python file yields only once the parser has read it (_python, and the
+# bodies _duplicates compares): where the parser refused the file this run, their
+# silence there proves nothing.
+_PARSED_KINDS = frozenset(("debugger_statement", "broad_swallow", "unused_import",
+                           "commented_out_code", "todo_comment", "duplicate_function"))
+_HEX_SHA = re.compile(r"[0-9a-f]{7,64}")
+
+
+def is_hygiene(finding) -> bool:
+    return isinstance(finding, dict) and finding.get("source") == "hygiene"
+
+
+def absent_from_tree(repo, sha, paths) -> set:
+    """Which of `paths` the tree at `sha` does not hold — the evidence a deleted
+    file's item resolves on. Read from the tree, never the blobs, and from `repo`, as
+    the scan read it: `git cat-file -e <sha>:<path>` looks a path up from the top of
+    the work tree, and calls a blob a partial clone never fetched missing, and either
+    would resolve what is in a file that is still there. When git cannot list the
+    tree, nothing is known to be gone."""
+    want = {p for p in paths or () if isinstance(p, str) and p}
+    if not want:
+        return set()
+    rev = str(sha) if sha and _HEX_SHA.fullmatch(str(sha)) else "HEAD"
+    try:
+        proc = subprocess.run(["git", "-C", str(repo), "ls-tree", "-r", "-z", "--name-only", rev],
+                              capture_output=True, env=_git_env())
+    except OSError:
+        return set()
+    if proc.returncode != 0:
+        return set()
+    return want - {p.decode("utf-8", "replace") for p in proc.stdout.split(b"\0") if p}
+
+
+class Evidence:
+    """What a run's scan vouches for, file by file: the positive evidence an open
+    item it did not see needs before it resolves.
+
+    Such an item resolves when every file it lives in (`_paths`) was scanned — all
+    its checks ran over it — or is gone from the tree the scan read. Two exceptions
+    to "scanned": a Python file the parser refused says nothing about the kinds only
+    the parser finds, and no RLS switch in SQL is judged unless every migration was
+    read. Anything else carries the item open: a file unread, cut by the cap or too
+    large to read, a side file that could not be read (then nothing is scanned), a
+    scan that was unavailable. `absent(paths)` answers which of them are gone from
+    the tree; it is asked only about files the scan did not read, once per file."""
+
+    def __init__(self, scanned=(), parse_failed=(), rls_judged=False, absent=None):
+        self.scanned = frozenset(p for p in scanned or () if isinstance(p, str))
+        self.parse_failed = frozenset(p for p in parse_failed or () if isinstance(p, str))
+        self.rls_judged = rls_judged is True
+        self._absent = absent
+        self._gone: dict = {}
+
+    def absent(self, paths) -> set:
+        """Which of `paths` are gone from the tree, each asked about once."""
+        ask = sorted({p for p in paths if p not in self._gone})
+        if ask:
+            try:
+                gone = set(self._absent(ask)) if self._absent else set()
+            except Exception:
+                gone = set()        # a tree nobody could read says nothing is gone
+            self._gone.update((p, p in gone) for p in ask)
+        return {p for p in paths if self._gone.get(p)}
+
+    def carries(self, items) -> list:
+        """For each open item this run did not see, as (kind, paths): None when the
+        evidence resolves it, else why it stays open."""
+        whys = [self._excepted(kind, paths) for kind, paths in items]
+        ask = {p for (_kind, paths), why in zip(items, whys) if why is None
+               for p in paths if p not in self.scanned}
+        gone = self.absent(ask)
+        out = []
+        for (_kind, paths), why in zip(items, whys):
+            if why is None:
+                unread = [p for p in paths if p not in self.scanned and p not in gone]
+                if unread:
+                    why = f"{unread[0]} was not read by this run's scan"
+                elif not paths:
+                    why = "no file is recorded for it"
+            out.append(why)
+        return out
+
+    def _excepted(self, kind, paths):
+        """Why a file this scan read still proves nothing about `kind`, or None."""
+        for p in paths:
+            if p not in self.scanned:
+                continue
+            if kind in _PARSED_KINDS and p in self.parse_failed:
+                return f"{p} did not parse this run, so the checks that read its syntax tree did not run"
+            if kind == "open_database_rules" and p.lower().endswith(".sql") and not self.rls_judged:
+                return ("a migration went unread this run, so no table's final row-level-security "
+                        "state is known")
+        return None
+
+
+def _paths(record) -> list:
+    """Every file an item lives in: each copy of a copied function, each file that
+    reads a client-side variable, and the one it was filed at."""
+    if not isinstance(record, dict):
+        return []
+    sites = record.get("sites")
+    paths = [p for p in sites if isinstance(p, str) and p] if isinstance(sites, list) else []
+    if isinstance(record.get("path"), str) and record["path"] and record["path"] not in paths:
+        paths.append(record["path"])
+    return paths
+
+
+def _identity(record) -> tuple:
+    """What makes two items one across runs: the fingerprint — except for a secret in
+    a client-side variable, which is the variable, wherever it is read: a site that
+    moves is the same finding."""
+    if record.get("kind") == "public_env_secret" and record.get("variable"):
+        return ("public_env_secret", str(record["variable"]))
+    return ("fingerprint", str(record.get("fingerprint")))
+
+
+def _open(f) -> bool:
+    return str(f.get("status") or "open").strip().lower() not in ("resolved", "withdrawn")
+
+
+def _age(first_seen: str, today: str) -> int:
+    try:
+        return (date.fromisoformat(today) - date.fromisoformat(str(first_seen))).days
+    except ValueError:
+        return 0
+
+
+def _tier1_row(it) -> bool:
+    """A tier-1 item in the shape the scan writes one."""
+    return (isinstance(it, dict) and type(it.get("tier")) is int and it["tier"] == 1
+            and it.get("kind") in SEVERITY and isinstance(it.get("path"), str)
+            and type(it.get("line")) is int
+            and all(isinstance(it.get(field), str) for field in ("fingerprint", "excerpt")))
+
+
+def reconcile(facts_hygiene, prior_findings, mint, today: str, run_number, sha: str,
+              evidence=None) -> list:
+    """Tier-1 items → findings with a lifecycle, owned by the harness. One seen again
+    keeps its id — REGRESSED if it had been resolved; a prior one not seen resolves
+    only on `evidence` (Evidence) and is otherwise carried open. `mint` gives a NEW
+    finding its id."""
+    fh = facts_hygiene if isinstance(facts_hygiene, dict) else {}
+    ev = evidence if isinstance(evidence, Evidence) else Evidence()
+    prior: dict = {}
+    for f in prior_findings or []:
+        if is_hygiene(f) and isinstance(f.get("hygiene"), dict):
+            key = _identity(f["hygiene"])
+            if key not in prior or (_open(f) and not _open(prior[key])):
+                prior[key] = f
+    if fh.get("status") not in ("measured", "partial"):
+        # Nothing measured this run: carry what was open unchanged rather than resolve
+        # by silence — the rule the tester's own findings live under.
+        return [_carried(p, "the hygiene scan was unavailable this run", today)
+                for p in prior.values() if _open(p)]
+    filing = fh.get("filing", "on") == "on"
+    out, seen = [], set()
+    for it in (fh.get("items") or []) if filing else []:
+        if not _tier1_row(it) or _identity(it) in seen:
+            continue
+        seen.add(_identity(it))
+        out.append(_filed(it, prior.get(_identity(it)), mint, today, run_number))
+    unseen = [p for key, p in prior.items() if key not in seen and _open(p)]
+    if not filing:
+        return out + [_resolved(p, "hygiene filing is off in the profile", today, run_number)
+                      for p in unseen]
+    whys = ev.carries([(p["hygiene"].get("kind"), _paths(p["hygiene"])) for p in unseen])
+    for p, why in zip(unseen, whys):
+        out.append(_carried(p, why, today) if why
+                   else _resolved(p, f"no longer detected at {str(sha)[:8]}", today, run_number))
+    return out
+
+
+def _filed(it, p, mint, today: str, run_number) -> dict:
+    kind, fp, path, line = it["kind"], it["fingerprint"], it["path"], it["line"]
+    sev = SEVERITY[kind]
+    first_seen = (p or {}).get("first_seen") or today
+    was = str((p or {}).get("status") or "").strip().lower()
+    hyg = {"kind": kind, "fingerprint": fp, "path": path}
+    if isinstance(it.get("variable"), str) and it["variable"]:
+        hyg["variable"] = it["variable"]
+    if isinstance(it.get("sites"), list):
+        hyg["sites"] = [s for s in it["sites"] if isinstance(s, str) and s]
+    entry = {
+        "id": (p or {}).get("id") or mint(),
+        "source": "hygiene",
+        "hygiene": hyg,
+        "title": f"{TITLE[kind]} — {path}:{line}",
+        "severity": sev, "priority": "P1" if sev == "Critical" else "P3",
+        "status": "open", "failure_classification": None, "confidence": "proven",
+        "evidence": [f"{path}:{line} — {it['excerpt']}",
+                     "measured by the hygiene scan in verdict-facts and filed by "
+                     "verdict-finalize, not by the tester"],
+        # A client-side variable's fingerprint moves with its site; its identity, and
+        # the hash the outcome ledger keys on, do not.
+        "hash": (p or {}).get("hash") or "hygiene:" + fp,
+        "first_seen": first_seen, "age_days": _age(first_seen, today),
+        "delta": "NEW" if p is None else ("REGRESSED" if was == "resolved" else "STILL_OPEN"),
+    }
+    if entry["delta"] == "REGRESSED":
+        entry["regressed_at_run"] = run_number
+    elif (p or {}).get("regressed_at_run") is not None:
+        entry["regressed_at_run"] = p["regressed_at_run"]
+    return entry
+
+
+def _carried(p, why: str, today: str) -> dict:
+    return {**{k: v for k, v in p.items() if k != "re_reported"}, "delta": "STILL_OPEN",
+            "age_days": _age(p.get("first_seen") or today, today),
+            "carried_forward": f"carried open, not resolved: {why}"}
+
+
+def _resolved(p, reason: str, today: str, run_number) -> dict:
+    return {**{k: v for k, v in p.items() if k != "re_reported"},
+            "status": "resolved", "delta": "RESOLVED", "carried_forward": reason,
+            "resolved_at_run": run_number, "age_days": _age(p.get("first_seen") or today, today)}
+
+
+def ledger(facts_hygiene, tier2, previous_block, today: str, run_number, sha: str,
+           evidence=None) -> dict:
+    """Tier-2 items → the junk ledger, keyed by fingerprint, with counts that stay
+    exact. `tier2` is this run's rows (harness.tier2_items): None when the side file
+    holding them could not be read, and then no row resolves. A row not seen
+    resolves only on `evidence`, like a tier-1 finding, and is otherwise carried."""
+    fh = facts_hygiene if isinstance(facts_hygiene, dict) else {}
+    ev = evidence if isinstance(evidence, Evidence) else Evidence()
+    prev = previous_block if (isinstance(previous_block, dict)
+                              and isinstance(previous_block.get("rows"), list)) else {}
+    prev_open: dict = {}
+    for r in prev.get("rows") or []:
+        if (isinstance(r, dict) and r.get("status") == "open" and r.get("kind") in TIER2_KINDS
+                and isinstance(r.get("fingerprint"), str)):
+            prev_open.setdefault(r["fingerprint"], r)
+    if fh.get("status") not in ("measured", "partial"):
+        block = {"status": "unavailable", "reason": fh.get("reason") or (
+            "facts.json carries no hygiene scan — measured by a verdict-facts older than 0.91.0")}
+        if prev_open:
+            # Nothing measured, so nothing is known to be gone: last run's open rows are
+            # kept rather than dropped, which would start the next inventory over.
+            carried = [_carried_row(r, "the hygiene scan was unavailable this run")
+                       for r in prev_open.values()]
+            block.update(summary=_ledger_summary(_count(carried), [], [], carried, False, False),
+                         rows=carried,
+                         carried_from_run=prev.get("measured_at_run") or prev.get("carried_from_run"))
+        return block
+    rows_read = tier2 is not None
+    items, seen = [], set()
+    for it in tier2 or []:
+        if (isinstance(it, dict) and it.get("kind") in TIER2_KINDS
+                and isinstance(it.get("fingerprint"), str) and it["fingerprint"] not in seen):
+            seen.add(it["fingerprint"])
+            items.append(it)
+    current = [_ledger_row(it, prev_open.get(it["fingerprint"]), today, run_number) for it in items]
+    if rows_read:
+        unseen = [r for fp, r in prev_open.items() if fp not in seen]
+        whys = ev.carries([(r["kind"], _paths(r)) for r in unseen])
+        removed = [{**{k: v for k, v in r.items() if k != "carried_forward"}, "status": "resolved",
+                    "delta": "RESOLVED", "resolved_on": today, "resolved_at_run": run_number,
+                    "resolved_sha": sha}
+                   for r, why in zip(unseen, whys) if why is None]
+        carried = [_carried_row(r, why) for r, why in zip(unseen, whys) if why]
+        open_by_kind = _count(current + carried)
+    else:
+        # This run's rows are unknown: none of last run's is resolved, none is new, and
+        # the counts are the scan's own, which facts.json still holds.
+        removed = []
+        carried = [_carried_row(r, "this run's rows could not be read from the side file")
+                   for r in prev_open.values()]
+        open_by_kind = {k: v for k, v in (fh.get("counts_by_kind") or {}).items()
+                        if k in TIER2_KINDS and type(v) is int}
+    kept = current + carried
+    capped = len(kept) > LEDGER_CAP
+    if capped:
+        kept = sorted(kept, key=lambda r: r["delta"] == "NEW")[:LEDGER_CAP]
+    summary = _ledger_summary(open_by_kind, current, removed, carried, not prev, capped)
+    if fh.get("status") == "partial":
+        summary["partial"] = True
+    if not rows_read:
+        summary["tier2_unread"] = True
+    return {"status": "measured", "scope": fh.get("scope"), "measured_at_run": run_number,
+            "summary": summary, "rows": kept + removed,
+            "leads": {"handed": fh.get("leads_total", 0)}}
+
+
+def _ledger_row(it, p, today: str, run_number) -> dict:
+    row = {"fingerprint": it["fingerprint"], "kind": it["kind"], "path": it.get("path"),
+           "line": it.get("line"), "excerpt": it.get("excerpt"), "status": "open",
+           "delta": "STILL_OPEN" if p else "NEW",
+           "first_seen": (p or {}).get("first_seen") or today,
+           "first_seen_run": (p or {}).get("first_seen_run") or run_number}
+    sites = it.get("sites")
+    if isinstance(sites, list) and sites and all(isinstance(s, str) for s in sites):
+        row["sites"] = list(sites)
+    return row
+
+
+def _carried_row(r, why: str) -> dict:
+    return {**r, "delta": "STILL_OPEN", "carried_forward": why}
+
+
+def _count(rows) -> dict:
+    out: dict = {}
+    for r in rows:
+        out[r["kind"]] = out.get(r["kind"], 0) + 1
+    return out
+
+
+def _ledger_summary(open_by_kind: dict, current, removed, carried, first_inventory: bool,
+                    capped: bool) -> dict:
+    kinds = sorted(set(open_by_kind) | {r["kind"] for r in [*current, *removed, *carried]})
+    by_kind = {k: {"open": open_by_kind.get(k, 0),
+                   "new": sum(1 for r in current if r["kind"] == k and r["delta"] == "NEW"),
+                   "resolved": sum(1 for r in removed if r["kind"] == k)} for k in kinds}
+    summary = {"open": sum(v["open"] for v in by_kind.values()),
+               "new": sum(v["new"] for v in by_kind.values()),
+               "resolved": len(removed), "first_inventory": first_inventory, "capped": capped,
+               "by_kind": by_kind}
+    if carried:
+        summary["carried"] = len(carried)
+    return summary
+
+
+_CITE = re.compile(r"([\w./\\-]+\.[A-Za-z0-9_]+):(\d+)")
+
+
+def leads_followed(leads, findings) -> int:
+    """How many leads a finding of the tester's cites within five lines — the running
+    precision check on the lead rules."""
+    cited = [(m.group(1).replace("\\", "/"), int(m.group(2)))
+             for f in findings or [] if isinstance(f, dict) and not is_hygiene(f)
+             for e in f.get("evidence") or [] for m in _CITE.finditer(str(e))]
+    return sum(1 for lead in leads or []
+               if isinstance(lead, dict) and isinstance(lead.get("path"), str)
+               and type(lead.get("line")) is int
+               and any((p.endswith(lead["path"]) or lead["path"].endswith(p))
+                       and abs(n - lead["line"]) <= 5 for p, n in cited))

@@ -59,7 +59,8 @@ try:
     from . import questions
     from .anchors import DRIFTED, anchors_for, evidence_drift
     from .census import code_census
-    from .hygiene import TIER2_KINDS, hygiene_census, hygiene_reading
+    from .hygiene import (TIER2_KINDS, Evidence, absent_from_tree, hygiene_census,
+                          hygiene_reading)
     from .filed import FINDINGS_DIR, archive_findings, load_filed
     from .reports import read_report
     from .profile import ProfileError, gates_from, hygiene_filing_from
@@ -83,7 +84,8 @@ except ImportError:  # bare-script execution
     import questions
     from anchors import DRIFTED, anchors_for, evidence_drift
     from census import code_census
-    from hygiene import TIER2_KINDS, hygiene_census, hygiene_reading
+    from hygiene import (TIER2_KINDS, Evidence, absent_from_tree, hygiene_census,
+                         hygiene_reading)
     from filed import FINDINGS_DIR, archive_findings, load_filed
     from reports import read_report
     from profile import ProfileError, gates_from, hygiene_filing_from
@@ -2280,6 +2282,9 @@ def _resolve_root(repo: Path, explicit: str | None) -> Path:
 
 # The tier-2 rows of this run's hygiene scan, beside facts.json rather than in it.
 HYGIENE_ITEMS_FILE = "hygiene-items.json"
+# What the scan vouches for, file by file: finalize's evidence, never the tester's
+# reading, so it travels in the side file with the rows.
+_VOUCHED = ("scanned_paths", "parse_failed_paths", "rls_judged")
 
 
 def split_hygiene(facts: dict, qa_root: Path) -> None:
@@ -2289,13 +2294,14 @@ def split_hygiene(facts: dict, qa_root: Path) -> None:
     on Sales the hygiene block was 1,301 lines of it, 1,070 of them tier-2 rows
     there for no decision the tester makes. What stays is what reading needs — the
     status, the scope, exact counts of every tier, the tier-1 items and the leads
-    — and the name of the file the ledger reads the rest from (`tier2_items`). The
-    uncapped list of paths the scan could not read goes with the rows
-    (`unread_paths`). A block with no items (the scan was unavailable) moves nothing
-    and names no file; a block already split is left as it is, so a second call
-    cannot empty the file. A side file that cannot be written costs the run
-    nothing: tier 2 and the list stay inline, where the readers find them, and
-    `tier2_note` says why."""
+    — and the name of the file the ledger reads the rest from (`tier2_items`). What
+    the scan vouches for goes with the rows, for finalize alone (`hygiene_evidence`):
+    the uncapped list of paths it could not read (`unread_paths`), every path it
+    scanned, the Python files the parser refused, and whether every migration was
+    read. A block with no items (the scan was unavailable) moves nothing and names
+    no file; a block already split is left as it is, so a second call cannot empty
+    the file. A side file that cannot be written costs the run nothing: tier 2 and
+    the lists stay inline, where the readers find them, and `tier2_note` says why."""
     block = facts.get("hygiene")
     if not isinstance(block, dict) or not isinstance(block.get("items"), list) \
             or "tier2_file" in block:
@@ -2303,7 +2309,8 @@ def split_hygiene(facts: dict, qa_root: Path) -> None:
     rows, kept = [], []
     for it in block["items"]:
         (rows if isinstance(it, dict) and it.get("tier") == 2 else kept).append(it)
-    side = {"schema": 1, "items": rows, "unread_paths": block.get("unread_paths", [])}
+    side = {"schema": 1, "items": rows, "unread_paths": block.get("unread_paths", []),
+            **{key: block[key] for key in _VOUCHED if key in block}}
     try:
         _atomic_write(Path(qa_root) / HYGIENE_ITEMS_FILE, json.dumps(side, indent=1) + "\n")
     except OSError as exc:
@@ -2312,26 +2319,53 @@ def split_hygiene(facts: dict, qa_root: Path) -> None:
         return
     block.pop("tier2_note", None)
     block.pop("unread_paths", None)
+    for key in _VOUCHED:
+        block.pop(key, None)
     block["items"] = kept
     block["tier2_file"] = HYGIENE_ITEMS_FILE
     block["tier2_count"] = len(rows)
     block["reading"] = hygiene_reading(HYGIENE_ITEMS_FILE)
 
 
-def tier2_items(facts_hygiene: dict, qa_root: Path) -> list:
+def tier2_items(facts_hygiene: dict, qa_root: Path) -> list | None:
     """This run's tier-2 rows, the way the ledger reads them: from the file
     `split_hygiene` names, or from the block itself when it names none — a facts
     file written before the split, one reused by --reuse-if-fresh, or one whose side
     file could not be written, all hold tier 2 inline, and reading that as empty
-    would tell a ledger every row had resolved. [] when the named file is missing
-    or unreadable; a row that is not a well-formed tier-2 item is passed over.
-    Whatever the QA root holds, the ledger gets rows or nothing, never an error."""
-    if isinstance(facts_hygiene, dict) and "tier2_file" not in facts_hygiene:
+    would tell a ledger every row had resolved. None when the named file is
+    missing, unreadable or holds no list of rows: this run's rows are unknown, which
+    is not the same as none, and the ledger resolves nothing on it. A row that is
+    not a well-formed tier-2 item is passed over. Whatever the QA root holds, the
+    ledger gets rows or None, never an error."""
+    if not isinstance(facts_hygiene, dict):
+        return []
+    if "tier2_file" not in facts_hygiene:
         rows = facts_hygiene.get("items")
-    else:
-        side = _hygiene_side(facts_hygiene, qa_root)
-        rows = side.get("items") if side else None
-    return [it for it in rows if _tier2_row(it)] if isinstance(rows, list) else []
+        return [it for it in rows if _tier2_row(it)] if isinstance(rows, list) else []
+    side = _hygiene_side(facts_hygiene, qa_root)
+    rows = side.get("items") if side else None
+    if not isinstance(rows, list):
+        return None
+    return [it for it in rows if _tier2_row(it)]
+
+
+def hygiene_evidence(facts_hygiene: dict, qa_root: Path, repo=None, sha=None) -> Evidence:
+    """What this run's scan vouches for, for the lifecycle: the paths it scanned, the
+    Python files the parser refused and whether every migration was read — from the
+    side file, or inline from a block never split — and, for a file it did not read,
+    whether the tree at `sha` still holds it. A side file that cannot be read
+    vouches for nothing, so nothing resolves by it (a deleted file still does)."""
+    side = _hygiene_side(facts_hygiene, qa_root)
+    block = facts_hygiene if isinstance(facts_hygiene, dict) else {}
+
+    def vouched(key):
+        return side[key] if side and key in side else block.get(key)
+
+    scanned, parse_failed = vouched("scanned_paths"), vouched("parse_failed_paths")
+    return Evidence(scanned=scanned if isinstance(scanned, list) else (),
+                    parse_failed=parse_failed if isinstance(parse_failed, list) else (),
+                    rls_judged=vouched("rls_judged") is True,
+                    absent=(lambda paths: absent_from_tree(repo, sha, paths)) if repo else None)
 
 
 def unread_paths(facts_hygiene: dict, qa_root: Path) -> set:
