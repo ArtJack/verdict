@@ -181,3 +181,10 @@ def test_prose_that_looks_like_an_import_is_not_a_dependency(tmp_path):
         if root is None:
             continue
         assert m and m.group(1) == root, f"real import missed or misread: {line!r} -> {m}"
+
+
+def test_tree_lines_are_numbered_like_an_editor_even_with_u2028(tmp_path):
+    from verdict_mcp.census import _tree_lines
+    (tmp_path / "a.py").write_text('s = "one two"\n# TODO: here\n', encoding="utf-8")
+    lines, _, _ = _tree_lines(tmp_path)
+    assert [(p, n) for p, n, t in lines if "TODO" in t] == [("a.py", 2)]

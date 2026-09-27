@@ -1417,5 +1417,53 @@
   "path": "src/verdict_mcp/harness.py",
   "old": "    problems = write_state(qa_root, state)\n",
   "new": "    questions.save(qa_root, qledger)\n    problems = write_state(qa_root, state)\n"
+ },
+ {
+  "label": "0.91.0 H1 hygiene: secrets in test files count, so a redaction test files a Critical",
+  "path": "src/verdict_mcp/hygiene.py",
+  "old": "    if not test and not committed_env and not tracked:\n        items += _secrets(rel, lines)\n",
+  "new": "    if not committed_env and not tracked:\n        items += _secrets(rel, lines)\n"
+ },
+ {
+  "label": "0.91.0 H2 hygiene: placeholder-shaped keys are taken as live",
+  "path": "src/verdict_mcp/hygiene.py",
+  "old": "    if _PLACEHOLDER.search(low) or any(seq in low for seq in _SEQUENTIAL):\n        return False\n",
+  "new": "    if False:\n        return False\n"
+ },
+ {
+  "label": "0.91.0 H3 hygiene: lines numbered with splitlines(), so U+2028 shifts them",
+  "path": "src/verdict_mcp/hygiene.py",
+  "old": "    return [ln.rstrip(\"\\r\") for ln in text.split(\"\\n\")]\n",
+  "new": "    return text.splitlines()\n"
+ },
+ {
+  "label": "0.91.0 H4 hygiene: the fingerprint includes the line number, so a moved line is a new item",
+  "path": "src/verdict_mcp/hygiene.py",
+  "old": "        base = (it[\"kind\"], it[\"path\"], it.pop(\"_key\"))\n",
+  "new": "        base = (it[\"kind\"], it[\"path\"], it.pop(\"_key\") + str(it[\"line\"]))\n"
+ },
+ {
+  "label": "0.91.0 H13 hygiene: excerpts are not scrubbed, so a key in a TODO or a console.log reaches facts",
+  "path": "src/verdict_mcp/hygiene.py",
+  "old": "    if redacted is None:\n        text, why = _scrub(text), _scrub(why)\n",
+  "new": "    if False:\n        text, why = _scrub(text), _scrub(why)\n"
+ },
+ {
+  "label": "0.91.0 H14 hygiene: an encrypted .env.sops is read as a committed secrets file",
+  "path": "src/verdict_mcp/hygiene.py",
+  "old": "    return parts[-1] in _ENCRYPTED_LAST or any(p in _ENCRYPTED_INNER for p in parts[:-1])\n",
+  "new": "    return False\n"
+ },
+ {
+  "label": "0.91.0 H15 hygiene: a scan that could not read some files still says measured",
+  "path": "src/verdict_mcp/hygiene.py",
+  "old": "        \"status\": \"partial\" if failures else \"measured\",\n",
+  "new": "        \"status\": \"measured\",\n"
+ },
+ {
+  "label": "0.91.0 H16 hygiene: tracked symlinks are read, so a link out of the repository is scanned",
+  "path": "src/verdict_mcp/hygiene.py",
+  "old": "        if tab and len(fields) == 4 and fields[1] == b\"blob\" and fields[0] in (b\"100644\", b\"100755\"):\n",
+  "new": "        if tab and len(fields) == 4 and fields[1] == b\"blob\":\n"
  }
 ]
