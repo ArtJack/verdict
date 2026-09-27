@@ -36,11 +36,15 @@ tables are open, so none is filed while it is unread, but it is no failure — a
 committed dump would otherwise leave every run partial.
 
 Every item carries a fingerprint (kind, path, normalized line, occurrence), so a
-line that moves keeps its identity and a line that goes away resolves. A secret
-is redacted where it is found, and every other excerpt and reason is scrubbed on
-its way out: provider-format keys, JWTs, the password in a URL and runs that look
-random are removed. A digit-free, word-like token cannot be told from prose, so
-no scrub can promise to catch one. Lines are numbered by splitting on "\\n",
+line that moves keeps its identity; a client-side variable is known by its name,
+wherever it is read. An item the scan stops seeing resolves only on evidence —
+every file it lives in was read without it, or has left the tree (Evidence) —
+never on the silence of a file nobody read.
+
+A secret is redacted where it is found, and every other excerpt and reason is
+scrubbed on its way out: provider-format keys, JWTs, the password in a URL and
+runs that look random are removed. A digit-free, word-like token cannot be told
+from prose, so no scrub can promise to catch one. Lines are numbered by splitting on "\\n",
 never `splitlines()`, which also breaks on U+2028 inside a string literal and
 shifts every later line number — once CRLF and a lone CR are made "\\n", as
 Python's own parser does.
