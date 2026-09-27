@@ -59,6 +59,7 @@ try:
     from . import questions
     from .anchors import DRIFTED, anchors_for, evidence_drift
     from .census import code_census
+    from .hygiene import hygiene_census
     from .filed import FINDINGS_DIR, archive_findings, load_filed
     from .reports import read_report
     from .profile import ProfileError, gates_from
@@ -82,6 +83,7 @@ except ImportError:  # bare-script execution
     import questions
     from anchors import DRIFTED, anchors_for, evidence_drift
     from census import code_census
+    from hygiene import hygiene_census
     from filed import FINDINGS_DIR, archive_findings, load_filed
     from reports import read_report
     from profile import ProfileError, gates_from
@@ -1356,6 +1358,13 @@ def collect(repo: Path, qa_root: Path, gates: list[tuple[str, str]],
     except Exception as exc:  # a census must never cost a run
         facts_census = {"scope": f"census failed: {exc}"}
 
+    # Junk, near-certain exposures and reading leads, on every run (T-28). Tier 1
+    # becomes findings in finalize, tier 2 the ledger, leads what the tester reads first.
+    try:
+        facts_hygiene = hygiene_census(repo)
+    except Exception as exc:  # a scan must never cost a run
+        facts_hygiene = {"status": "unavailable", "reason": f"hygiene scan failed: {exc}"}
+
     facts = {
         "measured_at": now.strftime("%Y-%m-%dT%H:%M:%SZ"),
         "project": key,
@@ -1388,6 +1397,7 @@ def collect(repo: Path, qa_root: Path, gates: list[tuple[str, str]],
         },
         "gates": gate_results,
         "code_census": facts_census,
+        "hygiene": facts_hygiene,
     }
     if abandoned:
         # A marker at this same commit, minutes old, is this run's own earlier
@@ -2297,7 +2307,7 @@ def facts_main(argv=None) -> int:
     # into flags on every run is a transcription step, and a transcription step
     # is a place for the model to be confidently wrong. Explicit --gate still
     # wins — a caller narrowing a run should not have to edit the profile.
-    profile_notes, profile_source, declared_authorship = [], None, None
+    profile_notes, profile_source, declared_authorship, hygiene_setting = [], None, None, None
     if not args.no_profile:
         try:
             config, profile_notes = load_profile(qa_root)
@@ -2312,6 +2322,7 @@ def facts_main(argv=None) -> int:
             profile_source = [n for n, _ in adopted]
         if config.get("authorship"):
             declared_authorship = config["authorship"]
+        hygiene_setting = str(config.get("hygiene") or "").strip().lower() or None
         if args.test_ids_cmd is None and config.get("test_ids_cmd"):
             args.test_ids_cmd = config["test_ids_cmd"]
             profile_notes.append("test_ids_cmd taken from the profile")
@@ -2377,6 +2388,8 @@ def facts_main(argv=None) -> int:
     if declared_authorship:
         facts.setdefault("code_census", {}).setdefault("provenance", {})[
             "declared"] = declared_authorship
+    if hygiene_setting == "off" and isinstance(facts.get("hygiene"), dict):
+        facts["hygiene"]["filing"] = "off"   # counted, never filed (profile `hygiene: off`)
     if profile_source:
         facts["gates_from_profile"] = profile_source
     if profile_notes:

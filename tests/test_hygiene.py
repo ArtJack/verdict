@@ -668,3 +668,16 @@ def test_the_clean_pricer_fixture_has_no_tier_one_items(tmp_path):
     git(["add", "-A"], dst)
     git(["commit", "-qm", "c"], dst)
     assert [i for i in hygiene_census(dst)["items"] if i["tier"] == 1] == []
+
+
+def test_facts_carry_hygiene_and_the_profile_can_turn_filing_off(tmp_path):
+    from verdict_mcp.harness import facts_main
+    r = make_repo(tmp_path, {"a.py": "import os\n"})
+    qa = tmp_path / "qa"
+    qa.mkdir()
+    (qa / "profile.md").write_text("---\nhygiene: off\n---\n# p\n", encoding="utf-8")
+    assert facts_main(["--repo", str(r), "--qa-root", str(qa)]) == 0
+    facts = json.loads((qa / "facts.json").read_text(encoding="utf-8"))
+    assert facts["hygiene"]["status"] == "measured"
+    assert facts["hygiene"]["filing"] == "off"
+    assert facts["hygiene"]["counts_by_kind"] == {"unused_import": 1}
