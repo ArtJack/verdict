@@ -536,3 +536,114 @@ def test_live_keys_are_found_in_more_kinds_of_file(tmp_path):
     assert paths == ["notebooks/explore.ipynb", "server/main.go", "supabase/functions/admin/index.ts",
                      "web/index.html", "web/src/Pay.vue"]
     assert "raw_html_injection" in [lead["kind"] for lead in out["leads"]]
+
+
+# ── tier 2: the junk ledger ───────────────────────────────────────────────
+
+def test_junk_kinds_are_counted_and_none_of_them_is_tier_one(tmp_path):
+    r = make_repo(tmp_path, {
+        "svc/app.py": (
+            "import os\nimport json\n\n"
+            "def f():\n    try:\n        return 1\n    except Exception:\n        pass\n\n"
+            "# TODO: remove\n"
+            "# x = compute()\n# save(x)\n"),
+        "web/app.ts": ("import { a, b } from './m';\nconsole.log(a);\n"
+                       "fetch('/x').catch(() => {});\n// FIXME later\n"),
+    })
+    out = hygiene_census(r)
+    assert kinds(out, 1) == []
+    assert out["counts_by_kind"] == {"broad_swallow": 2, "commented_out_code": 1, "console_debug": 1,
+                                     "todo_comment": 2, "unused_import": 3}
+
+
+def test_print_and_a_narrow_except_pass_are_not_junk(tmp_path):
+    r = make_repo(tmp_path, {"cli.py": "def main():\n    print('hi')\n    try:\n        open('x')\n"
+                                       "    except OSError:\n        pass\n"})
+    assert hygiene_census(r)["counts_by_kind"] == {}
+
+
+def test_a_todo_inside_a_string_is_not_a_comment(tmp_path):
+    r = make_repo(tmp_path, {"census_like.py": 'MARKERS = r"\\b(?:TODO|FIXME)\\b"\n'})
+    assert "todo_comment" not in hygiene_census(r)["counts_by_kind"]
+
+
+def test_identical_functions_are_one_ledger_item(tmp_path):
+    body = "".join(f"    v{i} = x + {i}\n" for i in range(8)) + "    return v7\n"
+    r = make_repo(tmp_path, {"a.py": f"def one(x):\n{body}", "b.py": f"def two(x):\n{body}"})
+    out = hygiene_census(r)
+    dup = [i for i in out["items"] if i["kind"] == "duplicate_function"]
+    assert len(dup) == 1 and "2 identical copies" in dup[0]["excerpt"]
+
+
+def test_an_oversized_file_is_one_item_that_keeps_its_fingerprint_as_it_grows(tmp_path):
+    r = make_repo(tmp_path, {"big.py": "x = 1\n" * 2100})
+    first = [i for i in hygiene_census(r)["items"] if i["kind"] == "oversized_file"]
+    (r / "big.py").write_text("x = 1\n" * 2300, encoding="utf-8")
+    git(["commit", "-qam", "grow"], r)
+    second = [i for i in hygiene_census(r)["items"] if i["kind"] == "oversized_file"]
+    assert len(first) == len(second) == 1 and first[0]["fingerprint"] == second[0]["fingerprint"]
+
+
+def test_a_moved_line_keeps_its_fingerprint(tmp_path):
+    r = make_repo(tmp_path, {"a.py": "import os\n"})
+    fp1 = [i["fingerprint"] for i in hygiene_census(r)["items"]]
+    (r / "a.py").write_text("\n\n\nimport os\n", encoding="utf-8")
+    git(["commit", "-qam", "move"], r)
+    fp2 = [i["fingerprint"] for i in hygiene_census(r)["items"]]
+    assert fp1 == fp2 and len(fp1) == 1
+
+
+def test_line_numbers_survive_u2028_inside_a_string(tmp_path):
+    r = make_repo(tmp_path, {"a.py": 's = "one\u2028two"\n\nimport os\n'})
+    item = [i for i in hygiene_census(r)["items"] if i["kind"] == "unused_import"][0]
+    assert item["line"] == 3
+
+
+# ── tier 3: leads ─────────────────────────────────────────────────────────
+
+def test_a_swallow_around_a_secret_write_is_a_lead(tmp_path):
+    r = make_repo(tmp_path, {"app/auth.py": (
+        "def consume(store, remaining):\n    try:\n"
+        "        store.set('mfa_recovery_codes', remaining)\n"
+        "    except Exception:\n        pass  # best effort\n")})
+    leads = hygiene_census(r)["leads"]
+    assert [lead["kind"] for lead in leads] == ["swallow_around_sensitive_write"]
+
+
+def test_a_security_read_that_fails_open_is_a_lead(tmp_path):
+    r = make_repo(tmp_path, {"app/login.py": (
+        "def login(store):\n    try:\n        secret = store.get('mfa_secret')\n"
+        "    except Exception:\n        secret = None\n    return secret\n")})
+    assert [lead["kind"] for lead in hygiene_census(r)["leads"]] == ["security_read_fails_open"]
+
+
+def test_a_placeholder_salt_in_the_env_template_is_a_lead(tmp_path):
+    r = make_repo(tmp_path, {".env.example": "SESSION_SALT=CHANGE_ME_NOW\nPORT=8080\n"})
+    leads = hygiene_census(r)["leads"]
+    assert [(lead["kind"], lead["line"]) for lead in leads] == [("placeholder_security_default", 1)]
+
+
+def test_line_leads_carry_the_comment_just_above(tmp_path):
+    r = make_repo(tmp_path, {"app/api.py": (
+        "def status(req):\n    # public on purpose: version string only\n"
+        "    return {'Access-Control-Allow-Origin': '*'}\n")})
+    lead = [lead for lead in hygiene_census(r)["leads"] if lead["kind"] == "wildcard_cors"][0]
+    assert "public on purpose" in lead["why"]
+
+
+def test_a_documented_cli_is_not_an_unimported_module(tmp_path):
+    r = make_repo(tmp_path, {"rotate_keys.py": "print(1)\n", "orphan.py": "x = 1\n",
+                             "README.md": "Run `python rotate_keys.py`.\n"})
+    leads = [lead["path"] for lead in hygiene_census(r)["leads"] if lead["kind"] == "module_never_imported"]
+    assert leads == ["orphan.py"]
+
+
+def test_leads_are_capped_but_counted(tmp_path):
+    r = make_repo(tmp_path, {"app/x.py": "".join(f"a{i} = eval('1')\n" for i in range(80))})
+    out = hygiene_census(r)
+    assert len(out["leads"]) == 60 and out["leads_total"] == 80
+
+
+def test_the_scan_scope_is_reported(tmp_path):
+    r = make_repo(tmp_path, {"a.py": "x = 1\n"})
+    assert hygiene_census(r)["scope"] == {"files": 1, "capped": False, "file_cap": 5000, "failed": 0}
