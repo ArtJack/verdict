@@ -2113,10 +2113,18 @@ INDEX_HEADER = ("| Date | Project | Run type | Verdict | Tests (pass/skip/fail) 
 def _atomic_write(path: Path, text: str) -> None:
     """Write via a temp file and `os.replace`, which is atomic on POSIX and
     Windows alike. Nothing here is large enough for the extra copy to matter,
-    and a torn state.json costs a run at best."""
+    and a torn state.json costs a run at best. A write that fails takes its temp
+    file with it, so nothing half-written is left in the QA root."""
     tmp = path.with_name(path.name + ".tmp")
-    tmp.write_text(text, encoding="utf-8")
-    os.replace(tmp, path)
+    try:
+        tmp.write_text(text, encoding="utf-8")
+        os.replace(tmp, path)
+    except OSError:
+        try:
+            tmp.unlink()
+        except OSError:
+            pass
+        raise
 
 
 def write_state(qa_root: Path, state: dict) -> list[str]:
@@ -2283,7 +2291,9 @@ def split_hygiene(facts: dict, qa_root: Path) -> None:
     status, the scope, exact counts of every tier, the tier-1 items and the leads
     — and the name of the file the ledger reads the rest from (`tier2_items`). A
     block with no items (the scan was unavailable) moves nothing and names no file;
-    a block already split is left as it is, so a second call cannot empty the file."""
+    a block already split is left as it is, so a second call cannot empty the file.
+    A side file that cannot be written costs the run nothing: tier 2 stays inline,
+    where `tier2_items` reads it, and `tier2_note` says why."""
     block = facts.get("hygiene")
     if not isinstance(block, dict) or not isinstance(block.get("items"), list) \
             or "tier2_file" in block:
@@ -2291,8 +2301,14 @@ def split_hygiene(facts: dict, qa_root: Path) -> None:
     rows, kept = [], []
     for it in block["items"]:
         (rows if isinstance(it, dict) and it.get("tier") == 2 else kept).append(it)
-    _atomic_write(Path(qa_root) / HYGIENE_ITEMS_FILE,
-                  json.dumps({"schema": 1, "items": rows}, indent=1) + "\n")
+    try:
+        _atomic_write(Path(qa_root) / HYGIENE_ITEMS_FILE,
+                      json.dumps({"schema": 1, "items": rows}, indent=1) + "\n")
+    except OSError as exc:
+        block["tier2_note"] = (f"{HYGIENE_ITEMS_FILE} could not be written "
+                               f"({exc.strerror or type(exc).__name__}): tier 2 stays in items")
+        return
+    block.pop("tier2_note", None)
     block["items"] = kept
     block["tier2_file"] = HYGIENE_ITEMS_FILE
     block["tier2_count"] = len(rows)

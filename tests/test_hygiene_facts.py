@@ -187,3 +187,17 @@ def test_a_block_that_was_never_split_is_read_where_its_rows_are(tmp_path):
     qa = tmp_path / "qa"
     qa.mkdir()
     assert len(rows) == 3 and harness.tier2_items(block, qa) == rows
+
+
+def test_a_side_file_that_cannot_be_written_costs_the_run_nothing(tmp_path):
+    from verdict_mcp import harness
+    repo = make_repo(tmp_path, JUNK)
+    qa = tmp_path / "qa"
+    (qa / "hygiene-items.json").mkdir(parents=True)
+    block = harness_facts(repo, qa)["hygiene"]
+    assert sorted(i["tier"] for i in block["items"]) == [1, 2, 2, 2], "tier 2 stays where it was"
+    assert "tier2_file" not in block and "tier2_count" not in block
+    assert block["tier2_note"].startswith("hygiene-items.json could not be written")
+    assert [i["kind"] for i in harness.tier2_items(block, qa)] == ["unused_import", "todo_comment",
+                                                                   "broad_swallow"]
+    assert not list(qa.glob("*.tmp")), "a failed write leaves nothing half-written behind"
