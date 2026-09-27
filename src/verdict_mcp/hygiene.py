@@ -16,11 +16,24 @@ someone who never read it. Three tiers, and the tier decides who acts:
      placeholder secret default, a forwarded header, a wildcard CORS rule: handed
      to the tester to read first, never filed here
 
+Tier 1 is filed with no model in the loop, so it takes only what is certain. An
+encrypted file, a key that is public by design, a value that is not a credential,
+a rule that only lets anyone read one collection, a debugger in a comment: each
+is a lead or nothing, never a finding.
+
+The scan reads what HEAD holds, through git, and never the working copy:
+"committed" means committed. A file that exists only on disk, a symlink pointing
+out of the repository, a FIFO — none of them is ever opened. Outside a git
+checkout, or before the first commit, the scan reports itself unavailable rather
+than walking the directory and calling what it finds there committed.
+
 Every item carries a fingerprint (kind, path, normalized line, occurrence), so a
 line that moves keeps its identity and a line that goes away resolves. A secret
-is redacted where it is found: its value never reaches facts, state or a report.
-Lines are numbered by splitting on "\\n", never `splitlines()`, which also breaks
-on U+2028 inside a string literal and shifts every later line number.
+is redacted where it is found, and every excerpt and every reason is scrubbed on
+its way out: a value never reaches facts, state or a report, whichever item its
+line lands in. Lines are numbered by splitting on "\\n", never `splitlines()`,
+which also breaks on U+2028 inside a string literal and shifts every later line
+number — once CRLF and a lone CR are made "\\n", as Python's own parser does.
 """
 
 from __future__ import annotations
@@ -42,16 +55,23 @@ try:
 except ImportError:  # imported as a plain module beside census.py
     from census import _SKIP_DIRS
 
-CODE_SUFFIXES = {".py", ".js", ".jsx", ".ts", ".tsx", ".mjs", ".cjs"}
-SCANNED_SUFFIXES = CODE_SUFFIXES | {
+CODE_SUFFIXES = {".py", ".js", ".jsx", ".ts", ".tsx", ".mjs", ".cjs", ".vue", ".svelte", ".astro"}
+# Spelled as one display, not `CODE_SUFFIXES | {…}`: the interpreter-floor test
+# reads any `|` holding the text "list" (".plist") as a 3.9-breaking type union.
+SCANNED_SUFFIXES = {
+    *CODE_SUFFIXES,
     ".json", ".yml", ".yaml", ".toml", ".ini", ".cfg", ".env", ".properties", ".xml",
-    ".sh", ".md", ".txt", ".tf", ".conf", ".sql", ".rules", ""}
+    ".sh", ".md", ".txt", ".tf", ".conf", ".sql", ".rules", "",
+    ".go", ".rb", ".php", ".java", ".kt", ".kts", ".swift", ".cs", ".rs", ".dart", ".scala",
+    ".gradle", ".html", ".htm", ".ipynb", ".plist", ".xcconfig", ".tfvars", ".hcl", ".bash",
+    ".zsh", ".ps1", ".mdx", ".rst"}
 FILE_CAP = 5000          # files scanned per run; reaching it is reported, never silent
 MAX_BYTES = 1_000_000    # a minified bundle is not source anybody maintains
 OVERSIZED_LINES = 2000
 DUPLICATE_MIN_LINES = 8
 LEAD_CAP = 60            # leads written to facts; the total is always exact
 LEDGER_CAP = 5000        # ledger rows; past it the summary stays exact and deltas stop
+LONG_LINE = 2000         # a minified line: junk and lead checks pass it by, the secret scan never does
 
 SEVERITY = {
     "secret_in_code": "Critical",
@@ -70,14 +90,17 @@ TITLE = {
 TIER2_KINDS = ("broad_swallow", "unused_import", "oversized_file", "todo_comment",
                "commented_out_code", "console_debug", "duplicate_function")
 _LEAD_ORDER = {k: n for n, k in enumerate((
-    "swallow_around_sensitive_write", "security_read_fails_open",
+    "swallow_around_sensitive_write", "security_read_fails_open", "google_api_key",
     "placeholder_security_default", "forwarded_header_trust", "wildcard_cors",
     "raw_html_injection", "shell_or_eval", "tls_verify_off", "public_env_key_name",
-    "rls_policy_using_true", "env_file_committed", "module_never_imported"))}
+    "public_database_rule", "rls_policy_using_true", "env_file_committed", "module_never_imported"))}
 
 _TEST_DIRS = {"test", "tests", "__tests__", "spec", "specs", "fixtures", "__fixtures__",
-              "testdata", "e2e"}
+              "testdata", "e2e", "__mocks__", "mocks", "cypress", "testing"}
 _SCRIPT_DIRS = {"scripts", "script", "bin", "tools", "tool"}
+_VENDOR_DIRS = {"vendor", "vendors", "third_party"}
+_DOC_SUFFIXES = {".md", ".mdx", ".txt", ".rst", ".adoc"}
+_MINIFIED = re.compile(r"(?:\.min\.(?:js|mjs|cjs)|-min\.js|\.bundle\.js)$", re.IGNORECASE)
 
 # ── tier 1 patterns ───────────────────────────────────────────────────────
 _SECRET_PATTERNS = (
@@ -87,32 +110,71 @@ _SECRET_PATTERNS = (
     ("github token", re.compile(
         r"\b(?:ghp|gho|ghu|ghs|ghr)_[A-Za-z0-9]{36}\b|\bgithub_pat_[A-Za-z0-9_]{40,}")),
     ("slack token", re.compile(r"\bxox[baprs]-[A-Za-z0-9-]{10,}")),
-    ("google api key", re.compile(r"\bAIza[0-9A-Za-z_-]{35}\b")),
     ("telegram bot token", re.compile(r"\b\d{8,10}:AA[A-Za-z0-9_-]{33}\b")),
     ("stripe live key", re.compile(r"\b[rs]k_live_[A-Za-z0-9]{20,}")),
+    ("supabase secret key", re.compile(r"\bsb_secret_[A-Za-z0-9_-]{20,}")),
 )
+# A Google API key is public by design in a Firebase or Maps web config: a lead
+# for the tester, never a finding — and scrubbed from every excerpt all the same.
+_GOOGLE_KEY = ("google api key", re.compile(r"\bAIza[0-9A-Za-z_-]{35}\b"))
+_GOOGLE_WHY = ("a Google API key — public by design in a Firebase or Maps web config (check its API "
+               "restrictions), a leak if it is a Gemini or other server key")
 _PRIVATE_KEY = re.compile(r"-----BEGIN (?:RSA |EC |OPENSSH |DSA |PGP |ENCRYPTED )?PRIVATE KEY-----")
 _BASE64_LINE = re.compile(r"^[A-Za-z0-9+/=]{40,}$")
+# A key written on one line with "\n" escapes, the way a service-account JSON or an
+# env file holds it: the header, an escaped newline, then 40 characters of key.
+_INLINE_KEY = re.compile(_PRIVATE_KEY.pattern + r"\\n[A-Za-z0-9+/=]{40}")
+_SERVICE_ACCOUNT = re.compile(r"\"type\"\s*:\s*\"service_account\"")
+_SERVICE_ACCOUNT_KEY = re.compile(r"\"private_key\"\s*:\s*\"" + _INLINE_KEY.pattern)
 _JWT = re.compile(r"\beyJ[A-Za-z0-9_-]{10,}\.(eyJ[A-Za-z0-9_-]{10,})\.[A-Za-z0-9_-]{10,}")
 _PLACEHOLDER = re.compile(
-    r"x{4,}|example|your[_-]|fake|dummy|sample|placeholder|change_?me|redacted|test",
+    r"x{4,}|example|your[_-]|fake|dummy|sample|placeholder|change_?me|redacted|test|insecure",
     re.IGNORECASE)
 _SEQUENTIAL = ("0123", "1234", "2345", "3456", "4567", "5678", "6789", "abcd", "bcde", "wxyz")
+# Only a name that ENDS in a credential word: VITE_PASSWORD_MIN_LENGTH is a number
+# and VITE_SECRET_SANTA_ENABLED a flag, both public on purpose.
 _PUBLIC_ENV_SECRET = re.compile(
-    r"\b(?:NEXT_PUBLIC|VITE|EXPO_PUBLIC|REACT_APP|NUXT_PUBLIC|PUBLIC)_[A-Z0-9_]*"
-    r"(?:SECRET|PRIVATE|SERVICE_ROLE|PASSWORD)[A-Z0-9_]*\b")
-_FIREBASE_OPEN = re.compile(
-    r"allow\s+[\w\s,]*:\s*if\s+true\s*;|\"\.(?:read|write)\"\s*:\s*(?:true|\"true\")")
-_RLS_DISABLED = re.compile(r"\bdisable\s+row\s+level\s+security\b", re.IGNORECASE)
+    r"\b(?:NEXT_PUBLIC|VITE|EXPO_PUBLIC|REACT_APP|NUXT_PUBLIC|PUBLIC)_(?:[A-Z0-9_]*_)?"
+    r"(?:SECRET|SECRET_KEY|PRIVATE_KEY|SERVICE_ROLE|SERVICE_ROLE_KEY|PASSWORD|CLIENT_SECRET)\b")
 _ENV_FILE = re.compile(r"(?:^|/)\.env(?:\.[\w.-]+)?$")
 _ENV_TEMPLATE = re.compile(r"\.(?:example|sample|template|dist|defaults|test|ci)$", re.IGNORECASE)
-_ENV_SECRET_BY_CONVENTION = re.compile(r"\.local$|\.production$|\.prod$", re.IGNORECASE)
-_SECRETISH_ASSIGN = re.compile(
-    r"^\s*(?:export\s+)?([A-Z0-9_]*(?:SECRET|PASSWORD|PRIVATE|TOKEN|KEY)[A-Z0-9_]*)\s*=\s*(\S+)")
+_ENV_ASSIGN = re.compile(r"^(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)$")
+_CLIENT_PREFIXES = ("NEXT_PUBLIC_", "VITE_", "EXPO_PUBLIC_", "REACT_APP_", "NUXT_PUBLIC_", "PUBLIC_")
+_CREDENTIAL_WORDS = frozenset(("SECRET", "PASSWORD", "PASSWD", "PASS", "PWD", "TOKEN", "KEY",
+                               "APIKEY", "PRIVATE", "CREDENTIALS", "SALT"))
+_PUBLIC_WORDS = frozenset(("PUBLIC", "PUBLISHABLE", "ANON"))
+_NOT_A_SECRET_TAIL = frozenset((
+    "TTL", "URL", "URI", "PATH", "FILE", "DIR", "ID", "NAME", "PREFIX", "EXPIRY", "EXPIRES",
+    "LENGTH", "LEN", "SIZE", "MIN", "MAX", "TIMEOUT", "HEADER", "TYPE", "ALG", "ALGORITHM",
+    "VERSION", "REGION", "HOST", "PORT", "USER", "USERNAME", "EMAIL", "ENABLED", "COUNT",
+    "FORMAT", "MODE"))
 _KEY_CONTAINER = re.compile(r"\.(?:p12|pfx|jks|keystore)$|^id_(?:rsa|dsa|ecdsa|ed25519)$",
                             re.IGNORECASE)
-_JS_DEBUGGER = re.compile(r"^\s*debugger\s*;?\s*(?://.*)?$")
-_PY_DEBUGGER = re.compile(r"\bbreakpoint\(\s*\)|\b(?:i?pdb)\.set_trace\(|^\s*import\s+i?pdb\b")
+_ENCRYPTED_LAST = frozenset(("sops", "enc", "age", "gpg", "asc", "vault", "encrypted"))
+_ENCRYPTED_INNER = frozenset(("sops", "enc"))
+_READS_TEXT = ("env", "pem", "json")       # the secret-file checks that need a file's content
+# Firestore and Storage rules, read one token at a time so that a one-line block
+# (`match /a/{id} { allow read: if true; }`) nests like any other. A match path
+# carries braces of its own ({id}, {document=**}), which are part of the path.
+_RULES_TOKEN = re.compile(
+    r"\bmatch\s+(?P<path>(?:[^\s{}]|\{[^{}]*\})+)\s*\{"
+    r"|\ballow\s+(?P<methods>[a-z]+(?:\s*,\s*[a-z]+)*)\s*(?::\s*if\s+true\s*)?;"
+    r"|(?P<brace>[{}])")
+_RTDB_WRITE = re.compile(r"\"\.write\"\s*:\s*(?:true|\"true\")")
+_RTDB_READ = re.compile(r"\"\.read\"\s*:\s*(?:true|\"true\")")
+_PUBLIC_RULE_WHY = "a rule anyone can use for reads or creates — check the data is meant to be public"
+_DOWN_MIGRATION = re.compile(r"(?:^|[/._-])down\.sql$")
+_RLS_SWITCH = re.compile(
+    r"\balter\s+table\s+(?:if\s+exists\s+)?(?:only\s+)?"
+    r"((?:\"[^\"]+\"|[\w$]+)(?:\s*\.\s*(?:\"[^\"]+\"|[\w$]+))?)"
+    r"\s+(enable|disable)\s+row\s+level\s+security\b", re.IGNORECASE)
+_JS_DEBUGGER = re.compile(r"^\s*debugger\s*;?\s*$")
+_PY_DEBUGGER_MODULES = ("pdb", "ipdb", "pudb")
+# What `_uncomment` looks for, in C-like code and rules and in SQL: the opening of
+# a block comment, a line comment, or a string — kept whole, so a `//` in a URL or
+# a `/*` in a glob is not taken for a comment.
+_C_TOKENS = re.compile(r"/\*|//|\"(?:\\.|[^\"\\])*\"|'(?:\\.|[^'\\])*'|`(?:\\.|[^`\\])*`")
+_SQL_TOKENS = re.compile(r"/\*|--|\"[^\"]*\"|'[^']*'")
 
 # ── tier 2 patterns ───────────────────────────────────────────────────────
 _JS_EMPTY_CATCH = re.compile(
@@ -127,6 +189,9 @@ _JS_CODEY_COMMENT = re.compile(
 _JS_IMPORT = re.compile(
     r"^[ \t]*import\s+(?:type\s+)?(?P<spec>\{[^}]*\}|[\w$]+(?:\s*,\s*\{[^}]*\})?|\*\s+as\s+[\w$]+)"
     r"\s+from\s+['\"][^'\"]+['\"]", re.MULTILINE)
+# A use of an imported name: not a member of something else (`x.name`), except
+# that a spread (`...name`) is a use like any other.
+_JS_USE = r"(?:(?<![\w$.])|(?<=\.\.\.))"
 _RICH = (ast.Call, ast.Assign, ast.AugAssign, ast.AnnAssign, ast.Import, ast.ImportFrom,
          ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef, ast.Return, ast.If, ast.For,
          ast.While, ast.With, ast.Raise, ast.Delete, ast.Await)
@@ -145,7 +210,8 @@ _LINE_LEADS = (
         r"Access-Control-Allow-Origin['\"]?\s*[:,=]\s*['\"]\*['\"]|allow_origins?\s*=\s*\[?\s*['\"]\*"
         r"|origin\s*:\s*['\"]\*['\"]"),
      "a wildcard CORS rule — check what the route returns and whether it needs a login"),
-    ("raw_html_injection", re.compile(r"dangerouslySetInnerHTML|\bv-html\s*=|\.innerHTML\s*=(?!=)"),
+    ("raw_html_injection", re.compile(
+        r"dangerouslySetInnerHTML|\bv-html\s*=|\.innerHTML\s*=(?!=)|\{@html\s|\bset:html\s*="),
      "raw HTML goes into the page — check that what reaches it is sanitized"),
     ("shell_or_eval", re.compile(
         r"shell\s*=\s*True|\bos\.system\(|(?<![\w.])eval\(|(?<![\w.])exec\("
@@ -162,6 +228,7 @@ _LINE_LEADS = (
         r"\b(?:NEXT_PUBLIC|VITE|EXPO_PUBLIC|REACT_APP|NUXT_PUBLIC)_[A-Z0-9_]*(?:KEY|TOKEN)[A-Z0-9_]*"),
      "a client-side variable named like a credential — publishable and anon keys are fine, secret keys are not"),
 )
+_COMMENT_MARKS = ("#", "//", "/*", "*", "--")
 _RLS_OPEN_POLICY = re.compile(r"using\s*\(\s*true\s*\)", re.IGNORECASE)
 _PLACEHOLDER_SECURITY_DEFAULT = re.compile(
     r"^\s*([A-Z0-9_]*(?:SALT|SECRET|KEY|TOKEN|PASSWORD|PASS)[A-Z0-9_]*)\s*=\s*['\"]?"
@@ -172,13 +239,18 @@ _ENTRY_FILE = re.compile(
     r"|pyproject\.toml|setup\.cfg|package\.json|README[\w.-]*)$|\.sh$|^\.github/workflows/",
     re.IGNORECASE)
 
+# ── scrubbing: what may leave in an excerpt or a reason ───────────────────
+_SCRUBBED = _SECRET_PATTERNS + (_GOOGLE_KEY,)
+_SCRUB_RUN = re.compile(r"[A-Za-z0-9+_=-]{24,}")
+
 
 def is_test_path(rel: str) -> bool:
     p = rel.replace("\\", "/").lower()
     if any(d in _TEST_DIRS for d in p.split("/")[:-1]):
         return True
-    return re.search(r"(?:^|/)(?:test_[^/]*\.py|[^/]*_test\.py|conftest\.py"
-                     r"|[^/]*\.(?:test|spec)\.[cm]?[jt]sx?)$", p) is not None
+    return re.search(r"(?:^|/)(?:test_[^/]*\.py|[^/]*_tests?\.py|tests?\.py|conftest\.py"
+                     r"|[^/]*\.(?:test|spec|cy)\.[cm]?[jt]sx?|setuptests\.[cm]?[jt]sx?"
+                     r"|(?:jest|vitest)\.setup\.[^/]*)$", p) is not None
 
 
 def _is_script_path(rel: str) -> bool:
@@ -186,41 +258,169 @@ def _is_script_path(rel: str) -> bool:
     return parts[0] in _SCRIPT_DIRS or ".config." in parts[-1]
 
 
-def _tracked(repo: Path) -> tuple[list[str], bool]:
-    proc = subprocess.run(["git", "-C", str(repo), "ls-files", "-z"], capture_output=True)
-    if proc.returncode == 0:
-        paths = [p for p in proc.stdout.decode("utf-8", "replace").split("\0") if p]
-    else:
-        paths = []
-        for root, dirs, names in os.walk(repo):
-            dirs[:] = sorted(d for d in dirs if d not in _SKIP_DIRS)
-            paths += [Path(root, n).relative_to(repo).as_posix() for n in sorted(names)]
-            if len(paths) > FILE_CAP:
-                break
-    keep = [p for p in paths if not set(p.split("/")[:-1]) & _SKIP_DIRS]
-    return keep[:FILE_CAP], len(keep) > FILE_CAP
+def _generated(rel: str) -> bool:
+    """Minified or vendored: code nobody here wrote, so its junk is nobody's here."""
+    parts = rel.lower().split("/")
+    return _MINIFIED.search(parts[-1]) is not None or any(d in _VENDOR_DIRS for d in parts[:-1])
 
 
-def _read(repo: Path, rel: str) -> str | None:
-    p = repo / rel
+def _encrypted_name(name: str) -> bool:
+    """`.env.sops`, `secrets.enc.yaml`, `.env.vault` — but `vault.py` is code. A name
+    with no dot at all (Ansible's `group_vars/all/vault`) is left to its content, so
+    a plaintext file that only sounds encrypted is still read."""
+    parts = name.lower().split(".")
+    if len(parts) < 2 or "." + parts[-1] in CODE_SUFFIXES:
+        return False
+    return parts[-1] in _ENCRYPTED_LAST or any(p in _ENCRYPTED_INNER for p in parts[:-1])
+
+
+def _encrypted_text(name: str, text: str) -> bool:
+    """SOPS, Ansible Vault, PGP or age content. Source code is never such a payload,
+    as by name: a scanner, its tests or a SOPS helper that quotes a marker is still
+    read whole — else quoting `ENC[AES256_GCM,` would hide every key in the file."""
+    if Path(name).suffix.lower() in CODE_SUFFIXES:
+        return False
+    head = text[:4096].lstrip()
+    return ("ENC[AES256_GCM," in text or "-----BEGIN PGP MESSAGE-----" in text
+            or head.startswith(("$ANSIBLE_VAULT;", "age-encryption.org/v1")))
+
+
+# ── reading git ───────────────────────────────────────────────────────────
+class _Unavailable(Exception):
+    """git cannot show a commit here; the message is the one line the caller gets."""
+
+
+def _git_env() -> dict:
+    """git that never reaches for the network. In a partial clone a blob HEAD names
+    may be absent, and git would fetch it — or sit at a credential prompt — for
+    every such file; here it is a file the scan could not read instead."""
+    return dict(os.environ, GIT_NO_LAZY_FETCH="1", GIT_TERMINAL_PROMPT="0")
+
+
+def _head_files(repo: Path) -> list:
+    """(path, oid, size) for every regular file HEAD holds, in tree order.
+
+    Only modes 100644 and 100755 are kept: a symlink (120000) may point anywhere
+    on the machine, and a submodule (160000) is another repository. Run from a
+    subdirectory, git lists that subtree with paths relative to it. A blob this
+    clone lacks has no size ("BAD"), which is kept as -1: its read will fail."""
     try:
-        if p.stat().st_size > MAX_BYTES:
-            return None
-        data = p.read_bytes()
-    except OSError:
+        proc = subprocess.run(["git", "-C", str(repo), "ls-tree", "-r", "-l", "-z", "HEAD"],
+                              capture_output=True, env=_git_env())
+    except OSError as exc:
+        raise _Unavailable(f"git could not run: {exc}") from None
+    if proc.returncode != 0:
+        said = proc.stderr.decode("utf-8", "replace").strip().splitlines()
+        raise _Unavailable("git could not list HEAD: "
+                           + (said[0].strip() if said else f"exit status {proc.returncode}"))
+    files = []
+    for entry in proc.stdout.split(b"\0"):
+        meta, tab, path = entry.partition(b"\t")
+        fields = meta.split()
+        if tab and len(fields) == 4 and fields[1] == b"blob" and fields[0] in (b"100644", b"100755"):
+            size = int(fields[3]) if fields[3].isdigit() else -1
+            files.append((path.decode("utf-8", "replace"), fields[2].decode("ascii"), size))
+    return files
+
+
+def _decode(data):
+    """Text as Python itself reads it: the BOM dropped, CRLF and a lone CR made
+    "\\n". The parser breaks a line at a lone CR, so the line numbers here must."""
+    if data is None or b"\0" in data[:4096]:
         return None
-    if b"\0" in data[:4096]:
-        return None
-    return data.decode("utf-8", errors="replace")
+    return data.decode("utf-8-sig", errors="replace").replace("\r\n", "\n").replace("\r", "\n")
+
+
+class _Blobs:
+    """HEAD's blobs through one long-lived `git cat-file --batch`, one object at a
+    time: write the id, read the header, read exactly the size it names. Nothing is
+    opened on disk, so neither a FIFO nor a link out of the tree can be reached."""
+
+    def __init__(self, repo: Path):
+        try:
+            self._proc = subprocess.Popen(["git", "-C", str(repo), "cat-file", "--batch"],
+                                          stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+                                          stderr=subprocess.DEVNULL, env=_git_env())
+        except OSError as exc:
+            raise _Unavailable(f"git could not run: {exc}") from None
+        self._kept: dict = {}
+        self._broken = False
+
+    def text(self, oid: str, size: int, keep: bool = False):
+        """The blob as text, or None when it is over MAX_BYTES (never requested) or
+        binary. `keep` holds it for a later path with the same content, so no blob
+        is read twice in a scan."""
+        if oid in self._kept:
+            text = self._kept.pop(oid)
+        else:
+            text = None if size > MAX_BYTES else _decode(self._read(oid))
+        if keep:
+            self._kept[oid] = text
+        return text
+
+    def _read(self, oid: str):
+        # Once an exchange breaks off halfway, the stream is out of step and every
+        # later answer would belong to the wrong file: all later reads fail instead.
+        if self._broken:
+            raise OSError("git cat-file stopped answering earlier in this scan")
+        self._broken = True
+        out = self._proc.stdout
+        self._proc.stdin.write(oid.encode("ascii") + b"\n")
+        self._proc.stdin.flush()
+        header = out.readline().split()
+        if not header or header[0] != oid.encode("ascii"):
+            raise OSError("git cat-file answered out of step")
+        if len(header) == 2:          # "<oid> missing": still in step, but this clone lacks it
+            self._broken = False
+            raise OSError("the blob is not in this clone")
+        size = int(header[2])
+        data = out.read(size)
+        if len(data) != size or out.read(1) != b"\n":
+            raise OSError("git cat-file returned a short object")
+        self._broken = False
+        return data if header[1] == b"blob" else None
+
+    def close(self):
+        proc = self._proc
+        for stream in (proc.stdin, proc.stdout):
+            try:
+                stream.close()
+            except OSError:
+                pass
+        try:
+            proc.wait(timeout=10)
+        except subprocess.TimeoutExpired:
+            proc.kill()
+            proc.wait()
 
 
 def _lines(text: str) -> list[str]:
     return [ln.rstrip("\r") for ln in text.split("\n")]
 
 
+# ── items, identity, scrubbing ────────────────────────────────────────────
+def _scrub(s: str) -> str:
+    """Every credential-shaped run replaced by what it is, live-looking or not: a
+    provider key by its name, a JWT, and any long high-entropy run of letters and
+    digits. An excerpt is for recognising the line, never for reading the value."""
+    for name, rx in _SCRUBBED:
+        s = rx.sub(f"<{name}>", s)
+    s = _JWT.sub("<jwt>", s)
+    return _SCRUB_RUN.sub(_scrub_run, s)
+
+
+def _scrub_run(m) -> str:
+    run = m.group(0)
+    digits = sum(c.isdigit() for c in run)
+    letters = sum(c.isalpha() for c in run)
+    return "<redacted>" if digits >= 3 and letters >= 3 and _entropy(run[-32:]) >= 3.3 else run
+
+
 def _item(kind, tier, rel, line, text, why, *, redacted=None, key=None):
+    if redacted is None:
+        text = _scrub(text)
     shown = redacted if redacted is not None else text.strip()[:120]
-    return {"kind": kind, "tier": tier, "path": rel, "line": line, "excerpt": shown, "why": why,
+    return {"kind": kind, "tier": tier, "path": rel, "line": line, "excerpt": shown, "why": _scrub(why),
             "_key": key if key is not None else (redacted if redacted is not None
                                                  else " ".join(text.split()))}
 
@@ -245,15 +445,23 @@ def _looks_live(token: str) -> bool:
     low = token.lower()
     if _PLACEHOLDER.search(low) or any(seq in low for seq in _SEQUENTIAL):
         return False
+    if not (re.search(r"[0-9]", low) and re.search(r"[a-z]", low)):
+        return False            # all letters or all digits: a word-like match, not a credential
     tail = low[-24:]
     return len(tail) < 16 or _entropy(tail) >= 3.0
 
 
-def _jwt_role(middle: str):
-    try:
-        return json.loads(base64.urlsafe_b64decode(middle + "=" * (-len(middle) % 4))).get("role")
-    except (ValueError, AttributeError, UnicodeDecodeError):
+def _jwt_claims(middle: str) -> dict | None:
+    """A JWT's claims, or None. A payload past 4 KB is no key anyone copied from a
+    dashboard, and a payload nested past what the decoder holds must not cost the
+    scan."""
+    if len(middle) > 4096:
         return None
+    try:
+        claims = json.loads(base64.urlsafe_b64decode(middle + "=" * (-len(middle) % 4)))
+    except Exception:
+        return None
+    return claims if isinstance(claims, dict) else None
 
 
 def _redact(name: str, token: str) -> str:
@@ -271,7 +479,7 @@ def _secrets(rel, lines):
                                      f"a {name} in the source: anyone who can read the repository can use it",
                                      redacted=_redact(name, m.group(0))))
         for m in _JWT.finditer(line):
-            if _jwt_role(m.group(1)) == "service_role":
+            if _service_role(m.group(1)):
                 out.append(_item("secret_in_code", 1, rel, i, line,
                                  "a Supabase service_role key: it bypasses row-level security",
                                  redacted=_redact("supabase service_role key", m.group(0))))
@@ -283,75 +491,317 @@ def _secrets(rel, lines):
     return out
 
 
-def _secret_files(repo, files):
-    items, leads = [], []
-    for rel in files:
-        if is_test_path(rel):
-            continue
-        name = rel.rsplit("/", 1)[-1]
-        if _ENV_FILE.search(rel) and not _ENV_TEMPLATE.search(name):
-            text = _read(repo, rel) or ""
-            secret = next((m for m in map(_SECRETISH_ASSIGN.match, _lines(text))
-                           if m and not m.group(1).startswith(("NEXT_PUBLIC_", "VITE_", "EXPO_PUBLIC_",
-                                                               "REACT_APP_", "PUBLIC_"))
-                           and _looks_live(m.group(2).strip("'\""))), None)
-            if secret or _ENV_SECRET_BY_CONVENTION.search(name):
-                items.append(_item("secret_file_tracked", 1, rel, 1, name,
-                                   "an environment file is committed: whatever it holds stays in the history",
-                                   redacted=f"{name} committed" + (f", sets {secret.group(1)}" if secret else "")))
-            else:
-                leads.append(_item("env_file_committed", 3, rel, 1, name,
-                                   "an environment file is committed — check that nothing in it is secret"))
-        elif _KEY_CONTAINER.search(name):
-            items.append(_item("secret_file_tracked", 1, rel, 1, name, "a key file is committed",
-                               redacted=f"{name} committed"))
-        elif name.endswith(".pem") and "PRIVATE KEY" in (_read(repo, rel) or ""):
-            items.append(_item("secret_file_tracked", 1, rel, 1, name, "a private key file is committed",
-                               redacted=f"{name} committed"))
-        elif name.endswith(".json"):
-            text = _read(repo, rel) or ""
-            if '"service_account"' in text and '"private_key"' in text:
-                items.append(_item("secret_file_tracked", 1, rel, 1, name,
-                                   "a cloud service-account key is committed", redacted=f"{name} committed"))
-    return items, leads
+def _service_role(middle: str) -> bool:
+    """A service_role JWT — except the one the Supabase CLI publishes for local
+    development (`"iss": "supabase-demo"`), which every such project carries."""
+    claims = _jwt_claims(middle)
+    return (claims is not None and claims.get("role") == "service_role"
+            and claims.get("iss") != "supabase-demo")
 
 
-def _public_env(rel, lines):
-    return [_item("public_env_secret", 1, rel, i, line,
-                  f"{m.group(0)} is bundled into the client: every visitor can read it",
-                  redacted=m.group(0))
-            for i, line in enumerate(lines, 1) for m in _PUBLIC_ENV_SECRET.finditer(line)]
-
-
-def _open_rules(rel, name, suffix, lines):
+def _google_keys(rel, lines):
     out = []
-    firebase = name in ("firestore.rules", "storage.rules", "database.rules.json") or suffix == ".rules"
     for i, line in enumerate(lines, 1):
-        if firebase and _FIREBASE_OPEN.search(line):
-            out.append(_item("open_database_rules", 1, rel, i, line,
-                             "a rule that lets every client read or write"))
-        if suffix == ".sql" and _RLS_DISABLED.search(line):
-            out.append(_item("open_database_rules", 1, rel, i, line,
-                             "row-level security is switched off: the anon key can read every row"))
+        m = _GOOGLE_KEY[1].search(line)
+        if m:
+            out.append(_item("google_api_key", 3, rel, i, line, _GOOGLE_WHY,
+                             redacted=_redact(_GOOGLE_KEY[0], m.group(0))))
     return out
 
 
-def _debuggers(rel, suffix, lines):
-    rx = _PY_DEBUGGER if suffix == ".py" else _JS_DEBUGGER
-    return [_item("debugger_statement", 1, rel, i, line, "execution stops here in production")
-            for i, line in enumerate(lines, 1) if rx.search(line)]
+def _secret_file_kind(rel: str, name: str):
+    """Which committed-secret-file check a path gets, decided by its name alone:
+    "env", "container", "pem", "json" or None."""
+    low = name.lower()
+    # Android and React Native templates commit debug.keystore on purpose, and a
+    # mkcert certificate for localhost guards nothing.
+    if is_test_path(rel) or name == "debug.keystore":
+        return None
+    if _ENV_FILE.search(rel) and not _ENV_TEMPLATE.search(name):
+        return "env"
+    if _KEY_CONTAINER.search(name):
+        return "container"
+    if low.endswith((".pem", ".key")):
+        return None if "localhost" in low else "pem"
+    return "json" if low.endswith(".json") else None
+
+
+def _secret_file(kind, rel, name, text, lines, found):
+    items = found["items"]
+    if kind == "container":
+        items.append(_item("secret_file_tracked", 1, rel, 1, name, "a key file is committed",
+                           redacted=f"{name} committed"))
+    elif text is None:
+        return                  # binary (git-crypt, a Keynote .key) or too large to read
+    elif kind == "env":
+        _env_file(rel, name, lines, found)
+    elif kind == "pem" and _private_key_block(lines):
+        items.append(_item("secret_file_tracked", 1, rel, 1, name, "a private key file is committed",
+                           redacted=f"{name} committed"))
+    elif kind == "json" and _service_account_key(text):
+        items.append(_item("secret_file_tracked", 1, rel, 1, name,
+                           "a cloud service-account key is committed", redacted=f"{name} committed"))
+
+
+def _private_key_block(lines) -> bool:
+    """A BEGIN PRIVATE KEY line whose next non-empty line is key material — not a
+    template with `...` where the key goes."""
+    for i, line in enumerate(lines):
+        if _PRIVATE_KEY.search(line):
+            nxt = next((ln.strip() for ln in lines[i + 1:] if ln.strip()), "")
+            if _BASE64_LINE.match(nxt):
+                return True
+    return False
+
+
+def _service_account_key(text: str) -> bool:
+    return ('"service_account"' in text and _SERVICE_ACCOUNT.search(text) is not None
+            and _SERVICE_ACCOUNT_KEY.search(text) is not None)
+
+
+def _env_file(rel, name, lines, found):
+    """A committed env file is one finding when it holds a live secret, naming the
+    variables and never their values; otherwise it is one lead. Its identity is the
+    file, so adding a variable to it keeps the fingerprint."""
+    live, names = _env_secrets(rel, lines)
+    if not live:
+        found["leads"].append(_item("env_file_committed", 3, rel, 1, name,
+                                    "an environment file is committed — check that nothing in it is secret"))
+        return
+    listed = ", ".join(names[:3]) + (f" and {len(names) - 3} more" if len(names) > 3 else "")
+    found["items"].append(_item(
+        "secret_file_tracked", 1, rel, 1, name,
+        "an environment file holding a live secret is committed: the value stays in the history",
+        redacted=f"{name} committed" + (f", sets {listed}" if names else ""), key=""))
+
+
+def _env_secrets(rel, lines):
+    """Whether a committed env file holds a live secret, and the names that do.
+
+    A line holds one when the source scan finds a provider key, a service_role JWT
+    or a private key on it — or when its name is a credential's and its value
+    looks like one. A value encrypted in place (SOPS `ENC[`, dotenvx `encrypted:`)
+    never does. A hit on a continuation line belongs to the variable above it."""
+    hits = {it["line"] for it in _secrets(rel, lines)}
+    live, names, current = False, [], None
+    for i, line in enumerate(lines, 1):
+        body = line.strip()
+        comment = body.startswith("#")
+        m = _ENV_ASSIGN.match(body.lstrip("#").lstrip() if comment else body)
+        if m:
+            owner, value = m.group(1), _env_value(m.group(2))
+            current = current if comment else owner
+            if value.startswith(("ENC[", "encrypted:")):
+                continue
+            here = (i in hits or _INLINE_KEY.search(value) is not None
+                    or (not comment and _credential_name(owner) and _env_value_live(value)))
+        else:
+            owner, here = (None if comment else current), i in hits
+        if here:
+            live = True
+            if owner and owner not in names:
+                names.append(owner)
+    return live, names
+
+
+def _env_value(raw: str) -> str:
+    raw = raw.strip()
+    if raw[:1] in ("'", '"'):
+        end = raw.find(raw[0], 1)
+        return raw[1:end] if end > 0 else raw[1:]
+    return re.sub(r"\s+#.*$", "", raw)
+
+
+def _credential_name(name: str) -> bool:
+    """A name that says credential: SECRET, TOKEN, KEY… among its words, nothing
+    marking it public, and not a setting about one (ACCESS_TOKEN_TTL, KEYCLOAK_URL).
+    A client-prefixed name is F9's to judge, not this one's."""
+    up = name.upper()
+    if up.startswith(_CLIENT_PREFIXES):
+        return False
+    words = up.split("_")
+    return (not _CREDENTIAL_WORDS.isdisjoint(words) and _PUBLIC_WORDS.isdisjoint(words)
+            and words[-1] not in _NOT_A_SECRET_TAIL)
+
+
+def _env_value_live(v: str) -> bool:
+    """A value that could be a credential: not empty, not a reference ($VAR, <…>, a
+    path, a URL), not a sentence, not a port or a word — and then live-looking."""
+    if not v or v.startswith(("ENC[", "encrypted:", "$", "<", "/", "./", "../", "~/")):
+        return False
+    if "://" in v or re.search(r"\s", v) or len(v) < 20 or v.isdigit():
+        return False
+    if not (re.search(r"[0-9]", v) and re.search(r"[A-Za-z]", v)):
+        return False
+    return _looks_live(v)
+
+
+def _public_env_sites(rel, lines):
+    return [(m.group(0), rel, i) for i, line in enumerate(lines, 1)
+            for m in _PUBLIC_ENV_SECRET.finditer(line)]
+
+
+def _app_code(rel: str) -> bool:
+    return Path(rel).suffix.lower() in CODE_SUFFIXES and not _is_script_path(rel)
+
+
+def _public_env(sites):
+    """One item per client-side variable named as a secret, at the site where the
+    bundler inlines it: app code first (a deploy script or a workflow that merely
+    mentions the name comes second), then the first site in (path, line) order."""
+    by_name: dict = {}
+    for name, rel, line in sites:
+        by_name.setdefault(name, []).append((rel, line))
+    out = []
+    for name, where in by_name.items():
+        rel, line = min([w for w in where if _app_code(w[0])] or where)
+        why = f"{name} is bundled into the client: every visitor can read it"
+        if len(where) > 1:
+            why += f" ({len(where)} places reference it)"
+        out.append(_item("public_env_secret", 1, rel, line, "", why, redacted=name))
+    return out
+
+
+def _uncomment(lines, tokens):
+    """The lines with their comments cut out and their strings kept whole, one for
+    one, so line numbers hold. A block comment stays open across lines."""
+    out, in_block = [], False
+    for line in lines:
+        kept, pos = [], 0
+        while True:
+            if in_block:
+                end = line.find("*/", pos)
+                if end < 0:
+                    break
+                in_block, pos = False, end + 2
+                kept.append(" ")
+            m = tokens.search(line, pos)
+            if m is None:
+                kept.append(line[pos:])
+                break
+            kept.append(line[pos:m.start()])
+            if m.group(0) == "/*":
+                in_block, pos = True, m.end()
+            elif m.group(0) in ("//", "--"):
+                break
+            else:
+                kept.append(m.group(0))
+                pos = m.end()
+        out.append("".join(kept))
+    return out
+
+
+def _database_rules(rel, low, suffix, lines, found):
+    if low.endswith(".rules.json"):
+        _realtime_rules(rel, lines, found)
+    elif low.endswith(".rules"):
+        _allow_rules(rel, low, lines, found)
+    elif suffix == ".sql" and not _DOWN_MIGRATION.search(rel.lower()):
+        _sql(rel, lines, found)
+
+
+def _realtime_rules(rel, lines, found):
+    for i, line in enumerate(_uncomment(lines, _C_TOKENS), 1):
+        if _RTDB_WRITE.search(line):
+            found["items"].append(_item("open_database_rules", 1, rel, i, lines[i - 1],
+                                        'anyone can write here: the rule sets ".write" to true'))
+        elif _RTDB_READ.search(line):
+            found["leads"].append(_item("public_database_rule", 3, rel, i, lines[i - 1], _PUBLIC_RULE_WHY))
+
+
+def _allow_rules(rel, low, lines, found):
+    """Firestore and Storage `allow` statements with `if true` or no condition. An
+    allow belongs to the innermost match still open, tracked with a brace stack: an
+    allow after a recursive child block closes is its parent's, not recursive."""
+    code = _uncomment(lines, _C_TOKENS)
+    firestore = low == "firestore.rules" or any("cloud.firestore" in ln for ln in code)
+    stack: list = []
+    for i, line in enumerate(code, 1):
+        for m in _RULES_TOKEN.finditer(line):
+            if m.group("path") is not None:
+                stack.append(m.group("path"))
+            elif m.group("brace") == "{":
+                stack.append(None)
+            elif m.group("brace") == "}":
+                stack = stack[:-1]
+            else:
+                inside = next((p for p in reversed(stack) if p is not None), "")
+                _open_allow(rel, i, lines[i - 1], m.group("methods"), inside, firestore, found)
+
+
+def _open_allow(rel, i, line, methods, inside, firestore, found):
+    said = "allow " + ", ".join(x.strip() for x in methods.split(","))
+    if any(x.strip() in ("write", "update", "delete") for x in methods.split(",")):
+        found["items"].append(_item("open_database_rules", 1, rel, i, line,
+                                    f"anyone can change or delete data here: `{said}` has no condition"))
+    elif firestore and "**" in inside:
+        found["items"].append(_item(
+            "open_database_rules", 1, rel, i, line,
+            f"every document is open to anyone: `{said}` has no condition under the recursive "
+            f"match {inside}"))
+    else:
+        found["leads"].append(_item("public_database_rule", 3, rel, i, line, _PUBLIC_RULE_WHY))
+
+
+def _sql(rel, lines, found):
+    """Row-level security switches, kept as events and judged once every file is
+    read: a table counts by its final state, not by a disable a later migration
+    undid. Comments are cut first, so prose that says "disable" is not a switch."""
+    code = _uncomment(lines, _SQL_TOKENS)
+    text = "\n".join(code)
+    for m in _RLS_SWITCH.finditer(text):
+        i = text.count("\n", 0, m.start()) + 1
+        found["events"].append((rel, i, _table(m.group(1)), m.group(2).lower(), lines[i - 1]))
+    found["leads"] += [
+        _item("rls_policy_using_true", 3, rel, i, lines[i - 1],
+              "a row-level-security policy that lets every row through — check it is meant to be public")
+        for i, line in enumerate(code, 1) if _RLS_OPEN_POLICY.search(line)]
+
+
+def _table(raw: str) -> str:
+    name = re.sub(r"\s+", "", raw.replace('"', "")).lower()
+    return name[len("public."):] if name.startswith("public.") else name
+
+
+def _rls_disabled(events):
+    last: dict = {}
+    for event in sorted(events, key=lambda e: (e[0], e[1])):
+        last[event[2]] = event
+    return [_item("open_database_rules", 1, rel, line, text,
+                  "row-level security is switched off: the anon key can read every row")
+            for rel, line, _table_name, action, text in last.values() if action == "disable"]
+
+
+def _js_debuggers(rel, text, lines):
+    """`debugger` alone on its line once comments are gone: one inside a block
+    comment, or in a comment's prose, stops nothing."""
+    if "debugger" not in text:
+        return []
+    code = _uncomment(lines, _C_TOKENS)
+    return [_item("debugger_statement", 1, rel, i, lines[i - 1], "execution stops here in production")
+            for i, line in enumerate(code, 1)
+            if len(lines[i - 1]) <= LONG_LINE and _JS_DEBUGGER.match(line)]
 
 
 # ── tier 3, line-level ────────────────────────────────────────────────────
 def _line_leads(rel, lines):
     out = []
     for i, line in enumerate(lines, 1):
+        if len(line) > LONG_LINE:
+            continue
         for kind, rx, why in _LINE_LEADS:
             if rx.search(line) and not _PUBLIC_ENV_SECRET.search(line):
-                context = " | ".join(ln.strip() for ln in lines[max(0, i - 3):i - 1] if ln.strip())
+                context = _comments_above(lines, i)
                 out.append(_item(kind, 3, rel, i, line,
-                                 why + (f" (just above: {context[:160]})" if context else "")))
+                                 why + (f" (just above: {context})" if context else "")))
     return out
+
+
+def _comments_above(lines, i):
+    """What the author wrote in the two lines above line i — comments only. Code is
+    never carried: the line above a TLS switch is as likely the key it guards."""
+    notes = [s for s in (ln.strip() for ln in lines[max(0, i - 3):i - 1]) if s.startswith(_COMMENT_MARKS)]
+    return _scrub(" | ".join(notes))[:160]
 
 
 def _env_placeholders(rel, name, lines):
@@ -400,11 +850,21 @@ def _catches_import_error(handler) -> bool:
     return False
 
 
+def _debugger_call(node) -> bool:
+    """breakpoint(), or set_trace() on pdb, ipdb or pudb — a call the parser saw, so
+    a comment, a docstring or a bare `import pdb` never counts."""
+    f = node.func
+    if isinstance(f, ast.Name):
+        return f.id == "breakpoint"
+    return (isinstance(f, ast.Attribute) and f.attr == "set_trace"
+            and isinstance(f.value, ast.Name) and f.value.id in _PY_DEBUGGER_MODULES)
+
+
 def _python(rel, text, lines, test, items, leads, imported):
     try:
         tree = ast.parse(text)
-    except (SyntaxError, ValueError):
-        return None
+    except (SyntaxError, ValueError, RecursionError, MemoryError):
+        return None             # the line checks have run; a file the parser refuses gets no more
     for node in ast.walk(tree):
         if isinstance(node, ast.Import):
             imported.update(a.name.split(".")[0] for a in node.names)
@@ -412,6 +872,10 @@ def _python(rel, text, lines, test, items, leads, imported):
             if node.module and node.level == 0:
                 imported.add(node.module.split(".")[0])
             imported.update(a.name.split(".")[0] for a in node.names)
+        elif isinstance(node, ast.Call):
+            if not test and _debugger_call(node):
+                items.append(_item("debugger_statement", 1, rel, node.lineno, lines[node.lineno - 1],
+                                   "execution stops here in production"))
         elif isinstance(node, ast.Try):
             span = "\n".join(lines[node.lineno - 1:(node.body[-1].end_lineno or node.lineno)])
             for h in node.handlers:
@@ -487,7 +951,7 @@ def _commented_out_python(rel, lines, items):
         if len(block) >= 2:
             try:
                 tree = ast.parse("\n".join(t for _, t in block))
-            except (SyntaxError, ValueError):
+            except (SyntaxError, ValueError, RecursionError, MemoryError):
                 tree = None
             if tree is not None and any(isinstance(n, _RICH) for n in ast.walk(tree)):
                 first = block[0][0]
@@ -511,9 +975,13 @@ def _function_bodies(rel, tree):
     for node in ast.walk(tree):
         if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
             span = (node.end_lineno or node.lineno) - node.lineno + 1
-            if span >= DUPLICATE_MIN_LINES:
+            if span < DUPLICATE_MIN_LINES:
+                continue
+            try:
                 dump = ast.dump(ast.Module(body=node.body, type_ignores=[]), annotate_fields=False)
-                out.append((hashlib.sha1(dump.encode("utf-8")).hexdigest()[:16], rel, node.lineno, node.name))
+            except RecursionError:
+                continue        # an expression too deep to print is no copy anyone made by hand
+            out.append((hashlib.sha1(dump.encode("utf-8")).hexdigest()[:16], rel, node.lineno, node.name))
     return out
 
 
@@ -565,81 +1033,173 @@ def _js_names(spec: str) -> list[str]:
     return [n for n in names if re.fullmatch(r"[A-Za-z_$][\w$]*", n)]
 
 
-def _javascript(rel, text, lines, items):
-    jsx = rel.endswith((".jsx", ".tsx"))
-    run: list = []
-    for i, line in enumerate(lines, 1):
-        if _JS_EMPTY_CATCH.search(line):
-            items.append(_item("broad_swallow", 2, rel, i, line, "an error handler that does nothing"))
-        if _CONSOLE.search(line) and not _is_script_path(rel):
-            items.append(_item("console_debug", 2, rel, i, line, "debug logging left in app code"))
-        if _JS_COMMENT_TODO.search(line):
-            items.append(_item("todo_comment", 2, rel, i, line, "a TODO/FIXME/HACK left in the code"))
-        run = run + [i] if _JS_CODEY_COMMENT.match(line) else []
-        if len(run) == 2:
-            items.append(_item("commented_out_code", 2, rel, run[0], lines[run[0] - 1],
-                               "code kept as a comment: dead, and it reads as live"))
+def _javascript(rel, text, lines, items, generated):
+    if not generated:
+        _javascript_lines(rel, lines, items)
     for m in _JS_IMPORT.finditer(text):
         rest = text[:m.start()] + text[m.end():]
         line_no = text.count("\n", 0, m.start()) + 1
         for name in _js_names(m.group("spec")):
-            if jsx and name == "React":
+            # The classic JSX runtime needs React in scope whatever the extension.
+            if name == "React":
                 continue
-            if not re.search(r"(?<![\w$.])" + re.escape(name) + r"(?![\w$])", rest):
+            if not re.search(_JS_USE + re.escape(name) + r"(?![\w$])", rest):
                 items.append(_item("unused_import", 2, rel, line_no,
                                    f"{name}: {m.group(0).splitlines()[0]}",
                                    f"`{name}` is imported and never used"))
 
 
+def _javascript_lines(rel, lines, items):
+    run: list = []
+    for i, line in enumerate(lines, 1):
+        if len(line) > LONG_LINE:
+            run = []
+            continue
+        if _JS_EMPTY_CATCH.search(line):
+            items.append(_item("broad_swallow", 2, rel, i, line, "an error handler that does nothing"))
+        if _CONSOLE.search(line) and not _is_script_path(rel):
+            items.append(_item("console_debug", 2, rel, i, line, "debug logging left in app code"))
+        # The cheap test first: the comment pattern alone is quadratic on a line
+        # full of `//`, and almost no line holds one of the four marker words.
+        if _TODO.search(line) and _JS_COMMENT_TODO.search(line):
+            items.append(_item("todo_comment", 2, rel, i, line, "a TODO/FIXME/HACK left in the code"))
+        run = run + [i] if _JS_CODEY_COMMENT.match(line) else []
+        if len(run) == 2:
+            items.append(_item("commented_out_code", 2, rel, run[0], lines[run[0] - 1],
+                               "code kept as a comment: dead, and it reads as live"))
+
+
 # ── the scan ──────────────────────────────────────────────────────────────
-def hygiene_census(repo, filing: str = "on") -> dict:
-    """The hygiene block for facts.json: tier-1 and tier-2 items, tier-3 leads."""
-    repo = Path(repo)
-    files, capped = _tracked(repo)
-    items, leads = _secret_files(repo, files)
-    imported: set = set()
-    bodies: list = []
-    entry_text: list = []
-    for rel in files:
-        name = rel.rsplit("/", 1)[-1]
-        suffix = Path(rel).suffix.lower()
-        if suffix not in SCANNED_SUFFIXES and not name.startswith(".env"):
-            continue
-        text = _read(repo, rel)
-        if text is None:
-            continue
-        lines = _lines(text)
-        test = is_test_path(rel)
-        if _ENTRY_FILE.search(rel):
-            entry_text.append(text)
-        leads += _env_placeholders(rel, name, lines)
-        if not test:
-            items += _secrets(rel, lines)
-            items += _public_env(rel, lines)
-            items += _open_rules(rel, name, suffix, lines)
-            if suffix == ".sql":
-                leads += [_item("rls_policy_using_true", 3, rel, i, line,
-                                "a row-level-security policy that lets every row through — check it is meant to be public")
-                          for i, line in enumerate(lines, 1) if _RLS_OPEN_POLICY.search(line)]
-        if suffix not in CODE_SUFFIXES:
-            continue
-        if not test:
-            items += _debuggers(rel, suffix, lines)
+def _eligible(rel: str, size: int) -> bool:
+    """Whether the per-file scan reads a path: a scanned suffix, an env file, or a
+    file that documents how the project runs (Dockerfile.prod, deploy/app.service).
+    A blob over MAX_BYTES is never requested, so it never takes a place under the
+    cap; neither does an encrypted file."""
+    name = rel.rsplit("/", 1)[-1]
+    if size > MAX_BYTES or _encrypted_name(name):
+        return False
+    return (Path(name).suffix.lower() in SCANNED_SUFFIXES or name.startswith(".env")
+            or _ENTRY_FILE.search(rel) is not None)
+
+
+def _found() -> dict:
+    return {"items": [], "leads": [], "imported": set(), "bodies": [], "entry": [], "sites": [],
+            "events": [], "scanned": []}
+
+
+def _merge(into: dict, part: dict) -> None:
+    for key, value in part.items():
+        if isinstance(value, set):
+            into[key] |= value
+        else:
+            into[key] += value
+
+
+def _scan_file(rel, name, text, lines, found):
+    """Every per-file check on one committed file; `found` collects what it finds."""
+    suffix = Path(rel).suffix.lower()
+    test = is_test_path(rel)
+    items, leads = found["items"], found["leads"]
+    if _ENTRY_FILE.search(rel):
+        found["entry"].append(text)
+    leads += _env_placeholders(rel, name, lines)
+    # A committed env file is judged whole, as one item (_env_file); a template
+    # still gets the line scan, since a real key pasted into an example leaks too.
+    committed_env = _ENV_FILE.search(rel) is not None and not _ENV_TEMPLATE.search(name)
+    if not test and not committed_env:
+        items += _secrets(rel, lines)
+        leads += _google_keys(rel, lines)
+    if not test:
+        if suffix not in _DOC_SUFFIXES:
+            found["sites"] += _public_env_sites(rel, lines)
+        _database_rules(rel, name.lower(), suffix, lines, found)
+    if suffix in CODE_SUFFIXES:
+        _scan_code(rel, suffix, text, lines, test, found)
+
+
+def _scan_code(rel, suffix, text, lines, test, found):
+    items, leads = found["items"], found["leads"]
+    generated = _generated(rel)
+    if not test:
+        if suffix != ".py" and not generated:
+            items += _js_debuggers(rel, text, lines)
+        if not generated:
             leads += _line_leads(rel, lines)
-            if len(lines) > OVERSIZED_LINES:
-                items.append(_item("oversized_file", 2, rel, len(lines), "",
-                                   f"{len(lines)} lines in one file — past what anyone, or any model, reads whole",
-                                   redacted=f"{len(lines)} lines", key=""))
-        if suffix == ".py":
-            tree = _python(rel, text, lines, test, items, leads, imported)
-            if tree is not None and not test:
-                bodies += _function_bodies(rel, tree)
-        elif not test:
-            _javascript(rel, text, lines, items)
-    items += _duplicates(bodies)
-    leads += _unimported(files, imported, "\n".join(entry_text))
-    _fingerprint(items)
-    _fingerprint(leads)
+        if len(lines) > OVERSIZED_LINES:
+            items.append(_item("oversized_file", 2, rel, len(lines), "",
+                               f"{len(lines)} lines in one file — past what anyone, or any model, reads whole",
+                               redacted=f"{len(lines)} lines", key=""))
+    if suffix == ".py":
+        tree = _python(rel, text, lines, test, items, leads, found["imported"])
+        if tree is not None and not test:
+            found["bodies"] += _function_bodies(rel, tree)
+    elif not test:
+        _javascript(rel, text, lines, items, generated)
+
+
+def _scan(files, blobs):
+    """Every committed file at most once, in tree order: the secret-file checks over
+    all of them, uncapped (they go by name and read few), and the per-file scan over
+    the eligible ones up to FILE_CAP. A file whose read or checks raise is counted
+    in `failed` and costs nothing else: what it found is merged only on success."""
+    cap = FILE_CAP
+    eligible = [rel for rel, _oid, size in files if _eligible(rel, size)]
+    chosen = set(eligible[:cap])
+    plan = []
+    for rel, oid, size in files:
+        name = rel.rsplit("/", 1)[-1]
+        if _encrypted_name(name):
+            continue            # neither a finding nor a lead
+        kind = _secret_file_kind(rel, name)
+        if rel in chosen or kind:
+            plan.append((rel, name, oid, size, rel in chosen, kind))
+    last = {p[2]: n for n, p in enumerate(plan) if p[4] or p[5] in _READS_TEXT}
+    found = _found()
+    failed = 0
+    for n, (rel, name, oid, size, scan, kind) in enumerate(plan):
+        part = _found()
+        try:
+            reads = scan or kind in _READS_TEXT
+            text = blobs.text(oid, size, keep=last[oid] > n) if reads else None
+            if text is not None and _encrypted_text(name, text):
+                continue        # SOPS, Ansible Vault, PGP, age: neither a finding nor a lead
+            lines = None if text is None else _lines(text)
+            if kind:
+                _secret_file(kind, rel, name, text, lines, part)
+            if scan and text is not None:
+                _scan_file(rel, name, text, lines, part)
+                part["scanned"].append(rel)
+        except Exception:
+            failed += 1
+            continue
+        _merge(found, part)
+    return found, {"files": len(found["scanned"]), "capped": len(eligible) > cap, "file_cap": cap,
+                   "failed": failed}
+
+
+def hygiene_census(repo, filing: str = "on") -> dict:
+    """The hygiene block for facts.json: tier-1 and tier-2 items, tier-3 leads — or
+    {"status": "unavailable", "reason": ...} when git cannot show a commit."""
+    repo = Path(repo)
+    try:
+        files = [f for f in _head_files(repo) if _SKIP_DIRS.isdisjoint(f[0].split("/")[:-1])]
+        blobs = _Blobs(repo)
+    except _Unavailable as exc:
+        return {"status": "unavailable", "reason": str(exc)}
+    try:
+        found, scope = _scan(files, blobs)
+    finally:
+        blobs.close()
+    items, leads = found["items"], found["leads"]
+    items += _public_env(found["sites"])
+    items += _rls_disabled(found["events"])
+    items += _duplicates(found["bodies"])
+    leads += _unimported(found["scanned"], found["imported"], "\n".join(found["entry"]))
+    # Occurrence numbers follow line order, whatever order the detectors ran in:
+    # the n-th identical line in a file is the n-th from the top.
+    for group in (items, leads):
+        group.sort(key=lambda it: (it["path"], it["line"], it["kind"]))
+        _fingerprint(group)
     leads.sort(key=lambda it: (_LEAD_ORDER.get(it["kind"], 99), it["path"], it["line"]))
     counts: dict = {}
     for it in items:
@@ -647,7 +1207,7 @@ def hygiene_census(repo, filing: str = "on") -> dict:
     return {
         "status": "measured",
         "filing": "off" if filing == "off" else "on",
-        "scope": {"files": len(files), "capped": capped, "file_cap": FILE_CAP},
+        "scope": scope,
         "counts_by_kind": dict(sorted(counts.items())),
         "items": items,
         "leads": leads[:LEAD_CAP],
