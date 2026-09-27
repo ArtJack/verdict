@@ -1066,3 +1066,24 @@ def test_an_rls_file_too_large_to_read_blocks_rls_filing_and_is_named(tmp_path, 
     assert kinds(out, 1) == [], "the enable that undoes the disable is in the file nobody read"
     assert out["status"] == "partial"
     assert out["scope"]["failed"] == 1 and out["scope"]["failed_paths"] == ["db/schema.sql"]
+
+
+def test_a_google_key_is_one_lead_per_platform_across_the_repository(tmp_path):
+    # A key carries one kind of application restriction — websites, Android apps, iOS
+    # apps or IP addresses — so the same key in an Android build and on a web page is
+    # two things to check. Pasted into every template of one site, it is one.
+    gkey = "AI" + "za" + token(35, 321)
+    other = "AI" + "za" + token(35, 322)
+    tag = f'<script src="https://maps.example.io/js?key={gkey}"></script>\n'
+    r = make_repo(tmp_path, {
+        "templates/checkout.html": "<h1>Pay</h1>\n" + tag,
+        "templates/about.html": tag,
+        "web/src/maps.js": f'export const key = "{gkey}";\nexport const geo = "{other}";\n',
+        "android/app/src/main/AndroidManifest.xml": (
+            f'<meta-data android:name="com.google.android.geo.API_KEY" android:value="{gkey}"/>\n'),
+    })
+    out = hygiene_census(r)
+    leads = sorted((lead["path"], lead["line"]) for lead in out["leads"] if lead["kind"] == "google_api_key")
+    assert leads == [("android/app/src/main/AndroidManifest.xml", 1), ("templates/about.html", 1),
+                     ("web/src/maps.js", 2)]
+    assert gkey not in json.dumps(out) and other not in json.dumps(out)

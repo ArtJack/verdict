@@ -581,17 +581,40 @@ def _service_role(middle: str) -> bool:
             and claims.get("iss") != "supabase-demo")
 
 
-def _google_keys(rel, lines):
-    """One lead per distinct key in a file, at its first line: a Maps key pasted
-    into every page template is one thing to check, not fifty."""
+def _google_sites(rel, lines):
+    """Every Google API key in one file, as (digest, path, line, excerpt). The value
+    goes no further than this: the digest tells two keys apart, the excerpt is the
+    redacted form."""
+    return [(hashlib.sha1(m.group(0).encode("utf-8")).hexdigest(), rel, i,
+             _redact(_GOOGLE_KEY[0], m.group(0)))
+            for i, line in enumerate(lines, 1) for m in _GOOGLE_KEY[1].finditer(line)]
+
+
+def _google_keys(sites):
+    """One lead per distinct key and platform across the repository, at its first
+    site in (path, line) order: a Maps key pasted into every page template is one
+    thing to check, not fifty."""
     out, seen = [], set()
-    for i, line in enumerate(lines, 1):
-        for m in _GOOGLE_KEY[1].finditer(line):
-            if m.group(0) not in seen:
-                seen.add(m.group(0))
-                out.append(_item("google_api_key", 3, rel, i, line, _GOOGLE_WHY,
-                                 redacted=_redact(_GOOGLE_KEY[0], m.group(0))))
+    for digest, rel, line, shown in sorted(sites, key=lambda s: (s[1], s[2])):
+        key = (digest, _key_platform(rel))
+        if key not in seen:
+            seen.add(key)
+            out.append(_item("google_api_key", 3, rel, line, "", _GOOGLE_WHY, redacted=shown))
     return out
+
+
+def _key_platform(rel: str) -> str:
+    """Which application restriction a Google key found here needs. A key carries
+    one kind — websites, Android apps, iOS apps or IP addresses — so the same key
+    in an Android build and on a web page is two things to check, not one. Only the
+    Firebase configs and an android/ or ios/ directory say which; the rest is one
+    bucket, the web and whatever else."""
+    parts = rel.lower().split("/")
+    if parts[-1] == "google-services.json" or "android" in parts[:-1]:
+        return "android"
+    if parts[-1] == "googleservice-info.plist" or "ios" in parts[:-1]:
+        return "ios"
+    return "web"
 
 
 def _secret_file_kind(rel: str, name: str, size: int):
@@ -1270,7 +1293,7 @@ def _cap_rank(rel: str) -> int:
 
 def _found() -> dict:
     return {"items": [], "leads": [], "imported": set(), "bodies": [], "entry": [], "sites": [],
-            "events": [], "scanned": []}
+            "google": [], "events": [], "scanned": []}
 
 
 def _merge(into: dict, part: dict) -> None:
@@ -1296,7 +1319,7 @@ def _scan_file(rel, name, text, lines, found, tracked=False):
     committed_env = _ENV_FILE.search(rel) is not None and not _ENV_TEMPLATE.search(name)
     if not test and not committed_env and not tracked:
         items += _secrets(rel, lines)
-        leads += _google_keys(rel, lines)
+        found["google"] += _google_sites(rel, lines)
     if not test:
         if suffix not in _DOC_SUFFIXES:
             found["sites"] += _public_env_sites(rel, text, lines)
@@ -1423,6 +1446,7 @@ def hygiene_census(repo, filing: str = "on") -> dict:
                 "reason": f"no file could be read: {len(failures)} failed, first: {rel}: {why}"}
     items, leads = found["items"], found["leads"]
     items += _public_env(found["sites"])
+    leads += _google_keys(found["google"])
     if found["rls_known"]:
         items += _rls_disabled(found["events"])
     items += _duplicates(found["bodies"])
