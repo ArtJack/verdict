@@ -289,7 +289,7 @@ _SCRUB_RUN = re.compile(r"[A-Za-z0-9+_=-]{24,}")
 # A base64 secret split by `/` (an AWS secret access key) is no run for the rule
 # above; as one run it is mixed case, carries digits, and is near-random.
 _SCRUB_BASE64 = re.compile(r"(?<![A-Za-z0-9+/])[A-Za-z0-9+/]{30,}={0,2}(?![A-Za-z0-9+/=])")
-_URL_CREDENTIALS = re.compile(r"(://[^/\s:@]+:)[^@\s/]+@")
+_URL_CREDENTIALS = re.compile(r"(://[^/\s:@]*:)[^@\s/]+@")
 
 
 def is_test_path(rel: str) -> bool:

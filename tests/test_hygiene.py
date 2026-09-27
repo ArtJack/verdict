@@ -985,3 +985,14 @@ def test_a_partial_clone_is_read_offline_and_says_what_it_could_not_read(tmp_pat
     out = hygiene_census(none)
     assert objects(none) == before, "the scan fetched a missing blob"
     assert out["status"] == "unavailable" and out["reason"].startswith("no file could be read: 2 failed")
+
+
+def test_a_password_in_a_url_with_no_user_name_is_scrubbed(tmp_path):
+    password = token(16, 31)
+    r = make_repo(tmp_path, {"app/cache.py": (
+        f'# REDIS_URL = "redis://:{password}@cache:6379"\n'
+        "# client = Redis.from_url(REDIS_URL)\n"
+        "x = 1\n")})
+    out = hygiene_census(r)
+    assert "commented_out_code" in out["counts_by_kind"]
+    assert password not in json.dumps(out)
