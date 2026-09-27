@@ -62,7 +62,7 @@ try:
     from .hygiene import hygiene_census
     from .filed import FINDINGS_DIR, archive_findings, load_filed
     from .reports import read_report
-    from .profile import ProfileError, gates_from
+    from .profile import ProfileError, gates_from, hygiene_filing_from
     from .profile import load as load_profile
     from .project_key import derive_key
     from .state import (OUTCOMES_FILE, accepted_block, calibration, in_force, is_open,
@@ -86,7 +86,7 @@ except ImportError:  # bare-script execution
     from hygiene import hygiene_census
     from filed import FINDINGS_DIR, archive_findings, load_filed
     from reports import read_report
-    from profile import ProfileError, gates_from
+    from profile import ProfileError, gates_from, hygiene_filing_from
     from profile import load as load_profile
     from project_key import derive_key
     from state import (OUTCOMES_FILE, accepted_block, calibration, in_force, is_open,
@@ -1204,8 +1204,13 @@ def _diff_from_files(files: dict, changed: dict, meta: dict, sha_range: str,
 def collect(repo: Path, qa_root: Path, gates: list[tuple[str, str]],
             test_ids_cmd: str | None = None, abandoned=_UNSET,
             test_one_cmd: str | None = None, coverage_suite_cmd: str | None = None,
-            sha_range: str | None = None) -> dict:
+            sha_range: str | None = None, hygiene_filing: str = "on") -> dict:
     """Measure everything about this run that is not a judgment.
+
+    `hygiene_filing` is the profile's `hygiene:` setting, which each caller reads
+    with `hygiene_filing_from`: "off" counts every tier and files nothing. It is
+    taken here, not patched onto the facts afterwards, so that no engine that
+    measures can leave it out.
 
     `sha_range` overrides the range this function would otherwise derive from
     the previous state's sha. A run that judges a *branch* — a PR gate — has no
@@ -1361,7 +1366,7 @@ def collect(repo: Path, qa_root: Path, gates: list[tuple[str, str]],
     # Junk, near-certain exposures and reading leads, on every run (T-28). Tier 1
     # becomes findings in finalize, tier 2 the ledger, leads what the tester reads first.
     try:
-        facts_hygiene = hygiene_census(repo)
+        facts_hygiene = hygiene_census(repo, filing=hygiene_filing)
     except Exception as exc:  # a scan must never cost a run
         facts_hygiene = {"status": "unavailable", "reason": f"hygiene scan failed: {exc}"}
 
@@ -2307,7 +2312,7 @@ def facts_main(argv=None) -> int:
     # into flags on every run is a transcription step, and a transcription step
     # is a place for the model to be confidently wrong. Explicit --gate still
     # wins — a caller narrowing a run should not have to edit the profile.
-    profile_notes, profile_source, declared_authorship, hygiene_setting = [], None, None, None
+    profile_notes, profile_source, declared_authorship, filing = [], None, None, "on"
     if not args.no_profile:
         try:
             config, profile_notes = load_profile(qa_root)
@@ -2322,7 +2327,7 @@ def facts_main(argv=None) -> int:
             profile_source = [n for n, _ in adopted]
         if config.get("authorship"):
             declared_authorship = config["authorship"]
-        hygiene_setting = str(config.get("hygiene") or "").strip().lower() or None
+        filing = hygiene_filing_from(config, profile_notes)
         if args.test_ids_cmd is None and config.get("test_ids_cmd"):
             args.test_ids_cmd = config["test_ids_cmd"]
             profile_notes.append("test_ids_cmd taken from the profile")
@@ -2382,14 +2387,13 @@ def facts_main(argv=None) -> int:
         and (clock.now() - started).total_seconds() / 3600 <= RETRY_WINDOW_HOURS
     archived = archive_findings(qa_root, keep=retry)
     facts = collect(repo, qa_root, gates, args.test_ids_cmd, abandoned=abandoned,
-                    test_one_cmd=args.test_one_cmd, coverage_suite_cmd=args.coverage_suite_cmd)
+                    test_one_cmd=args.test_one_cmd, coverage_suite_cmd=args.coverage_suite_cmd,
+                    hygiene_filing=filing)
     if archived:
         facts["findings_archived"] = archived
     if declared_authorship:
         facts.setdefault("code_census", {}).setdefault("provenance", {})[
             "declared"] = declared_authorship
-    if hygiene_setting == "off" and isinstance(facts.get("hygiene"), dict):
-        facts["hygiene"]["filing"] = "off"   # counted, never filed (profile `hygiene: off`)
     if profile_source:
         facts["gates_from_profile"] = profile_source
     if profile_notes:

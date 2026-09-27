@@ -66,7 +66,7 @@ try:
     from .harness import (RETRY_WINDOW_HOURS, _git, _parse_marker_time, _run_test, collect,
                           finalize_main, finding_hash, is_test_file)
     from .filed import FINDINGS_DIR, archive_findings
-    from .profile import ProfileError, gates_from
+    from .profile import ProfileError, gates_from, hygiene_filing_from
     from .profile import load as load_profile
     from .reports import read_report
     from .project_key import derive_key
@@ -81,7 +81,7 @@ except ImportError:  # bare-script execution
     from harness import (RETRY_WINDOW_HOURS, _git, _parse_marker_time, _run_test, collect,
                          finalize_main, finding_hash, is_test_file)
     from filed import FINDINGS_DIR, archive_findings
-    from profile import ProfileError, gates_from
+    from profile import ProfileError, gates_from, hygiene_filing_from
     from profile import load as load_profile
     from reports import read_report
     from project_key import derive_key
@@ -1792,8 +1792,11 @@ def measure(repo: Path, qa_root: Path, gates: list, config: dict, sha_range,
     the id ledger it is checked against, and the reading order needs the changed
     lines nothing executed. The housekeeping `facts_main` does comes with them:
     the run marker before the gates, last run's finding files moved aside, and
-    the collected ids written down.
+    the collected ids written down. So does the profile's `hygiene:` setting,
+    which 0.91.0 read in `facts_main` alone: `hygiene: off` filed nothing there
+    and everything here, on the engine that runs every night.
     """
+    filing = hygiene_filing_from(config, profile_notes)
     marker_path = qa_root / "run-in-progress.json"
     abandoned = read_json(marker_path)
     head = _git(["rev-parse", "HEAD"], repo)
@@ -1806,7 +1809,8 @@ def measure(repo: Path, qa_root: Path, gates: list, config: dict, sha_range,
     archived = archive_findings(qa_root, keep=retry)
     facts = collect(repo, qa_root, gates, config.get("test_ids_cmd"), abandoned=abandoned,
                     test_one_cmd=config.get("test_one_cmd"),
-                    coverage_suite_cmd=config.get("coverage_suite_cmd"), sha_range=sha_range)
+                    coverage_suite_cmd=config.get("coverage_suite_cmd"), sha_range=sha_range,
+                    hygiene_filing=filing)
     facts.pop("_added_test_ids", None)
     ids = facts.pop("_test_ids", None)
     if ids is not None:
