@@ -183,3 +183,21 @@ def test_plugin_manifest_points_at_this_agent():
     manifest = json.loads((REPO / ".claude-plugin" / "plugin.json").read_text(encoding="utf-8"))
     assert manifest.get("name") == "verdict"
     assert (REPO / "agents" / f"{manifest['name']}.md").is_file()
+
+
+# ── how hard it thinks ────────────────────────────────────────────────────
+
+def _frontmatter():
+    m = re.match(r"^---\n(.*?)\n---\n", PROMPT, re.S)
+    assert m, "agents/verdict.md has no frontmatter"
+    return dict(re.findall(r"^(\w+): *(\S.*)$", m.group(1), re.M))
+
+
+def test_the_agent_pins_its_effort_instead_of_inheriting_the_session():
+    """A subagent runs at its agent file's effort, else at its session's, and the
+    Agent tool has no parameter for it. Without the line the same prompt judged at
+    `max` from the desktop app, at `low` from a terminal whose settings say so, and
+    at the model's own default under `verdict-run` and the eval rig."""
+    effort = _frontmatter().get("effort")
+    assert effort in {"low", "medium", "high", "xhigh", "max"}, \
+        f"the agent file must pin an effort Claude Code accepts, not {effort!r}"
