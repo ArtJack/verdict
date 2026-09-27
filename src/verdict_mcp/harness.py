@@ -1582,10 +1582,17 @@ def next_finding_id(key: str, previous: dict | None, ledger: dict | None) -> str
 
     Measured on the Sales shadow run (2026-09-18): the pattern required a
     prefix, so not one of Sales' 75 ids matched, and the first local night
-    minted `SALES-F-1` beside `F-162` — a second numbering in one record."""
+    minted `SALES-F-1` beside `F-162` — a second numbering in one record.
+
+    `ledger` is the rows `load_outcomes` returns, keyed by hash — or the file's own
+    `{"findings": rows}`. Only the second shape was read, and every caller passes
+    the first, so an id that lived on only in the ledger could be minted again: the
+    fate of every hygiene finding a run after it resolves."""
     ids = [f.get("id") for f in (previous or {}).get("findings") or [] if isinstance(f, dict)]
-    ids += [row.get("id") for row in ((ledger or {}).get("findings") or {}).values()
-            if isinstance(row, dict)]
+    rows = ledger if isinstance(ledger, dict) else {}
+    if isinstance(rows.get("findings"), dict):
+        rows = rows["findings"]
+    ids += [row.get("id") for row in rows.values() if isinstance(row, dict)]
     prefixes: dict = {}
     top, width = 0, 0
     for fid in ids:

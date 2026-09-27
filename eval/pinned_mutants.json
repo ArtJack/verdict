@@ -1543,5 +1543,11 @@
   "path": "src/verdict_mcp/harness.py",
   "old": "    if verdict == \"pass\" and capped_by:\n        verdict = \"pass with risks\"\n",
   "new": "    if False:\n        verdict = \"pass with risks\"\n"
+ },
+ {
+  "label": "0.91.0 H25 harness: the next id reads only a wrapped outcome ledger, so an id only the ledger holds is minted again",
+  "path": "src/verdict_mcp/harness.py",
+  "old": "    if isinstance(rows.get(\"findings\"), dict):\n        rows = rows[\"findings\"]\n",
+  "new": "    rows = rows.get(\"findings\") if isinstance(rows.get(\"findings\"), dict) else {}\n"
  }
 ]

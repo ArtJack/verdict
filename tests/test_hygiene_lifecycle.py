@@ -480,3 +480,22 @@ def test_a_judgment_may_not_file_its_own_finding_under_a_hygiene_id(repo, qa_roo
     problems = validate_judgment(j, previous)
     assert any(key["id"] in p and "hygiene finding" in p for p in problems), problems
     assert not validate_judgment(judgment(), previous)
+
+
+# ── an id the outcome ledger holds is never minted again ──────────────────
+# A hygiene finding resolves by measurement and leaves the state a run later, far
+# more often than the tester's; its id then lives on only in outcomes.json, and the
+# next finding must not take it. load_outcomes() hands over the rows themselves.
+
+def test_an_id_only_the_outcome_ledger_holds_is_never_minted_again(repo, qa_root):
+    from verdict_mcp.state import load_outcomes
+    (qa_root / "outcomes.json").write_text(json.dumps({"schema_version": 1, "findings": {
+        "hygiene:0badc0de": {"hash": "hygiene:0badc0de", "id": "W-F-9", "source": "hygiene"}}}),
+        encoding="utf-8")
+    (qa_root / "state.json").write_text(json.dumps({"project": "widget", "run_number": 1,
+                                                    "findings": [{"id": "W-F-1", "status": "open"}]}),
+                                        encoding="utf-8")
+    assert collect(repo, qa_root, [])["next_finding_id"] == "W-F-10"
+    committed(repo, {"k.py": f'K = "{LIVE}"\n'}, "key")
+    state = merge(collect(repo, qa_root, []), judgment(), None, ledger=load_outcomes(qa_root))
+    assert [f["id"] for f in hygiene_findings(state)] == ["W-F-10"]
