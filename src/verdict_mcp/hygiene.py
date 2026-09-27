@@ -30,7 +30,8 @@ than walking the directory and calling what it finds there committed.
 A file git cannot hand over (a partial clone's missing blob, a stream that broke)
 or whose checks raise is named in `scope.failed_paths`, and the scan says
 `partial`: what it found is real, and its silence about those files is no proof
-they are clean. When no file could be read at all, it says unavailable.
+they are clean. So is a SQL migration too large to read, since it decides which
+tables are open. When no file could be read at all, it says unavailable.
 
 Every item carries a fingerprint (kind, path, normalized line, occurrence), so a
 line that moves keeps its identity and a line that goes away resolves. A secret
@@ -1346,7 +1347,8 @@ def _scan(files, blobs):
     all of them, uncapped (they go by name and read few), and the per-file scan over
     the eligible ones up to FILE_CAP, code first (_cap_rank). A file whose read or
     checks raise is named in `failures` and costs nothing else; what it proved
-    before it failed stands (_salvage). Returns what was found (with `rls_known`:
+    before it failed stands (_salvage). A migration too large to read is named
+    there too. Returns what was found (with `rls_known`:
     every migration was read), the scope, the failures as (path, why), and whether
     any file could be read at all."""
     cap = FILE_CAP
@@ -1362,7 +1364,11 @@ def _scan(files, blobs):
             plan.append((rel, name, oid, size, rel in chosen, kind))
     last = {p[2]: n for n, p in enumerate(plan) if p[4] or p[5] in _READS_TEXT}
     found = _found()
-    failures: list = []
+    # A migration over MAX_BYTES is never requested. It decides a table's final
+    # state as much as one whose read failed, so it is unread in the same way:
+    # named, counted, and no table's RLS is filed while it is (`rls_known`).
+    failures: list = [(rel, f"{size} bytes, past the {MAX_BYTES}-byte read limit")
+                      for rel, _oid, size in files if size > MAX_BYTES and _rls_source(rel)]
     read_any = False
     for n, (rel, name, oid, size, scan, kind) in enumerate(plan):
         part = _found()
@@ -1388,9 +1394,9 @@ def _scan(files, blobs):
              "failed": len(failures)}
     if failures:
         scope["failed_paths"] = sorted(rel for rel, _why in failures)[:20]
-    # A table counts by its final state. With a migration unread — it failed, or
-    # the cap left it out — that state is not known, and a disable the unread file
-    # undid must not be filed.
+    # A table counts by its final state. With a migration unread — it failed, it
+    # was too large, or the cap left it out — that state is not known, and a
+    # disable the unread file undid must not be filed.
     found["rls_known"] = not any(_rls_source(rel) for rel in
                                  [*eligible[cap:], *(rel for rel, _why in failures)])
     return found, scope, failures, read_any

@@ -1051,3 +1051,18 @@ def test_a_public_word_makes_only_a_key_or_a_token_public(tmp_path):
                      ("secret_file_tracked", "s3/.env", ".env committed, sets AZURE_SEARCH_ADMIN_KEY")]
     committed = sorted(lead["path"] for lead in out["leads"] if lead["kind"] == "env_file_committed")
     assert committed == ["p1/.env", "p2/.env"]
+
+
+def test_an_rls_file_too_large_to_read_blocks_rls_filing_and_is_named(tmp_path, monkeypatch):
+    monkeypatch.setattr(hygiene, "MAX_BYTES", 400)
+    schema = ("".join(f"create table t{i}(id int);\n" for i in range(40))
+              + "alter table orders enable row level security;\n")
+    r = make_repo(tmp_path, {
+        "db/migrations/001_orders.sql": ("create table orders(id int);\n"
+                                         "alter table orders disable row level security;\n"),
+        "db/schema.sql": schema,
+    })
+    out = hygiene_census(r)
+    assert kinds(out, 1) == [], "the enable that undoes the disable is in the file nobody read"
+    assert out["status"] == "partial"
+    assert out["scope"]["failed"] == 1 and out["scope"]["failed_paths"] == ["db/schema.sql"]
