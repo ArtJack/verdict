@@ -138,3 +138,40 @@ def test_the_local_tier_writes_the_same_split_before_it_finalizes(tmp_path):
     assert block["items"] == [] and block["counts_by_kind"] == {"unused_import": 1}
     side = json.loads((qa / "hygiene-items.json").read_text(encoding="utf-8"))
     assert [(i["kind"], i["path"]) for i in side["items"]] == [("unused_import", "mod.py")]
+
+
+# ── what the ledger may read back: crafted side files ─────────────────────
+# The side file sits in the QA root, where anything may have written it. Whatever
+# is in it, the ledger gets well-formed tier-2 rows or nothing, and never an error.
+
+ROW = {"kind": "todo_comment", "tier": 2, "path": "svc/app.py", "line": 2, "excerpt": "# TODO: remove",
+       "why": "a TODO/FIXME/HACK left in the code", "fingerprint": "5d41402abc4b2a76"}
+NAMED = {"tier2_file": "hygiene-items.json"}
+
+
+def side_root(tmp_path, text: str):
+    qa = tmp_path / "qa"
+    qa.mkdir()
+    (qa / "hygiene-items.json").write_text(text, encoding="utf-8")
+    return qa
+
+
+def test_a_side_file_nested_past_what_the_parser_holds_reads_as_empty(tmp_path):
+    from verdict_mcp import harness
+    qa = side_root(tmp_path, '{"schema": 1, "items": ' + "[" * 100_000 + "]" * 100_000 + "}")
+    assert harness.tier2_items(NAMED, qa) == []
+
+
+@pytest.mark.parametrize("schema", [True, 1.0])
+def test_only_the_integer_schema_1_is_read(tmp_path, schema):
+    from verdict_mcp import harness
+    qa = side_root(tmp_path, json.dumps({"schema": schema, "items": [ROW]}))
+    assert harness.tier2_items(NAMED, qa) == []
+
+
+@pytest.mark.parametrize("field, value", [("path", ["svc/app.py"]), ("line", "2"), ("line", True),
+                                          ("fingerprint", 7), ("excerpt", {"x": 1}), ("why", None)])
+def test_a_row_with_a_field_of_the_wrong_type_is_passed_over(tmp_path, field, value):
+    from verdict_mcp import harness
+    qa = side_root(tmp_path, json.dumps({"schema": 1, "items": [{**ROW, field: value}, ROW]}))
+    assert harness.tier2_items(NAMED, qa) == [ROW]

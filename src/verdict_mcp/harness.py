@@ -2302,19 +2302,38 @@ def split_hygiene(facts: dict, qa_root: Path) -> None:
 def tier2_items(facts_hygiene: dict, qa_root: Path) -> list:
     """This run's tier-2 rows, read back from the file `split_hygiene` names — the
     way the ledger reads them. [] when the block names no file, or the file is
-    missing or unreadable; a row that is not a tier-2 item is passed over."""
+    missing or unreadable; a row that is not a well-formed tier-2 item is passed
+    over. Whatever the QA root holds, the ledger gets rows or nothing, never an
+    error."""
+    side = _hygiene_side(facts_hygiene, qa_root)
+    rows = side.get("items") if side else None
+    return [it for it in rows if _tier2_row(it)] if isinstance(rows, list) else []
+
+
+def _hygiene_side(facts_hygiene: dict, qa_root: Path):
+    """The side file a split block names, loaded — or None: no file named, a name
+    reaching out of the QA root, a file missing, unreadable or nested past what the
+    parser holds (RecursionError, at about 1,000 levels on 3.9), or a schema that is
+    not the integer 1 (`true == 1` in Python, and is no schema)."""
     name = facts_hygiene.get("tier2_file") if isinstance(facts_hygiene, dict) else None
-    if not isinstance(name, str) or not name or Path(name).name != name:
-        return []               # nothing named, or a name reaching out of the QA root
+    if not isinstance(name, str) or name in ("", ".", "..") or Path(name).name != name:
+        return None
     try:
         doc = json.loads((Path(qa_root) / name).read_text(encoding="utf-8"))
-    except (OSError, ValueError):
-        return []
-    rows = doc.get("items") if isinstance(doc, dict) and doc.get("schema") == 1 else None
-    if not isinstance(rows, list):
-        return []
-    return [it for it in rows
-            if isinstance(it, dict) and it.get("tier") == 2 and it.get("kind") in TIER2_KINDS]
+    except (OSError, ValueError, RecursionError):
+        return None
+    if not isinstance(doc, dict) or type(doc.get("schema")) is not int or doc["schema"] != 1:
+        return None
+    return doc
+
+
+def _tier2_row(it) -> bool:
+    """A tier-2 row in the shape the scan writes one: a junk kind, a str path, an int
+    line (a bool is not one), and str fingerprint, excerpt and why."""
+    return (isinstance(it, dict) and type(it.get("tier")) is int and it["tier"] == 2
+            and it.get("kind") in TIER2_KINDS and isinstance(it.get("path"), str)
+            and type(it.get("line")) is int
+            and all(isinstance(it.get(field), str) for field in ("fingerprint", "excerpt", "why")))
 
 
 def facts_main(argv=None) -> int:
