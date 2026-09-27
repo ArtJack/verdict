@@ -1029,3 +1029,25 @@ def test_a_client_secret_named_in_a_config_or_shell_comment_is_not_a_finding(tmp
                      ("deploy/release.sh", 1, "NEXT_PUBLIC_PAY_SECRET"),
                      ("deploy/release.sh", 2, "VITE_ADMIN_PASSWORD")], \
         "a comment names a variable; a quoted #, a URL's #anchor and a trailing comment do not hide one"
+
+
+def test_a_public_word_makes_only_a_key_or_a_token_public(tmp_path):
+    # SITE and SEARCH say RECAPTCHA_SITE_KEY and ALGOLIA_SEARCH_KEY are meant for the
+    # browser. They say nothing of a password, a secret, or an admin key beside them.
+    hexd = "0123456789abcdef"
+    secret = {
+        "s1/.env": "SITE_ADMIN_PASSWORD=" + token(24, 311) + "\n",
+        "s2/.env": "SITE_SECRET=" + token(40, 312) + "\n",
+        "s3/.env": "AZURE_SEARCH_ADMIN_KEY=" + token(52, 313) + "\n",
+    }
+    public = {
+        "p1/.env": "ALGOLIA_SEARCH_KEY=" + token(32, 314, hexd) + "\n",
+        "p2/.env": "RECAPTCHA_SITE_KEY=6Lc" + token(37, 315) + "\n",
+    }
+    out = hygiene_census(make_repo(tmp_path, {**secret, **public}))
+    tier1 = sorted((i["kind"], i["path"], i["excerpt"]) for i in out["items"] if i["tier"] == 1)
+    assert tier1 == [("secret_file_tracked", "s1/.env", ".env committed, sets SITE_ADMIN_PASSWORD"),
+                     ("secret_file_tracked", "s2/.env", ".env committed, sets SITE_SECRET"),
+                     ("secret_file_tracked", "s3/.env", ".env committed, sets AZURE_SEARCH_ADMIN_KEY")]
+    committed = sorted(lead["path"] for lead in out["leads"] if lead["kind"] == "env_file_committed")
+    assert committed == ["p1/.env", "p2/.env"]

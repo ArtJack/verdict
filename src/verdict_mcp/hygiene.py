@@ -165,10 +165,15 @@ _ENV_FILE = re.compile(r"(?:^|/)\.env(?:\.[\w.-]+)?$")
 _ENV_TEMPLATE = re.compile(r"\.(?:example|sample|template|dist|defaults|test|ci)$", re.IGNORECASE)
 _ENV_ASSIGN = re.compile(r"^(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)$")
 _CLIENT_PREFIXES = ("NEXT_PUBLIC_", "VITE_", "EXPO_PUBLIC_", "REACT_APP_", "NUXT_PUBLIC_", "PUBLIC_")
-_CREDENTIAL_WORDS = frozenset(("SECRET", "PASSWORD", "PASSWD", "PASS", "PWD", "TOKEN", "KEY",
-                               "APIKEY", "PRIVATE", "CREDENTIALS", "SALT"))
-# RECAPTCHA_SITE_KEY and ALGOLIA_SEARCH_KEY are meant for the browser; their
-# RECAPTCHA_SECRET_KEY and ALGOLIA_ADMIN_KEY siblings are not, and stay credentials.
+# Two kinds of credential word. A name holding one of the first kind is a secret's
+# whatever else it says. KEY and TOKEN are the second kind: RECAPTCHA_SITE_KEY and
+# ALGOLIA_SEARCH_KEY are meant for the browser, and a public word says so. Their
+# RECAPTCHA_SECRET_KEY and ALGOLIA_ADMIN_KEY siblings are not, and a public word
+# never reaches the first kind: SITE_ADMIN_PASSWORD and AZURE_SEARCH_ADMIN_KEY stay
+# credentials.
+_SECRET_WORDS = frozenset(("SECRET", "PASSWORD", "PASSWD", "PASS", "PWD", "PRIVATE", "ADMIN",
+                           "MASTER", "CREDENTIALS", "SALT"))
+_KEY_WORDS = frozenset(("KEY", "APIKEY", "TOKEN"))
 _PUBLIC_WORDS = frozenset(("PUBLIC", "PUBLISHABLE", "ANON", "SITE", "SEARCH"))
 # Values that are public by design whatever the variable is called: a Google
 # browser key, a Stripe publishable key, a Mapbox public token (`pk.`; its secret
@@ -694,15 +699,18 @@ def _env_value(raw: str) -> str:
 
 
 def _credential_name(name: str) -> bool:
-    """A name that says credential: SECRET, TOKEN, KEY… among its words, nothing
-    marking it public, and not a setting about one (ACCESS_TOKEN_TTL, KEYCLOAK_URL).
-    A client-prefixed name is F9's to judge, not this one's."""
+    """A name that says credential: SECRET, PASSWORD, ADMIN… among its words, or KEY
+    or TOKEN with nothing marking it public — and not a setting about one
+    (ACCESS_TOKEN_TTL, KEYCLOAK_URL). A client-prefixed name is F9's to judge, not
+    this one's."""
     up = name.upper()
     if up.startswith(_CLIENT_PREFIXES):
         return False
     words = up.split("_")
-    return (not _CREDENTIAL_WORDS.isdisjoint(words) and _PUBLIC_WORDS.isdisjoint(words)
-            and words[-1] not in _NOT_A_SECRET_TAIL)
+    if words[-1] in _NOT_A_SECRET_TAIL:
+        return False
+    return not _SECRET_WORDS.isdisjoint(words) or (
+        not _KEY_WORDS.isdisjoint(words) and _PUBLIC_WORDS.isdisjoint(words))
 
 
 def _env_value_live(v: str) -> bool:
