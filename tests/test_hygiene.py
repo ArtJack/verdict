@@ -1064,8 +1064,11 @@ def test_an_rls_file_too_large_to_read_blocks_rls_filing_and_is_named(tmp_path, 
     })
     out = hygiene_census(r)
     assert kinds(out, 1) == [], "the enable that undoes the disable is in the file nobody read"
-    assert out["status"] == "partial"
-    assert out["scope"]["failed"] == 1 and out["scope"]["failed_paths"] == ["db/schema.sql"]
+    # Named apart from the failures: a committed dump would leave every run partial,
+    # and a partial scan resolves nothing.
+    assert out["status"] == "measured"
+    assert out["scope"] == {"files": 1, "capped": False, "file_cap": hygiene.FILE_CAP, "failed": 0,
+                            "rls_unread": ["db/schema.sql"]}
 
 
 def test_a_google_key_is_one_lead_per_platform_across_the_repository(tmp_path):
