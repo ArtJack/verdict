@@ -31,6 +31,7 @@ description: |
   <commentary>Failure classification — real defect vs brittle test vs environment vs flaky — is core QA judgment.</commentary>
   </example>
 model: inherit
+effort: xhigh
 tools:
   - Read
   - Glob
