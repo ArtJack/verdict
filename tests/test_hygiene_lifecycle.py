@@ -253,3 +253,164 @@ def test_leads_followed_counts_findings_that_cite_a_leads_line():
     leads = [{"path": "auth.py", "line": 40}, {"path": "web.py", "line": 9}]
     found = [{"id": "W-F-1", "evidence": ["auth.py:42 the swallow"]}]
     assert leads_followed(leads, found) == 1
+
+
+# ── merge(): the harness files tier 1, and the track record stays the tester's ─
+
+import json  # noqa: E402
+
+from conftest import git, judgment  # noqa: E402
+
+from verdict_mcp.harness import collect, facts_main, finalize_main, merge, split_hygiene  # noqa: E402
+from verdict_mcp.validate import validate  # noqa: E402
+
+LIVE = "sk-ant-api03-" + "Qm9vY2FsbDEzW7tVx2Lp8Rz4Kf0HdN5sGj3aYcBwXeTqUiO"   # not a real key
+
+
+def committed(repo, files: dict, message="change"):
+    for rel, text in files.items():
+        path = repo / rel
+        if text is None:
+            path.unlink()
+        else:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(text, encoding="utf-8")
+    git(["add", "-A"], repo)
+    git(["commit", "-qm", message], repo)
+
+
+def hygiene_findings(state):
+    return [f for f in state["findings"] if f.get("source") == "hygiene"]
+
+
+def test_merge_files_tier_one_carries_it_and_never_resolves_it_by_silence(repo, qa_root):
+    committed(repo, {"k.py": f'K = "{LIVE}"\nimport os\n'}, "key")
+    facts1 = collect(repo, qa_root, [])
+    first = merge(facts1, judgment(), None)
+    hyg = hygiene_findings(first)
+    assert len(hyg) == 1 and hyg[0]["id"] == "W-F-2" and hyg[0]["delta"] == "NEW"
+    assert first["hygiene"]["summary"]["open"] == 1          # the unused import
+    assert not [p for p in validate(first, qa_root) if "W-F-2" in p]
+    # the tester says nothing about it next run: still open, same id
+    silent = judgment(findings=[])
+    facts2 = dict(collect(repo, qa_root, []), run_number=2, run_type="delta")
+    second = merge(facts2, silent, first)
+    again = hygiene_findings(second)
+    assert again[0]["id"] == "W-F-2" and again[0]["delta"] == "STILL_OPEN"
+    # the key is removed: resolved by measurement
+    committed(repo, {"k.py": "import os\n"}, "rotate")
+    facts3 = dict(collect(repo, qa_root, []), run_number=3, run_type="delta")
+    third = merge(facts3, silent, second)
+    gone = hygiene_findings(third)
+    assert gone[0]["delta"] == "RESOLVED"
+
+
+def test_hygiene_findings_stay_out_of_the_testers_track_record(repo, qa_root):
+    from verdict_mcp.state import calibration, merge_outcomes
+    committed(repo, {"k.py": f'K = "{LIVE}"\n'}, "key")
+    state = merge(collect(repo, qa_root, []), judgment(), None)
+    tester = [f for f in state["findings"] if f.get("source") != "hygiene"]
+    assert hygiene_findings(state), "the scan filed the key"
+    with_h = calibration({"findings": state["findings"]}, ledger=merge_outcomes({}, state["findings"], "2026-10-01"))
+    without = calibration({"findings": tester}, ledger=merge_outcomes({}, tester, "2026-10-01"))
+    assert with_h == without, "a regex's finding is not the tester's prediction"
+    kept = merge_outcomes({}, state["findings"], "2026-10-01")
+    assert any(r.get("source") == "hygiene" for r in kept.values()), \
+        "the id stays in the outcome ledger so it is never minted twice"
+
+
+def test_a_judgment_copy_of_a_hygiene_finding_is_ignored_not_duplicated(repo, qa_root):
+    committed(repo, {"k.py": f'K = "{LIVE}"\n'}, "key")
+    first = merge(collect(repo, qa_root, []), judgment(), None)
+    copy = [dict(f) for f in hygiene_findings(first)]
+    j = judgment()
+    j["findings"] += copy
+    second = merge(dict(collect(repo, qa_root, []), run_number=2, run_type="delta"), j, first)
+    assert len(hygiene_findings(second)) == 1
+
+
+def test_a_deleted_file_resolves_its_finding_and_an_unread_one_carries_it(repo, qa_root, monkeypatch):
+    from verdict_mcp import hygiene
+    committed(repo, {"k.py": f'K = "{LIVE}"\n', "deploy/cfg.py": f'TOKEN = "{LIVE}"\n'}, "keys")
+    first = merge(collect(repo, qa_root, []), judgment(), None)
+    assert sorted(f["hygiene"]["path"] for f in hygiene_findings(first)) == ["deploy/cfg.py", "k.py"]
+    committed(repo, {"k.py": None}, "delete the file")
+    real = hygiene._scan_file
+
+    def unread(rel, *args, **kwargs):
+        if rel == "deploy/cfg.py":
+            raise RuntimeError("a detector broke")
+        return real(rel, *args, **kwargs)
+    monkeypatch.setattr(hygiene, "_scan_file", unread)
+    second = merge(dict(collect(repo, qa_root, []), run_number=2, run_type="delta"),
+                   judgment(findings=[]), first)
+    by_path = {f["hygiene"]["path"]: f for f in hygiene_findings(second)}
+    assert by_path["k.py"]["delta"] == "RESOLVED", "gone from the tree the scan read"
+    assert (by_path["deploy/cfg.py"]["delta"], by_path["deploy/cfg.py"]["status"]) == ("STILL_OPEN", "open")
+    assert "deploy/cfg.py was not read" in by_path["deploy/cfg.py"]["carried_forward"]
+    assert not validate(second, qa_root)
+
+
+def test_the_ledger_is_read_from_the_side_file_and_an_unreadable_one_resolves_nothing(repo, qa_root):
+    committed(repo, {"j.py": "import os\n"}, "junk")
+    facts1 = collect(repo, qa_root, [])
+    split_hygiene(facts1, qa_root)
+    first = merge(facts1, judgment(), None, qa_root=qa_root)
+    assert [(r["kind"], r["delta"]) for r in first["hygiene"]["rows"]] == [("unused_import", "NEW")]
+    committed(repo, {"j.py": "x = 1\n"}, "tidy")
+    facts2 = dict(collect(repo, qa_root, []), run_number=2, run_type="delta")
+    split_hygiene(facts2, qa_root)
+    (qa_root / "hygiene-items.json").write_text("{not json", encoding="utf-8")
+    second = merge(facts2, judgment(findings=[]), first, qa_root=qa_root)
+    assert second["hygiene"]["summary"]["tier2_unread"] is True
+    assert [(r["kind"], r["delta"]) for r in second["hygiene"]["rows"]] == [("unused_import", "STILL_OPEN")]
+
+
+def test_a_pass_is_capped_over_a_critical_the_scan_filed(repo, qa_root):
+    # §10: a `pass` cannot stand over an open Critical. The tester may not have weighed
+    # one the scan filed, and the local tier and the sweep weigh nothing — refusing the
+    # run would lose every such night, so the harness caps its own and says why.
+    committed(repo, {"k.py": f'K = "{LIVE}"\n'}, "key")
+    state = merge(collect(repo, qa_root, []), judgment(verdict="pass"), None)
+    [key] = hygiene_findings(state)
+    assert state["verdict"] == "pass with risks"
+    assert state["hygiene"]["verdict_capped"] == {"from": "pass", "to": "pass with risks", "by": [key["id"]]}
+    assert not validate(state, qa_root)
+    clean = merge(collect(repo, qa_root, []), judgment(verdict="fail"), None)
+    assert clean["verdict"] == "fail" and "verdict_capped" not in clean["hygiene"], "only a pass is capped"
+
+
+def finalize_run(repo, qa, j: dict) -> dict:
+    assert facts_main(["--repo", str(repo), "--qa-root", str(qa)]) == 0
+    (qa / "judgment.json").write_text(json.dumps(j), encoding="utf-8")
+    assert finalize_main(["--qa-root", str(qa), "--judgment", str(qa / "judgment.json")]) == 0
+    return json.loads((qa / "state.json").read_text(encoding="utf-8"))
+
+
+def test_still_open_naming_a_hygiene_finding_carries_nothing_twice(repo, tmp_path):
+    # The local tier and the sweep name every open id in `still_open`; the copy that
+    # verb expands to carries no `source`, and filed beside the harness's own it would
+    # put one id in the state twice.
+    committed(repo, {"k.py": f'K = "{LIVE}"\n'}, "key")
+    qa = tmp_path / "qa-root"
+    (qa / "reports").mkdir(parents=True)
+    first = finalize_run(repo, qa, judgment(findings=[], report=""))
+    [key] = hygiene_findings(first)
+    second = finalize_run(repo, qa, judgment(findings=[], report="", still_open=[key["id"]]))
+    assert [f["id"] for f in second["findings"]] == [key["id"]]
+    assert hygiene_findings(second)[0]["delta"] == "STILL_OPEN"
+
+
+def test_the_local_tier_finalizes_a_night_the_scan_files_a_critical_on(tmp_path):
+    from test_hygiene import make_repo
+    from test_hygiene_facts import root_with
+    from test_local_delta import GATE, ScriptedModel
+    from verdict_mcp import small
+    repo = make_repo(tmp_path, {
+        "mod.py": f'KEY = "{LIVE}"\n\n\ndef kept(x):\n    return x + 1\n',
+        "test_mod.py": "from mod import kept\n\n\ndef test_kept():\n    assert kept(1) == 2\n"})
+    qa = root_with(tmp_path, f"gates:\n  suite: {GATE}\n")
+    assert small.run(repo, qa, ScriptedModel(), limit=4, gate=None, reruns=0, prove=False) == 0
+    state = json.loads((qa / "state.json").read_text(encoding="utf-8"))
+    assert [f["hygiene"]["kind"] for f in hygiene_findings(state)] == ["secret_in_code"]
+    assert state["verdict"] == "pass with risks"

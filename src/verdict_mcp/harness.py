@@ -60,7 +60,9 @@ try:
     from .anchors import DRIFTED, anchors_for, evidence_drift
     from .census import code_census
     from .hygiene import (TIER2_KINDS, Evidence, absent_from_tree, hygiene_census,
-                          hygiene_reading)
+                          hygiene_reading, is_hygiene, leads_followed)
+    from .hygiene import ledger as hygiene_ledger
+    from .hygiene import reconcile as reconcile_hygiene
     from .filed import FINDINGS_DIR, archive_findings, load_filed
     from .reports import read_report
     from .profile import ProfileError, gates_from, hygiene_filing_from
@@ -85,7 +87,9 @@ except ImportError:  # bare-script execution
     from anchors import DRIFTED, anchors_for, evidence_drift
     from census import code_census
     from hygiene import (TIER2_KINDS, Evidence, absent_from_tree, hygiene_census,
-                         hygiene_reading)
+                         hygiene_reading, is_hygiene, leads_followed)
+    from hygiene import ledger as hygiene_ledger
+    from hygiene import reconcile as reconcile_hygiene
     from filed import FINDINGS_DIR, archive_findings, load_filed
     from reports import read_report
     from profile import ProfileError, gates_from, hygiene_filing_from
@@ -1847,7 +1851,7 @@ def _fold_accepted(entry: dict, ledger: dict | None) -> None:
 
 
 def merge(facts: dict, judgment: dict, previous: dict | None, today: date | None = None,
-          ledger: dict | None = None, accepted: dict | None = None) -> dict:
+          ledger: dict | None = None, accepted: dict | None = None, qa_root=None) -> dict:
     """Facts + judgment → a state file, with identity and deltas computed.
 
     `ledger` is the permanent outcome ledger (`outcomes.json`); passing it in
@@ -1855,7 +1859,8 @@ def merge(facts: dict, judgment: dict, previous: dict | None, today: date | None
     finding this project ever filed, not just the ones still in state.
     `accepted` is the maintainer's ledger (`accepted.json`), applied after the
     tester's statuses and before outcomes: the one status a judgment cannot
-    write.
+    write. `qa_root` is where the hygiene side file sits (default: the one
+    facts.json names).
     """
     today = today or run_date(facts)
     # finalize runs from the QA root; facts says where the code is. An older
@@ -1875,6 +1880,8 @@ def merge(facts: dict, judgment: dict, previous: dict | None, today: date | None
     findings = []
     seen = set()
     for f in judgment.get("findings", []) or []:
+        if is_hygiene(f):
+            continue  # a `still_open` copy of the harness's own finding — reconciled below
         entry = dict(f)
         h = finding_hash(entry)
         prior = prev_by_hash.get(h)
@@ -1947,6 +1954,8 @@ def merge(facts: dict, judgment: dict, previous: dict | None, today: date | None
     # silence is not the same as an assertion, so it is carried, not dropped.
     unmentioned, prior_open = [], 0
     for h, prior in prev_by_hash.items():
+        if is_hygiene(prior):
+            continue  # owned by the harness: re-measured below, never resolved by silence
         st = norm_status(prior.get("status"))
         # The maintainer's decision outlives the tester's attention: a finding
         # that is accepted — in the previous state, or in the ledger since —
@@ -2003,6 +2012,38 @@ def merge(facts: dict, judgment: dict, previous: dict | None, today: date | None
         carried.update(_stamp_outcome(carried, prior))
         findings.append(carried)
 
+    # Hygiene findings are the harness's own (T-28): re-measured every run, resolved
+    # only on evidence — every file the item lives in was scanned, or has left the
+    # tree — and never by the tester's silence.
+    hyg = facts.get("hygiene")
+    root = Path(qa_root or facts.get("qa_root") or ".")
+    sha_now = str((facts.get("last_run") or {}).get("git_sha") or "")
+    evidence = hygiene_evidence(hyg, root, repo, sha_now)
+    taken = [{"id": f.get("id")} for f in findings] + [
+        {"id": f.get("id")} for f in ((previous or {}).get("findings") or []) if isinstance(f, dict)]
+
+    def _mint() -> str:
+        fid = next_finding_id(facts["project"], {"findings": taken}, ledger)
+        taken.append({"id": fid})
+        return fid
+
+    for entry in reconcile_hygiene(hyg, (previous or {}).get("findings") or [], _mint,
+                                   today.isoformat(), facts.get("run_number"), sha_now,
+                                   evidence=evidence):
+        _fold_accepted(entry, accepted)
+        entry.update(_stamp_outcome(entry, prev_by_id.get(str(entry.get("id")))))
+        findings.append(entry)
+
+    # §10: a `pass` cannot stand over an open Critical. One the scan filed is one the
+    # tester may not have weighed, and the local tier and the sweep weigh nothing:
+    # refusing the state would lose every such run, so the harness caps its own
+    # filing at `pass with risks`, and says so in the ledger block.
+    verdict = judgment.get("verdict")
+    capped_by = [str(f.get("id")) for f in findings if is_hygiene(f) and is_open(f)
+                 and f.get("severity") in ("Critical", "Blocker")]
+    if verdict == "pass" and capped_by:
+        verdict = "pass with risks"
+
     state = {
         "project": facts["project"],
         "schema_version": facts.get("schema_version", 1),
@@ -2020,7 +2061,7 @@ def merge(facts: dict, judgment: dict, previous: dict | None, today: date | None
         **({"verification_notes": facts["verification_notes"]}
            if facts.get("verification_notes") else {}),
         "findings": findings,
-        "verdict": judgment.get("verdict"),
+        "verdict": verdict,
         "release_blockers": judgment.get("release_blockers", []),
         "not_tested": judgment.get("not_tested", []),
         # What was checked and HELD. The first external user said it plainly:
@@ -2033,6 +2074,17 @@ def merge(facts: dict, judgment: dict, previous: dict | None, today: date | None
     for optional in ("run_label", "next_run_focus", "flaky_quarantine", "coverage"):
         if judgment.get(optional) is not None:
             state[optional] = judgment[optional]
+    # Always assigned, so the end-of-merge carry of unknown keys cannot resurrect a
+    # stale ledger.
+    state["hygiene"] = hygiene_ledger(hyg, tier2_items(hyg, root),
+                                      (previous or {}).get("hygiene"), today.isoformat(),
+                                      facts.get("run_number"), sha_now, evidence=evidence)
+    if state["hygiene"].get("status") == "measured":
+        state["hygiene"]["leads"]["followed"] = leads_followed(
+            hyg.get("leads") if isinstance(hyg, dict) else None, findings)
+    if verdict != judgment.get("verdict"):
+        state["hygiene"]["verdict_capped"] = {"from": judgment.get("verdict"), "to": verdict,
+                                            "by": capped_by}
     # Every cited line, hashed, so the next run is told where the code moved.
     # The verified-intact items are strings and stay strings; their anchors
     # sit beside them, aligned by index.
@@ -2631,7 +2683,13 @@ def _re_report(judgment: dict, previous: dict | None, facts: dict) -> list[str]:
     The verb is cheap on purpose — run 14 re-typed eighteen findings to say
     "still there" — and the harness keeps it honest: an id whose cited code
     changed or vanished since the evidence was written (`evidence_drift`, T-1)
-    is refused, because the evidence no longer says what the finding says."""
+    is refused, because the evidence no longer says what the finding says.
+
+    A hygiene finding named by either verb expands to nothing: the scan re-measures
+    it every run (reconcile), and the tester's word neither keeps it open nor
+    closes it. The local tier and the sweep name every open id in `still_open`,
+    and the copy — which carries no `source` — would stand beside the harness's
+    own finding under the same id."""
     prev_by_id = {str(f.get("id")): f for f in ((previous or {}).get("findings") or [])
                   if isinstance(f, dict) and f.get("id")}
     drift = ((facts.get("evidence_drift") or {}).get("findings") or {}) \
@@ -2642,6 +2700,8 @@ def _re_report(judgment: dict, previous: dict | None, facts: dict) -> list[str]:
             prior = prev_by_id.get(str(fid))
             if prior is None:
                 continue            # validate_judgment has already refused it
+            if is_hygiene(prior):
+                continue            # the harness's own: re-measured, never carried by word
             d = drift.get(str(fid)) if verb == "still_open" else None
             if isinstance(d, dict) and d.get("drift") in ("changed", "missing"):
                 refs = ", ".join(f"{r.get('ref')} ({r.get('status')})" for r in d.get("refs") or []
@@ -2821,7 +2881,7 @@ def finalize_main(argv=None) -> int:
             f["filed_at"] = src["filed_at"]
 
     state = merge(facts, judgment, previous, ledger=load_outcomes(qa_root),
-                  accepted=load_accepted(qa_root))
+                  accepted=load_accepted(qa_root), qa_root=qa_root)
     # Folded in memory; the ledger is saved only once the state is accepted (questions.fold).
     asked, qnotes, qledger = questions.fold(
         qa_root, questions.id_prefix(state["findings"], state["project"]),

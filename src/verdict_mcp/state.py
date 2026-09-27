@@ -278,6 +278,9 @@ def outcome_row(finding: dict, decided_on: str | None = None) -> dict:
         # confirmed rows were already unjoinable (VERDICT-F-41). Three fields,
         # because the row is a hundred bytes and not a finding.
         "verification": _verification_digest(finding),
+        # Who filed it. A hygiene finding is the scan's, not the tester's: its id
+        # stays here so it is never minted twice, and calibration passes it over.
+        **({"source": finding["source"]} if finding.get("source") else {}),
     }
     if row["outcome"] in ("confirmed", "refuted") and decided_on:
         row["decided_on"] = decided_on
@@ -405,9 +408,14 @@ def calibration(state: dict, min_sample: int = CALIBRATION_MIN_SAMPLE,
     # The current run wins over its own ledger row: a withdrawal filed today
     # outranks the confirmation inferred yesterday.
     for f in state.get("findings", []) or []:
+        if f.get("source") == "hygiene":
+            continue
         key = finding_key(f)
         if key:
             rows[key] = f
+    # A pattern's finding is not the tester's prediction: what the hygiene scan
+    # filed stays out of the track record, from the ledger as from the state.
+    rows = {k: v for k, v in rows.items() if v.get("source") != "hygiene"}
     findings = list(rows.values())
     by_confidence: dict[str, dict] = {}
     by_method: dict[str, dict] = {}
