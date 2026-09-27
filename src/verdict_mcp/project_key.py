@@ -16,7 +16,14 @@ from __future__ import annotations
 
 import re
 import subprocess
+import sys
 from pathlib import Path
+
+try:
+    from .gitenv import git_env
+except ImportError:  # imported as a plain module, as the Stop and SessionStart hooks do
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    from gitenv import git_env
 
 _UNSAFE = re.compile(r"[^a-z0-9._-]")
 
@@ -38,7 +45,7 @@ def derive_key(cwd: str | Path = ".") -> tuple[str, str]:
     try:
         proc = subprocess.run(
             ["git", "-C", str(path), "worktree", "list", "--porcelain"],
-            capture_output=True, text=True, timeout=10)
+            capture_output=True, text=True, timeout=10, env=git_env())
     except (OSError, subprocess.TimeoutExpired):
         proc = None
     if proc and proc.returncode == 0 and proc.stdout.startswith("worktree "):

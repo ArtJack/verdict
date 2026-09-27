@@ -65,6 +65,7 @@ from urllib.parse import urlparse
 
 try:
     from .gate import evaluate
+    from .gitenv import git_env
     from .project_key import derive_key
     from .state import home as state_home
     from .state import is_path_like, norm_status, resolve_root
@@ -73,6 +74,7 @@ except ImportError:  # bare-script execution
     sys.path.insert(0, str(Path(__file__).resolve().parent))
     import clock
     from gate import evaluate
+    from gitenv import git_env
     from project_key import derive_key
     from state import home as state_home
     from state import is_path_like, norm_status, resolve_root
@@ -137,7 +139,7 @@ def _run_streaming(cmd, repo, env, timeout_s):
 def _head_sha(repo):
     try:
         proc = subprocess.run(["git", "-C", str(repo), "rev-parse", "HEAD"],
-                              capture_output=True, text=True, timeout=10)
+                              capture_output=True, text=True, timeout=10, env=git_env())
     except (OSError, subprocess.SubprocessError):
         return None
     return proc.stdout.strip() if proc.returncode == 0 else None
@@ -588,7 +590,7 @@ def _harness(sub: str, *args: str) -> subprocess.CompletedProcess:
 
 def _changed_files(repo, sha_range: str):
     proc = subprocess.run(["git", "-C", str(repo), "diff", "--name-only", sha_range],
-                          capture_output=True, text=True)
+                          capture_output=True, text=True, env=git_env())
     if proc.returncode != 0:
         return None
     return sorted({ln.strip().replace("\\", "/") for ln in proc.stdout.splitlines() if ln.strip()})
@@ -719,7 +721,7 @@ def sweep(repo, qa_root, project, fail_on, require_harness, before, notes=None) 
         print("verdict-run: no sweep — " + "; ".join(why) + " — running the model", file=sys.stderr)
         return None
     count = subprocess.run(["git", "-C", str(repo), "rev-list", "--count", sha_range],
-                           capture_output=True, text=True)
+                           capture_output=True, text=True, env=git_env())
     commits = int(count.stdout.strip()) if count.returncode == 0 and count.stdout.strip().isdigit() else None
     judgment = sweep_judgment(facts, previous, changed or [], commits, notes)
     jpath = Path(qa_root) / "judgment.json"

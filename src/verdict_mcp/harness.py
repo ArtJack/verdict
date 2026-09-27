@@ -60,6 +60,7 @@ try:
     from .anchors import DRIFTED, anchors_for, evidence_drift
     from .census import code_census
     from .filed import FINDINGS_DIR, archive_findings, load_filed
+    from .gitenv import git_env
     from .reports import read_report
     from .profile import ProfileError, gates_from
     from .profile import load as load_profile
@@ -83,6 +84,7 @@ except ImportError:  # bare-script execution
     from anchors import DRIFTED, anchors_for, evidence_drift
     from census import code_census
     from filed import FINDINGS_DIR, archive_findings, load_filed
+    from gitenv import git_env
     from reports import read_report
     from profile import ProfileError, gates_from
     from profile import load as load_profile
@@ -185,12 +187,12 @@ _COUNT_PATTERNS = tuple(
     (p, "go") for p in _GO_VERBOSE)
 
 
-def _run(cmd, cwd=None, shell=False):
-    return subprocess.run(cmd, cwd=cwd, shell=shell, capture_output=True, text=True)
+def _run(cmd, cwd=None, shell=False, env=None):
+    return subprocess.run(cmd, cwd=cwd, shell=shell, capture_output=True, text=True, env=env)
 
 
 def _git(args, repo):
-    proc = _run(["git", "-C", str(repo), *args])
+    proc = _run(["git", "-C", str(repo), *args], env=git_env())
     return proc.stdout.strip() if proc.returncode == 0 else None
 
 
@@ -563,7 +565,8 @@ def _scratch_checkout(repo: Path, sha: str):
     checkout tree itself is never touched; the worktree lives in a temp dir and
     is removed when verification ends."""
     tmp = Path(tempfile.mkdtemp(prefix="verdict-verify-"))
-    proc = _run(["git", "-C", str(repo), "worktree", "add", "--detach", "-q", str(tmp), sha])
+    proc = _run(["git", "-C", str(repo), "worktree", "add", "--detach", "-q", str(tmp), sha],
+                env=git_env())
     if proc.returncode != 0:
         shutil.rmtree(tmp, ignore_errors=True)
         return None
@@ -586,7 +589,7 @@ def _drop_bytecode(root: Path) -> None:
 
 
 def _remove_scratch(repo: Path, tmp: Path) -> None:
-    _run(["git", "-C", str(repo), "worktree", "remove", "--force", str(tmp)])
+    _run(["git", "-C", str(repo), "worktree", "remove", "--force", str(tmp)], env=git_env())
     shutil.rmtree(tmp, ignore_errors=True)
 
 
