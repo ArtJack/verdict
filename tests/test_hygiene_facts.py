@@ -175,3 +175,15 @@ def test_a_row_with_a_field_of_the_wrong_type_is_passed_over(tmp_path, field, va
     from verdict_mcp import harness
     qa = side_root(tmp_path, json.dumps({"schema": 1, "items": [{**ROW, field: value}, ROW]}))
     assert harness.tier2_items(NAMED, qa) == [ROW]
+
+
+def test_a_block_that_was_never_split_is_read_where_its_rows_are(tmp_path):
+    # A facts file written before the split, or reused by --reuse-if-fresh, still
+    # holds tier 2 inline. Reading it as empty would tell a ledger every row resolved.
+    from verdict_mcp import harness
+    from verdict_mcp.hygiene import hygiene_census
+    block = hygiene_census(make_repo(tmp_path, JUNK))
+    rows = [i for i in block["items"] if i["tier"] == 2]
+    qa = tmp_path / "qa"
+    qa.mkdir()
+    assert len(rows) == 3 and harness.tier2_items(block, qa) == rows

@@ -2300,13 +2300,18 @@ def split_hygiene(facts: dict, qa_root: Path) -> None:
 
 
 def tier2_items(facts_hygiene: dict, qa_root: Path) -> list:
-    """This run's tier-2 rows, read back from the file `split_hygiene` names — the
-    way the ledger reads them. [] when the block names no file, or the file is
-    missing or unreadable; a row that is not a well-formed tier-2 item is passed
-    over. Whatever the QA root holds, the ledger gets rows or nothing, never an
-    error."""
-    side = _hygiene_side(facts_hygiene, qa_root)
-    rows = side.get("items") if side else None
+    """This run's tier-2 rows, the way the ledger reads them: from the file
+    `split_hygiene` names, or from the block itself when it names none — a facts
+    file written before the split, one reused by --reuse-if-fresh, or one whose side
+    file could not be written, all hold tier 2 inline, and reading that as empty
+    would tell a ledger every row had resolved. [] when the named file is missing
+    or unreadable; a row that is not a well-formed tier-2 item is passed over.
+    Whatever the QA root holds, the ledger gets rows or nothing, never an error."""
+    if isinstance(facts_hygiene, dict) and "tier2_file" not in facts_hygiene:
+        rows = facts_hygiene.get("items")
+    else:
+        side = _hygiene_side(facts_hygiene, qa_root)
+        rows = side.get("items") if side else None
     return [it for it in rows if _tier2_row(it)] if isinstance(rows, list) else []
 
 
