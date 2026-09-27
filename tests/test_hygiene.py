@@ -1123,3 +1123,19 @@ def test_admin_and_master_qualify_a_key_and_never_name_a_credential_alone(tmp_pa
     assert filed == sorted(f".env committed, sets {name}" for name in credentials)
     committed = sorted(lead["path"] for lead in out["leads"] if lead["kind"] == "env_file_committed")
     assert committed == sorted(f"{name.lower()}/.env" for name in {**not_credentials, **public})
+
+
+def test_terraform_make_just_and_procfile_comments_name_no_client_variable(tmp_path):
+    r = make_repo(tmp_path, {
+        "infra/main.tf": ('// NEXT_PUBLIC_H_SECRET is banned\n'
+                          'locals { u = "http://x/#${var.NEXT_PUBLIC_REAL_SECRET}" }\n'),
+        "infra/prod.tfvars": "/*\n  NEXT_PUBLIC_I_SECRET\n*/\nregion = \"eu\"\n",
+        "infra/app.hcl": "x = 1 // NEXT_PUBLIC_L_SECRET is not read\n",
+        "Makefile": ("# NEXT_PUBLIC_J_SECRET must not be exported\n"
+                     "export NEXT_PUBLIC_M_SECRET := $(shell cat k) # set by CI\n"),
+        "Justfile": "# NEXT_PUBLIC_K_SECRET stays server-side\nbuild:\n    npm run build\n",
+        "Procfile": "# NEXT_PUBLIC_P_SECRET is never passed\nweb: node server.js\n",
+    })
+    found = sorted((i["path"], i["line"], i["excerpt"]) for i in hygiene_census(r)["items"]
+                   if i["kind"] == "public_env_secret")
+    assert found == [("Makefile", 2, "NEXT_PUBLIC_M_SECRET"), ("infra/main.tf", 2, "NEXT_PUBLIC_REAL_SECRET")]

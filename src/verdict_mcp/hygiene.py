@@ -226,13 +226,18 @@ _C_TOKENS = re.compile(
     r"/\*|//|\"(?:\\.|[^\"\\])*\"|'(?:\\.|[^'\\])*'|`(?:\\.|[^`\\])*(?P<tick>`)?")
 _SQL_TOKENS = re.compile(r"/\*|--|\"[^\"]*\"|'[^']*'")
 _HASH_TOKENS = re.compile(r"#|\"(?:\\.|[^\"\\])*\"|'(?:\\.|[^'\\])*'")
-# Env files, YAML, TOML, the INI family, shell and Terraform comment with `#`, and
-# so do Dockerfiles, which go by name (_hash_commented). There a `#` opens a comment
-# only at the start of the line or after whitespace, and never inside quotes:
-# `http://x/#anchor` and "a#b" are text. A single-quoted string takes no escapes.
+# Env files, YAML, TOML, the INI family and shell comment with `#`, and so do
+# Dockerfiles, Makefiles, Justfiles and Procfiles, which go by name
+# (_hash_commented). There a `#` opens a comment only at the start of the line or
+# after whitespace, and never inside quotes: `http://x/#anchor` and "a#b" are text.
+# A single-quoted string takes no escapes. Terraform and HCL take `#`, `//` and
+# `/* */` anywhere outside a string, and their strings are double-quoted only.
 _HASH_COMMENTED = {".yml", ".yaml", ".toml", ".ini", ".cfg", ".conf", ".properties", ".sh",
-                   ".bash", ".zsh", ".tf", ".tfvars", ".hcl", ".env"}
+                   ".bash", ".zsh", ".env"}
+_HASH_COMMENTED_NAMES = {"makefile", "gnumakefile", "justfile", ".justfile", "procfile"}
 _CONFIG_TOKENS = re.compile(r"(?:^|(?<=\s))#|\"(?:\\.|[^\"\\])*\"|'[^']*'")
+_HCL_SUFFIXES = {".tf", ".tfvars", ".hcl"}
+_HCL_TOKENS = re.compile(r"/\*|//|#|\"(?:\\.|[^\"\\])*\"")
 _TEMPLATE_END = re.compile(r"(?:\\.|[^`\\])*`")
 _TRIPLE_QUOTED = re.compile(r'"""[\s\S]*?"""|\'\'\'[\s\S]*?\'\'\'')
 
@@ -766,8 +771,8 @@ def _public_env_sites(rel, text, lines):
     """Where a client-side variable named as a secret appears. In code the comments
     are cut first: `// never add NEXT_PUBLIC_STRIPE_SECRET_KEY` reads nothing. In
     Python a docstring is the same prose in another form, and is cut too. So are
-    the `#` comments of config, shell and Dockerfiles: a workflow that says a
-    variable must never be set there is not setting it."""
+    the comments of config, shell, Terraform, Dockerfiles and their kin: a
+    workflow that says a variable must never be set there is not setting it."""
     if _PUBLIC_ENV_SECRET.search(text) is None:
         return []               # almost every file: no need to cut its comments
     suffix = Path(rel).suffix.lower()
@@ -775,6 +780,8 @@ def _public_env_sites(rel, text, lines):
         lines = _lines(_TRIPLE_QUOTED.sub(lambda m: "\n" * m.group(0).count("\n"), "\n".join(lines)))
     if suffix in _CODE_CLASS:
         lines = _uncomment(lines, _HASH_TOKENS if suffix in (".py", ".rb") else _C_TOKENS)
+    elif suffix in _HCL_SUFFIXES:
+        lines = _uncomment(lines, _HCL_TOKENS)
     elif _hash_commented(rel):
         lines = _uncomment(lines, _CONFIG_TOKENS)
     return [(m.group(0), rel, i) for i, line in enumerate(lines, 1)
@@ -782,10 +789,11 @@ def _public_env_sites(rel, text, lines):
 
 
 def _hash_commented(rel: str) -> bool:
-    """An env file (as `_eligible` admits one: `.env*`, or a `.env` suffix), config,
-    shell or Terraform by suffix, or a Dockerfile by name."""
+    """An env file (as `_eligible` admits one: `.env*`, or a `.env` suffix), config
+    or shell by suffix, or a Dockerfile, Makefile, Justfile or Procfile by name."""
     name = rel.rsplit("/", 1)[-1].lower()
-    return Path(name).suffix in _HASH_COMMENTED or name.startswith((".env", "dockerfile"))
+    return (Path(name).suffix in _HASH_COMMENTED or name in _HASH_COMMENTED_NAMES
+            or name.startswith((".env", "dockerfile")))
 
 
 def _app_code(rel: str) -> bool:
