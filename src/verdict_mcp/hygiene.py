@@ -217,6 +217,13 @@ _C_TOKENS = re.compile(
     r"/\*|//|\"(?:\\.|[^\"\\])*\"|'(?:\\.|[^'\\])*'|`(?:\\.|[^`\\])*(?P<tick>`)?")
 _SQL_TOKENS = re.compile(r"/\*|--|\"[^\"]*\"|'[^']*'")
 _HASH_TOKENS = re.compile(r"#|\"(?:\\.|[^\"\\])*\"|'(?:\\.|[^'\\])*'")
+# Env files, YAML, TOML, the INI family, shell and Terraform comment with `#`, and
+# so do Dockerfiles, which go by name (_hash_commented). There a `#` opens a comment
+# only at the start of the line or after whitespace, and never inside quotes:
+# `http://x/#anchor` and "a#b" are text. A single-quoted string takes no escapes.
+_HASH_COMMENTED = {".yml", ".yaml", ".toml", ".ini", ".cfg", ".conf", ".properties", ".sh",
+                   ".bash", ".zsh", ".tf", ".tfvars", ".hcl", ".env"}
+_CONFIG_TOKENS = re.compile(r"(?:^|(?<=\s))#|\"(?:\\.|[^\"\\])*\"|'[^']*'")
 _TEMPLATE_END = re.compile(r"(?:\\.|[^`\\])*`")
 _TRIPLE_QUOTED = re.compile(r'"""[\s\S]*?"""|\'\'\'[\s\S]*?\'\'\'')
 
@@ -716,7 +723,9 @@ def _env_value_live(v: str) -> bool:
 def _public_env_sites(rel, text, lines):
     """Where a client-side variable named as a secret appears. In code the comments
     are cut first: `// never add NEXT_PUBLIC_STRIPE_SECRET_KEY` reads nothing. In
-    Python a docstring is the same prose in another form, and is cut too."""
+    Python a docstring is the same prose in another form, and is cut too. So are
+    the `#` comments of config, shell and Dockerfiles: a workflow that says a
+    variable must never be set there is not setting it."""
     if _PUBLIC_ENV_SECRET.search(text) is None:
         return []               # almost every file: no need to cut its comments
     suffix = Path(rel).suffix.lower()
@@ -724,8 +733,17 @@ def _public_env_sites(rel, text, lines):
         lines = _lines(_TRIPLE_QUOTED.sub(lambda m: "\n" * m.group(0).count("\n"), "\n".join(lines)))
     if suffix in _CODE_CLASS:
         lines = _uncomment(lines, _HASH_TOKENS if suffix in (".py", ".rb") else _C_TOKENS)
+    elif _hash_commented(rel):
+        lines = _uncomment(lines, _CONFIG_TOKENS)
     return [(m.group(0), rel, i) for i, line in enumerate(lines, 1)
             for m in _PUBLIC_ENV_SECRET.finditer(line)]
+
+
+def _hash_commented(rel: str) -> bool:
+    """An env file (as `_eligible` admits one: `.env*`, or a `.env` suffix), config,
+    shell or Terraform by suffix, or a Dockerfile by name."""
+    name = rel.rsplit("/", 1)[-1].lower()
+    return Path(name).suffix in _HASH_COMMENTED or name.startswith((".env", "dockerfile"))
 
 
 def _app_code(rel: str) -> bool:

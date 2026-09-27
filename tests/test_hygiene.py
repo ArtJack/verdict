@@ -1004,3 +1004,28 @@ def test_line_numbers_from_the_line_scan_survive_u2028_too(tmp_path):
     r = make_repo(tmp_path, {"web/app.js": 'const s = "one\u2028two";\nconsole.log(s);\n'})
     item = [i for i in hygiene_census(r)["items"] if i["kind"] == "console_debug"][0]
     assert item["line"] == 2
+
+
+# ── the PR 1 review: what must hold before finalize files tier 1 ──────────
+# Tier 1 is about to be filed with no model in the loop, so each of these is a
+# false positive or a missed secret that would reach a real project's verdict.
+# Credentials are built at run time, as above.
+
+def test_a_client_secret_named_in_a_config_or_shell_comment_is_not_a_finding(tmp_path):
+    r = make_repo(tmp_path, {
+        ".env.example": "# never add NEXT_PUBLIC_STRIPE_SECRET_KEY here\nNEXT_PUBLIC_API_URL=http://localhost:3000\n",
+        ".github/workflows/ci.yml": ("env:\n  # NEXT_PUBLIC_SUPABASE_SERVICE_ROLE_KEY must never be set here\n"
+                                     "  NODE_ENV: test\n"),
+        ".github/workflows/deploy.yml": "env:\n  NEXT_PUBLIC_JWT_SECRET: ${{ secrets.JWT_SECRET }}  # set in CI\n",
+        "infra/main.tf": "# NEXT_PUBLIC_DB_PASSWORD is never an output\nresource \"null_resource\" \"x\" {}\n",
+        "Dockerfile.prod": "# do not ARG VITE_API_SECRET here\nFROM node:20\n",
+        "config/app.toml": 'name = "shop"  # not VITE_SIGNING_SECRET\n',
+        "deploy/release.sh": ('echo "a#b $NEXT_PUBLIC_PAY_SECRET"\n'
+                              "curl http://x/#anchor?k=$VITE_ADMIN_PASSWORD\n"),
+    })
+    found = sorted((i["path"], i["line"], i["excerpt"]) for i in hygiene_census(r)["items"]
+                   if i["kind"] == "public_env_secret")
+    assert found == [(".github/workflows/deploy.yml", 2, "NEXT_PUBLIC_JWT_SECRET"),
+                     ("deploy/release.sh", 1, "NEXT_PUBLIC_PAY_SECRET"),
+                     ("deploy/release.sh", 2, "VITE_ADMIN_PASSWORD")], \
+        "a comment names a variable; a quoted #, a URL's #anchor and a trailing comment do not hide one"
