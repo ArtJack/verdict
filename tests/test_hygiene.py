@@ -996,3 +996,11 @@ def test_a_password_in_a_url_with_no_user_name_is_scrubbed(tmp_path):
     out = hygiene_census(r)
     assert "commented_out_code" in out["counts_by_kind"]
     assert password not in json.dumps(out)
+
+
+def test_line_numbers_from_the_line_scan_survive_u2028_too(tmp_path):
+    # The Python checks number from the AST; the line scan numbers from the split text,
+    # so this is the case where splitlines() would shift every later line.
+    r = make_repo(tmp_path, {"web/app.js": 'const s = "one\u2028two";\nconsole.log(s);\n'})
+    item = [i for i in hygiene_census(r)["items"] if i["kind"] == "console_debug"][0]
+    assert item["line"] == 2
