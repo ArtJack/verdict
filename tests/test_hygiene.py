@@ -13,6 +13,7 @@ import random
 import string
 import subprocess
 import threading
+from pathlib import Path
 
 import pytest
 
@@ -647,3 +648,23 @@ def test_leads_are_capped_but_counted(tmp_path):
 def test_the_scan_scope_is_reported(tmp_path):
     r = make_repo(tmp_path, {"a.py": "x = 1\n"})
     assert hygiene_census(r)["scope"] == {"files": 1, "capped": False, "file_cap": 5000, "failed": 0}
+
+
+REPO_ROOT = Path(__file__).resolve().parent.parent
+
+
+def test_verdicts_own_repository_has_no_tier_one_items():
+    out = hygiene_census(REPO_ROOT)
+    assert [i for i in out["items"] if i["tier"] == 1] == [], \
+        "a Critical filed on this repository by a regex would be a false positive"
+
+
+def test_the_clean_pricer_fixture_has_no_tier_one_items(tmp_path):
+    import shutil
+    src = REPO_ROOT / "eval" / "fixtures" / "pricer_clean"
+    dst = tmp_path / "pricer"
+    shutil.copytree(src, dst)
+    git(["init", "-qb", "main"], dst)
+    git(["add", "-A"], dst)
+    git(["commit", "-qm", "c"], dst)
+    assert [i for i in hygiene_census(dst)["items"] if i["tier"] == 1] == []
