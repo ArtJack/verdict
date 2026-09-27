@@ -188,3 +188,19 @@ def test_tree_lines_are_numbered_like_an_editor_even_with_u2028(tmp_path):
     (tmp_path / "a.py").write_text('s = "one two"\n# TODO: here\n', encoding="utf-8")
     lines, _, _ = _tree_lines(tmp_path)
     assert [(p, n) for p, n, t in lines if "TODO" in t] == [("a.py", 2)]
+
+
+def test_a_lone_carriage_return_breaks_the_line_in_the_tree_and_in_the_diff(repo):
+    """Python's parser and an editor break a line at a lone CR, and so must the census,
+    or the TODO is misplaced. The diff lost it altogether: read in text mode, the CR
+    became a newline across the whole diff, and the piece after it no longer began
+    with "+". A CRLF file is numbered one line per CRLF, not two."""
+    base = subprocess.run(["git", "rev-parse", "HEAD"], cwd=repo,
+                          capture_output=True, text=True).stdout.strip()
+    (repo / "a.py").write_bytes(b"x = 1\r# TODO: here\n")
+    (repo / "b.py").write_bytes(b"y = 1\r\n# TODO: there\r\n")
+    git(["add", "-A"], repo)
+    git(["commit", "-qm", "a lone CR"], repo)
+    for sha_range in (None, f"{base}..HEAD"):
+        todo = code_census(repo, sha_range)["placeholders"]["samples"].get("todo")
+        assert todo == ["a.py:2 # TODO: here", "b.py:2 # TODO: there"], sha_range

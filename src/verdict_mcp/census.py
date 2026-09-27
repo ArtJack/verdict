@@ -86,33 +86,47 @@ _AI_TRAILER = re.compile(
 _SAMPLE_CAP = 12  # locations shown per category; the count is always complete
 
 
-def _git(args, repo):
+def _git(args, repo, text=True):
     proc = subprocess.run(["git", "-C", str(repo), *args],
-                          capture_output=True, text=True)
+                          capture_output=True, text=text)
     return proc.stdout if proc.returncode == 0 else None
 
 
+def _breaks(text: str) -> str:
+    """CRLF and a lone CR made "\\n": where Python's parser and an editor break
+    lines, so a line number here is the one a reader sees."""
+    return text.replace("\r\n", "\n").replace("\r", "\n")
+
+
 def _added_lines(repo, sha_range):
-    """(path, new_lineno, text) for every line the range added."""
-    diff = _git(["diff", "--unified=0", sha_range], repo)
+    """(path, new_lineno, text) for every line the range added.
+
+    git breaks lines at "\\n" alone, so a lone CR stays inside one added line; it
+    is split there and numbered on, the way `_tree_lines` numbers the file. The
+    diff is read as bytes for that: in text mode the CR became a newline across the
+    whole diff, and the piece after it, no longer starting with "+", was dropped."""
+    diff = _git(["diff", "--unified=0", sha_range], repo, text=False)
     if diff is None:
         return None
     out, path, lineno = [], None, 0
-    for raw in diff.split("\n"):
+    for raw in diff.decode("utf-8", errors="replace").replace("\r\n", "\n").split("\n"):
         if raw.startswith("+++ b/"):
             path = raw[6:]
         elif raw.startswith("@@"):
             m = re.search(r"\+(\d+)", raw)
             lineno = int(m.group(1)) if m else 0
         elif raw.startswith("+") and not raw.startswith("+++"):
-            if path is not None:
-                out.append((path, lineno, raw[1:]))
-            lineno += 1
+            for piece in _breaks(raw[1:]).split("\n"):
+                if path is not None:
+                    out.append((path, lineno, piece))
+                lineno += 1
     return out
 
 
 def _tree_lines(repo):
-    """(path, lineno, text) over the tree, capped — with the cap reported."""
+    """(path, lineno, text) over the tree, capped — with the cap reported. Each file
+    is read as bytes and its lines broken by `_breaks`, not by the platform's text
+    mode."""
     files, capped = [], False
     for p in sorted(Path(repo).rglob("*")):
         if p.suffix not in _SOURCE_SUFFIXES or not p.is_file():
@@ -126,11 +140,11 @@ def _tree_lines(repo):
     out = []
     for p in files:
         try:
-            text = p.read_text(encoding="utf-8", errors="replace")
+            text = _breaks(p.read_bytes().decode("utf-8", errors="replace"))
         except OSError:
             continue
         rel = p.relative_to(repo).as_posix()
-        out.extend((rel, i, line.rstrip("\r")) for i, line in enumerate(text.split("\n"), 1))
+        out.extend((rel, i, line) for i, line in enumerate(text.split("\n"), 1))
     return out, len(files), capped
 
 
