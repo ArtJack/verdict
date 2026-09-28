@@ -1664,13 +1664,27 @@ def _paths(record) -> list:
     return paths
 
 
-def _identity(record) -> tuple:
-    """What makes two items one across runs: the fingerprint — except for a secret in
-    a client-side variable, which is the variable, wherever it is read: a site that
-    moves is the same finding."""
+def identity_of(record) -> str:
+    """What makes two items one across runs, as the outcome ledger keeps it
+    (`hygiene_identity`): `fingerprint:<fp>` — except for a secret in a client-side
+    variable, `public_env_secret:<VARIABLE>`, wherever it is read: a site that moves
+    is the same finding. A record that already names its identity keeps it."""
+    if isinstance(record.get("identity"), str) and record["identity"]:
+        return record["identity"]
     if record.get("kind") == "public_env_secret" and record.get("variable"):
-        return ("public_env_secret", str(record["variable"]))
-    return ("fingerprint", str(record.get("fingerprint")))
+        return "public_env_secret:" + str(record["variable"])
+    return "fingerprint:" + str(record.get("fingerprint"))
+
+
+_identity = identity_of
+_ID_NUMBER = re.compile(r"(\d+)$")
+
+
+def _filed_first(f) -> tuple:
+    """Which of two findings with one identity came first: first seen, then the
+    lower id number."""
+    m = _ID_NUMBER.search(str(f.get("id") or ""))
+    return (str(f.get("first_seen") or "9999"), int(m.group(1)) if m else 1 << 62, str(f.get("id")))
 
 
 def _open(f) -> bool:
@@ -1693,24 +1707,27 @@ def _tier1_row(it) -> bool:
 
 
 def reconcile(facts_hygiene, prior_findings, mint, today: str, run_number, sha: str,
-              evidence=None) -> list:
+              evidence=None, earlier=None) -> list:
     """Tier-1 items → findings with a lifecycle, owned by the harness. One seen again
     keeps its id — REGRESSED if it had been resolved; a prior one not seen resolves
     only on `evidence` (Evidence) and is otherwise carried open. `mint` gives a NEW
-    finding its id."""
+    finding its id.
+
+    `earlier` holds the hygiene findings the outcome ledger remembers and the state no
+    longer holds — resolved two or more runs ago, or before `hygiene: off`, or lost to
+    a restored state.json.prev — as {id, hash, first_seen, hygiene_identity}. One seen
+    again is REGRESSED under its old id, so what the maintainer accepted under that id
+    still applies. Two open findings with one identity are folded into the one filed
+    first; the other resolves as superseded by it."""
     fh = facts_hygiene if isinstance(facts_hygiene, dict) else {}
     ev = evidence if isinstance(evidence, Evidence) else Evidence()
-    prior: dict = {}
-    for f in prior_findings or []:
-        if is_hygiene(f) and isinstance(f.get("hygiene"), dict):
-            key = _identity(f["hygiene"])
-            if key not in prior or (_open(f) and not _open(prior[key])):
-                prior[key] = f
+    prior, folded = _priors(prior_findings, earlier)
+    superseded = [_resolved(p, f"superseded by {kept['id']}", today, run_number) for p, kept in folded]
     if fh.get("status") not in ("measured", "partial"):
         # Nothing measured this run: carry what was open unchanged rather than resolve
         # by silence — the rule the tester's own findings live under.
         return [_carried(p, "the hygiene scan was unavailable this run", today)
-                for p in prior.values() if _open(p)]
+                for p in prior.values() if _open(p)] + superseded
     filing = fh.get("filing", "on") == "on"
     out, seen = [], set()
     for it in (fh.get("items") or []) if filing else []:
@@ -1721,12 +1738,48 @@ def reconcile(facts_hygiene, prior_findings, mint, today: str, run_number, sha: 
     unseen = [p for key, p in prior.items() if key not in seen and _open(p)]
     if not filing:
         return out + [_resolved(p, "hygiene filing is off in the profile", today, run_number)
-                      for p in unseen]
+                      for p in unseen] + superseded
+    # A key in a file that is now itself a committed secrets file is not gone: the file
+    # is the finding, and the line inside it is no longer filed on its own.
+    file_level = {e["hygiene"]["path"]: e["id"] for e in out
+                  if e["hygiene"]["kind"] == "secret_file_tracked"}
     whys = ev.carries([(p["hygiene"].get("kind"), _paths(p["hygiene"])) for p in unseen])
     for p, why in zip(unseen, whys):
-        out.append(_carried(p, why, today) if why
-                   else _resolved(p, f"no longer detected at {str(sha)[:8]}", today, run_number))
-    return out
+        path = p["hygiene"].get("path")
+        if why:
+            out.append(_carried(p, why, today))
+        elif p["hygiene"].get("kind") == "secret_in_code" and path in file_level:
+            out.append(_resolved(p, f"superseded by the file-level finding {file_level[path]}",
+                                 today, run_number))
+        else:
+            out.append(_resolved(p, f"no longer detected at {str(sha)[:8]}", today, run_number))
+    return out + superseded
+
+
+def _priors(prior_findings, earlier) -> tuple:
+    """The prior findings by identity, and the open ones folded into another with the
+    same identity, as (folded, kept). The state's own come first — an open one over a
+    resolved one — then what only the outcome ledger remembers, as resolved."""
+    prior: dict = {}
+    folded = []
+    for f in prior_findings or []:
+        if not (is_hygiene(f) and isinstance(f.get("hygiene"), dict)):
+            continue
+        key = _identity(f["hygiene"])
+        held = prior.get(key)
+        if held is None or (_open(f) and not _open(held)):
+            prior[key] = f
+        elif _open(f) and _open(held):
+            keep, drop = sorted((held, f), key=_filed_first)
+            prior[key] = keep
+            folded.append((drop, keep))
+    for row in sorted((r for r in earlier or [] if isinstance(r, dict)), key=_filed_first):
+        key = row.get("hygiene_identity")
+        if isinstance(key, str) and key and row.get("id") and key not in prior:
+            prior[key] = {"id": row["id"], "source": "hygiene", "status": "resolved",
+                          "hash": row.get("hash"), "first_seen": row.get("first_seen"),
+                          "hygiene": {"identity": key}}
+    return prior, folded
 
 
 def _filed(it, p, mint, today: str, run_number) -> dict:
@@ -1734,7 +1787,7 @@ def _filed(it, p, mint, today: str, run_number) -> dict:
     sev = SEVERITY[kind]
     first_seen = (p or {}).get("first_seen") or today
     was = str((p or {}).get("status") or "").strip().lower()
-    hyg = {"kind": kind, "fingerprint": fp, "path": path}
+    hyg = {"kind": kind, "fingerprint": fp, "path": path, "identity": _identity(it)}
     if isinstance(it.get("variable"), str) and it["variable"]:
         hyg["variable"] = it["variable"]
     if isinstance(it.get("sites"), list):

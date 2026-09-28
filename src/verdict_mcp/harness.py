@@ -1608,6 +1608,19 @@ def next_finding_id(key: str, previous: dict | None, ledger: dict | None) -> str
     return f"{head}{top + 1:0{width}d}" if width else f"{head}{top + 1}"
 
 
+def _earlier_hygiene(ledger, taken: set) -> list:
+    """The hygiene findings the outcome ledger remembers under an identity, for an id
+    this run neither holds nor has filed: a key resolved two runs ago, or before
+    `hygiene: off`, or in a state since restored from state.json.prev, is gone from
+    the state but not from the ledger, and comes back as the same finding."""
+    wrapped = isinstance(ledger, dict) and isinstance(ledger.get("findings"), dict)
+    rows = ledger["findings"] if wrapped else (ledger if isinstance(ledger, dict) else {})
+    return [row for row in rows.values()
+            if isinstance(row, dict) and row.get("source") == "hygiene"
+            and isinstance(row.get("hygiene_identity"), str) and row.get("id")
+            and str(row["id"]) not in taken]
+
+
 def _anchor_texts(finding: dict) -> list[str]:
     """The strings whose `path:line` references get anchored: the evidence and
     the class's sites — the places the finding says the defect lives."""
@@ -2038,7 +2051,9 @@ def merge(facts: dict, judgment: dict, previous: dict | None, today: date | None
 
     for entry in reconcile_hygiene(hyg, (previous or {}).get("findings") or [], _mint,
                                    today.isoformat(), facts.get("run_number"), sha_now,
-                                   evidence=evidence):
+                                   evidence=evidence,
+                                   earlier=_earlier_hygiene(ledger, {str(f["id"]) for f in taken
+                                                                     if f.get("id")})):
         _fold_accepted(entry, accepted)
         entry.update(_stamp_outcome(entry, prev_by_id.get(str(entry.get("id")))))
         findings.append(entry)

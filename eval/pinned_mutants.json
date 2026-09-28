@@ -1609,5 +1609,17 @@
   "path": "src/verdict_mcp/hygiene.py",
   "old": "        sql = [p for p in paths if p.lower().endswith(\".sql\")]\n",
   "new": "        sql = [p for p in paths if p.lower().endswith(\".sql\") and p in self.scanned]\n"
+ },
+ {
+  "label": "0.91.0 H36 merge: a key back after its finding left the state is filed again under a new id",
+  "path": "src/verdict_mcp/harness.py",
+  "old": "    return [row for row in rows.values()\n",
+  "new": "    return [row for row in []\n"
+ },
+ {
+  "label": "0.91.0 H37 state: the outcome row keeps no hygiene identity, so nothing regresses through the ledger",
+  "path": "src/verdict_mcp/state.py",
+  "old": "        **({\"hygiene_identity\": finding[\"hygiene\"][\"identity\"]}\n",
+  "new": "        **({}\n"
  }
 ]

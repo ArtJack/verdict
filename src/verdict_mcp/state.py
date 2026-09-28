@@ -281,6 +281,11 @@ def outcome_row(finding: dict, decided_on: str | None = None) -> dict:
         # Who filed it. A hygiene finding is the scan's, not the tester's: its id
         # stays here so it is never minted twice, and calibration passes it over.
         **({"source": finding["source"]} if finding.get("source") else {}),
+        # And what it is, so the same key back after its finding left the state is
+        # REGRESSED under this id rather than filed again (harness.merge).
+        **({"hygiene_identity": finding["hygiene"]["identity"]}
+           if isinstance(finding.get("hygiene"), dict)
+           and isinstance(finding["hygiene"].get("identity"), str) else {}),
     }
     if row["outcome"] in ("confirmed", "refuted") and decided_on:
         row["decided_on"] = decided_on
