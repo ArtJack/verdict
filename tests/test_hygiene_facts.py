@@ -203,10 +203,11 @@ def test_a_side_file_that_cannot_be_written_costs_the_run_nothing(tmp_path):
     assert not list(qa.glob("*.tmp")), "a failed write leaves nothing half-written behind"
 
 
-def test_every_unread_path_is_kept_for_the_ledger_though_the_display_is_capped(tmp_path, monkeypatch):
-    # A ledger resolves a row when its file was read and the row is gone. A file in
-    # none of the lists would have every row in it resolved by a scan that never
-    # read it, so the side file keeps them all; scope shows twenty.
+def test_every_unread_path_is_kept_though_the_display_is_capped_and_none_is_vouched_for(
+        tmp_path, monkeypatch):
+    # A ledger resolves a row only where the scan vouches for the file, and it never
+    # vouches for one it could not read — the twenty-first as much as the first. The
+    # side file keeps every unread path for a reader; scope shows twenty.
     from verdict_mcp import harness, hygiene
     broken = {f"m{n:02d}.py": "import os\n" for n in range(25)}
     repo = make_repo(tmp_path, {**broken, "ok.py": "import os\n"})
@@ -225,7 +226,8 @@ def test_every_unread_path_is_kept_for_the_ledger_though_the_display_is_capped(t
     assert "unread_paths" not in block, "the full list is the side file's, not the tester's"
     side = json.loads((qa / "hygiene-items.json").read_text(encoding="utf-8"))
     assert side["unread_paths"] == sorted(broken)
-    assert harness.unread_paths(block, qa) == set(broken)
-    assert harness.unread_paths(hygiene.hygiene_census(repo), qa) == set(broken), "never split: inline"
+    assert harness.hygiene_evidence(block, qa).scanned == {"ok.py"}
+    assert harness.hygiene_evidence(hygiene.hygiene_census(repo), qa).scanned == {"ok.py"}, \
+        "never split: inline"
     (qa / "hygiene-items.json").unlink()
-    assert harness.unread_paths(block, qa) == set(sorted(broken)[:20]), "no side file: the capped list"
+    assert harness.hygiene_evidence(block, qa).scanned == set(), "no side file: nothing is vouched for"

@@ -2357,9 +2357,9 @@ def split_hygiene(facts: dict, qa_root: Path) -> None:
     status, the scope, exact counts of every tier, the tier-1 items and the leads
     — and the name of the file the ledger reads the rest from (`tier2_items`). What
     the scan vouches for goes with the rows, for finalize alone (`hygiene_evidence`):
-    the uncapped list of paths it could not read (`unread_paths`), every path it
-    scanned, the Python files the parser refused, and whether every migration was
-    read. A block with no items (the scan was unavailable) moves nothing and names
+    every path it scanned, the Python files the parser refused, and whether every
+    migration was read — and, for a reader, the uncapped list of paths it could not
+    read (`unread_paths`). A block with no items (the scan was unavailable) moves nothing and names
     no file; a block already split is left as it is, so a second call cannot empty
     the file. A side file that cannot be written costs the run nothing: tier 2 and
     the lists stay inline, where the readers find them, and `tier2_note` says why."""
@@ -2427,21 +2427,6 @@ def hygiene_evidence(facts_hygiene: dict, qa_root: Path, repo=None, sha=None) ->
                     parse_failed=parse_failed if isinstance(parse_failed, list) else (),
                     rls_judged=vouched("rls_judged") is True,
                     absent=(lambda paths: absent_from_tree(repo, sha, paths)) if repo else None)
-
-
-def unread_paths(facts_hygiene: dict, qa_root: Path) -> set:
-    """Every path this run's scan could not read, so that a ledger never resolves a
-    row in a file nobody read. From the side file, uncapped; else from the block,
-    which keeps the list while it is not split; else scope.failed_paths — capped at
-    twenty for display, so then a floor, not the whole."""
-    side = _hygiene_side(facts_hygiene, qa_root)
-    listed = side.get("unread_paths") if side else None
-    if not isinstance(listed, list) and isinstance(facts_hygiene, dict):
-        listed = facts_hygiene.get("unread_paths")
-        scope = facts_hygiene.get("scope")
-        if not isinstance(listed, list) and isinstance(scope, dict):
-            listed = scope.get("failed_paths")
-    return {p for p in listed if isinstance(p, str)} if isinstance(listed, list) else set()
 
 
 def _hygiene_side(facts_hygiene: dict, qa_root: Path):
