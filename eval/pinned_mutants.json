@@ -1549,5 +1549,59 @@
   "path": "src/verdict_mcp/harness.py",
   "old": "    if isinstance(rows.get(\"findings\"), dict):\n        rows = rows[\"findings\"]\n",
   "new": "    rows = rows.get(\"findings\") if isinstance(rows.get(\"findings\"), dict) else {}\n"
+ },
+ {
+  "label": "0.91.0 H26 ledger: a prior ledger file that cannot be read passes for a first inventory, and says nothing",
+  "path": "src/verdict_mcp/hygiene.py",
+  "old": "    prior_unread = prev_rows is None and bool(prev.get(\"rows_file\"))\n",
+  "new": "    prior_unread = False\n"
+ },
+ {
+  "label": "0.91.0 H27 finalize: a rows file another run wrote is compared against, so a restored state resolves rows it never had",
+  "path": "src/verdict_mcp/harness.py",
+  "old": "    if (doc is None or type(doc.get(\"run_number\")) is not int or doc[\"run_number\"] != run_number\n            or not isinstance(doc.get(\"rows\"), list)):\n",
+  "new": "    if (doc is None\n            or not isinstance(doc.get(\"rows\"), list)):\n"
+ },
+ {
+  "label": "0.91.0 H28 state: the junk ledger's rows stay in state.json, which the tester reads first",
+  "path": "src/verdict_mcp/harness.py",
+  "old": "    _write_hygiene_rows(qa_root, state)\n",
+  "new": ""
+ },
+ {
+  "label": "0.91.0 H29 merge: a hygiene id the judgment named is ignored without a word",
+  "path": "src/verdict_mcp/harness.py",
+  "old": "    if ignored:\n        state[\"hygiene\"][\"ignored_judgment_ids\"] = ignored\n",
+  "new": "    if False:\n        state[\"hygiene\"][\"ignored_judgment_ids\"] = ignored\n"
+ },
+ {
+  "label": "0.91.0 H30 sweep: a verdict the scan capped is reported as the previous one carried",
+  "path": "src/verdict_mcp/runner.py",
+  "old": "    if written is None or written == carried:\n",
+  "new": "    if True:\n"
+ },
+ {
+  "label": "0.91.0 H31 local: the night reports this engine's verdict, not the one the state holds",
+  "path": "src/verdict_mcp/small.py",
+  "old": "                  written_verdict(qa_root, verdict) if code == 0 else verdict, owed, budget,\n",
+  "new": "                  verdict, owed, budget,\n"
+ },
+ {
+  "label": "0.91.0 H32 sweep: a hygiene id is carried by word, so every sweep records it as ignored",
+  "path": "src/verdict_mcp/runner.py",
+  "old": "                if isinstance(f, dict) and f.get(\"id\") and norm_status(f.get(\"status\")) == \"open\"\n                and f.get(\"source\") != \"hygiene\"]\n",
+  "new": "                if isinstance(f, dict) and f.get(\"id\") and norm_status(f.get(\"status\")) == \"open\"]\n"
+ },
+ {
+  "label": "0.91.0 H33 local: a hygiene id is carried by word, so every local night records it as ignored",
+  "path": "src/verdict_mcp/small.py",
+  "old": "        if norm_status(f.get(\"status\")) != \"open\" or f.get(\"source\") == \"hygiene\":\n",
+  "new": "        if norm_status(f.get(\"status\")) != \"open\":\n"
+ },
+ {
+  "label": "0.91.0 H34 state: the preview shows the first rows in path order, not the oldest",
+  "path": "src/verdict_mcp/hygiene.py",
+  "old": "                    key=lambda r: (str(r.get(\"first_seen\") or \"\"), *where(r)))\n",
+  "new": "                    key=where)\n"
  }
 ]
