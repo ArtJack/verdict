@@ -3372,8 +3372,9 @@ def _render_hygiene(state: dict) -> list[str]:
     oldest = [r for r in preview.get("oldest") or [] if isinstance(r, dict)]
     new = [r for r in preview.get("new") or [] if isinstance(r, dict)]
     # When every open row is new this run — a first inventory, say — the two lists are
-    # one list, and it is said once. With the change unmeasured, no row is known new.
-    for label, rows, dated in (("Oldest open", oldest, True),
+    # one list, and it is said once. With the change unmeasured, no row is known new. With
+    # last run's rows unread, every first_seen is this run's date, reset: no age to print.
+    for label, rows, dated in (("Oldest open", oldest, not s.get("prior_unread")),
                                ("New this run", [] if unmeasured or new == oldest else new, False)):
         if rows:
             out += [f"**{label}:**", ""] + [

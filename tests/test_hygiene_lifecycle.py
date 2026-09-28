@@ -669,6 +669,7 @@ def test_new_and_removed_are_not_measured_when_this_runs_rows_could_not_be_read(
         "- Carried open, not removed: 2 row(s) from the last run — this run could not read its junk list, "
         "so none is known to be gone"]
     assert "did not see" not in section
+    assert "- `a.py:1` unused import — x (since 2026-10-01)" in section, "carried with the date it was measured"
     assert _hygiene_line({"hygiene": s}) == ("2 open (new and removed not measured this run) · "
                                              "broad swallow 1 · unused import 1")
     assert history_row(state)["hygiene"] == {"open": 2, "new": None, "resolved": None}
@@ -687,11 +688,12 @@ def test_new_and_removed_are_not_measured_when_last_runs_rows_could_not_be_read(
     section = hygiene_section(text)
     assert section.startswith("\n\n2 open · new and removed not measured this run · 1 files scanned\n")
     assert "| broad swallow | 1 | — | — |" in section and "**New this run:**" not in section
+    assert "- `a.py:1` unused import — x\n" in section and "(since" not in section, \
+        "a first_seen reset to this run is no age"
     assert text.count("last run's hygiene rows could not be read") == 1, "said once, under the scope"
     assert _hygiene_line({"hygiene": s}) == ("2 open (new and removed not measured this run) · "
                                              "broad swallow 1 · unused import 1")
     assert history_row(state)["hygiene"] == {"open": 2, "new": None, "resolved": None}
-
 
 
 def test_a_capped_ledger_says_so_on_its_counts(monkeypatch):
