@@ -255,9 +255,14 @@ def _hygiene_line(r):
         return None
 
     def count(v):
-        return v if type(v) is int else 0
+        return v if type(v) is int else None      # an unknown is never 0
+
+    def shown(v):
+        return "?" if v is None else v
     kinds = hy.get("by_kind") if isinstance(hy.get("by_kind"), dict) else {}
-    top = sorted(((k, count(v.get("open"))) for k, v in kinds.items() if isinstance(v, dict)),
+    # Only kinds with something open are ranked: one swept clean this run is no top kind.
+    top = sorted(((k, count(v.get("open"))) for k, v in kinds.items()
+                  if isinstance(v, dict) and count(v.get("open"))),
                  key=lambda kv: (-kv[1], kv[0]))[:3]
     if hygiene_change_unmeasured(hy):
         change = "new and removed not measured this run"
@@ -265,9 +270,10 @@ def _hygiene_line(r):
         # Every row is new because nothing was tracked before, not because this PR added it.
         change = "first inventory"
     else:
-        change = f"{count(hy.get('new')):+d} new, −{count(hy.get('resolved'))} removed"
-    return (f"{count(hy.get('open'))} open ({change})"
-            + "".join(f" · {k.replace('_', ' ')} {n}" for k, n in top))
+        new, gone = count(hy.get("new")), count(hy.get("resolved"))
+        change = f"{'?' if new is None else format(new, '+d')} new, −{shown(gone)} removed"
+    return (f"{shown(count(hy.get('open')))} open" + (" (capped)" if hy.get("capped") else "")
+            + f" ({change})" + "".join(f" · {k.replace('_', ' ')} {n}" for k, n in top))
 
 
 def _fmt_text(r, n):

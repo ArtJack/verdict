@@ -3316,9 +3316,15 @@ def _render_hygiene(state: dict) -> list[str]:
     # A ledger that could not compare this run's rows with last run's counted no change:
     # its 0s, or its every-row-new, are not measurements, and are not printed as ones.
     unmeasured = hygiene_change_unmeasured(s)
+
+    def shown(v):
+        # An unknown is never 0: a count the state does not hold as a number reads "?".
+        return v if type(v) is int else "?"
     change = ("new and removed not measured this run" if unmeasured else
-              f"{s.get('new', 0)} new · {s.get('resolved', 0)} removed since the last run")
-    head = (f"{s.get('open', 0)} open · {change} · {scope.get('files', '?')} files scanned"
+              f"{shown(s.get('new'))} new · {shown(s.get('resolved'))} removed since the last run")
+    # "(capped)": the ledger kept LEDGER_CAP rows of more; this run's counts stay exact.
+    head = (f"{shown(s.get('open'))} open" + (" (capped)" if s.get("capped") else "")
+            + f" · {change} · {shown(scope.get('files'))} files scanned"
             + (f" (capped at {scope.get('file_cap')})" if scope.get("capped") else ""))
     if s.get("first_inventory") and not unmeasured:
         head += " · first inventory: everything is new because nothing was tracked before"
@@ -3344,7 +3350,7 @@ def _render_hygiene(state: dict) -> list[str]:
     if flags:
         out += flags + [""]
     # Pointed to only when some are above: under `hygiene: off` none is filed.
-    filed = any(is_hygiene(f) for f in state.get("findings") or [])
+    filed = any(is_hygiene(f) and is_open(f) for f in state.get("findings") or [])
     out += ["_Junk the harness tracks on every run: none of it is a finding, and none of it changes "
             "the verdict."
             + (" Near-certain exposures are filed above as findings, measured by the same scan."
@@ -3352,9 +3358,14 @@ def _render_hygiene(state: dict) -> list[str]:
     by_kind = s.get("by_kind") if isinstance(s.get("by_kind"), dict) else {}
     if by_kind:
         out += ["| Kind | Open | New | Removed |", "|---|---|---|---|"]
-        for kind, c in sorted(by_kind.items(), key=lambda kv: (-kv[1].get("open", 0), kv[0])):
-            new_n, gone_n = ("—", "—") if unmeasured else (c.get("new", 0), c.get("resolved", 0))
-            out.append(f"| {kind.replace('_', ' ')} | {c.get('open', 0)} | {new_n} | {gone_n} |")
+        def most_open(kv):
+            # Most open first; a kind whose count is not a number sorts last, as "?".
+            n = kv[1].get("open") if isinstance(kv[1], dict) else None
+            return (0, -n, kv[0]) if type(n) is int else (1, 0, kv[0])
+        for kind, c in sorted(by_kind.items(), key=most_open):
+            c = c if isinstance(c, dict) else {}
+            new_n, gone_n = ("—", "—") if unmeasured else (shown(c.get("new")), shown(c.get("resolved")))
+            out.append(f"| {kind.replace('_', ' ')} | {shown(c.get('open'))} | {new_n} | {gone_n} |")
         out.append("")
     preview = block.get("preview") if isinstance(block.get("preview"), dict) else {}
     oldest = [r for r in preview.get("oldest") or [] if isinstance(r, dict)]
@@ -3370,7 +3381,7 @@ def _render_hygiene(state: dict) -> list[str]:
                 + (f" (since {r.get('first_seen')})" if dated else "") for r in rows] + [""]
     leads = block.get("leads") if isinstance(block.get("leads"), dict) else {}
     if leads.get("handed"):
-        out += [f"Leads handed to the tester: {leads['handed']}; {leads.get('followed', 0)} of them "
+        out += [f"Leads handed to the tester: {leads['handed']}; {shown(leads.get('followed'))} of them "
                 "cited by a finding within five lines.", ""]
     return out
 

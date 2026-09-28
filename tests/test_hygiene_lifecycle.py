@@ -693,6 +693,52 @@ def test_new_and_removed_are_not_measured_when_last_runs_rows_could_not_be_read(
     assert history_row(state)["hygiene"] == {"open": 2, "new": None, "resolved": None}
 
 
+
+def test_a_capped_ledger_says_so_on_its_counts(monkeypatch):
+    from verdict_mcp.gate import _hygiene_line
+    from verdict_mcp.harness import render_report
+    one = ledger(facts(), JUNK[:1], None, "2026-10-01", 1, "a")
+    monkeypatch.setattr(hygiene, "LEDGER_CAP", 1)
+    two = ledger(facts(), JUNK, one, "2026-10-02", 2, "b", evidence=READ)
+    s = two["summary"]
+    assert s["capped"] is True and (s["open"], s["new"], s["resolved"]) == (2, 1, 0)
+    section = hygiene_section(render_report(on_disk(hygiene=two)))
+    assert section.startswith("\n\n2 open (capped) · 1 new · 0 removed since the last run · 1 files scanned\n")
+    assert _hygiene_line({"hygiene": s}) == ("2 open (capped) (+1 new, −0 removed) · broad swallow 1 · "
+                                             "unused import 1")
+
+
+def test_an_unknown_count_is_shown_as_unknown_never_as_zero():
+    from verdict_mcp.harness import render_report
+    from verdict_mcp.state import history_row
+    state = on_disk()
+    state["hygiene"]["summary"] = {"open": None, "by_kind": {
+        "todo_comment": {"open": None}, "unused_import": "junk",
+        "broad_swallow": {"open": 2, "new": 1, "resolved": 0}}}
+    state["hygiene"]["leads"] = {"handed": 4}
+    section = hygiene_section(render_report(state))
+    assert section.startswith("\n\n? open · ? new · ? removed since the last run · 40 files scanned\n")
+    assert [ln for ln in section.splitlines() if ln.startswith("| ") and "Kind" not in ln] == [
+        "| broad swallow | 2 | 1 | 0 |", "| todo comment | ? | ? | ? |", "| unused import | ? | ? | ? |"]
+    assert "Leads handed to the tester: 4; ? of them cited" in section
+    assert history_row(state)["hygiene"] == {"open": None, "new": None, "resolved": None}
+    del state["hygiene"]["summary"]
+    assert hygiene_section(render_report(state)).startswith("\n\n? open · ? new · ? removed since the last run")
+    assert history_row(state)["hygiene"] == {"open": None, "new": None, "resolved": None}
+
+
+def test_only_an_open_exposure_is_pointed_to():
+    from verdict_mcp.harness import render_report
+    gone = {"id": "W-F-2", "source": "hygiene", "title": "A live credential is committed in the source — k.py:1",
+            "severity": "Critical", "priority": "P1", "status": "resolved", "delta": "RESOLVED",
+            "hygiene": {"kind": "secret_in_code", "fingerprint": "f1", "path": "k.py"},
+            "carried_forward": "no longer detected at c0ffee99"}
+    assert "Near-certain exposures" not in hygiene_section(render_report(on_disk(findings=[gone])))
+    still = dict(gone, status="open", delta="STILL_OPEN")
+    assert "Near-certain exposures are filed above as findings" in hygiene_section(
+        render_report(on_disk(findings=[still])))
+
+
 def test_an_unmeasured_scan_says_so_and_what_it_carried():
     from verdict_mcp.harness import render_report
     state = on_disk()

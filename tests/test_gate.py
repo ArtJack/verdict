@@ -600,3 +600,13 @@ def test_a_first_inventory_is_not_counted_as_new_in_the_pull_request():
     assert f"**Hygiene:** {line}" in comment
     assert f"hygiene: {line}" in text.splitlines()
     assert "+282" not in comment + text
+
+
+def test_the_line_ranks_only_kinds_with_something_open_and_never_prints_an_unknown_as_zero():
+    from verdict_mcp.gate import _hygiene_line
+    swept = {"open": 3, "new": 0, "resolved": 5,
+             "by_kind": {"broad_swallow": {"open": 0, "resolved": 5}, "todo_comment": {"open": 3}}}
+    assert _hygiene_line({"hygiene": swept}) == "3 open (+0 new, −5 removed) · todo comment 3"
+    unknown = {"open": None, "by_kind": {"todo_comment": {"open": None}, "unused_import": "junk",
+                                         "broad_swallow": {"open": 2}}}
+    assert _hygiene_line({"hygiene": unknown}) == "? open (? new, −? removed) · broad swallow 2"

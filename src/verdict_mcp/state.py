@@ -740,9 +740,13 @@ def history_row(state: dict, revision: int = 0) -> dict:
         # New and removed are null when the run could not count them: this file is the
         # permanent record, and a 0 there would read as a measured zero for ever.
         unmeasured = hygiene_change_unmeasured(s)
-        row["hygiene"] = {"open": s.get("open", 0),
-                          "new": None if unmeasured else s.get("new", 0),
-                          "resolved": None if unmeasured else s.get("resolved", 0)}
+
+        def counted(key):
+            v = s.get(key)
+            return v if type(v) is int else None      # a count the state lacks is null, not 0
+        row["hygiene"] = {"open": counted("open"),
+                          "new": None if unmeasured else counted("new"),
+                          "resolved": None if unmeasured else counted("resolved")}
     for optional in ("run_label",):
         if state.get(optional) is not None:
             row[optional] = state[optional]
