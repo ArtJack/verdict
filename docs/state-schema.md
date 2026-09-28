@@ -172,7 +172,9 @@ ledger's counts for the run (0.91.0) — a state signed before either existed re
 row with them today, and signed, they would make it read as tampered. Its `new` and
 `resolved` are `null` when the run could not count them — this run's junk list or last
 run's could not be read (`tier2_unread`, `prior_unread`) — never a 0 that reads as measured;
-any count the state does not hold as a number is `null` too.
+any count the state does not hold as a number is `null` too; and a first inventory's row adds
+`first_inventory: true`, since its `new` equals its `open` because nothing was tracked before,
+not because that many were added — no other row carries the key.
 
 Duplicate run numbers resolve by `revision`, not by file order. They are rarer than they
 look — `validate` refuses a second finalize at a run number that did not advance, so a

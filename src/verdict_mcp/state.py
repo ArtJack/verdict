@@ -747,6 +747,10 @@ def history_row(state: dict, revision: int = 0) -> dict:
         row["hygiene"] = {"open": counted("open"),
                           "new": None if unmeasured else counted("new"),
                           "resolved": None if unmeasured else counted("resolved")}
+        if s.get("first_inventory") is True and not unmeasured:
+            # `new` equals `open` because nothing was tracked before, not because that
+            # many were added; no other run's row carries the key.
+            row["hygiene"]["first_inventory"] = True
     for optional in ("run_label",):
         if state.get(optional) is not None:
             row[optional] = state[optional]

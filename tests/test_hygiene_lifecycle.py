@@ -796,6 +796,19 @@ def test_history_rows_carry_unsigned_hygiene_counts():
     assert "hygiene" not in history_row({**state, "hygiene": {"status": "unavailable", "reason": "r"}})
 
 
+
+def test_a_first_inventory_is_flagged_on_its_history_row_and_on_no_other():
+    # Its `new` equals its `open` because nothing was tracked before, not because that many
+    # were added — the misreading the gate's "(first inventory)" removed from the PR comment.
+    from verdict_mcp.state import chain_link, history_row
+    row = history_row(on_disk(hygiene=first_run()))
+    assert row["hygiene"] == {"open": 2, "new": 2, "resolved": 0, "first_inventory": True}
+    assert chain_link("x", row) == chain_link("x", {k: v for k, v in row.items() if k != "hygiene"}), \
+        "the flag rides in the unsigned dict"
+    second = ledger(facts(), JUNK, first_run(), "2026-10-02", 2, "b", evidence=READ)
+    assert history_row(on_disk(hygiene=second))["hygiene"] == {"open": 2, "new": 0, "resolved": 0}
+
+
 def test_a_chain_signed_before_the_counts_still_verifies(repo, tmp_path):
     # A run finalized before this release signed a row with no hygiene counts while its
     # state already held the ledger. Re-derived today, that row carries the counts; were
@@ -806,7 +819,7 @@ def test_a_chain_signed_before_the_counts_still_verifies(repo, tmp_path):
     (qa / "reports").mkdir(parents=True)
     state = finalize_run(repo, qa, judgment(findings=[], report=""))
     rows, _ = load_runs(qa)
-    assert rows[-1]["hygiene"] == {"open": 1, "new": 1, "resolved": 0}
+    assert rows[-1]["hygiene"] == {"open": 1, "new": 1, "resolved": 0, "first_inventory": True}
     signed_before = [{k: v for k, v in r.items() if k != "hygiene"} for r in rows]
     (qa / "runs.jsonl").write_text("".join(json.dumps(r, sort_keys=True) + "\n" for r in signed_before),
                                    encoding="utf-8")
