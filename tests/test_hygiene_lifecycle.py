@@ -499,3 +499,37 @@ def test_an_id_only_the_outcome_ledger_holds_is_never_minted_again(repo, qa_root
     committed(repo, {"k.py": f'K = "{LIVE}"\n'}, "key")
     state = merge(collect(repo, qa_root, []), judgment(), None, ledger=load_outcomes(qa_root))
     assert [f["id"] for f in hygiene_findings(state)] == ["W-F-10"]
+
+
+# ── an RLS switch is judged on every migration, never on one that went away ─
+# While a migration goes unread, no table's final state is known; deleting the one
+# that disabled RLS is no evidence about it either — a squash replaces old
+# migrations with a baseline that may say anything.
+
+def test_a_deleted_migration_resolves_no_rls_finding_while_rls_is_unjudged():
+    rls = item("open_database_rules", "r1", path="supabase/migrations/001_orders.sql", line=2)
+    first = reconcile(facts(rls), [], minter(), "2026-10-01", 3, "a")
+    gone = Evidence(scanned=[], rls_judged=False, absent=lambda paths: set(paths))
+    unjudged = reconcile(facts(), first, minter(), "2026-10-02", 4, "b", evidence=gone)
+    assert [(f["delta"], f["status"]) for f in unjudged] == [("STILL_OPEN", "open")]
+    assert "row-level-security" in unjudged[0]["carried_forward"]
+    judged = Evidence(scanned=[], rls_judged=True, absent=lambda paths: set(paths))
+    assert [f["delta"] for f in reconcile(facts(), first, minter(), "2026-10-02", 4, "b", evidence=judged)] \
+        == ["RESOLVED"], "with every migration read, a deleted one is gone like any file"
+
+
+def test_a_squash_onto_a_baseline_too_large_to_read_keeps_the_rls_finding_open(repo, qa_root, monkeypatch):
+    from verdict_mcp import hygiene
+    committed(repo, {"db/migrations/001_orders.sql": ("create table orders(id int);\n"
+                                                      "alter table orders disable row level security;\n")},
+              "orders, RLS off")
+    first = merge(collect(repo, qa_root, []), judgment(), None)
+    [rls] = [f for f in hygiene_findings(first) if f["hygiene"]["kind"] == "open_database_rules"]
+    monkeypatch.setattr(hygiene, "MAX_BYTES", 400)
+    baseline = ("".join(f"create table t{i}(id int);\n" for i in range(40))
+                + "alter table orders enable row level security;\n")
+    committed(repo, {"db/migrations/001_orders.sql": None, "db/schema.sql": baseline}, "squash")
+    second = merge(dict(collect(repo, qa_root, []), run_number=2, run_type="delta"),
+                   judgment(findings=[]), first)
+    [again] = [f for f in hygiene_findings(second) if f["id"] == rls["id"]]
+    assert (again["delta"], again["status"]) == ("STILL_OPEN", "open")

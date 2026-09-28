@@ -1636,15 +1636,19 @@ class Evidence:
         return out
 
     def _excepted(self, kind, paths):
-        """Why a file this scan read still proves nothing about `kind`, or None."""
+        """Why this run's evidence proves nothing about `kind` in `paths`, or None. An
+        RLS switch in SQL waits for every migration to be read, whether its own file
+        was scanned or has gone: deleting the migration that disabled RLS is no
+        evidence about the table — a squash puts a baseline in its place that may say
+        anything. Past that, a file the parser refused says nothing of the kinds only
+        the parser finds."""
+        sql = [p for p in paths if p.lower().endswith(".sql")]
+        if kind == "open_database_rules" and sql and not self.rls_judged:
+            return ("a migration went unread this run, so no table's final row-level-security "
+                    "state is known — and a deleted migration is no evidence about one")
         for p in paths:
-            if p not in self.scanned:
-                continue
-            if kind in _PARSED_KINDS and p in self.parse_failed:
+            if p in self.scanned and kind in _PARSED_KINDS and p in self.parse_failed:
                 return f"{p} did not parse this run, so the checks that read its syntax tree did not run"
-            if kind == "open_database_rules" and p.lower().endswith(".sql") and not self.rls_judged:
-                return ("a migration went unread this run, so no table's final row-level-security "
-                        "state is known")
         return None
 
 

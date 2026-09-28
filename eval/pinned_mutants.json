@@ -1511,14 +1511,14 @@
  {
   "label": "0.91.0 H19 lifecycle: a file the parser refused resolves what only the parser finds",
   "path": "src/verdict_mcp/hygiene.py",
-  "old": "            if kind in _PARSED_KINDS and p in self.parse_failed:\n",
+  "old": "            if p in self.scanned and kind in _PARSED_KINDS and p in self.parse_failed:\n",
   "new": "            if False:\n"
  },
  {
   "label": "0.91.0 H20 lifecycle: an RLS switch resolves while a migration went unread",
   "path": "src/verdict_mcp/hygiene.py",
-  "old": "            if kind == \"open_database_rules\" and p.lower().endswith(\".sql\") and not self.rls_judged:\n",
-  "new": "            if False:\n"
+  "old": "        if kind == \"open_database_rules\" and sql and not self.rls_judged:\n",
+  "new": "        if False:\n"
  },
  {
   "label": "0.91.0 H21 lifecycle: a client secret whose site moves is filed again as NEW",
@@ -1603,5 +1603,11 @@
   "path": "src/verdict_mcp/hygiene.py",
   "old": "                    key=lambda r: (str(r.get(\"first_seen\") or \"\"), *where(r)))\n",
   "new": "                    key=where)\n"
+ },
+ {
+  "label": "0.91.0 H35 lifecycle: an RLS finding resolves when its migration is deleted while RLS is unjudged",
+  "path": "src/verdict_mcp/hygiene.py",
+  "old": "        sql = [p for p in paths if p.lower().endswith(\".sql\")]\n",
+  "new": "        sql = [p for p in paths if p.lower().endswith(\".sql\") and p in self.scanned]\n"
  }
 ]
