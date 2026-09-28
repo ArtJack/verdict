@@ -181,3 +181,47 @@ def test_a_blob_a_partial_clone_never_fetched_is_still_in_the_tree(tmp_path):
     subprocess.run(["git", "clone", "-q", "--no-checkout", "--filter=blob:limit=100", src.as_uri(),
                     str(part)], check=True, capture_output=True)
     assert hygiene.absent_from_tree(part, "HEAD", ["large.py", "small.py", "gone.py"]) == {"gone.py"}
+
+
+# ── a side file is its own facts run's, or none at all ────────────────────
+# hygiene-items.json is written beside facts.json by the run that measured both. A
+# side file left by an earlier run — a copy restored, a facts write that failed
+# after it — describes another tree: read as this run's, it would resolve what this
+# run never scanned.
+
+def test_a_side_file_from_another_facts_run_is_no_side_file_at_all(tmp_path):
+    repo, qa, _block = split_facts(tmp_path, {"a.py": "import os\n"})
+    stale = (qa / "hygiene-items.json").read_text(encoding="utf-8")
+    subprocess.run(["git", "-c", "user.email=t@t", "-c", "user.name=t", "-C", str(repo), "commit",
+                    "--allow-empty", "-qm", "another commit"], check=True, capture_output=True)
+    assert harness.facts_main(["--repo", str(repo), "--qa-root", str(qa)]) == 0
+    facts = json.loads((qa / "facts.json").read_text(encoding="utf-8"))
+    block = facts["hygiene"]
+    bind = {"git_sha": facts["last_run"]["git_sha"], "measured_at": facts["measured_at"]}
+    side = json.loads((qa / "hygiene-items.json").read_text(encoding="utf-8"))
+    assert (side["git_sha"], side["measured_at"]) == (bind["git_sha"], bind["measured_at"])
+    assert harness.tier2_items(block, qa, bind) is not None
+    (qa / "hygiene-items.json").write_text(stale, encoding="utf-8")
+    assert json.loads(stale)["git_sha"] != bind["git_sha"]
+    assert harness.tier2_items(block, qa, bind) is None
+    ev = harness.hygiene_evidence(block, qa, repo, bind["git_sha"], bind)
+    assert (ev.scanned, ev.parse_failed, ev.rls_judged) == (set(), set(), False)
+
+
+def test_finalize_resolves_nothing_on_a_side_file_from_another_run(tmp_path):
+    from test_hygiene_state import commit, run
+    repo = make_repo(tmp_path, {"a.py": "import os\n"})
+    qa = tmp_path / "qa"
+    run(repo, qa)
+    stale = (qa / "hygiene-items.json").read_text(encoding="utf-8")
+    commit(repo, {"a.py": "x = 1\n"}, "the import is gone")
+    assert harness.facts_main(["--repo", str(repo), "--qa-root", str(qa)]) == 0
+    (qa / "hygiene-items.json").write_text(stale, encoding="utf-8")
+    (qa / "judgment.json").write_text(json.dumps({
+        "verdict": "pass with risks", "isolation_check": {"result": "pass"}, "release_blockers": [],
+        "not_tested": ["concurrency"], "findings": [], "report": ""}), encoding="utf-8")
+    assert harness.finalize_main(["--qa-root", str(qa), "--judgment", str(qa / "judgment.json")]) == 0
+    block = json.loads((qa / "state.json").read_text(encoding="utf-8"))["hygiene"]
+    assert block["summary"]["tier2_unread"] is True and block["summary"]["resolved"] == 0
+    rows = json.loads((qa / "hygiene-ledger.json").read_text(encoding="utf-8"))["rows"]
+    assert [(r["kind"], r["delta"]) for r in rows] == [("unused_import", "STILL_OPEN")]

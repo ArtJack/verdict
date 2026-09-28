@@ -2040,7 +2040,10 @@ def merge(facts: dict, judgment: dict, previous: dict | None, today: date | None
     hyg = facts.get("hygiene")
     root = Path(qa_root or facts.get("qa_root") or ".")
     sha_now = str((facts.get("last_run") or {}).get("git_sha") or "")
-    evidence = hygiene_evidence(hyg, root, repo, sha_now)
+    # The side file is read only as this facts run's own (`_side_doc`).
+    bind = {"git_sha": (facts.get("last_run") or {}).get("git_sha"),
+            "measured_at": facts.get("measured_at")}
+    evidence = hygiene_evidence(hyg, root, repo, sha_now, bind)
     taken = [{"id": f.get("id")} for f in findings] + [
         {"id": f.get("id")} for f in ((previous or {}).get("findings") or []) if isinstance(f, dict)]
 
@@ -2102,8 +2105,9 @@ def merge(facts: dict, judgment: dict, previous: dict | None, today: date | None
     # stale ledger.
     prev_ledger = hygiene_previous((previous or {}).get("hygiene"), root,
                                    (previous or {}).get("run_number"))
-    state["hygiene"] = hygiene_ledger(hyg, tier2_items(hyg, root), prev_ledger, today.isoformat(),
-                                      facts.get("run_number"), sha_now, evidence=evidence)
+    state["hygiene"] = hygiene_ledger(hyg, tier2_items(hyg, root, bind), prev_ledger,
+                                      today.isoformat(), facts.get("run_number"), sha_now,
+                                      evidence=evidence)
     if state["hygiene"].get("status") == "measured":
         state["hygiene"]["leads"]["followed"] = leads_followed(
             hyg.get("leads") if isinstance(hyg, dict) else None, findings)
@@ -2430,7 +2434,10 @@ def split_hygiene(facts: dict, qa_root: Path) -> None:
     rows, kept = [], []
     for it in block["items"]:
         (rows if isinstance(it, dict) and it.get("tier") == 2 else kept).append(it)
-    side = {"schema": 1, "items": rows, "unread_paths": block.get("unread_paths", []),
+    # Bound to this facts run: a side file another run left is no side file at all.
+    side = {"schema": 1, "git_sha": (facts.get("last_run") or {}).get("git_sha"),
+            "measured_at": facts.get("measured_at"), "items": rows,
+            "unread_paths": block.get("unread_paths", []),
             **{key: block[key] for key in _VOUCHED if key in block}}
     try:
         _atomic_write(Path(qa_root) / HYGIENE_ITEMS_FILE, json.dumps(side, indent=1) + "\n")
@@ -2448,7 +2455,7 @@ def split_hygiene(facts: dict, qa_root: Path) -> None:
     block["reading"] = hygiene_reading(HYGIENE_ITEMS_FILE)
 
 
-def tier2_items(facts_hygiene: dict, qa_root: Path) -> list | None:
+def tier2_items(facts_hygiene: dict, qa_root: Path, bind=None) -> list | None:
     """This run's tier-2 rows, the way the ledger reads them: from the file
     `split_hygiene` names, or from the block itself when it names none — a facts
     file written before the split, one reused by --reuse-if-fresh, or one whose side
@@ -2457,26 +2464,29 @@ def tier2_items(facts_hygiene: dict, qa_root: Path) -> list | None:
     missing, unreadable or holds no list of rows: this run's rows are unknown, which
     is not the same as none, and the ledger resolves nothing on it. A row that is
     not a well-formed tier-2 item is passed over. Whatever the QA root holds, the
-    ledger gets rows or None, never an error."""
+    ledger gets rows or None, never an error. `bind` is the facts run the file must
+    be (`_side_doc`)."""
     if not isinstance(facts_hygiene, dict):
         return []
     if "tier2_file" not in facts_hygiene:
         rows = facts_hygiene.get("items")
         return [it for it in rows if _tier2_row(it)] if isinstance(rows, list) else []
-    side = _hygiene_side(facts_hygiene, qa_root)
+    side = _hygiene_side(facts_hygiene, qa_root, bind)
     rows = side.get("items") if side else None
     if not isinstance(rows, list):
         return None
     return [it for it in rows if _tier2_row(it)]
 
 
-def hygiene_evidence(facts_hygiene: dict, qa_root: Path, repo=None, sha=None) -> Evidence:
+def hygiene_evidence(facts_hygiene: dict, qa_root: Path, repo=None, sha=None,
+                     bind=None) -> Evidence:
     """What this run's scan vouches for, for the lifecycle: the paths it scanned, the
     Python files the parser refused and whether every migration was read — from the
     side file, or inline from a block never split — and, for a file it did not read,
-    whether the tree at `sha` still holds it. A side file that cannot be read
-    vouches for nothing, so nothing resolves by it (a deleted file still does)."""
-    side = _hygiene_side(facts_hygiene, qa_root)
+    whether the tree at `sha` still holds it. A side file that cannot be read, or
+    that another facts run wrote (`bind`), vouches for nothing, so nothing resolves by
+    it (a deleted file still does)."""
+    side = _hygiene_side(facts_hygiene, qa_root, bind)
     block = facts_hygiene if isinstance(facts_hygiene, dict) else {}
 
     def vouched(key):
@@ -2507,17 +2517,18 @@ def hygiene_previous(block, qa_root: Path, run_number):
     return dict(block, rows=doc["rows"])
 
 
-def _hygiene_side(facts_hygiene: dict, qa_root: Path):
+def _hygiene_side(facts_hygiene: dict, qa_root: Path, bind=None):
     """The side file a split block names, loaded — or None (`_side_doc`)."""
     return _side_doc(qa_root, facts_hygiene.get("tier2_file") if isinstance(facts_hygiene, dict)
-                     else None)
+                     else None, bind)
 
 
-def _side_doc(qa_root: Path, name):
+def _side_doc(qa_root: Path, name, bind=None):
     """A hygiene file in the QA root, loaded — or None: no file named, a name reaching
     out of the QA root, a file missing, unreadable or nested past what the parser
-    holds (RecursionError, at about 1,000 levels on 3.9), or a schema that is not the
-    integer 1 (`true == 1` in Python, and is no schema)."""
+    holds (RecursionError, at about 1,000 levels on 3.9), a schema that is not the
+    integer 1 (`true == 1` in Python, and is no schema), or — given `bind`, the facts
+    run's {git_sha, measured_at} — a file another facts run wrote."""
     if not isinstance(name, str) or name in ("", ".", "..") or Path(name).name != name:
         return None
     try:
@@ -2525,6 +2536,8 @@ def _side_doc(qa_root: Path, name):
     except (OSError, ValueError, RecursionError):
         return None
     if not isinstance(doc, dict) or type(doc.get("schema")) is not int or doc["schema"] != 1:
+        return None
+    if bind is not None and any(doc.get(k) != bind.get(k) for k in ("git_sha", "measured_at")):
         return None
     return doc
 
