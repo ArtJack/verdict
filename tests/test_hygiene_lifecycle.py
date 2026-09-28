@@ -680,3 +680,36 @@ def test_a_hygiene_finding_is_measured_by_the_scan_not_by_a_test(repo, qa_root):
     assert "Never measured" not in scans
     testers = text.split("### W-F-1 ", 1)[1].split("\n#", 1)[0]
     assert "- Never measured — no `verification_test` declared" in testers, "the tester's own, unchanged"
+
+
+# ── the run history: hygiene counts per run, unsigned like gate durations ──
+
+def test_history_rows_carry_unsigned_hygiene_counts():
+    from verdict_mcp.state import chain_link, history_row
+    state = {"run_number": 2, "verdict": "pass", "findings": [],
+             "last_run": {"timestamp_utc": "2026-10-01T00:00:00Z"},
+             "hygiene": {"status": "measured", "summary": {"open": 5, "new": 1, "resolved": 2}}}
+    row = history_row(state)
+    assert row["hygiene"] == {"open": 5, "new": 1, "resolved": 2}
+    bare = dict(row)
+    del bare["hygiene"]
+    assert chain_link("x", row) == chain_link("x", bare), "telemetry stays out of the signed body"
+    assert "hygiene" not in history_row({**state, "hygiene": {"status": "unavailable", "reason": "r"}})
+
+
+def test_a_chain_signed_before_the_counts_still_verifies(repo, tmp_path):
+    # A run finalized before this release signed a row with no hygiene counts while its
+    # state already held the ledger. Re-derived today, that row carries the counts; were
+    # they signed, every such state would read as tampered and fail --require-harness.
+    from verdict_mcp.state import harness_signals, load_chain_anchor, load_runs, verify_chain
+    committed(repo, {"j.py": "import os\n"}, "junk")
+    qa = tmp_path / "qa-root"
+    (qa / "reports").mkdir(parents=True)
+    state = finalize_run(repo, qa, judgment(findings=[], report=""))
+    rows, _ = load_runs(qa)
+    assert rows[-1]["hygiene"] == {"open": 1, "new": 1, "resolved": 0}
+    signed_before = [{k: v for k, v in r.items() if k != "hygiene"} for r in rows]
+    (qa / "runs.jsonl").write_text("".join(json.dumps(r, sort_keys=True) + "\n" for r in signed_before),
+                                   encoding="utf-8")
+    assert verify_chain(load_runs(qa)[0], load_chain_anchor(qa))["status"] == "intact"
+    assert harness_signals(state, qa)["chain_intact"] is True

@@ -511,7 +511,7 @@ RENDERED_BY_FINALIZE = "rendered from `state.json` by `verdict-finalize`"
 # row and fail its own binding check — every pre-upgrade state would read as
 # tampered. Tampering with a duration is not worth guarding against; tampering
 # with a verdict is, and that stays signed.
-_CHAIN_EXCLUDED = ("chain", "gate_durations")
+_CHAIN_EXCLUDED = ("chain", "gate_durations", "hygiene")
 
 
 def chain_link(prev: str, row: dict) -> str:
@@ -721,6 +721,14 @@ def history_row(state: dict, revision: int = 0) -> dict:
         # to 65s usually means a test started calling a live service. Excluded
         # from the chain body (see _CHAIN_EXCLUDED).
         row["gate_durations"] = durations
+    hyg = state.get("hygiene") if isinstance(state.get("hygiene"), dict) else {}
+    if hyg.get("status") == "measured":
+        s = hyg.get("summary") if isinstance(hyg.get("summary"), dict) else {}
+        # The junk ledger per run (0.91.0) — telemetry like gate_durations, and
+        # excluded from the chain body for the same reason: a state signed before the
+        # counts existed re-derives its row with them today (see _CHAIN_EXCLUDED).
+        row["hygiene"] = {"open": s.get("open", 0), "new": s.get("new", 0),
+                          "resolved": s.get("resolved", 0)}
     for optional in ("run_label",):
         if state.get(optional) is not None:
             row[optional] = state[optional]
