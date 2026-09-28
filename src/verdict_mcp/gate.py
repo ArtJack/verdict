@@ -261,6 +261,9 @@ def _hygiene_line(r):
                  key=lambda kv: (-kv[1], kv[0]))[:3]
     if hygiene_change_unmeasured(hy):
         change = "new and removed not measured this run"
+    elif hy.get("first_inventory"):
+        # Every row is new because nothing was tracked before, not because this PR added it.
+        change = "first inventory"
     else:
         change = f"{count(hy.get('new')):+d} new, −{count(hy.get('resolved'))} removed"
     return (f"{count(hy.get('open'))} open ({change})"

@@ -581,3 +581,22 @@ def test_no_hygiene_line_without_a_measured_scan(tmp_path):
         for fmt in ("text", "github-comment"):
             out = gate(tmp_path, "pricer", "--format", fmt, home=home).stdout
             assert "hygiene" not in out.lower(), (block, fmt, out)
+
+
+def test_a_first_inventory_is_not_counted_as_new_in_the_pull_request():
+    # A project's first 0.91.0 run finds every row new; "+282 new" on its PR reads as if the
+    # PR added them. Said as what it is, in the comment and the text.
+    from verdict_mcp.gate import _fmt_comment, _fmt_text
+    kinds = {"broad_swallow": {"open": 158, "new": 158, "resolved": 0},
+             "unused_import": {"open": 113, "new": 113, "resolved": 0},
+             "oversized_file": {"open": 5, "new": 5, "resolved": 0},
+             "todo_comment": {"open": 6, "new": 6, "resolved": 0}}
+    r = {"verdict": "pass", "project": "p", "run_number": 1, "run_type": "baseline", "reason": "pass",
+         "exit_code": 0, "findings_open": [],
+         "hygiene": {"open": 282, "new": 282, "resolved": 0, "first_inventory": True, "capped": False,
+                     "by_kind": kinds}}
+    line = "282 open (first inventory) · broad swallow 158 · unused import 113 · todo comment 6"
+    comment, text = _fmt_comment(r, 10), _fmt_text(r, 10)
+    assert f"**Hygiene:** {line}" in comment
+    assert f"hygiene: {line}" in text.splitlines()
+    assert "+282" not in comment + text
