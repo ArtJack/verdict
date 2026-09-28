@@ -1645,5 +1645,17 @@
   "path": "src/verdict_mcp/harness.py",
   "old": "    elif is_open(f) and is_hygiene(f):\n",
   "new": "    elif False:\n"
+ },
+ {
+  "label": "0.91.0 H40 hygiene: new and removed the ledger could not count are printed and stored as measured",
+  "path": "src/verdict_mcp/state.py",
+  "old": "    return bool(s.get(\"tier2_unread\") or s.get(\"prior_unread\"))\n",
+  "new": "    return False\n"
+ },
+ {
+  "label": "0.91.0 H41 gate: a first inventory reads as every row new in the pull request",
+  "path": "src/verdict_mcp/gate.py",
+  "old": "    elif hy.get(\"first_inventory\"):\n",
+  "new": "    elif False:\n"
  }
 ]
