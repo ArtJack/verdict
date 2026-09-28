@@ -109,7 +109,15 @@ def evaluate(project, fail_on, max_age_hours, min_run_number, now=None,
     # reason for an exit code. Only a measured scan has counts worth a line.
     hyg = state.get("hygiene") if isinstance(state.get("hygiene"), dict) else {}
     if hyg.get("status") == "measured" and isinstance(hyg.get("summary"), dict):
-        out["hygiene"] = hyg["summary"]
+        summary = dict(hyg["summary"])
+        if hygiene_change_unmeasured(summary):
+            # Counts the ledger could not take are null in the JSON too, as in the run history
+            # and on every rendered surface — never a 0 beside the flag that says so.
+            summary.update(new=None, resolved=None)
+            if isinstance(summary.get("by_kind"), dict):
+                summary["by_kind"] = {k: dict(v, new=None, resolved=None) if isinstance(v, dict) else v
+                                      for k, v in summary["by_kind"].items()}
+        out["hygiene"] = summary
     # The questions the tester parked for a person, read from the ledger the
     # way the banner and the report read it — pushed to the maintainer on
     # every surface that reaches them, never mailed.

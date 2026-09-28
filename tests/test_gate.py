@@ -611,3 +611,26 @@ def test_the_line_ranks_only_kinds_with_something_open_and_never_prints_an_unkno
     unknown = {"open": None, "by_kind": {"todo_comment": {"open": None}, "unused_import": "junk",
                                          "broad_swallow": {"open": 2}}}
     assert _hygiene_line({"hygiene": unknown}) == "? open (? new, −? removed) · broad swallow 2"
+
+
+def test_the_json_carries_no_count_the_ledger_could_not_take(tmp_path):
+    # The same predicate as the text, the comment and the run history: a 0 beside
+    # `tier2_unread: true` is a count nobody took, and it is null here too.
+    from verdict_mcp.hygiene import ledger
+
+    def row(kind, fp, path):
+        return {"kind": kind, "tier": 2, "path": path, "line": 1, "excerpt": "x", "why": "w", "fingerprint": fp}
+    scan = {"status": "measured", "items": [], "scope": {"files": 2, "capped": False, "file_cap": 5000, "failed": 0},
+            "counts_by_kind": {"unused_import": 1, "broad_swallow": 1}, "leads": [], "leads_total": 0}
+    first = ledger(scan, [row("unused_import", "u1", "a.py"), row("broad_swallow", "s1", "b.py")], None,
+                   "2026-10-01", 1, "a")
+    unread = ledger(scan, None, first, "2026-10-02", 2, "b")
+    assert unread["summary"]["tier2_unread"] is True and unread["summary"]["new"] == 0
+    out = json.loads(gate(tmp_path, "pricer", "--format", "json",
+                          home=make_home(tmp_path, hygiene=unread)).stdout)["hygiene"]
+    assert (out["open"], out["new"], out["resolved"], out["tier2_unread"]) == (2, None, None, True)
+    assert {k: (v["open"], v["new"], v["resolved"]) for k, v in out["by_kind"].items()} == {
+        "broad_swallow": (1, None, None), "unused_import": (1, None, None)}
+    measured = json.loads(gate(tmp_path, "pricer", "--format", "json",
+                               home=make_home(tmp_path, hygiene=HYGIENE)).stdout)["hygiene"]
+    assert (measured["open"], measured["new"], measured["resolved"]) == (312, 12, 4), "a measured count stays"
