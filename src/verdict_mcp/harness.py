@@ -3304,7 +3304,8 @@ def _render_hygiene(state: dict) -> list[str]:
     block = state.get("hygiene") if isinstance(state.get("hygiene"), dict) else {}
     s = block.get("summary") if isinstance(block.get("summary"), dict) else {}
     if block.get("status") == "unavailable":
-        out = ["## Hygiene", "", f"Not measured this run — {block.get('reason') or 'no reason recorded'}."]
+        # No full stop after the reason: git's own words often end in one, or in ".git".
+        out = ["## Hygiene", "", f"Not measured this run — {block.get('reason') or 'no reason recorded'}"]
         if s.get("carried"):
             out += ["", f"- Carried open, not removed: {s['carried']} row(s) from the last run — "
                         "nothing was measured, so nothing is known to be gone"]
@@ -3334,9 +3335,12 @@ def _render_hygiene(state: dict) -> list[str]:
                      "nothing this run read proves them gone")
     if flags:
         out += flags + [""]
+    # Pointed to only when some are above: under `hygiene: off` none is filed.
+    filed = any(is_hygiene(f) for f in state.get("findings") or [])
     out += ["_Junk the harness tracks on every run: none of it is a finding, and none of it changes "
-            "the verdict. Near-certain exposures are filed above as findings, measured by the same "
-            "scan._", ""]
+            "the verdict."
+            + (" Near-certain exposures are filed above as findings, measured by the same scan."
+               if filed else "") + "_", ""]
     by_kind = s.get("by_kind") if isinstance(s.get("by_kind"), dict) else {}
     if by_kind:
         out += ["| Kind | Open | New | Removed |", "|---|---|---|---|"]

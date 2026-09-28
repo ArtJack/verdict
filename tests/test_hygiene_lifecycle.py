@@ -615,6 +615,7 @@ def test_the_section_lists_the_preview_the_state_keeps_not_the_rows_it_moved_out
     assert "Leads handed to the tester: 4; 1 of them cited by a finding within five lines." in section
     for quiet in ("Partial scan", "Carried open", "hygiene-items.json", "Not measured"):
         assert quiet not in section, quiet
+    assert "Near-certain exposures" not in section, "none is filed above, so none is pointed to"
 
 
 def test_a_first_inventory_lists_its_rows_once():
@@ -680,6 +681,7 @@ def test_a_hygiene_finding_is_measured_by_the_scan_not_by_a_test(repo, qa_root):
     assert "Never measured" not in scans
     testers = text.split("### W-F-1 ", 1)[1].split("\n#", 1)[0]
     assert "- Never measured — no `verification_test` declared" in testers, "the tester's own, unchanged"
+    assert "Near-certain exposures are filed above as findings" in hygiene_section(text)
 
 
 # ── the run history: hygiene counts per run, unsigned like gate durations ──
