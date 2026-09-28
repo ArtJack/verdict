@@ -8,14 +8,15 @@ The next run reads the rows back from that file; when it cannot, it carries noth
 forward and says so, rather than resolving what it never compared.
 
 A hygiene id a judgment names in `still_open` or `resolved` is the scan's to
-settle: ignored, and recorded where a reader sees it."""
+settle: ignored, and recorded where a reader sees it. The engines that write a
+judgment without a model name none, and say the verdict that was written."""
 
 import json
 import subprocess
 
 from conftest import judgment
 
-from verdict_mcp import harness
+from verdict_mcp import harness, small
 from verdict_mcp.hygiene import ledger
 
 from test_hygiene import make_repo  # noqa: E402
@@ -176,3 +177,66 @@ def test_a_hygiene_id_named_by_either_verb_is_ignored_and_recorded(tmp_path):
     assert (f["status"], f["delta"]) == ("open", "STILL_OPEN"), "the tester's word resolves nothing"
     quiet = run(repo, qa)
     assert "ignored_judgment_ids" not in quiet["hygiene"]
+
+
+def test_the_engines_that_judge_without_a_model_name_no_hygiene_id():
+    from verdict_mcp.runner import sweep_judgment
+    previous = {"verdict": "pass with risks", "findings": [
+        {"id": "W-F-1", "status": "open", "severity": "Major"},
+        {"id": "W-F-2", "status": "open", "severity": "Critical", "source": "hygiene",
+         "hygiene": {"kind": "secret_in_code", "fingerprint": "fp", "path": "k.py"}}]}
+    assert sweep_judgment({"last_run": {}}, previous, [], 1)["still_open"] == ["W-F-1"]
+    resolved, still_open, refile = small.partition_prior(previous, {})
+    assert (resolved, still_open, refile) == ([], ["W-F-1"], [])
+
+
+def test_a_local_night_names_no_hygiene_id_and_says_the_verdict_written(tmp_path, capsys):
+    from test_hygiene_facts import root_with
+    from test_local_delta import GATE, ScriptedModel
+    repo = make_repo(tmp_path, {
+        "mod.py": f'KEY = "{LIVE}"\n\n\ndef kept(x):\n    return x + 1\n',
+        "test_mod.py": "from mod import kept\n\n\ndef test_kept():\n    assert kept(1) == 2\n"})
+    qa = root_with(tmp_path, f"gates:\n  suite: {GATE}\n")
+    assert small.run(repo, qa, ScriptedModel(), limit=4, gate=None, reruns=0, prove=False) == 0
+    assert "verdict-local: verdict 'pass with risks'" in capsys.readouterr().err, \
+        "the verdict the state holds, capped by the key, not this engine's own arithmetic"
+    assert small.run(repo, qa, ScriptedModel(), limit=4, gate=None, reruns=0, prove=False) == 0
+    state = json.loads((qa / "state.json").read_text(encoding="utf-8"))
+    assert state["run_number"] == 2 and "ignored_judgment_ids" not in state["hygiene"]
+    assert [f["delta"] for f in state["findings"] if f.get("source") == "hygiene"] == ["STILL_OPEN"]
+
+
+def test_a_sweep_says_the_verdict_it_wrote(tmp_path):
+    # A sweep carries the previous verdict, and a Critical the scan files on the way
+    # caps it: the line that used to say "'pass' carried" must say what was written.
+    from test_sweep import PY, git, run as run_runner, state_of
+    repo = tmp_path / "Proj"
+    repo.mkdir()
+    git(repo, "init", "-qb", "main")
+    (repo / "cited.py").write_bytes(b"def a(x):\n    return x + 1\n")
+    (repo / "other.py").write_bytes(b"def b(x):\n    return x\n")
+    (repo / "test_a.py").write_bytes(b"from cited import a\n\ndef test_a():\n    assert a(1) == 2\n")
+    git(repo, "add", "-A")
+    git(repo, "commit", "-qm", "base")
+    home = tmp_path / "home"
+    qa = home / "proj"
+    (qa / "reports").mkdir(parents=True)
+    (qa / "profile.md").write_text(
+        f"---\ngates:\n  suite: {PY} -m pytest -q -p no:cacheprovider\n"
+        f"test_ids_cmd: {PY} -m pytest --collect-only -q -p no:cacheprovider\n---\n\n"
+        "# QA Profile — proj\n\nProject-Key: proj\n", encoding="utf-8")
+    assert harness.facts_main(["--repo", str(repo), "--qa-root", str(qa)]) == 0
+    j = {"topic": "baseline", "verdict": "pass", "isolation_check": {"result": "pass"},
+         "release_blockers": [], "not_tested": ["concurrency"],
+         "findings": [{"id": "PROJ-F-1", "title": "a is off by one", "severity": "Minor",
+                       "priority": "P3", "status": "open", "failure_classification": "REAL_DEFECT",
+                       "confidence": "proven", "evidence": ["cited.py:2 — `return x + 1`"]}]}
+    (qa / "judgment.json").write_text(json.dumps(j), encoding="utf-8")
+    assert harness.finalize_main(["--qa-root", str(qa), "--judgment", str(qa / "judgment.json")]) == 0
+    (repo / "other.py").write_text(f'def b(x):\n    return x\n\n\nKEY = "{LIVE}"\n', encoding="utf-8")
+    git(repo, "commit", "-qam", "a key in a file no finding cites")
+    proc, model_ran = run_runner(tmp_path, repo, home, "--skip-unless-drift")
+    assert not model_ran and proc.returncode != 4, proc.stderr
+    assert state_of(qa)["verdict"] == "pass with risks"
+    assert "verdict 'pass with risks' written, not the carried 'pass'" in proc.stderr
+    assert "'pass' carried" not in proc.stderr

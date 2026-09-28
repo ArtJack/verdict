@@ -1224,8 +1224,10 @@ def partition_prior(previous: dict | None, facts: dict) -> tuple:
     for f in (previous or {}).get("findings") or []:
         if not isinstance(f, dict) or not f.get("id"):
             continue
-        if norm_status(f.get("status")) != "open":
-            continue        # accepted, resolved and withdrawn are the harness's to carry
+        if norm_status(f.get("status")) != "open" or f.get("source") == "hygiene":
+            # accepted, resolved and withdrawn are the harness's to carry — and so is a
+            # hygiene finding, which the scan re-measures every run
+            continue
         fid = str(f["id"])
         drift, moved = drift_of(facts, fid)
         if measured_resolution(facts, fid):
@@ -2010,7 +2012,8 @@ def run(repo: Path, qa_root: Path, model: Model, limit: int, gate: str | None,
 
     # 5. Every prior open finding is mentioned — A, B or C, and nothing else.
     prior_open = [str(f.get("id")) for f in (previous or {}).get("findings") or []
-                  if isinstance(f, dict) and f.get("id") and norm_status(f.get("status")) == "open"]
+                  if isinstance(f, dict) and f.get("id") and norm_status(f.get("status")) == "open"
+                  and f.get("source") != "hygiene"]
     resolved_ids, still_open_ids, to_refile = partition_prior(previous, facts)
     by_id = {str(f.get("id")): f for f in (previous or {}).get("findings") or []
              if isinstance(f, dict) and f.get("id")}
@@ -2173,8 +2176,19 @@ def run(repo: Path, qa_root: Path, model: Model, limit: int, gate: str | None,
         print(f"verdict-local: {proven} claim(s) proven by counterfactual, {disproven} "
               f"withdrawn before filing", file=sys.stderr)
     print_summary(model, files, examined, filed, refiled, resolved_ids, still_open_ids,
-                  verdict, owed, budget)
+                  written_verdict(qa_root, verdict) if code == 0 else verdict, owed, budget,
+                  engine_verdict=verdict)
     return code
+
+
+def written_verdict(qa_root: Path, fallback: str) -> str:
+    """The verdict the state holds. This engine's own arithmetic cannot see a Critical
+    the hygiene scan files at finalize, which caps a `pass` at `pass with risks`."""
+    try:
+        state = json.loads((qa_root / "state.json").read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return fallback
+    return str(state.get("verdict") or fallback) if isinstance(state, dict) else fallback
 
 
 def leads_text(leads) -> str:
@@ -2233,10 +2247,14 @@ def not_tested_lines(model: Model, files: list, examined: int, prior_open: list,
 
 def print_summary(model: Model, files: list, examined: int, filed: list, refiled: list,
                   resolved: list, still_open: list, verdict: str, owed: dict,
-                  budget: Budget) -> None:
-    """At most fifteen lines, ending on the number this whole release is about."""
+                  budget: Budget, engine_verdict: str | None = None) -> None:
+    """At most fifteen lines, ending on the number this whole release is about.
+    `verdict` is the one the state holds; `engine_verdict`, this engine's own, is
+    named when finalize capped it."""
     lines = [
-        f"verdict-local: verdict {verdict!r}",
+        f"verdict-local: verdict {verdict!r}"
+        + (f" (this engine's {engine_verdict!r}, capped at finalize by a Critical the "
+           "hygiene scan filed)" if engine_verdict and engine_verdict != verdict else ""),
         f"  read       {examined} function(s) in {len(files)} file(s)"
         + (f", {budget.skipped} skipped — {budget.stopped}" if budget.stopped else ""),
         f"  filed      {len(filed)} finding(s), {len(refiled)} of them re-filed unread",
