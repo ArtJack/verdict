@@ -59,10 +59,13 @@ try:
     from . import questions
     from .anchors import DRIFTED, anchors_for, evidence_drift
     from .census import code_census
-    from .hygiene import hygiene_census
+    from .hygiene import (TIER2_KINDS, Evidence, absent_from_tree, hygiene_census,
+                          hygiene_reading, is_hygiene, leads_followed)
+    from .hygiene import ledger as hygiene_ledger
+    from .hygiene import reconcile as reconcile_hygiene
     from .filed import FINDINGS_DIR, archive_findings, load_filed
     from .reports import read_report
-    from .profile import ProfileError, gates_from
+    from .profile import ProfileError, gates_from, hygiene_filing_from
     from .profile import load as load_profile
     from .project_key import derive_key
     from .state import (OUTCOMES_FILE, accepted_block, calibration, in_force, is_open,
@@ -83,10 +86,13 @@ except ImportError:  # bare-script execution
     import questions
     from anchors import DRIFTED, anchors_for, evidence_drift
     from census import code_census
-    from hygiene import hygiene_census
+    from hygiene import (TIER2_KINDS, Evidence, absent_from_tree, hygiene_census,
+                         hygiene_reading, is_hygiene, leads_followed)
+    from hygiene import ledger as hygiene_ledger
+    from hygiene import reconcile as reconcile_hygiene
     from filed import FINDINGS_DIR, archive_findings, load_filed
     from reports import read_report
-    from profile import ProfileError, gates_from
+    from profile import ProfileError, gates_from, hygiene_filing_from
     from profile import load as load_profile
     from project_key import derive_key
     from state import (OUTCOMES_FILE, accepted_block, calibration, in_force, is_open,
@@ -1204,8 +1210,13 @@ def _diff_from_files(files: dict, changed: dict, meta: dict, sha_range: str,
 def collect(repo: Path, qa_root: Path, gates: list[tuple[str, str]],
             test_ids_cmd: str | None = None, abandoned=_UNSET,
             test_one_cmd: str | None = None, coverage_suite_cmd: str | None = None,
-            sha_range: str | None = None) -> dict:
+            sha_range: str | None = None, hygiene_filing: str = "on") -> dict:
     """Measure everything about this run that is not a judgment.
+
+    `hygiene_filing` is the profile's `hygiene:` setting, which each caller reads
+    with `hygiene_filing_from`: "off" counts every tier and files nothing. It is
+    taken here, not patched onto the facts afterwards, so that no engine that
+    measures can leave it out.
 
     `sha_range` overrides the range this function would otherwise derive from
     the previous state's sha. A run that judges a *branch* — a PR gate — has no
@@ -1361,7 +1372,7 @@ def collect(repo: Path, qa_root: Path, gates: list[tuple[str, str]],
     # Junk, near-certain exposures and reading leads, on every run (T-28). Tier 1
     # becomes findings in finalize, tier 2 the ledger, leads what the tester reads first.
     try:
-        facts_hygiene = hygiene_census(repo)
+        facts_hygiene = hygiene_census(repo, filing=hygiene_filing)
     except Exception as exc:  # a scan must never cost a run
         facts_hygiene = {"status": "unavailable", "reason": f"hygiene scan failed: {exc}"}
 
@@ -1517,9 +1528,11 @@ def collect(repo: Path, qa_root: Path, gates: list[tuple[str, str]],
     # everything, and "the code under an accepted risk changed" is measured.
     if previous:
         prev_findings = [f for f in (previous.get("findings") or []) if isinstance(f, dict)]
+        # A hygiene finding is the scan's, re-measured below: where its line moved is
+        # nothing the tester must read, and nothing that should buy a model run.
         drift = evidence_drift(
             repo,
-            [f for f in prev_findings if is_open(f)],
+            [f for f in prev_findings if is_open(f) and not is_hygiene(f)],
             [f for f in prev_findings if norm_status(f.get("status")) == "accepted"],
             list(zip(previous.get("verified_intact") or [],
                      previous.get("verified_intact_anchors") or [])))
@@ -1569,10 +1582,17 @@ def next_finding_id(key: str, previous: dict | None, ledger: dict | None) -> str
 
     Measured on the Sales shadow run (2026-09-18): the pattern required a
     prefix, so not one of Sales' 75 ids matched, and the first local night
-    minted `SALES-F-1` beside `F-162` — a second numbering in one record."""
+    minted `SALES-F-1` beside `F-162` — a second numbering in one record.
+
+    `ledger` is the rows `load_outcomes` returns, keyed by hash — or the file's own
+    `{"findings": rows}`. Only the second shape was read, and every caller passes
+    the first, so an id that lived on only in the ledger could be minted again: the
+    fate of every hygiene finding a run after it resolves."""
     ids = [f.get("id") for f in (previous or {}).get("findings") or [] if isinstance(f, dict)]
-    ids += [row.get("id") for row in ((ledger or {}).get("findings") or {}).values()
-            if isinstance(row, dict)]
+    rows = ledger if isinstance(ledger, dict) else {}
+    if isinstance(rows.get("findings"), dict):
+        rows = rows["findings"]
+    ids += [row.get("id") for row in rows.values() if isinstance(row, dict)]
     prefixes: dict = {}
     top, width = 0, 0
     for fid in ids:
@@ -1586,6 +1606,19 @@ def next_finding_id(key: str, previous: dict | None, ledger: dict | None) -> str
     prefix = max(prefixes, key=prefixes.get) if prefixes else str(key).upper()
     head = f"{prefix}-F-" if prefix else "F-"
     return f"{head}{top + 1:0{width}d}" if width else f"{head}{top + 1}"
+
+
+def _earlier_hygiene(ledger, taken: set) -> list:
+    """The hygiene findings the outcome ledger remembers under an identity, for an id
+    this run neither holds nor has filed: a key resolved two runs ago, or before
+    `hygiene: off`, or in a state since restored from state.json.prev, is gone from
+    the state but not from the ledger, and comes back as the same finding."""
+    wrapped = isinstance(ledger, dict) and isinstance(ledger.get("findings"), dict)
+    rows = ledger["findings"] if wrapped else (ledger if isinstance(ledger, dict) else {})
+    return [row for row in rows.values()
+            if isinstance(row, dict) and row.get("source") == "hygiene"
+            and isinstance(row.get("hygiene_identity"), str) and row.get("id")
+            and str(row["id"]) not in taken]
 
 
 def _anchor_texts(finding: dict) -> list[str]:
@@ -1840,7 +1873,7 @@ def _fold_accepted(entry: dict, ledger: dict | None) -> None:
 
 
 def merge(facts: dict, judgment: dict, previous: dict | None, today: date | None = None,
-          ledger: dict | None = None, accepted: dict | None = None) -> dict:
+          ledger: dict | None = None, accepted: dict | None = None, qa_root=None) -> dict:
     """Facts + judgment → a state file, with identity and deltas computed.
 
     `ledger` is the permanent outcome ledger (`outcomes.json`); passing it in
@@ -1848,7 +1881,8 @@ def merge(facts: dict, judgment: dict, previous: dict | None, today: date | None
     finding this project ever filed, not just the ones still in state.
     `accepted` is the maintainer's ledger (`accepted.json`), applied after the
     tester's statuses and before outcomes: the one status a judgment cannot
-    write.
+    write. `qa_root` is where the hygiene side file sits (default: the one
+    facts.json names).
     """
     today = today or run_date(facts)
     # finalize runs from the QA root; facts says where the code is. An older
@@ -1868,6 +1902,8 @@ def merge(facts: dict, judgment: dict, previous: dict | None, today: date | None
     findings = []
     seen = set()
     for f in judgment.get("findings", []) or []:
+        if is_hygiene(f):
+            continue  # a `still_open` copy of the harness's own finding — reconciled below
         entry = dict(f)
         h = finding_hash(entry)
         prior = prev_by_hash.get(h)
@@ -1940,6 +1976,8 @@ def merge(facts: dict, judgment: dict, previous: dict | None, today: date | None
     # silence is not the same as an assertion, so it is carried, not dropped.
     unmentioned, prior_open = [], 0
     for h, prior in prev_by_hash.items():
+        if is_hygiene(prior):
+            continue  # owned by the harness: re-measured below, never resolved by silence
         st = norm_status(prior.get("status"))
         # The maintainer's decision outlives the tester's attention: a finding
         # that is accepted — in the previous state, or in the ledger since —
@@ -1996,6 +2034,43 @@ def merge(facts: dict, judgment: dict, previous: dict | None, today: date | None
         carried.update(_stamp_outcome(carried, prior))
         findings.append(carried)
 
+    # Hygiene findings are the harness's own (T-28): re-measured every run, resolved
+    # only on evidence — every file the item lives in was scanned, or has left the
+    # tree — and never by the tester's silence.
+    hyg = facts.get("hygiene")
+    root = Path(qa_root or facts.get("qa_root") or ".")
+    sha_now = str((facts.get("last_run") or {}).get("git_sha") or "")
+    # The side file is read only as this facts run's own (`_side_doc`).
+    bind = {"git_sha": (facts.get("last_run") or {}).get("git_sha"),
+            "measured_at": facts.get("measured_at")}
+    evidence = hygiene_evidence(hyg, root, repo, sha_now, bind)
+    taken = [{"id": f.get("id")} for f in findings] + [
+        {"id": f.get("id")} for f in ((previous or {}).get("findings") or []) if isinstance(f, dict)]
+
+    def _mint() -> str:
+        fid = next_finding_id(facts["project"], {"findings": taken}, ledger)
+        taken.append({"id": fid})
+        return fid
+
+    for entry in reconcile_hygiene(hyg, (previous or {}).get("findings") or [], _mint,
+                                   today.isoformat(), facts.get("run_number"), sha_now,
+                                   evidence=evidence,
+                                   earlier=_earlier_hygiene(ledger, {str(f["id"]) for f in taken
+                                                                     if f.get("id")})):
+        _fold_accepted(entry, accepted)
+        entry.update(_stamp_outcome(entry, prev_by_id.get(str(entry.get("id")))))
+        findings.append(entry)
+
+    # §10: a `pass` cannot stand over an open Critical. One the scan filed is one the
+    # tester may not have weighed, and the local tier and the sweep weigh nothing:
+    # refusing the state would lose every such run, so the harness caps its own
+    # filing at `pass with risks`, and says so in the ledger block.
+    verdict = judgment.get("verdict")
+    capped_by = [str(f.get("id")) for f in findings if is_hygiene(f) and is_open(f)
+                 and f.get("severity") in ("Critical", "Blocker")]
+    if verdict == "pass" and capped_by:
+        verdict = "pass with risks"
+
     state = {
         "project": facts["project"],
         "schema_version": facts.get("schema_version", 1),
@@ -2013,7 +2088,7 @@ def merge(facts: dict, judgment: dict, previous: dict | None, today: date | None
         **({"verification_notes": facts["verification_notes"]}
            if facts.get("verification_notes") else {}),
         "findings": findings,
-        "verdict": judgment.get("verdict"),
+        "verdict": verdict,
         "release_blockers": judgment.get("release_blockers", []),
         "not_tested": judgment.get("not_tested", []),
         # What was checked and HELD. The first external user said it plainly:
@@ -2026,6 +2101,25 @@ def merge(facts: dict, judgment: dict, previous: dict | None, today: date | None
     for optional in ("run_label", "next_run_focus", "flaky_quarantine", "coverage"):
         if judgment.get(optional) is not None:
             state[optional] = judgment[optional]
+    # Always assigned, so the end-of-merge carry of unknown keys cannot resurrect a
+    # stale ledger.
+    prev_ledger = hygiene_previous((previous or {}).get("hygiene"), root,
+                                   (previous or {}).get("run_number"))
+    state["hygiene"] = hygiene_ledger(hyg, tier2_items(hyg, root, bind), prev_ledger,
+                                      today.isoformat(), facts.get("run_number"), sha_now,
+                                      evidence=evidence)
+    if state["hygiene"].get("status") == "measured":
+        state["hygiene"]["leads"]["followed"] = leads_followed(
+            hyg.get("leads") if isinstance(hyg, dict) else None, findings)
+    # A hygiene finding the judgment named — in `still_open` or `resolved`, or as a
+    # copy — was ignored: the scan settles it. Said where a reader sees it rather than
+    # refused, since a refusal loop costs a run more than it teaches the tester.
+    ignored = _ignored_hygiene_ids(judgment, previous)
+    if ignored:
+        state["hygiene"]["ignored_judgment_ids"] = ignored
+    if verdict != judgment.get("verdict"):
+        state["hygiene"]["verdict_capped"] = {"from": judgment.get("verdict"), "to": verdict,
+                                            "by": capped_by}
     # Every cited line, hashed, so the next run is told where the code moved.
     # The verified-intact items are strings and stay strings; their anchors
     # sit beside them, aligned by index.
@@ -2108,10 +2202,18 @@ INDEX_HEADER = ("| Date | Project | Run type | Verdict | Tests (pass/skip/fail) 
 def _atomic_write(path: Path, text: str) -> None:
     """Write via a temp file and `os.replace`, which is atomic on POSIX and
     Windows alike. Nothing here is large enough for the extra copy to matter,
-    and a torn state.json costs a run at best."""
+    and a torn state.json costs a run at best. A write that fails takes its temp
+    file with it, so nothing half-written is left in the QA root."""
     tmp = path.with_name(path.name + ".tmp")
-    tmp.write_text(text, encoding="utf-8")
-    os.replace(tmp, path)
+    try:
+        tmp.write_text(text, encoding="utf-8")
+        os.replace(tmp, path)
+    except OSError:
+        try:
+            tmp.unlink()
+        except OSError:
+            pass
+        raise
 
 
 def write_state(qa_root: Path, state: dict) -> list[str]:
@@ -2158,6 +2260,7 @@ def write_state(qa_root: Path, state: dict) -> list[str]:
     row["chain"] = chain_link(prev, row)
     state.setdefault("last_run", {})["chain"] = row["chain"]
 
+    _write_hygiene_rows(qa_root, state)
     _atomic_write(qa_root / "state.json", json.dumps(state, indent=2) + "\n")
     # The chain's ratchet lives here rather than in the history it guards: a
     # signal a fabricator can shed by deleting one file is not a signal
@@ -2186,6 +2289,41 @@ def write_state(qa_root: Path, state: dict) -> list[str]:
         body = f"# QA run index — {state['project']}\n\n{INDEX_HEADER}"
     _atomic_write(index, body + "\n" + index_row(state) + "\n")
     return []
+
+
+def _ignored_hygiene_ids(judgment: dict, previous: dict | None) -> list[str]:
+    """The hygiene findings a judgment named, which merge passed over: an id of the
+    previous state's in `still_open` or `resolved`, or a finding marked as one."""
+    theirs = {str(f.get("id")) for f in ((previous or {}).get("findings") or [])
+              if is_hygiene(f) and f.get("id")}
+    named = {str(x) for verb in ("still_open", "resolved")
+             for x in (judgment.get(verb) if isinstance(judgment.get(verb), list) else [])
+             if str(x) in theirs}
+    copies = {str(f.get("id")) for f in (judgment.get("findings") or [])
+              if is_hygiene(f) and f.get("id")}
+    return sorted(named | copies)
+
+
+def _write_hygiene_rows(qa_root: Path, state: dict) -> None:
+    """Move the junk ledger's rows out of the state into `hygiene-ledger.json`, with
+    the run that wrote them — the state keeps the counts and the preview, and the
+    tester, who reads state.json first on every run, no longer reads 119 rows of junk
+    (Sales). Called once the state is accepted, so a refused run leaves last run's
+    rows in place. A file that cannot be written costs the run nothing: the rows stay
+    in the state, where the next run reads them, and `rows_note` says why."""
+    block = state.get("hygiene")
+    if not isinstance(block, dict) or not isinstance(block.get("rows"), list):
+        return
+    doc = {"schema": 1, "run_number": state.get("run_number"), "rows": block["rows"]}
+    try:
+        _atomic_write(Path(qa_root) / HYGIENE_LEDGER_FILE, json.dumps(doc, indent=1) + "\n")
+    except OSError as exc:
+        block["rows_note"] = (f"{HYGIENE_LEDGER_FILE} could not be written "
+                              f"({exc.strerror or type(exc).__name__}): the rows stay here")
+        return
+    block.pop("rows_note", None)
+    del block["rows"]
+    block["rows_file"] = HYGIENE_LEDGER_FILE
 
 
 def check_artifacts(qa_root: Path, state: dict) -> list[str]:
@@ -2265,6 +2403,154 @@ def _resolve_root(repo: Path, explicit: str | None) -> Path:
     return home / derive_key(repo)[0]
 
 
+# The tier-2 rows of this run's hygiene scan, beside facts.json rather than in it.
+HYGIENE_ITEMS_FILE = "hygiene-items.json"
+# The junk ledger's rows, beside state.json rather than in it (write_state).
+HYGIENE_LEDGER_FILE = "hygiene-ledger.json"
+# What the scan vouches for, file by file: finalize's evidence, never the tester's
+# reading, so it travels in the side file with the rows.
+_VOUCHED = ("scanned_paths", "parse_failed_paths", "rls_judged")
+
+
+def split_hygiene(facts: dict, qa_root: Path) -> None:
+    """Move the tier-2 rows out of facts.json, into `<qa_root>/hygiene-items.json`.
+
+    The tester reads facts.json whole on every run, and junk is never a finding:
+    on Sales the hygiene block was 1,301 lines of it, 1,070 of them tier-2 rows
+    there for no decision the tester makes. What stays is what reading needs — the
+    status, the scope, exact counts of every tier, the tier-1 items and the leads
+    — and the name of the file the ledger reads the rest from (`tier2_items`). What
+    the scan vouches for goes with the rows, for finalize alone (`hygiene_evidence`):
+    every path it scanned, the Python files the parser refused, and whether every
+    migration was read — and, for a reader, the uncapped list of paths it could not
+    read (`unread_paths`). A block with no items (the scan was unavailable) moves nothing and names
+    no file; a block already split is left as it is, so a second call cannot empty
+    the file. A side file that cannot be written costs the run nothing: tier 2 and
+    the lists stay inline, where the readers find them, and `tier2_note` says why."""
+    block = facts.get("hygiene")
+    if not isinstance(block, dict) or not isinstance(block.get("items"), list) \
+            or "tier2_file" in block:
+        return
+    rows, kept = [], []
+    for it in block["items"]:
+        (rows if isinstance(it, dict) and it.get("tier") == 2 else kept).append(it)
+    # Bound to this facts run: a side file another run left is no side file at all.
+    side = {"schema": 1, "git_sha": (facts.get("last_run") or {}).get("git_sha"),
+            "measured_at": facts.get("measured_at"), "items": rows,
+            "unread_paths": block.get("unread_paths", []),
+            **{key: block[key] for key in _VOUCHED if key in block}}
+    try:
+        _atomic_write(Path(qa_root) / HYGIENE_ITEMS_FILE, json.dumps(side, indent=1) + "\n")
+    except OSError as exc:
+        block["tier2_note"] = (f"{HYGIENE_ITEMS_FILE} could not be written "
+                               f"({exc.strerror or type(exc).__name__}): tier 2 stays in items")
+        return
+    block.pop("tier2_note", None)
+    block.pop("unread_paths", None)
+    for key in _VOUCHED:
+        block.pop(key, None)
+    block["items"] = kept
+    block["tier2_file"] = HYGIENE_ITEMS_FILE
+    block["tier2_count"] = len(rows)
+    block["reading"] = hygiene_reading(HYGIENE_ITEMS_FILE)
+
+
+def tier2_items(facts_hygiene: dict, qa_root: Path, bind=None) -> list | None:
+    """This run's tier-2 rows, the way the ledger reads them: from the file
+    `split_hygiene` names, or from the block itself when it names none — a facts
+    file written before the split, one reused by --reuse-if-fresh, or one whose side
+    file could not be written, all hold tier 2 inline, and reading that as empty
+    would tell a ledger every row had resolved. None when the named file is
+    missing, unreadable or holds no list of rows: this run's rows are unknown, which
+    is not the same as none, and the ledger resolves nothing on it. A row that is
+    not a well-formed tier-2 item is passed over. Whatever the QA root holds, the
+    ledger gets rows or None, never an error. `bind` is the facts run the file must
+    be (`_side_doc`)."""
+    if not isinstance(facts_hygiene, dict):
+        return []
+    if "tier2_file" not in facts_hygiene:
+        rows = facts_hygiene.get("items")
+        return [it for it in rows if _tier2_row(it)] if isinstance(rows, list) else []
+    side = _hygiene_side(facts_hygiene, qa_root, bind)
+    rows = side.get("items") if side else None
+    if not isinstance(rows, list):
+        return None
+    return [it for it in rows if _tier2_row(it)]
+
+
+def hygiene_evidence(facts_hygiene: dict, qa_root: Path, repo=None, sha=None,
+                     bind=None) -> Evidence:
+    """What this run's scan vouches for, for the lifecycle: the paths it scanned, the
+    Python files the parser refused and whether every migration was read — from the
+    side file, or inline from a block never split — and, for a file it did not read,
+    whether the tree at `sha` still holds it. A side file that cannot be read, or
+    that another facts run wrote (`bind`), vouches for nothing, so nothing resolves by
+    it (a deleted file still does)."""
+    side = _hygiene_side(facts_hygiene, qa_root, bind)
+    block = facts_hygiene if isinstance(facts_hygiene, dict) else {}
+
+    def vouched(key):
+        return side[key] if side and key in side else block.get(key)
+
+    scanned, parse_failed = vouched("scanned_paths"), vouched("parse_failed_paths")
+    return Evidence(scanned=scanned if isinstance(scanned, list) else (),
+                    parse_failed=parse_failed if isinstance(parse_failed, list) else (),
+                    rls_judged=vouched("rls_judged") is True,
+                    absent=(lambda paths: absent_from_tree(repo, sha, paths)) if repo else None)
+
+
+def hygiene_previous(block, qa_root: Path, run_number):
+    """The previous run's ledger block with its rows read back from the file they went
+    to (`write_state`), for `hygiene.ledger` to compare this run's against. A block
+    that still holds its rows — one merged in this process, or one whose file could
+    not be written — is returned as it is. The file must be the one that previous
+    state's own run wrote: a state restored from state.json.prev, or a run killed
+    between the two writes, leaves a file from another run, and comparing against it
+    would resolve rows the state never had. When the rows cannot be read the block is
+    returned without them, and the ledger carries nothing forward and says so."""
+    if not isinstance(block, dict) or isinstance(block.get("rows"), list):
+        return block
+    doc = _side_doc(qa_root, block.get("rows_file"))
+    if (doc is None or type(doc.get("run_number")) is not int or doc["run_number"] != run_number
+            or not isinstance(doc.get("rows"), list)):
+        return block
+    return dict(block, rows=doc["rows"])
+
+
+def _hygiene_side(facts_hygiene: dict, qa_root: Path, bind=None):
+    """The side file a split block names, loaded — or None (`_side_doc`)."""
+    return _side_doc(qa_root, facts_hygiene.get("tier2_file") if isinstance(facts_hygiene, dict)
+                     else None, bind)
+
+
+def _side_doc(qa_root: Path, name, bind=None):
+    """A hygiene file in the QA root, loaded — or None: no file named, a name reaching
+    out of the QA root, a file missing, unreadable or nested past what the parser
+    holds (RecursionError, at about 1,000 levels on 3.9), a schema that is not the
+    integer 1 (`true == 1` in Python, and is no schema), or — given `bind`, the facts
+    run's {git_sha, measured_at} — a file another facts run wrote."""
+    if not isinstance(name, str) or name in ("", ".", "..") or Path(name).name != name:
+        return None
+    try:
+        doc = json.loads((Path(qa_root) / name).read_text(encoding="utf-8"))
+    except (OSError, ValueError, RecursionError):
+        return None
+    if not isinstance(doc, dict) or type(doc.get("schema")) is not int or doc["schema"] != 1:
+        return None
+    if bind is not None and any(doc.get(k) != bind.get(k) for k in ("git_sha", "measured_at")):
+        return None
+    return doc
+
+
+def _tier2_row(it) -> bool:
+    """A tier-2 row in the shape the scan writes one: a junk kind, a str path, an int
+    line (a bool is not one), and str fingerprint, excerpt and why."""
+    return (isinstance(it, dict) and type(it.get("tier")) is int and it["tier"] == 2
+            and it.get("kind") in TIER2_KINDS and isinstance(it.get("path"), str)
+            and type(it.get("line")) is int
+            and all(isinstance(it.get(field), str) for field in ("fingerprint", "excerpt", "why")))
+
+
 def facts_main(argv=None) -> int:
     ap = argparse.ArgumentParser(
         prog="verdict-facts",
@@ -2307,7 +2593,7 @@ def facts_main(argv=None) -> int:
     # into flags on every run is a transcription step, and a transcription step
     # is a place for the model to be confidently wrong. Explicit --gate still
     # wins — a caller narrowing a run should not have to edit the profile.
-    profile_notes, profile_source, declared_authorship, hygiene_setting = [], None, None, None
+    profile_notes, profile_source, declared_authorship, filing = [], None, None, "on"
     if not args.no_profile:
         try:
             config, profile_notes = load_profile(qa_root)
@@ -2322,7 +2608,7 @@ def facts_main(argv=None) -> int:
             profile_source = [n for n, _ in adopted]
         if config.get("authorship"):
             declared_authorship = config["authorship"]
-        hygiene_setting = str(config.get("hygiene") or "").strip().lower() or None
+        filing = hygiene_filing_from(config, profile_notes)
         if args.test_ids_cmd is None and config.get("test_ids_cmd"):
             args.test_ids_cmd = config["test_ids_cmd"]
             profile_notes.append("test_ids_cmd taken from the profile")
@@ -2382,14 +2668,13 @@ def facts_main(argv=None) -> int:
         and (clock.now() - started).total_seconds() / 3600 <= RETRY_WINDOW_HOURS
     archived = archive_findings(qa_root, keep=retry)
     facts = collect(repo, qa_root, gates, args.test_ids_cmd, abandoned=abandoned,
-                    test_one_cmd=args.test_one_cmd, coverage_suite_cmd=args.coverage_suite_cmd)
+                    test_one_cmd=args.test_one_cmd, coverage_suite_cmd=args.coverage_suite_cmd,
+                    hygiene_filing=filing)
     if archived:
         facts["findings_archived"] = archived
     if declared_authorship:
         facts.setdefault("code_census", {}).setdefault("provenance", {})[
             "declared"] = declared_authorship
-    if hygiene_setting == "off" and isinstance(facts.get("hygiene"), dict):
-        facts["hygiene"]["filing"] = "off"   # counted, never filed (profile `hygiene: off`)
     if profile_source:
         facts["gates_from_profile"] = profile_source
     if profile_notes:
@@ -2405,6 +2690,7 @@ def facts_main(argv=None) -> int:
     ids = facts.pop("_test_ids", None)
     if ids is not None:
         (qa_root / "test-ids.txt").write_text("\n".join(ids) + "\n", encoding="utf-8")
+    split_hygiene(facts, qa_root)
     text = json.dumps(facts, indent=2)
     # The QA root's copy is the one the gate, the scorer and the stop hook read as "facts
     # were measured for this run"; `--out` is a second copy, as its help has always said.
@@ -2487,7 +2773,13 @@ def _re_report(judgment: dict, previous: dict | None, facts: dict) -> list[str]:
     The verb is cheap on purpose — run 14 re-typed eighteen findings to say
     "still there" — and the harness keeps it honest: an id whose cited code
     changed or vanished since the evidence was written (`evidence_drift`, T-1)
-    is refused, because the evidence no longer says what the finding says."""
+    is refused, because the evidence no longer says what the finding says.
+
+    A hygiene finding named by either verb expands to nothing: the scan re-measures
+    it every run (reconcile), and the tester's word neither keeps it open nor
+    closes it. The local tier and the sweep name every open id in `still_open`,
+    and the copy — which carries no `source` — would stand beside the harness's
+    own finding under the same id."""
     prev_by_id = {str(f.get("id")): f for f in ((previous or {}).get("findings") or [])
                   if isinstance(f, dict) and f.get("id")}
     drift = ((facts.get("evidence_drift") or {}).get("findings") or {}) \
@@ -2498,6 +2790,8 @@ def _re_report(judgment: dict, previous: dict | None, facts: dict) -> list[str]:
             prior = prev_by_id.get(str(fid))
             if prior is None:
                 continue            # validate_judgment has already refused it
+            if is_hygiene(prior):
+                continue            # the harness's own: re-measured, never carried by word
             d = drift.get(str(fid)) if verb == "still_open" else None
             if isinstance(d, dict) and d.get("drift") in ("changed", "missing"):
                 refs = ", ".join(f"{r.get('ref')} ({r.get('status')})" for r in d.get("refs") or []
@@ -2677,7 +2971,7 @@ def finalize_main(argv=None) -> int:
             f["filed_at"] = src["filed_at"]
 
     state = merge(facts, judgment, previous, ledger=load_outcomes(qa_root),
-                  accepted=load_accepted(qa_root))
+                  accepted=load_accepted(qa_root), qa_root=qa_root)
     # Folded in memory; the ledger is saved only once the state is accepted (questions.fold).
     asked, qnotes, qledger = questions.fold(
         qa_root, questions.id_prefix(state["findings"], state["project"]),
@@ -2967,6 +3261,23 @@ def _judge_line(state: dict, last: dict) -> list:
     return [" · ".join(parts)]
 
 
+def _hygiene_lines(state: dict) -> list[str]:
+    """What the scan's ledger could not do this run, and what a judgment said that it
+    ignored — said under the scope, where a reader looks before trusting the counts."""
+    block = state.get("hygiene") if isinstance(state.get("hygiene"), dict) else {}
+    out = []
+    if (block.get("summary") or {}).get("prior_unread"):
+        out.append(f"- Hygiene ledger: last run's hygiene rows could not be read ({HYGIENE_LEDGER_FILE} "
+                   "missing, unreadable, or written by another run) — nothing was carried forward: "
+                   "every row this run is NEW, and none was resolved")
+    ids = block.get("ignored_judgment_ids") or []
+    if ids:
+        out.append(f"- Hygiene findings the judgment named, and ignored: {', '.join(map(str, ids))} — "
+                   "the scan's own: each resolves when the scan stops seeing it, never on a "
+                   "judgment's word")
+    return out
+
+
 def render_report(state: dict, prose: dict | None = None) -> str:
     """Render the report from the state, injecting the agent's prose.
 
@@ -3014,6 +3325,7 @@ def render_report(state: dict, prose: dict | None = None) -> str:
         detail = iso.get("method") or iso.get("note") or ""
         out.append(f"- Isolation check: **{iso.get('result', iso.get('status', 'n/a'))}**"
                    + (f" — {detail}" if detail else ""))
+    out += _hygiene_lines(state)
     if prose.get("scope"):
         out += ["", prose["scope"]]
 

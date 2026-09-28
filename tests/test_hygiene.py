@@ -1004,3 +1004,138 @@ def test_line_numbers_from_the_line_scan_survive_u2028_too(tmp_path):
     r = make_repo(tmp_path, {"web/app.js": 'const s = "one\u2028two";\nconsole.log(s);\n'})
     item = [i for i in hygiene_census(r)["items"] if i["kind"] == "console_debug"][0]
     assert item["line"] == 2
+
+
+# ── the PR 1 review: what must hold before finalize files tier 1 ──────────
+# Tier 1 is about to be filed with no model in the loop, so each of these is a
+# false positive or a missed secret that would reach a real project's verdict.
+# Credentials are built at run time, as above.
+
+def test_a_client_secret_named_in_a_config_or_shell_comment_is_not_a_finding(tmp_path):
+    r = make_repo(tmp_path, {
+        ".env.example": "# never add NEXT_PUBLIC_STRIPE_SECRET_KEY here\nNEXT_PUBLIC_API_URL=http://localhost:3000\n",
+        ".github/workflows/ci.yml": ("env:\n  # NEXT_PUBLIC_SUPABASE_SERVICE_ROLE_KEY must never be set here\n"
+                                     "  NODE_ENV: test\n"),
+        ".github/workflows/deploy.yml": "env:\n  NEXT_PUBLIC_JWT_SECRET: ${{ secrets.JWT_SECRET }}  # set in CI\n",
+        "infra/main.tf": "# NEXT_PUBLIC_DB_PASSWORD is never an output\nresource \"null_resource\" \"x\" {}\n",
+        "Dockerfile.prod": "# do not ARG VITE_API_SECRET here\nFROM node:20\n",
+        "config/app.toml": 'name = "shop"  # not VITE_SIGNING_SECRET\n',
+        "deploy/release.sh": ('echo "a#b $NEXT_PUBLIC_PAY_SECRET"\n'
+                              "curl http://x/#anchor?k=$VITE_ADMIN_PASSWORD\n"),
+    })
+    found = sorted((i["path"], i["line"], i["excerpt"]) for i in hygiene_census(r)["items"]
+                   if i["kind"] == "public_env_secret")
+    assert found == [(".github/workflows/deploy.yml", 2, "NEXT_PUBLIC_JWT_SECRET"),
+                     ("deploy/release.sh", 1, "NEXT_PUBLIC_PAY_SECRET"),
+                     ("deploy/release.sh", 2, "VITE_ADMIN_PASSWORD")], \
+        "a comment names a variable; a quoted #, a URL's #anchor and a trailing comment do not hide one"
+
+
+def test_a_public_word_makes_only_a_key_or_a_token_public(tmp_path):
+    # SITE and SEARCH say RECAPTCHA_SITE_KEY and ALGOLIA_SEARCH_KEY are meant for the
+    # browser. They say nothing of a password, a secret, or an admin key beside them.
+    hexd = "0123456789abcdef"
+    secret = {
+        "s1/.env": "SITE_ADMIN_PASSWORD=" + token(24, 311) + "\n",
+        "s2/.env": "SITE_SECRET=" + token(40, 312) + "\n",
+        "s3/.env": "AZURE_SEARCH_ADMIN_KEY=" + token(52, 313) + "\n",
+    }
+    public = {
+        "p1/.env": "ALGOLIA_SEARCH_KEY=" + token(32, 314, hexd) + "\n",
+        "p2/.env": "RECAPTCHA_SITE_KEY=6Lc" + token(37, 315) + "\n",
+    }
+    out = hygiene_census(make_repo(tmp_path, {**secret, **public}))
+    tier1 = sorted((i["kind"], i["path"], i["excerpt"]) for i in out["items"] if i["tier"] == 1)
+    assert tier1 == [("secret_file_tracked", "s1/.env", ".env committed, sets SITE_ADMIN_PASSWORD"),
+                     ("secret_file_tracked", "s2/.env", ".env committed, sets SITE_SECRET"),
+                     ("secret_file_tracked", "s3/.env", ".env committed, sets AZURE_SEARCH_ADMIN_KEY")]
+    committed = sorted(lead["path"] for lead in out["leads"] if lead["kind"] == "env_file_committed")
+    assert committed == ["p1/.env", "p2/.env"]
+
+
+def test_an_rls_file_too_large_to_read_blocks_rls_filing_and_is_named(tmp_path, monkeypatch):
+    monkeypatch.setattr(hygiene, "MAX_BYTES", 400)
+    schema = ("".join(f"create table t{i}(id int);\n" for i in range(40))
+              + "alter table orders enable row level security;\n")
+    r = make_repo(tmp_path, {
+        "db/migrations/001_orders.sql": ("create table orders(id int);\n"
+                                         "alter table orders disable row level security;\n"),
+        "db/schema.sql": schema,
+    })
+    out = hygiene_census(r)
+    assert kinds(out, 1) == [], "the enable that undoes the disable is in the file nobody read"
+    # Named apart from the failures: a committed dump would leave every run partial,
+    # and a partial scan resolves nothing.
+    assert out["status"] == "measured"
+    assert out["scope"] == {"files": 1, "capped": False, "file_cap": hygiene.FILE_CAP, "failed": 0,
+                            "rls_unread": ["db/schema.sql"]}
+
+
+def test_a_google_key_is_one_lead_per_platform_across_the_repository(tmp_path):
+    # A key carries one kind of application restriction — websites, Android apps, iOS
+    # apps or IP addresses — so the same key in an Android build and on a web page is
+    # two things to check. Pasted into every template of one site, it is one.
+    gkey = "AI" + "za" + token(35, 321)
+    other = "AI" + "za" + token(35, 322)
+    tag = f'<script src="https://maps.example.io/js?key={gkey}"></script>\n'
+    r = make_repo(tmp_path, {
+        "templates/checkout.html": "<h1>Pay</h1>\n" + tag,
+        "templates/about.html": tag,
+        "web/src/maps.js": f'export const key = "{gkey}";\nexport const geo = "{other}";\n',
+        "android/app/src/main/AndroidManifest.xml": (
+            f'<meta-data android:name="com.google.android.geo.API_KEY" android:value="{gkey}"/>\n'),
+    })
+    out = hygiene_census(r)
+    leads = sorted((lead["path"], lead["line"]) for lead in out["leads"] if lead["kind"] == "google_api_key")
+    assert leads == [("android/app/src/main/AndroidManifest.xml", 1), ("templates/about.html", 1),
+                     ("web/src/maps.js", 2)]
+    assert gkey not in json.dumps(out) and other not in json.dumps(out)
+
+
+def test_admin_and_master_qualify_a_key_and_never_name_a_credential_alone(tmp_path):
+    # ADMIN_WALLET holds an address anyone may see, and MASTER_PUBLIC_KEY an xpub; an
+    # admin's key, token or password is still one. Every value here looks live, so
+    # the name alone decides.
+    hexd, b58 = "0123456789abcdef", "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz"
+    uid = token(34, 338, hexd)
+    not_credentials = {
+        "ADMIN_WALLET": "0x" + token(40, 331, hexd),
+        "MASTER_PUBLIC_KEY": "xpub6" + token(105, 332, b58),
+        "ADMIN_ADDRESS": "0x" + token(40, 333, hexd),
+        "ADMIN_PUBLIC_KEY": token(44, 334),
+        "ADMIN_ROLE_ARN": "arn:aws:iam::" + token(12, 335, "0123456789")[:12] + ":role/" + token(12, 336),
+        "ADMIN_DOMAIN": token(12, 337).lower() + ".acme-corp.io",
+        "ADMIN_USER_UUID": f"{uid[:8]}-{uid[8:12]}-{uid[12:16]}-{uid[16:20]}-{uid[20:32]}",
+    }
+    credentials = {
+        "AZURE_SEARCH_ADMIN_KEY": token(52, 341),
+        "SITE_ADMIN_PASSWORD": token(24, 342),
+        "WALLET_PRIVATE_KEY": token(64, 343, hexd),
+        "MASTER_KEY": token(40, 344),
+        "ADMIN_TOKEN": token(40, 345),
+        "STRIPE_ADMIN_API_KEY": token(40, 346),
+    }
+    public = {"ALGOLIA_SEARCH_KEY": token(32, 347, hexd), "RECAPTCHA_SITE_KEY": "6Lc" + token(37, 348)}
+    everything = {**not_credentials, **credentials, **public}
+    out = hygiene_census(make_repo(tmp_path, {f"{name.lower()}/.env": f"{name}={value}\n"
+                                              for name, value in everything.items()}))
+    filed = sorted(i["excerpt"] for i in out["items"] if i["kind"] == "secret_file_tracked")
+    assert filed == sorted(f".env committed, sets {name}" for name in credentials)
+    committed = sorted(lead["path"] for lead in out["leads"] if lead["kind"] == "env_file_committed")
+    assert committed == sorted(f"{name.lower()}/.env" for name in {**not_credentials, **public})
+
+
+def test_terraform_make_just_and_procfile_comments_name_no_client_variable(tmp_path):
+    r = make_repo(tmp_path, {
+        "infra/main.tf": ('// NEXT_PUBLIC_H_SECRET is banned\n'
+                          'locals { u = "http://x/#${var.NEXT_PUBLIC_REAL_SECRET}" }\n'),
+        "infra/prod.tfvars": "/*\n  NEXT_PUBLIC_I_SECRET\n*/\nregion = \"eu\"\n",
+        "infra/app.hcl": "x = 1 // NEXT_PUBLIC_L_SECRET is not read\n",
+        "Makefile": ("# NEXT_PUBLIC_J_SECRET must not be exported\n"
+                     "export NEXT_PUBLIC_M_SECRET := $(shell cat k) # set by CI\n"),
+        "Justfile": "# NEXT_PUBLIC_K_SECRET stays server-side\nbuild:\n    npm run build\n",
+        "Procfile": "# NEXT_PUBLIC_P_SECRET is never passed\nweb: node server.js\n",
+    })
+    found = sorted((i["path"], i["line"], i["excerpt"]) for i in hygiene_census(r)["items"]
+                   if i["kind"] == "public_env_secret")
+    assert found == [("Makefile", 2, "NEXT_PUBLIC_M_SECRET"), ("infra/main.tf", 2, "NEXT_PUBLIC_REAL_SECRET")]

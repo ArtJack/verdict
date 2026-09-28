@@ -613,7 +613,10 @@ def sweep_blockers(facts: dict, previous: dict, changed, today) -> list[str]:
     else:
         cited = set()
         for f in previous.get("findings") or []:
-            if not isinstance(f, dict) or norm_status(f.get("status")) in ("resolved", "withdrawn"):
+            # A hygiene finding is re-measured by the sweep's own scan: a file only it
+            # cites has nothing a model must read.
+            if not isinstance(f, dict) or f.get("source") == "hygiene" \
+                    or norm_status(f.get("status")) in ("resolved", "withdrawn"):
                 continue
             cited |= {str(a.get("path")).replace("\\", "/") for a in (f.get("anchors") or [])
                       if isinstance(a, dict) and a.get("path")}
@@ -653,6 +656,19 @@ def sweep_blockers(facts: dict, previous: dict, changed, today) -> list[str]:
     return why
 
 
+def uncapped_verdict(previous: dict):
+    """The verdict a sweep carries: the tester's own, from before finalize capped it
+    over a Critical the hygiene scan filed. The cap belongs to the Critical, not to
+    the verdict — finalize applies it again while the Critical is open, and a sweep
+    that carried the capped verdict would keep `pass with risks` long after the key
+    was gone. Read only when the record says the verdict it holds is that cap."""
+    capped = (previous.get("hygiene") or {}).get("verdict_capped") \
+        if isinstance(previous.get("hygiene"), dict) else None
+    if isinstance(capped, dict) and capped.get("to") == previous.get("verdict") and capped.get("from"):
+        return capped["from"]
+    return previous.get("verdict")
+
+
 def sweep_judgment(facts: dict, previous: dict, changed: list, commits,
                    notes: list | None = None) -> dict:
     """The synthetic judgment of a sweep: the previous verdict, every open
@@ -664,14 +680,17 @@ def sweep_judgment(facts: dict, previous: dict, changed: list, commits,
     by the cheapest run in the system (P-32). `notes` carries anything the caller
     measured and the sweep itself cannot know, such as a gateway that was down.
     """
+    # A hygiene finding is not carried by id: the sweep's own scan re-measures it, and
+    # naming it would only record it as ignored (state.hygiene.ignored_judgment_ids).
     open_ids = [str(f["id"]) for f in previous.get("findings") or []
-                if isinstance(f, dict) and f.get("id") and norm_status(f.get("status")) == "open"]
+                if isinstance(f, dict) and f.get("id") and norm_status(f.get("status")) == "open"
+                and f.get("source") != "hygiene"]
     sha_range = (facts.get("last_run") or {}).get("sha_range")
     n = f"{commits} commit{'' if commits == 1 else 's'}" if commits is not None else "commits"
     m = f"{len(changed)} file{'' if len(changed) == 1 else 's'}"
     return {
         "topic": "sweep",
-        "verdict": previous.get("verdict"),
+        "verdict": uncapped_verdict(previous),
         "isolation_check": {"result": "n/a", "method": "model-free sweep: no agent ran; "
                             "verdict-facts read the checkout and wrote only inside the QA root"},
         "full_sweep": False,
@@ -691,6 +710,25 @@ def sweep_judgment(facts: dict, previous: dict, changed: list, commits,
                   "notes": "No agent ran. The previous verdict is carried because nothing it "
                            "rested on moved; the next model run judges the change on its merits."},
     }
+
+
+def swept_verdict(qa_root, previous: dict) -> str:
+    """What the sweep wrote, said as such. It carries the tester's verdict
+    (`uncapped_verdict`), and a Critical the hygiene scan files, or still sees, caps a
+    `pass` at `pass with risks`: the line said "'pass' carried" over a state that held
+    the cap."""
+    carried = uncapped_verdict(previous)
+    try:
+        state = json.loads((Path(qa_root) / "state.json").read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        state = {}
+    written = state.get("verdict") if isinstance(state, dict) else None
+    if written is None or written == carried:
+        return f"verdict {carried!r} carried"
+    capped = ((state.get("hygiene") or {}).get("verdict_capped") or {}).get("by") or []
+    return (f"verdict {written!r} written, not the carried {carried!r}"
+            + (f" — capped by {', '.join(map(str, capped))}, filed by the hygiene scan"
+               if capped else ""))
 
 
 def sweep(repo, qa_root, project, fail_on, require_harness, before, notes=None) -> int | None:
@@ -734,8 +772,8 @@ def sweep(repo, qa_root, project, fail_on, require_harness, before, notes=None) 
     print(f"verdict-run: swept — run {before + 1}: HEAD moved "
           f"{commits if commits is not None else '?'} commit(s), {len(changed or [])} file(s) "
           f"changed, none cited by a finding; gates green ({counts}); test-id set unchanged; "
-          f"no quarantine due; no cited line moved — verdict {previous.get('verdict')!r} "
-          "carried, no model call", file=sys.stderr)
+          f"no quarantine due; no cited line moved — {swept_verdict(qa_root, previous)}, "
+          "no model call", file=sys.stderr)
     result = evaluate(project, fail_on, None, before + 1, require_harness=require_harness)
     print(f"verdict-run: verdict {result.get('verdict')!r} → exit {result['exit_code']} "
           f"({result['reason']})")

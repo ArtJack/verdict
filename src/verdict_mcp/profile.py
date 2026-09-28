@@ -132,6 +132,27 @@ def gates_from(config: dict) -> list[tuple[str, str]]:
             if command]
 
 
+_HYGIENE_OFF = ("off", "false", "no")
+
+
+def hygiene_filing_from(config: dict, notes: list) -> str:
+    """The profile's `hygiene:` setting, as the scan takes it: "off" for off, false or
+    no in any case — every tier still counted, nothing filed — and "on" otherwise.
+
+    Both engines read it here, so the setting means the same thing on each. A value
+    it cannot read leaves filing on and adds a note: a typo must never be what turns
+    a control off, and must not pass for a setting that took."""
+    value = config.get("hygiene")
+    if isinstance(value, str):
+        value = value.strip()
+    if not value:
+        return "on"
+    if isinstance(value, str) and value.lower() in _HYGIENE_OFF:
+        return "off"
+    notes.append(f"hygiene: '{value}' is not understood — filing stays on")
+    return "on"
+
+
 def main(argv=None) -> int:
     """`python3 profile.py <qa-root>` — show what a profile would contribute."""
     import json

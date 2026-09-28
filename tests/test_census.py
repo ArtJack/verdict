@@ -8,6 +8,7 @@ reader to ignore it, which is worse than not having it.
 """
 
 import json
+import os
 import subprocess
 
 import pytest
@@ -188,3 +189,70 @@ def test_tree_lines_are_numbered_like_an_editor_even_with_u2028(tmp_path):
     (tmp_path / "a.py").write_text('s = "one two"\n# TODO: here\n', encoding="utf-8")
     lines, _, _ = _tree_lines(tmp_path)
     assert [(p, n) for p, n, t in lines if "TODO" in t] == [("a.py", 2)]
+
+
+def test_a_lone_carriage_return_stays_inside_its_line_in_the_tree_and_in_the_diff(repo):
+    """Lines break at "\\n", as git numbers them, so a lone CR stays inside its line
+    and the TODO after one is on line 1 in the tree and in the diff alike. The diff
+    once lost it altogether: read in text mode, the CR became a newline across the
+    whole diff, and the piece after it no longer began with "+". A CRLF file is
+    numbered one line per CRLF, not two."""
+    base = subprocess.run(["git", "rev-parse", "HEAD"], cwd=repo,
+                          capture_output=True, text=True).stdout.strip()
+    (repo / "a.py").write_bytes(b"x = 1\r# TODO: here\n")
+    (repo / "b.py").write_bytes(b"y = 1\r\n# TODO: there\r\n")
+    git(["add", "-A"], repo)
+    git(["commit", "-qm", "a lone CR"], repo)
+    for sha_range in (None, f"{base}..HEAD"):
+        todo = code_census(repo, sha_range)["placeholders"]["samples"].get("todo")
+        assert todo == ["a.py:1 x = 1\r# TODO: here", "b.py:2 # TODO: there"], sha_range
+
+
+def _range_adding(repo, before: dict, after: dict):
+    """Commit `before`, then `after`, and return the range between them."""
+    for name, data in before.items():
+        (repo / name).write_bytes(data)
+    git(["add", "-A"], repo)
+    git(["commit", "-qm", "before"], repo)
+    base = subprocess.run(["git", "rev-parse", "HEAD"], cwd=repo,
+                          capture_output=True, text=True).stdout.strip()
+    for name, data in after.items():
+        (repo / name).write_bytes(data)
+    git(["add", "-A"], repo)
+    git(["commit", "-qm", "after"], repo)
+    return f"{base}..HEAD"
+
+
+def test_the_diff_is_read_by_position_so_content_never_passes_for_a_header(repo):
+    """Inside a hunk every `+` line is content: an added `++i;` is a line, not a header
+    to skip, and an added `++ b/x.py` under a removed `-- comment` names no file. A
+    new file is charged to its own name: a non-ASCII one, which git quotes by default,
+    and one holding a space, which git follows with a tab."""
+    from verdict_mcp.census import _added_lines
+    sha_range = _range_adding(
+        repo,
+        {"a.c": b"int x;\n", "m.sql": b"-- comment\nselect 1;\n", "z.py": b"z = 0\n"},
+        {"a.c": b"int x;\n++i;\nint y;\n", "m.sql": b"++ b/x.py\nselect 2;\n",
+         "z.py": b"z = 0\nz = 1\n", "ф.py": b"q = 1\n", "my file.py": b"e = 1\n"})
+    assert sorted(_added_lines(repo, sha_range)) == [
+        ("a.c", 2, "++i;"), ("a.c", 3, "int y;"),
+        ("m.sql", 1, "++ b/x.py"), ("m.sql", 2, "select 2;"),
+        ("my file.py", 1, "e = 1"), ("z.py", 2, "z = 1"), ("ф.py", 1, "q = 1")]
+
+
+@pytest.mark.skipif(os.name == "nt", reason="a double quote or a tab cannot be in a Windows file name")
+def test_a_name_git_still_quotes_is_read_back(repo):
+    from verdict_mcp.census import _added_lines
+    sha_range = _range_adding(repo, {"seed.py": b"s = 1\n"},
+                              {'a"b.py': b"w = 1\n", "tab\there.py": b"r = 1\n"})
+    assert sorted(_added_lines(repo, sha_range)) == [('a"b.py', 1, "w = 1"), ("tab\there.py", 1, "r = 1")]
+
+
+def test_the_tree_and_the_diff_number_a_line_alike(repo):
+    """A -U0 diff cannot see a CR in a line it did not change, so neither function
+    breaks a line at a lone CR: `a = 1\\rb = 2` unchanged above an appended `c = 3`
+    puts it on line 2 in the tree and in the diff alike, as git numbers it."""
+    from verdict_mcp.census import _added_lines, _tree_lines
+    sha_range = _range_adding(repo, {"f.py": b"a = 1\rb = 2\n"}, {"f.py": b"a = 1\rb = 2\nc = 3\n"})
+    assert [(p, n) for p, n, t in _added_lines(repo, sha_range) if t == "c = 3"] == [("f.py", 2)]
+    assert [(p, n) for p, n, t in _tree_lines(repo)[0] if t == "c = 3"] == [("f.py", 2)]

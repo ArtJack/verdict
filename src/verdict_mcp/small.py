@@ -64,9 +64,9 @@ from pathlib import Path
 try:
     from .anchors import line_sha, refs_in
     from .harness import (RETRY_WINDOW_HOURS, _git, _parse_marker_time, _run_test, collect,
-                          finalize_main, finding_hash, is_test_file)
+                          finalize_main, finding_hash, is_test_file, split_hygiene)
     from .filed import FINDINGS_DIR, archive_findings
-    from .profile import ProfileError, gates_from
+    from .profile import ProfileError, gates_from, hygiene_filing_from
     from .profile import load as load_profile
     from .reports import read_report
     from .project_key import derive_key
@@ -79,9 +79,9 @@ except ImportError:  # bare-script execution
     import clock
     from anchors import line_sha, refs_in
     from harness import (RETRY_WINDOW_HOURS, _git, _parse_marker_time, _run_test, collect,
-                         finalize_main, finding_hash, is_test_file)
+                         finalize_main, finding_hash, is_test_file, split_hygiene)
     from filed import FINDINGS_DIR, archive_findings
-    from profile import ProfileError, gates_from
+    from profile import ProfileError, gates_from, hygiene_filing_from
     from profile import load as load_profile
     from reports import read_report
     from project_key import derive_key
@@ -1224,8 +1224,10 @@ def partition_prior(previous: dict | None, facts: dict) -> tuple:
     for f in (previous or {}).get("findings") or []:
         if not isinstance(f, dict) or not f.get("id"):
             continue
-        if norm_status(f.get("status")) != "open":
-            continue        # accepted, resolved and withdrawn are the harness's to carry
+        if norm_status(f.get("status")) != "open" or f.get("source") == "hygiene":
+            # accepted, resolved and withdrawn are the harness's to carry — and so is a
+            # hygiene finding, which the scan re-measures every run
+            continue
         fid = str(f["id"])
         drift, moved = drift_of(facts, fid)
         if measured_resolution(facts, fid):
@@ -1792,8 +1794,13 @@ def measure(repo: Path, qa_root: Path, gates: list, config: dict, sha_range,
     the id ledger it is checked against, and the reading order needs the changed
     lines nothing executed. The housekeeping `facts_main` does comes with them:
     the run marker before the gates, last run's finding files moved aside, and
-    the collected ids written down.
+    the collected ids written down. So does the profile's `hygiene:` setting,
+    which 0.91.0 read in `facts_main` alone: `hygiene: off` filed nothing there
+    and everything here, on the engine that runs every night. And the junk rows
+    leave the facts for their own file, as they do there, before `run` writes
+    facts.json for the first time.
     """
+    filing = hygiene_filing_from(config, profile_notes)
     marker_path = qa_root / "run-in-progress.json"
     abandoned = read_json(marker_path)
     head = _git(["rev-parse", "HEAD"], repo)
@@ -1806,11 +1813,13 @@ def measure(repo: Path, qa_root: Path, gates: list, config: dict, sha_range,
     archived = archive_findings(qa_root, keep=retry)
     facts = collect(repo, qa_root, gates, config.get("test_ids_cmd"), abandoned=abandoned,
                     test_one_cmd=config.get("test_one_cmd"),
-                    coverage_suite_cmd=config.get("coverage_suite_cmd"), sha_range=sha_range)
+                    coverage_suite_cmd=config.get("coverage_suite_cmd"), sha_range=sha_range,
+                    hygiene_filing=filing)
     facts.pop("_added_test_ids", None)
     ids = facts.pop("_test_ids", None)
     if ids is not None:
         (qa_root / "test-ids.txt").write_text("\n".join(ids) + "\n", encoding="utf-8")
+    split_hygiene(facts, qa_root)
     if archived:
         facts["findings_archived"] = archived
     if profile_notes:
@@ -2003,7 +2012,8 @@ def run(repo: Path, qa_root: Path, model: Model, limit: int, gate: str | None,
 
     # 5. Every prior open finding is mentioned — A, B or C, and nothing else.
     prior_open = [str(f.get("id")) for f in (previous or {}).get("findings") or []
-                  if isinstance(f, dict) and f.get("id") and norm_status(f.get("status")) == "open"]
+                  if isinstance(f, dict) and f.get("id") and norm_status(f.get("status")) == "open"
+                  and f.get("source") != "hygiene"]
     resolved_ids, still_open_ids, to_refile = partition_prior(previous, facts)
     by_id = {str(f.get("id")): f for f in (previous or {}).get("findings") or []
              if isinstance(f, dict) and f.get("id")}
@@ -2166,8 +2176,19 @@ def run(repo: Path, qa_root: Path, model: Model, limit: int, gate: str | None,
         print(f"verdict-local: {proven} claim(s) proven by counterfactual, {disproven} "
               f"withdrawn before filing", file=sys.stderr)
     print_summary(model, files, examined, filed, refiled, resolved_ids, still_open_ids,
-                  verdict, owed, budget)
+                  written_verdict(qa_root, verdict) if code == 0 else verdict, owed, budget,
+                  engine_verdict=verdict)
     return code
+
+
+def written_verdict(qa_root: Path, fallback: str) -> str:
+    """The verdict the state holds. This engine's own arithmetic cannot see a Critical
+    the hygiene scan files at finalize, which caps a `pass` at `pass with risks`."""
+    try:
+        state = json.loads((qa_root / "state.json").read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return fallback
+    return str(state.get("verdict") or fallback) if isinstance(state, dict) else fallback
 
 
 def leads_text(leads) -> str:
@@ -2226,10 +2247,14 @@ def not_tested_lines(model: Model, files: list, examined: int, prior_open: list,
 
 def print_summary(model: Model, files: list, examined: int, filed: list, refiled: list,
                   resolved: list, still_open: list, verdict: str, owed: dict,
-                  budget: Budget) -> None:
-    """At most fifteen lines, ending on the number this whole release is about."""
+                  budget: Budget, engine_verdict: str | None = None) -> None:
+    """At most fifteen lines, ending on the number this whole release is about.
+    `verdict` is the one the state holds; `engine_verdict`, this engine's own, is
+    named when finalize capped it."""
     lines = [
-        f"verdict-local: verdict {verdict!r}",
+        f"verdict-local: verdict {verdict!r}"
+        + (f" (this engine's {engine_verdict!r}, capped at finalize by a Critical the "
+           "hygiene scan filed)" if engine_verdict and engine_verdict != verdict else ""),
         f"  read       {examined} function(s) in {len(files)} file(s)"
         + (f", {budget.skipped} skipped — {budget.stopped}" if budget.stopped else ""),
         f"  filed      {len(filed)} finding(s), {len(refiled)} of them re-filed unread",

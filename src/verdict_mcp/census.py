@@ -86,33 +86,97 @@ _AI_TRAILER = re.compile(
 _SAMPLE_CAP = 12  # locations shown per category; the count is always complete
 
 
-def _git(args, repo):
+def _git(args, repo, text=True):
     proc = subprocess.run(["git", "-C", str(repo), *args],
-                          capture_output=True, text=True)
+                          capture_output=True, text=text)
     return proc.stdout if proc.returncode == 0 else None
 
 
+# git diff as this module parses it, whatever the user's configuration says: names
+# unquoted where git allows it, no colour codes, no external diff or text
+# conversion standing in for the content, and the a/ b/ prefixes the headers are
+# read with.
+_DIFF = ("-c", "core.quotePath=false", "diff", "--unified=0", "--no-color", "--no-ext-diff",
+         "--no-textconv", "--src-prefix=a/", "--dst-prefix=b/")
+_C_ESCAPES = {"a": "\a", "b": "\b", "t": "\t", "n": "\n", "v": "\v", "f": "\f", "r": "\r",
+              '"': '"', "\\": "\\"}
+
+
 def _added_lines(repo, sha_range):
-    """(path, new_lineno, text) for every line the range added."""
-    diff = _git(["diff", "--unified=0", sha_range], repo)
+    """(path, new_lineno, text) for every line the range added.
+
+    Read by position, never by prefix alone. Each `diff --git` starts a file with no
+    name yet; its `+++ ` header names it, and is read only before the first `@@`.
+    From there on every line starting with "+" is content: an added `++i;`, or an
+    added `++ b/x.py` under a removed `-- comment`, was once taken for a header —
+    the one line dropped and every later one misnumbered or charged to a file that
+    does not exist.
+
+    Lines are numbered as git numbers them, at "\\n" alone: CRLF is folded, and a
+    lone CR stays inside its line, as `_tree_lines` leaves it. A -U0 diff cannot see
+    a CR in a line it did not change, so breaking at one anywhere would number the
+    tree and the diff apart. The diff is read as bytes: in text mode every CR became
+    a newline across the whole diff, and the piece after one, no longer starting
+    with "+", was dropped."""
+    diff = _git([*_DIFF, sha_range], repo, text=False)
     if diff is None:
         return None
-    out, path, lineno = [], None, 0
-    for raw in diff.split("\n"):
-        if raw.startswith("+++ b/"):
-            path = raw[6:]
+    out, path, lineno, in_hunk = [], None, 0, False
+    for raw in diff.decode("utf-8", errors="replace").replace("\r\n", "\n").split("\n"):
+        if raw.startswith("diff --git "):
+            path, in_hunk = None, False
         elif raw.startswith("@@"):
             m = re.search(r"\+(\d+)", raw)
-            lineno = int(m.group(1)) if m else 0
-        elif raw.startswith("+") and not raw.startswith("+++"):
+            in_hunk, lineno = True, int(m.group(1)) if m else 0
+        elif not in_hunk:
+            if raw.startswith("+++ "):
+                path = _header_path(raw[4:])
+        elif raw.startswith("+"):
             if path is not None:
                 out.append((path, lineno, raw[1:]))
             lineno += 1
     return out
 
 
+def _header_path(name: str):
+    """The file a `+++ ` header names, or None: /dev/null, or a name this cannot read,
+    so that nothing is charged to the wrong file. git ends a name holding a space
+    with a tab, and still quotes one holding a quote or a control character."""
+    if name.endswith("\t"):
+        name = name[:-1]
+    if name.startswith('"'):
+        name = _unquote(name)
+    return name[2:] if name and name.startswith("b/") else None
+
+
+def _unquote(quoted: str):
+    """A name git wrote in C-style quotes, read back — None when it is not one."""
+    if len(quoted) < 2 or not quoted.endswith('"'):
+        return None
+    body, out, i = quoted[1:-1], bytearray(), 0
+    while i < len(body):
+        if body[i] != "\\":
+            out += body[i].encode("utf-8")
+            i += 1
+        elif body[i + 1:i + 2] in _C_ESCAPES:
+            out += _C_ESCAPES[body[i + 1]].encode("utf-8")
+            i += 2
+        elif re.fullmatch(r"[0-7]{3}", body[i + 1:i + 4]):
+            out.append(int(body[i + 1:i + 4], 8))     # a byte of a name, in octal
+            i += 4
+        else:
+            return None
+    try:
+        return out.decode("utf-8")
+    except UnicodeDecodeError:
+        return None
+
+
 def _tree_lines(repo):
-    """(path, lineno, text) over the tree, capped — with the cap reported."""
+    """(path, lineno, text) over the tree, capped — with the cap reported. Each file
+    is read as bytes and numbered the way `_added_lines` numbers a diff, at "\\n"
+    alone with CRLF folded, rather than by the platform's text mode, which also
+    breaks at a lone CR."""
     files, capped = [], False
     for p in sorted(Path(repo).rglob("*")):
         if p.suffix not in _SOURCE_SUFFIXES or not p.is_file():
@@ -126,11 +190,11 @@ def _tree_lines(repo):
     out = []
     for p in files:
         try:
-            text = p.read_text(encoding="utf-8", errors="replace")
+            text = p.read_bytes().decode("utf-8", errors="replace").replace("\r\n", "\n")
         except OSError:
             continue
         rel = p.relative_to(repo).as_posix()
-        out.extend((rel, i, line.rstrip("\r")) for i, line in enumerate(text.split("\n"), 1))
+        out.extend((rel, i, line) for i, line in enumerate(text.split("\n"), 1))
     return out, len(files), capped
 
 

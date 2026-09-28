@@ -1465,5 +1465,161 @@
   "path": "src/verdict_mcp/hygiene.py",
   "old": "        if tab and len(fields) == 4 and fields[1] == b\"blob\" and fields[0] in (b\"100644\", b\"100755\"):\n",
   "new": "        if tab and len(fields) == 4 and fields[1] == b\"blob\":\n"
+ },
+ {
+  "label": "0.91.0 H5 merge: hygiene findings are resolved by the tester's silence",
+  "path": "src/verdict_mcp/harness.py",
+  "old": "        if is_hygiene(prior):\n            continue  # owned by the harness: re-measured below, never resolved by silence\n",
+  "new": ""
+ },
+ {
+  "label": "0.91.0 H6 merge: a still_open copy of a hygiene finding is filed twice",
+  "path": "src/verdict_mcp/harness.py",
+  "old": "        if is_hygiene(f):\n            continue  # a `still_open` copy of the harness's own finding \u2014 reconciled below\n",
+  "new": ""
+ },
+ {
+  "label": "0.91.0 H7 sweep: a file only hygiene cites blocks the free sweep",
+  "path": "src/verdict_mcp/runner.py",
+  "old": "            if not isinstance(f, dict) or f.get(\"source\") == \"hygiene\" \\\n                    or norm_status",
+  "new": "            if not isinstance(f, dict) \\\n                    or norm_status"
+ },
+ {
+  "label": "0.91.0 H8 validate: a judgment may file a hygiene finding",
+  "path": "src/verdict_mcp/validate.py",
+  "old": "        if isinstance(f, dict) and (f.get(\"source\") == \"hygiene\" or \"hygiene\" in f):\n",
+  "new": "        if False:\n"
+ },
+ {
+  "label": "0.91.0 H9 calibration: hygiene findings count in the tester's track record",
+  "path": "src/verdict_mcp/state.py",
+  "old": "    rows = {k: v for k, v in rows.items() if v.get(\"source\") != \"hygiene\"}\n",
+  "new": ""
+ },
+ {
+  "label": "0.91.0 H17 lifecycle: an item not seen resolves though its file was never read",
+  "path": "src/verdict_mcp/hygiene.py",
+  "old": "                unread = [p for p in paths if p not in self.scanned and p not in gone]\n",
+  "new": "                unread = []\n"
+ },
+ {
+  "label": "0.91.0 H18 lifecycle: a file gone from the tree never resolves what was filed in it",
+  "path": "src/verdict_mcp/hygiene.py",
+  "old": "        gone = self.absent(ask)\n",
+  "new": "        gone = set()\n"
+ },
+ {
+  "label": "0.91.0 H19 lifecycle: a file the parser refused resolves what only the parser finds",
+  "path": "src/verdict_mcp/hygiene.py",
+  "old": "            if p in self.scanned and kind in _PARSED_KINDS and p in self.parse_failed:\n",
+  "new": "            if False:\n"
+ },
+ {
+  "label": "0.91.0 H20 lifecycle: an RLS switch resolves while a migration went unread",
+  "path": "src/verdict_mcp/hygiene.py",
+  "old": "        if kind == \"open_database_rules\" and sql and not self.rls_judged:\n",
+  "new": "        if False:\n"
+ },
+ {
+  "label": "0.91.0 H21 lifecycle: a client secret whose site moves is filed again as NEW",
+  "path": "src/verdict_mcp/hygiene.py",
+  "old": "    if record.get(\"kind\") == \"public_env_secret\" and record.get(\"variable\"):\n",
+  "new": "    if False:\n"
+ },
+ {
+  "label": "0.91.0 H22 ledger: a side file that cannot be read reads as no rows, so rows in scanned files resolve",
+  "path": "src/verdict_mcp/hygiene.py",
+  "old": "    rows_read = tier2 is not None\n",
+  "new": "    rows_read = True\n"
+ },
+ {
+  "label": "0.91.0 H23 finalize: still_open naming a hygiene finding files a second copy under its id",
+  "path": "src/verdict_mcp/harness.py",
+  "old": "            if is_hygiene(prior):\n                continue            # the harness's own: re-measured, never carried by word\n",
+  "new": ""
+ },
+ {
+  "label": "0.91.0 H24 merge: a pass stands over a Critical the scan filed, and the local tier's night is refused",
+  "path": "src/verdict_mcp/harness.py",
+  "old": "    if verdict == \"pass\" and capped_by:\n        verdict = \"pass with risks\"\n",
+  "new": "    if False:\n        verdict = \"pass with risks\"\n"
+ },
+ {
+  "label": "0.91.0 H25 harness: the next id reads only a wrapped outcome ledger, so an id only the ledger holds is minted again",
+  "path": "src/verdict_mcp/harness.py",
+  "old": "    if isinstance(rows.get(\"findings\"), dict):\n        rows = rows[\"findings\"]\n",
+  "new": "    rows = rows.get(\"findings\") if isinstance(rows.get(\"findings\"), dict) else {}\n"
+ },
+ {
+  "label": "0.91.0 H26 ledger: a prior ledger file that cannot be read passes for a first inventory, and says nothing",
+  "path": "src/verdict_mcp/hygiene.py",
+  "old": "    prior_unread = prev_rows is None and bool(prev.get(\"rows_file\"))\n",
+  "new": "    prior_unread = False\n"
+ },
+ {
+  "label": "0.91.0 H27 finalize: a rows file another run wrote is compared against, so a restored state resolves rows it never had",
+  "path": "src/verdict_mcp/harness.py",
+  "old": "    if (doc is None or type(doc.get(\"run_number\")) is not int or doc[\"run_number\"] != run_number\n            or not isinstance(doc.get(\"rows\"), list)):\n",
+  "new": "    if (doc is None\n            or not isinstance(doc.get(\"rows\"), list)):\n"
+ },
+ {
+  "label": "0.91.0 H28 state: the junk ledger's rows stay in state.json, which the tester reads first",
+  "path": "src/verdict_mcp/harness.py",
+  "old": "    _write_hygiene_rows(qa_root, state)\n",
+  "new": ""
+ },
+ {
+  "label": "0.91.0 H29 merge: a hygiene id the judgment named is ignored without a word",
+  "path": "src/verdict_mcp/harness.py",
+  "old": "    if ignored:\n        state[\"hygiene\"][\"ignored_judgment_ids\"] = ignored\n",
+  "new": "    if False:\n        state[\"hygiene\"][\"ignored_judgment_ids\"] = ignored\n"
+ },
+ {
+  "label": "0.91.0 H30 sweep: a verdict the scan capped is reported as the previous one carried",
+  "path": "src/verdict_mcp/runner.py",
+  "old": "    if written is None or written == carried:\n",
+  "new": "    if True:\n"
+ },
+ {
+  "label": "0.91.0 H31 local: the night reports this engine's verdict, not the one the state holds",
+  "path": "src/verdict_mcp/small.py",
+  "old": "                  written_verdict(qa_root, verdict) if code == 0 else verdict, owed, budget,\n",
+  "new": "                  verdict, owed, budget,\n"
+ },
+ {
+  "label": "0.91.0 H32 sweep: a hygiene id is carried by word, so every sweep records it as ignored",
+  "path": "src/verdict_mcp/runner.py",
+  "old": "                if isinstance(f, dict) and f.get(\"id\") and norm_status(f.get(\"status\")) == \"open\"\n                and f.get(\"source\") != \"hygiene\"]\n",
+  "new": "                if isinstance(f, dict) and f.get(\"id\") and norm_status(f.get(\"status\")) == \"open\"]\n"
+ },
+ {
+  "label": "0.91.0 H33 local: a hygiene id is carried by word, so every local night records it as ignored",
+  "path": "src/verdict_mcp/small.py",
+  "old": "        if norm_status(f.get(\"status\")) != \"open\" or f.get(\"source\") == \"hygiene\":\n",
+  "new": "        if norm_status(f.get(\"status\")) != \"open\":\n"
+ },
+ {
+  "label": "0.91.0 H34 state: the preview shows the first rows in path order, not the oldest",
+  "path": "src/verdict_mcp/hygiene.py",
+  "old": "                    key=lambda r: (str(r.get(\"first_seen\") or \"\"), *where(r)))\n",
+  "new": "                    key=where)\n"
+ },
+ {
+  "label": "0.91.0 H35 lifecycle: an RLS finding resolves when its migration is deleted while RLS is unjudged",
+  "path": "src/verdict_mcp/hygiene.py",
+  "old": "        sql = [p for p in paths if p.lower().endswith(\".sql\")]\n",
+  "new": "        sql = [p for p in paths if p.lower().endswith(\".sql\") and p in self.scanned]\n"
+ },
+ {
+  "label": "0.91.0 H36 merge: a key back after its finding left the state is filed again under a new id",
+  "path": "src/verdict_mcp/harness.py",
+  "old": "    return [row for row in rows.values()\n",
+  "new": "    return [row for row in []\n"
+ },
+ {
+  "label": "0.91.0 H37 state: the outcome row keeps no hygiene identity, so nothing regresses through the ledger",
+  "path": "src/verdict_mcp/state.py",
+  "old": "        **({\"hygiene_identity\": finding[\"hygiene\"][\"identity\"]}\n",
+  "new": "        **({}\n"
  }
 ]
