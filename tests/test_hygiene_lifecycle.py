@@ -558,7 +558,7 @@ def test_the_refusal_says_whose_the_finding_is_and_invites_no_copy(repo, qa_root
 # Rendered from the state's preview, never from the rows: once finalize has moved
 # them to hygiene-ledger.json the state holds none, and the report reads the state.
 
-def test_the_report_renders_the_hygiene_section_after_accepted_risks(repo, qa_root):
+def test_the_report_renders_the_hygiene_section_between_the_findings_and_the_blockers(repo, qa_root):
     from verdict_mcp.harness import render_report
     (repo / "b.py").write_text("import os\n# TODO: x\n", encoding="utf-8")
     git(["add", "-A"], repo)

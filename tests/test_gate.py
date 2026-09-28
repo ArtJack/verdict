@@ -580,6 +580,7 @@ def test_no_hygiene_line_without_a_measured_scan(tmp_path):
         home = make_home(tmp_path, **({"hygiene": block} if block else {}))
         for fmt in ("text", "github-comment"):
             out = gate(tmp_path, "pricer", "--format", fmt, home=home).stdout
+            assert "VERDICT:" in out.upper(), ("the gate rendered nothing: a crash is no pass", block, fmt, out)
             assert "hygiene" not in out.lower(), (block, fmt, out)
 
 
