@@ -542,3 +542,42 @@ def test_a_path_argument_in_solo_mode_resolves_to_the_derived_key(tmp_path):
     out = json.loads(proc.stdout)
     assert out.get("exit_code") != 4, out
     assert out.get("project") == "pricer" and out.get("verdict") == "fail", out
+
+
+# ── one hygiene line: the junk ledger's counts, on the surfaces a reviewer reads ─
+
+HYGIENE = {"status": "measured",
+           "summary": {"open": 312, "new": 12, "resolved": 4, "first_inventory": False, "capped": False,
+                       "by_kind": {"broad_swallow": {"open": 158}, "unused_import": {"open": 113},
+                                   "oversized_file": {"open": 5}, "todo_comment": {"open": 6}}}}
+
+
+def test_the_comment_carries_one_hygiene_line():
+    from verdict_mcp.gate import _fmt_comment
+    r = {"verdict": "pass with risks", "project": "p", "run_number": 3, "run_type": "delta",
+         "reason": "ok", "exit_code": 0, "findings_open": [],
+         "hygiene": {"open": 312, "new": 12, "resolved": 4,
+                     "by_kind": {"broad_swallow": {"open": 158}, "unused_import": {"open": 113},
+                                 "oversized_file": {"open": 5}, "todo_comment": {"open": 6}}}}
+    text = _fmt_comment(r, 10)
+    assert "**Hygiene:** 312 open (+12 new, −4 removed) · broad swallow 158 · unused import 113 · todo comment 6" in text
+
+
+def test_the_gate_reads_the_hygiene_summary_into_its_text_and_its_comment(tmp_path):
+    home = make_home(tmp_path, hygiene=HYGIENE)
+    line = "312 open (+12 new, −4 removed) · broad swallow 158 · unused import 113 · todo comment 6"
+    text = gate(tmp_path, "pricer", home=home).stdout
+    assert f"hygiene: {line}" in text.splitlines(), text
+    comment = gate(tmp_path, "pricer", "--format", "github-comment", home=home).stdout
+    assert comment.count("**Hygiene:**") == 1
+    assert comment.index("PRC-F-9") < comment.index(f"**Hygiene:** {line}") < comment.index("**Not tested:**")
+    assert json.loads(gate(tmp_path, "pricer", "--format", "json", home=home).stdout)["hygiene"]["open"] == 312
+
+
+def test_no_hygiene_line_without_a_measured_scan(tmp_path):
+    for block in (None, {"status": "unavailable", "reason": "not a git checkout",
+                         "summary": {"open": 3, "new": 0, "resolved": 0, "carried": 3}}):
+        home = make_home(tmp_path, **({"hygiene": block} if block else {}))
+        for fmt in ("text", "github-comment"):
+            out = gate(tmp_path, "pricer", "--format", fmt, home=home).stdout
+            assert "hygiene" not in out.lower(), (block, fmt, out)
