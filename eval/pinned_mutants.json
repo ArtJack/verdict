@@ -1621,5 +1621,29 @@
   "path": "src/verdict_mcp/state.py",
   "old": "        **({\"hygiene_identity\": finding[\"hygiene\"][\"identity\"]}\n",
   "new": "        **({}\n"
+ },
+ {
+  "label": "0.91.0 H10 report: the Hygiene section is never rendered",
+  "path": "src/verdict_mcp/harness.py",
+  "old": "    out += _render_hygiene(state)\n",
+  "new": ""
+ },
+ {
+  "label": "0.91.0 H11 history: hygiene counts are signed, so a state signed before them reads as tampered",
+  "path": "src/verdict_mcp/state.py",
+  "old": "_CHAIN_EXCLUDED = (\"chain\", \"gate_durations\", \"hygiene\")\n",
+  "new": "_CHAIN_EXCLUDED = (\"chain\", \"gate_durations\")\n"
+ },
+ {
+  "label": "0.91.0 H38 report: a verdict the scan capped is not said under the verdict",
+  "path": "src/verdict_mcp/harness.py",
+  "old": "    out += _render_verdict_cap(state)\n",
+  "new": ""
+ },
+ {
+  "label": "0.91.0 H39 report: a hygiene finding says it was never measured, as if a test were owed",
+  "path": "src/verdict_mcp/harness.py",
+  "old": "    elif is_open(f) and is_hygiene(f):\n",
+  "new": "    elif False:\n"
  }
 ]
