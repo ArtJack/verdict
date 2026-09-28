@@ -542,3 +542,95 @@ def test_a_path_argument_in_solo_mode_resolves_to_the_derived_key(tmp_path):
     out = json.loads(proc.stdout)
     assert out.get("exit_code") != 4, out
     assert out.get("project") == "pricer" and out.get("verdict") == "fail", out
+
+
+# ── one hygiene line: the junk ledger's counts, on the surfaces a reviewer reads ─
+
+HYGIENE = {"status": "measured",
+           "summary": {"open": 312, "new": 12, "resolved": 4, "first_inventory": False, "capped": False,
+                       "by_kind": {"broad_swallow": {"open": 158}, "unused_import": {"open": 113},
+                                   "oversized_file": {"open": 5}, "todo_comment": {"open": 6}}}}
+
+
+def test_the_comment_carries_one_hygiene_line():
+    from verdict_mcp.gate import _fmt_comment
+    r = {"verdict": "pass with risks", "project": "p", "run_number": 3, "run_type": "delta",
+         "reason": "ok", "exit_code": 0, "findings_open": [],
+         "hygiene": {"open": 312, "new": 12, "resolved": 4,
+                     "by_kind": {"broad_swallow": {"open": 158}, "unused_import": {"open": 113},
+                                 "oversized_file": {"open": 5}, "todo_comment": {"open": 6}}}}
+    text = _fmt_comment(r, 10)
+    assert "**Hygiene:** 312 open (+12 new, −4 removed) · broad swallow 158 · unused import 113 · todo comment 6" in text
+
+
+def test_the_gate_reads_the_hygiene_summary_into_its_text_and_its_comment(tmp_path):
+    home = make_home(tmp_path, hygiene=HYGIENE)
+    line = "312 open (+12 new, −4 removed) · broad swallow 158 · unused import 113 · todo comment 6"
+    text = gate(tmp_path, "pricer", home=home).stdout
+    assert f"hygiene: {line}" in text.splitlines(), text
+    comment = gate(tmp_path, "pricer", "--format", "github-comment", home=home).stdout
+    assert comment.count("**Hygiene:**") == 1
+    assert comment.index("PRC-F-9") < comment.index(f"**Hygiene:** {line}") < comment.index("**Not tested:**")
+    assert json.loads(gate(tmp_path, "pricer", "--format", "json", home=home).stdout)["hygiene"]["open"] == 312
+
+
+def test_no_hygiene_line_without_a_measured_scan(tmp_path):
+    for block in (None, {"status": "unavailable", "reason": "not a git checkout",
+                         "summary": {"open": 3, "new": 0, "resolved": 0, "carried": 3}}):
+        home = make_home(tmp_path, **({"hygiene": block} if block else {}))
+        for fmt in ("text", "github-comment"):
+            out = gate(tmp_path, "pricer", "--format", fmt, home=home).stdout
+            assert "VERDICT:" in out.upper(), ("the gate rendered nothing: a crash is no pass", block, fmt, out)
+            assert "hygiene" not in out.lower(), (block, fmt, out)
+
+
+def test_a_first_inventory_is_not_counted_as_new_in_the_pull_request():
+    # A project's first 0.91.0 run finds every row new; "+282 new" on its PR reads as if the
+    # PR added them. Said as what it is, in the comment and the text.
+    from verdict_mcp.gate import _fmt_comment, _fmt_text
+    kinds = {"broad_swallow": {"open": 158, "new": 158, "resolved": 0},
+             "unused_import": {"open": 113, "new": 113, "resolved": 0},
+             "oversized_file": {"open": 5, "new": 5, "resolved": 0},
+             "todo_comment": {"open": 6, "new": 6, "resolved": 0}}
+    r = {"verdict": "pass", "project": "p", "run_number": 1, "run_type": "baseline", "reason": "pass",
+         "exit_code": 0, "findings_open": [],
+         "hygiene": {"open": 282, "new": 282, "resolved": 0, "first_inventory": True, "capped": False,
+                     "by_kind": kinds}}
+    line = "282 open (first inventory) · broad swallow 158 · unused import 113 · todo comment 6"
+    comment, text = _fmt_comment(r, 10), _fmt_text(r, 10)
+    assert f"**Hygiene:** {line}" in comment
+    assert f"hygiene: {line}" in text.splitlines()
+    assert "+282" not in comment + text
+
+
+def test_the_line_ranks_only_kinds_with_something_open_and_never_prints_an_unknown_as_zero():
+    from verdict_mcp.gate import _hygiene_line
+    swept = {"open": 3, "new": 0, "resolved": 5,
+             "by_kind": {"broad_swallow": {"open": 0, "resolved": 5}, "todo_comment": {"open": 3}}}
+    assert _hygiene_line({"hygiene": swept}) == "3 open (+0 new, −5 removed) · todo comment 3"
+    unknown = {"open": None, "by_kind": {"todo_comment": {"open": None}, "unused_import": "junk",
+                                         "broad_swallow": {"open": 2}}}
+    assert _hygiene_line({"hygiene": unknown}) == "? open (? new, −? removed) · broad swallow 2"
+
+
+def test_the_json_carries_no_count_the_ledger_could_not_take(tmp_path):
+    # The same predicate as the text, the comment and the run history: a 0 beside
+    # `tier2_unread: true` is a count nobody took, and it is null here too.
+    from verdict_mcp.hygiene import ledger
+
+    def row(kind, fp, path):
+        return {"kind": kind, "tier": 2, "path": path, "line": 1, "excerpt": "x", "why": "w", "fingerprint": fp}
+    scan = {"status": "measured", "items": [], "scope": {"files": 2, "capped": False, "file_cap": 5000, "failed": 0},
+            "counts_by_kind": {"unused_import": 1, "broad_swallow": 1}, "leads": [], "leads_total": 0}
+    first = ledger(scan, [row("unused_import", "u1", "a.py"), row("broad_swallow", "s1", "b.py")], None,
+                   "2026-10-01", 1, "a")
+    unread = ledger(scan, None, first, "2026-10-02", 2, "b")
+    assert unread["summary"]["tier2_unread"] is True and unread["summary"]["new"] == 0
+    out = json.loads(gate(tmp_path, "pricer", "--format", "json",
+                          home=make_home(tmp_path, hygiene=unread)).stdout)["hygiene"]
+    assert (out["open"], out["new"], out["resolved"], out["tier2_unread"]) == (2, None, None, True)
+    assert {k: (v["open"], v["new"], v["resolved"]) for k, v in out["by_kind"].items()} == {
+        "broad_swallow": (1, None, None), "unused_import": (1, None, None)}
+    measured = json.loads(gate(tmp_path, "pricer", "--format", "json",
+                               home=make_home(tmp_path, hygiene=HYGIENE)).stdout)["hygiene"]
+    assert (measured["open"], measured["new"], measured["resolved"]) == (312, 12, 4), "a measured count stays"

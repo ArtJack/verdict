@@ -511,7 +511,7 @@ RENDERED_BY_FINALIZE = "rendered from `state.json` by `verdict-finalize`"
 # row and fail its own binding check — every pre-upgrade state would read as
 # tampered. Tampering with a duration is not worth guarding against; tampering
 # with a verdict is, and that stays signed.
-_CHAIN_EXCLUDED = ("chain", "gate_durations")
+_CHAIN_EXCLUDED = ("chain", "gate_durations", "hygiene")
 
 
 def chain_link(prev: str, row: dict) -> str:
@@ -668,6 +668,16 @@ def _chain_signal(state: dict, root) -> bool:
     return chain_link(prev, history_row(state, _row_revision(last))) == recorded
 
 
+def hygiene_change_unmeasured(summary) -> bool:
+    """Whether a junk ledger's `new` and `resolved` count nothing this run: its own rows
+    could not be read (`tier2_unread`: both read 0), or last run's could not
+    (`prior_unread`: every row reads as new). `open` is still the scan's own count. One
+    reading for the report, the gate and the run history, so no surface prints as
+    measured what another calls unmeasured."""
+    s = summary if isinstance(summary, dict) else {}
+    return bool(s.get("tier2_unread") or s.get("prior_unread"))
+
+
 def history_row(state: dict, revision: int = 0) -> dict:
     """One machine-native line of run history, derived from the state.
 
@@ -721,6 +731,30 @@ def history_row(state: dict, revision: int = 0) -> dict:
         # to 65s usually means a test started calling a live service. Excluded
         # from the chain body (see _CHAIN_EXCLUDED).
         row["gate_durations"] = durations
+    hyg = state.get("hygiene") if isinstance(state.get("hygiene"), dict) else {}
+    if hyg.get("status") == "measured":
+        s = hyg.get("summary") if isinstance(hyg.get("summary"), dict) else {}
+        # The junk ledger per run (0.91.0) — telemetry like gate_durations, and
+        # excluded from the chain body for the same reason: a state signed before the
+        # counts existed re-derives its row with them today (see _CHAIN_EXCLUDED).
+        # New and removed are null when the run could not count them: this file is the
+        # permanent record, and a 0 there would read as a measured zero for ever.
+        unmeasured = hygiene_change_unmeasured(s)
+
+        def counted(key):
+            v = s.get(key)
+            return v if type(v) is int else None      # a count the state lacks is null, not 0
+        row["hygiene"] = {"open": counted("open"),
+                          "new": None if unmeasured else counted("new"),
+                          "resolved": None if unmeasured else counted("resolved")}
+        if s.get("first_inventory") is True and not unmeasured:
+            # `new` equals `open` because nothing was tracked before, not because that
+            # many were added; no other run's row carries the key.
+            row["hygiene"]["first_inventory"] = True
+        if s.get("capped") is True:
+            # The ledger dropped rows past its cap: `open` is exact, `new` and `resolved` are
+            # not (a dropped row still there is new again, one that went is never removed).
+            row["hygiene"]["capped"] = True
     for optional in ("run_label",):
         if state.get(optional) is not None:
             row[optional] = state[optional]

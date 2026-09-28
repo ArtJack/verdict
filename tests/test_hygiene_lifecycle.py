@@ -552,3 +552,288 @@ def test_the_refusal_says_whose_the_finding_is_and_invites_no_copy(repo, qa_root
     [said] = [p for p in validate_judgment(reused, previous) if "hygiene" in p]
     assert f"the hygiene finding {key['id']}" in said and "belongs to the harness" in said
     assert "not be copied or re-filed" in said and "mint" not in said
+
+
+# ── the report: a Hygiene section, the cap said, the scan's findings measured ─
+# Rendered from the state's preview, never from the rows: once finalize has moved
+# them to hygiene-ledger.json the state holds none, and the report reads the state.
+
+def test_the_report_renders_the_hygiene_section_between_the_findings_and_the_blockers(repo, qa_root):
+    from verdict_mcp.harness import render_report
+    (repo / "b.py").write_text("import os\n# TODO: x\n", encoding="utf-8")
+    git(["add", "-A"], repo)
+    git(["commit", "-qm", "junk"], repo)
+    state = merge(collect(repo, qa_root, []), judgment(), None)
+    text = render_report(state, None)
+    assert "## Hygiene" in text
+    section = text.split("## Hygiene", 1)[1]
+    assert "first inventory" in section and "| unused import | 1 |" in section
+    assert text.index("## Findings") < text.index("## Hygiene") < text.index("## Release blockers")
+
+
+def preview_row(fp, path, line, kind, excerpt, first_seen, delta):
+    return {"fingerprint": fp, "kind": kind, "path": path, "line": line, "excerpt": excerpt,
+            "first_seen": first_seen, "delta": delta}
+
+
+OLD_ROW = preview_row("o1", "old/a.py", 3, "todo_comment", "# TODO: the first one", "2026-09-01", "STILL_OPEN")
+NEW_ROW = preview_row("n1", "web/new.py", 7, "unused_import", "import sys", "2026-10-01", "NEW")
+
+
+def on_disk(**state) -> dict:
+    """A state as finalize leaves it on disk: the ledger's counts, its preview and the
+    name of the file holding its rows — and no rows."""
+    hygiene = {"status": "measured", "measured_at_run": 3,
+               "scope": {"files": 40, "capped": False, "file_cap": 5000, "failed": 0},
+               "summary": {"open": 2, "new": 1, "resolved": 1, "first_inventory": False, "capped": False,
+                           "by_kind": {"todo_comment": {"open": 1, "new": 0, "resolved": 1},
+                                       "unused_import": {"open": 1, "new": 1, "resolved": 0}}},
+               "preview": {"oldest": [OLD_ROW, NEW_ROW], "new": [NEW_ROW]},
+               "rows_file": "hygiene-ledger.json", "leads": {"handed": 4, "followed": 1}}
+    return {"project": "widget", "run_number": 3, "run_type": "delta", "verdict": "pass with risks",
+            "last_run": {"timestamp_utc": "2026-10-01T00:00:00Z"}, "findings": [],
+            "not_tested": ["concurrency"], "hygiene": hygiene, **state}
+
+
+def hygiene_section(text: str) -> str:
+    return text.split("## Hygiene", 1)[1].split("\n## ", 1)[0]
+
+
+def test_the_section_lists_the_preview_the_state_keeps_not_the_rows_it_moved_out():
+    from verdict_mcp.harness import render_report
+    accepted = {"id": "W-F-7", "title": "declined", "severity": "Minor", "priority": "P3",
+                "status": "accepted", "delta": "ACCEPTED",
+                "accepted": {"by": "owner", "on": "2026-09-20", "citation": "DECISIONS.md", "reason": "cosmetic"}}
+    text = render_report(on_disk(findings=[accepted]))
+    assert text.index("## Accepted risks") < text.index("## Hygiene") < text.index("## Release blockers")
+    section = hygiene_section(text)
+    assert section.startswith("\n\n2 open · 1 new · 1 removed since the last run · 40 files scanned\n")
+    assert "| todo comment | 1 | 0 | 1 |" in section and "| unused import | 1 | 1 | 0 |" in section
+    oldest, new = section.split("**Oldest open:**", 1)[1].split("**New this run:**", 1)
+    assert "- `old/a.py:3` todo comment — # TODO: the first one (since 2026-09-01)" in oldest
+    assert "- `web/new.py:7` unused import — import sys" in new
+    assert "Leads handed to the tester: 4; 1 of them cited by a finding within five lines." in section
+    for quiet in ("Partial scan", "Carried open", "hygiene-items.json", "Not measured"):
+        assert quiet not in section, quiet
+    assert "Near-certain exposures" not in section, "none is filed above, so none is pointed to"
+
+
+def test_a_first_inventory_lists_its_rows_once():
+    from verdict_mcp.harness import render_report
+    state = on_disk()
+    state["hygiene"]["summary"].update(open=1, new=1, resolved=0, first_inventory=True)
+    state["hygiene"]["preview"] = {"oldest": [NEW_ROW], "new": [NEW_ROW]}
+    section = hygiene_section(render_report(state))
+    assert "first inventory: everything is new because nothing was tracked before" in section
+    assert section.count("`web/new.py:7`") == 1 and "**New this run:**" not in section
+
+
+# The flags, each on a block the real ledger() built: a hand-built summary can hold
+# counts no run produces, and a renderer checked against one proves nothing.
+JUNK = [item("unused_import", "u1", 2, path="a.py"), item("broad_swallow", "s1", 2, path="b.py")]
+
+
+def first_run():
+    return ledger(facts(), JUNK, None, "2026-10-01", 1, "a")
+
+
+def test_a_partial_scan_says_what_it_could_not_read_and_still_counts_what_it_did():
+    from verdict_mcp.harness import render_report
+    partial = dict(facts(status="partial"),
+                   scope={"files": 1, "capped": False, "file_cap": 5000, "failed": 1, "failed_paths": ["b.py"]})
+    block = ledger(partial, JUNK[:1], first_run(), "2026-10-02", 2, "b", evidence=read("a.py"))
+    assert block["summary"]["partial"] is True and block["summary"]["carried"] == 1
+    section = hygiene_section(render_report(on_disk(hygiene=block)))
+    assert section.startswith("\n\n2 open · 0 new · 0 removed since the last run · 1 files scanned\n")
+    assert ("- Partial scan: 1 file(s) could not be read, so nothing in them was marked removed: `b.py`"
+            in section)
+    assert ("- Carried open, not removed: 1 row(s) this run did not see — nothing this run read proves "
+            "them gone") in section
+
+
+def test_new_and_removed_are_not_measured_when_this_runs_rows_could_not_be_read():
+    from verdict_mcp.gate import _hygiene_line
+    from verdict_mcp.harness import render_report
+    from verdict_mcp.state import history_row
+    counted = dict(facts(), counts_by_kind={"unused_import": 1, "broad_swallow": 1})
+    block = ledger(counted, None, first_run(), "2026-10-02", 2, "b")
+    s = block["summary"]
+    assert s["tier2_unread"] is True and (s["open"], s["new"], s["resolved"], s["carried"]) == (2, 0, 0, 2)
+    state = on_disk(hygiene=block)
+    section = hygiene_section(render_report(state))
+    assert section.startswith("\n\n2 open · new and removed not measured this run · 1 files scanned\n")
+    assert "| broad swallow | 1 | — | — |" in section and "| unused import | 1 | — | — |" in section
+    assert ("- This run's junk list could not be read from `hygiene-items.json`: which rows are new or "
+            "removed is not known, and the open count is the scan's own") in section
+    assert [ln for ln in section.splitlines() if ln.startswith("- Carried open")] == [
+        "- Carried open, not removed: 2 row(s) from the last run — this run could not read its junk list, "
+        "so none is known to be gone"]
+    assert "did not see" not in section
+    assert "- `a.py:1` unused import — x (since 2026-10-01)" in section, "carried with the date it was measured"
+    assert _hygiene_line({"hygiene": s}) == ("2 open (new and removed not measured this run) · "
+                                             "broad swallow 1 · unused import 1")
+    assert history_row(state)["hygiene"] == {"open": 2, "new": None, "resolved": None}
+
+
+def test_new_and_removed_are_not_measured_when_last_runs_rows_could_not_be_read():
+    from verdict_mcp.gate import _hygiene_line
+    from verdict_mcp.harness import render_report
+    from verdict_mcp.state import history_row
+    block = ledger(facts(), JUNK, {"status": "measured", "rows_file": "hygiene-ledger.json"},
+                   "2026-10-03", 3, "c")
+    s = block["summary"]
+    assert s["prior_unread"] is True and (s["open"], s["new"], s["resolved"]) == (2, 2, 0)
+    state = on_disk(hygiene=block)
+    text = render_report(state)
+    section = hygiene_section(text)
+    assert section.startswith("\n\n2 open · new and removed not measured this run · 1 files scanned\n")
+    assert "| broad swallow | 1 | — | — |" in section and "**New this run:**" not in section
+    assert "- `a.py:1` unused import — x\n" in section and "(since" not in section, \
+        "a first_seen reset to this run is no age"
+    assert text.count("last run's hygiene rows could not be read") == 1, "said once, under the scope"
+    assert _hygiene_line({"hygiene": s}) == ("2 open (new and removed not measured this run) · "
+                                             "broad swallow 1 · unused import 1")
+    assert history_row(state)["hygiene"] == {"open": 2, "new": None, "resolved": None}
+
+
+def test_a_capped_ledger_marks_the_count_the_cap_distorts(monkeypatch):
+    # `open` stays exact past the cap; `new` does not — a row dropped from the file is new
+    # again the next run it is seen. So the mark sits on the new count, and the row says so.
+    from verdict_mcp.gate import _hygiene_line
+    from verdict_mcp.harness import render_report
+    from verdict_mcp.state import history_row
+    one = ledger(facts(), JUNK[:1], None, "2026-10-01", 1, "a")
+    monkeypatch.setattr(hygiene, "LEDGER_CAP", 1)
+    two = ledger(facts(), JUNK, one, "2026-10-02", 2, "b", evidence=READ)
+    s = two["summary"]
+    assert s["capped"] is True and (s["open"], s["new"], s["resolved"]) == (2, 1, 0)
+    state = on_disk(hygiene=two)
+    section = hygiene_section(render_report(state))
+    assert section.startswith("\n\n2 open · 1 new (capped) · 0 removed since the last run · 1 files scanned\n")
+    assert _hygiene_line({"hygiene": s}) == ("2 open (+1 new (capped), −0 removed) · broad swallow 1 · "
+                                             "unused import 1")
+    assert history_row(state)["hygiene"] == {"open": 2, "new": 1, "resolved": 0, "capped": True}
+    first = on_disk(hygiene=ledger(facts(), JUNK, None, "2026-10-01", 1, "a"))
+    assert hygiene_section(render_report(first)).startswith(
+        "\n\n2 open · 2 new (capped) · 0 removed since the last run · 1 files scanned · first inventory")
+    assert history_row(first)["hygiene"] == {"open": 2, "new": 2, "resolved": 0, "first_inventory": True,
+                                             "capped": True}
+
+
+def test_an_unknown_count_is_shown_as_unknown_never_as_zero():
+    from verdict_mcp.harness import render_report
+    from verdict_mcp.state import history_row
+    state = on_disk()
+    state["hygiene"]["summary"] = {"open": None, "by_kind": {
+        "todo_comment": {"open": None}, "unused_import": "junk",
+        "broad_swallow": {"open": 2, "new": 1, "resolved": 0}}}
+    state["hygiene"]["leads"] = {"handed": 4}
+    section = hygiene_section(render_report(state))
+    assert section.startswith("\n\n? open · ? new · ? removed since the last run · 40 files scanned\n")
+    assert [ln for ln in section.splitlines() if ln.startswith("| ") and "Kind" not in ln] == [
+        "| broad swallow | 2 | 1 | 0 |", "| todo comment | ? | ? | ? |", "| unused import | ? | ? | ? |"]
+    assert "Leads handed to the tester: 4; ? of them cited" in section
+    assert history_row(state)["hygiene"] == {"open": None, "new": None, "resolved": None}
+    del state["hygiene"]["summary"]
+    assert hygiene_section(render_report(state)).startswith("\n\n? open · ? new · ? removed since the last run")
+    assert history_row(state)["hygiene"] == {"open": None, "new": None, "resolved": None}
+
+
+def test_only_an_open_exposure_is_pointed_to():
+    from verdict_mcp.harness import render_report
+    gone = {"id": "W-F-2", "source": "hygiene", "title": "A live credential is committed in the source — k.py:1",
+            "severity": "Critical", "priority": "P1", "status": "resolved", "delta": "RESOLVED",
+            "hygiene": {"kind": "secret_in_code", "fingerprint": "f1", "path": "k.py"},
+            "carried_forward": "no longer detected at c0ffee99"}
+    assert "Near-certain exposures" not in hygiene_section(render_report(on_disk(findings=[gone])))
+    still = dict(gone, status="open", delta="STILL_OPEN")
+    assert "Near-certain exposures are filed above as findings" in hygiene_section(
+        render_report(on_disk(findings=[still])))
+
+
+def test_an_unmeasured_scan_says_so_and_what_it_carried():
+    from verdict_mcp.harness import render_report
+    state = on_disk()
+    state["hygiene"] = {
+        "status": "unavailable", "reason": "git cannot show a commit",
+        "summary": {"open": 1, "new": 0, "resolved": 0, "first_inventory": False, "capped": False,
+                    "by_kind": {"todo_comment": {"open": 1, "new": 0, "resolved": 0}}, "carried": 1},
+        "preview": {"oldest": [OLD_ROW], "new": []}, "carried_from_run": 2}
+    section = hygiene_section(render_report(state))
+    assert "Not measured this run — git cannot show a commit" in section
+    assert "- Carried open, not removed: 1 row(s) from the last run" in section
+    del state["hygiene"]
+    assert "## Hygiene" not in render_report(state), "a state from before the scan says nothing of it"
+
+
+def test_a_capped_verdict_is_said_under_the_verdict(repo, qa_root):
+    from verdict_mcp.harness import render_report
+    committed(repo, {"k.py": f'K = "{LIVE}"\n'}, "key")
+    state = merge(collect(repo, qa_root, []), judgment(verdict="pass"), None)
+    [key] = hygiene_findings(state)
+    lines = render_report(state).splitlines()
+    under = lines[lines.index("**VERDICT: pass with risks**") + 2]
+    assert under.startswith(
+        f"_Verdict capped from `pass` to `pass with risks` by the hygiene scan: {key['id']}"), under
+    clean = merge(collect(repo, qa_root, []), judgment(verdict="fail"), None)
+    assert "Verdict capped" not in render_report(clean)
+
+
+def test_a_hygiene_finding_is_measured_by_the_scan_not_by_a_test(repo, qa_root):
+    from verdict_mcp.harness import render_report
+    committed(repo, {"k.py": f'K = "{LIVE}"\n'}, "key")
+    state = merge(collect(repo, qa_root, []), judgment(), None)
+    [key] = hygiene_findings(state)
+    text = render_report(state)
+    scans = text.split(f"### {key['id']} ", 1)[1].split("\n#", 1)[0]
+    assert "- Measured by the hygiene scan; resolves when the scan stops seeing it" in scans
+    assert "Never measured" not in scans
+    testers = text.split("### W-F-1 ", 1)[1].split("\n#", 1)[0]
+    assert "- Never measured — no `verification_test` declared" in testers, "the tester's own, unchanged"
+    assert "Near-certain exposures are filed above as findings" in hygiene_section(text)
+
+
+# ── the run history: hygiene counts per run, unsigned like gate durations ──
+
+def test_history_rows_carry_unsigned_hygiene_counts():
+    from verdict_mcp.state import chain_link, history_row
+    state = {"run_number": 2, "verdict": "pass", "findings": [],
+             "last_run": {"timestamp_utc": "2026-10-01T00:00:00Z"},
+             "hygiene": {"status": "measured", "summary": {"open": 5, "new": 1, "resolved": 2}}}
+    row = history_row(state)
+    assert row["hygiene"] == {"open": 5, "new": 1, "resolved": 2}
+    bare = dict(row)
+    del bare["hygiene"]
+    assert chain_link("x", row) == chain_link("x", bare), "telemetry stays out of the signed body"
+    assert "hygiene" not in history_row({**state, "hygiene": {"status": "unavailable", "reason": "r"}})
+
+
+
+def test_a_first_inventory_is_flagged_on_its_history_row_and_on_no_other():
+    # Its `new` equals its `open` because nothing was tracked before, not because that many
+    # were added — the misreading the gate's "(first inventory)" removed from the PR comment.
+    from verdict_mcp.state import chain_link, history_row
+    row = history_row(on_disk(hygiene=first_run()))
+    assert row["hygiene"] == {"open": 2, "new": 2, "resolved": 0, "first_inventory": True}
+    assert chain_link("x", row) == chain_link("x", {k: v for k, v in row.items() if k != "hygiene"}), \
+        "the flag rides in the unsigned dict"
+    second = ledger(facts(), JUNK, first_run(), "2026-10-02", 2, "b", evidence=READ)
+    assert history_row(on_disk(hygiene=second))["hygiene"] == {"open": 2, "new": 0, "resolved": 0}
+
+
+def test_a_chain_signed_before_the_counts_still_verifies(repo, tmp_path):
+    # A run finalized before this release signed a row with no hygiene counts while its
+    # state already held the ledger. Re-derived today, that row carries the counts; were
+    # they signed, every such state would read as tampered and fail --require-harness.
+    from verdict_mcp.state import harness_signals, load_chain_anchor, load_runs, verify_chain
+    committed(repo, {"j.py": "import os\n"}, "junk")
+    qa = tmp_path / "qa-root"
+    (qa / "reports").mkdir(parents=True)
+    state = finalize_run(repo, qa, judgment(findings=[], report=""))
+    rows, _ = load_runs(qa)
+    assert rows[-1]["hygiene"] == {"open": 1, "new": 1, "resolved": 0, "first_inventory": True}
+    signed_before = [{k: v for k, v in r.items() if k != "hygiene"} for r in rows]
+    (qa / "runs.jsonl").write_text("".join(json.dumps(r, sort_keys=True) + "\n" for r in signed_before),
+                                   encoding="utf-8")
+    assert verify_chain(load_runs(qa)[0], load_chain_anchor(qa))["status"] == "intact"
+    assert harness_signals(state, qa)["chain_intact"] is True

@@ -72,8 +72,8 @@ try:
                         load_accepted, load_chain_anchor, load_outcomes,
                         merge_outcomes, norm_status, order_findings,
                         project_key_for_root)
-    from .state import (RUNS_FILE, chain_link, history_row, load_runs,
-                        next_revision)
+    from .state import (RUNS_FILE, chain_link, history_row, hygiene_change_unmeasured,
+                        load_runs, next_revision)
     from .state import home as state_home
     from .usage import ENTRYPOINT_ENV, SESSION_ENV, run_usage
     from .usage import FIELDS as USAGE_FIELDS
@@ -99,8 +99,8 @@ except ImportError:  # bare-script execution
                        load_accepted, load_chain_anchor, load_outcomes,
                        merge_outcomes, norm_status, order_findings,
                        project_key_for_root)
-    from state import (RUNS_FILE, chain_link, history_row, load_runs,
-                       next_revision)
+    from state import (RUNS_FILE, chain_link, history_row, hygiene_change_unmeasured,
+                       load_runs, next_revision)
     from state import home as state_home
     from usage import ENTRYPOINT_ENV, SESSION_ENV, run_usage
     from usage import FIELDS as USAGE_FIELDS
@@ -3193,6 +3193,9 @@ def _measured_lines(f: dict, drift: dict) -> list[str]:
         out.append(f"- Last measured {str(f['last_verified_at'])[:10]}"
                    + (f" — {'passes' if at_head == 'pass' else 'fails'} at HEAD"
                       if at_head else ""))
+    elif is_open(f) and is_hygiene(f):
+        # The scan's own, re-measured on every run: no test settles it, and none is owed.
+        out.append("- Measured by the hygiene scan; resolves when the scan stops seeing it")
     elif is_open(f) and not f.get("verification_test"):
         out.append("- Never measured — no `verification_test` declared")
     ex = f.get("exercised_by_tests") or []
@@ -3278,6 +3281,113 @@ def _hygiene_lines(state: dict) -> list[str]:
     return out
 
 
+def _render_verdict_cap(state: dict) -> list[str]:
+    """The cap the scan put on the verdict, right under it: the verdict recorded is not
+    the one the judgment wrote, and a reader learns which Critical moved it before
+    reading anything the verdict colours."""
+    block = state.get("hygiene") if isinstance(state.get("hygiene"), dict) else {}
+    capped = block.get("verdict_capped")
+    if not isinstance(capped, dict):
+        return []
+    by = capped.get("by") if isinstance(capped.get("by"), list) else []
+    return [f"_Verdict capped from `{capped.get('from')}` to `{capped.get('to')}` by the hygiene "
+            f"scan: {', '.join(map(str, by)) or '?'} — §10 admits no `pass` over an open Critical "
+            "the scan filed._", ""]
+
+
+def _render_hygiene(state: dict) -> list[str]:
+    """The junk ledger, after the findings and the accepted risks: every item tracked,
+    none of it a finding (T-28). Rendered from the preview the state keeps — the rows
+    go to hygiene-ledger.json, and the report reads the state alone. What the summary's
+    flags say about the counts is said here, once each; last run's rows going unread
+    is said under the scope (`_hygiene_lines`), where it already was."""
+    block = state.get("hygiene") if isinstance(state.get("hygiene"), dict) else {}
+    s = block.get("summary") if isinstance(block.get("summary"), dict) else {}
+    if block.get("status") == "unavailable":
+        # No full stop after the reason: git's own words often end in one, or in ".git".
+        out = ["## Hygiene", "", f"Not measured this run — {block.get('reason') or 'no reason recorded'}"]
+        if s.get("carried"):
+            out += ["", f"- Carried open, not removed: {s['carried']} row(s) from the last run — "
+                        "nothing was measured, so nothing is known to be gone"]
+        return out + [""]
+    if block.get("status") != "measured":
+        return []
+    scope = block.get("scope") if isinstance(block.get("scope"), dict) else {}
+    # A ledger that could not compare this run's rows with last run's counted no change:
+    # its 0s, or its every-row-new, are not measurements, and are not printed as ones.
+    unmeasured = hygiene_change_unmeasured(s)
+
+    def shown(v):
+        # An unknown is never 0: a count the state does not hold as a number reads "?".
+        return v if type(v) is int else "?"
+    # "(capped)" marks the new count: past its cap (hygiene.LEDGER_CAP) the ledger file drops
+    # rows, and a dropped row still there is counted new again next run. `open` stays exact.
+    change = ("new and removed not measured this run" if unmeasured else
+              f"{shown(s.get('new'))} new" + (" (capped)" if s.get("capped") else "")
+              + f" · {shown(s.get('resolved'))} removed since the last run")
+    head = (f"{shown(s.get('open'))} open · {change} · {shown(scope.get('files'))} files scanned"
+            + (f" (capped at {scope.get('file_cap')})" if scope.get("capped") else ""))
+    if s.get("first_inventory") and not unmeasured:
+        head += " · first inventory: everything is new because nothing was tracked before"
+    out = ["## Hygiene", "", head, ""]
+    flags = []
+    if s.get("partial"):
+        # Not "nothing was marked removed": a row in a file the scan did read still resolves.
+        failed = [str(p) for p in scope.get("failed_paths") or []]
+        flags.append(f"- Partial scan: {scope.get('failed', len(failed))} file(s) could not be read, "
+                     "so nothing in them was marked removed"
+                     + (": " + ", ".join(f"`{p}`" for p in failed[:3]) + (", …" if len(failed) > 3 else "")
+                        if failed else ""))
+    if s.get("tier2_unread"):
+        flags.append(f"- This run's junk list could not be read from `{HYGIENE_ITEMS_FILE}`: which rows are "
+                     "new or removed is not known, and the open count is the scan's own")
+    if s.get("carried") and s.get("tier2_unread"):
+        # Every row carried then is last run's, for want of this run's list — not unseen.
+        flags.append(f"- Carried open, not removed: {s['carried']} row(s) from the last run — this run "
+                     "could not read its junk list, so none is known to be gone")
+    elif s.get("carried"):
+        flags.append(f"- Carried open, not removed: {s['carried']} row(s) this run did not see — "
+                     "nothing this run read proves them gone")
+    if flags:
+        out += flags + [""]
+    # Pointed to only when some are above: under `hygiene: off` none is filed.
+    filed = any(is_hygiene(f) and is_open(f) for f in state.get("findings") or [])
+    out += ["_Junk the harness tracks on every run: none of it is a finding, and none of it changes "
+            "the verdict."
+            + (" Near-certain exposures are filed above as findings, measured by the same scan."
+               if filed else "") + "_", ""]
+    by_kind = s.get("by_kind") if isinstance(s.get("by_kind"), dict) else {}
+    if by_kind:
+        out += ["| Kind | Open | New | Removed |", "|---|---|---|---|"]
+        def most_open(kv):
+            # Most open first; a kind whose count is not a number sorts last, as "?".
+            n = kv[1].get("open") if isinstance(kv[1], dict) else None
+            return (0, -n, kv[0]) if type(n) is int else (1, 0, kv[0])
+        for kind, c in sorted(by_kind.items(), key=most_open):
+            c = c if isinstance(c, dict) else {}
+            new_n, gone_n = ("—", "—") if unmeasured else (shown(c.get("new")), shown(c.get("resolved")))
+            out.append(f"| {kind.replace('_', ' ')} | {shown(c.get('open'))} | {new_n} | {gone_n} |")
+        out.append("")
+    preview = block.get("preview") if isinstance(block.get("preview"), dict) else {}
+    oldest = [r for r in preview.get("oldest") or [] if isinstance(r, dict)]
+    new = [r for r in preview.get("new") or [] if isinstance(r, dict)]
+    # When every open row is new this run — a first inventory, say — the two lists are
+    # one list, and it is said once. With the change unmeasured, no row is known new. With
+    # last run's rows unread, every first_seen is this run's date, reset: no age to print.
+    for label, rows, dated in (("Oldest open", oldest, not s.get("prior_unread")),
+                               ("New this run", [] if unmeasured or new == oldest else new, False)):
+        if rows:
+            out += [f"**{label}:**", ""] + [
+                f"- `{r.get('path')}:{r.get('line')}` {str(r.get('kind')).replace('_', ' ')} — "
+                f"{str(r.get('excerpt') or '')[:100]}"
+                + (f" (since {r.get('first_seen')})" if dated else "") for r in rows] + [""]
+    leads = block.get("leads") if isinstance(block.get("leads"), dict) else {}
+    if leads.get("handed"):
+        out += [f"Leads handed to the tester: {leads['handed']}; {shown(leads.get('followed'))} of them "
+                "cited by a finding within five lines.", ""]
+    return out
+
+
 def render_report(state: dict, prose: dict | None = None) -> str:
     """Render the report from the state, injecting the agent's prose.
 
@@ -3296,6 +3406,7 @@ def render_report(state: dict, prose: dict | None = None) -> str:
     if state.get("run_label"):
         out += [f"*{state['run_label']}*", ""]
     out += [f"**VERDICT: {state.get('verdict')}**", ""]
+    out += _render_verdict_cap(state)
 
     out += ["## Scope", "",
             f"- Range: `{last.get('sha_range') or last.get('git_sha') or 'n/a'}`"
@@ -3483,6 +3594,7 @@ def render_report(state: dict, prose: dict | None = None) -> str:
                           f"written: {', '.join(moved_refs[1])}" if moved_refs else ""))
         out.append("")
 
+    out += _render_hygiene(state)
     out += _render_calibration(state.get("calibration") or {})
 
     blockers = state.get("release_blockers") or []

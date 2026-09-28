@@ -43,8 +43,8 @@ from pathlib import Path
 try:
     from .project_key import derive_key
     from .questions import facts_view as questions_view
-    from .state import (code_drift, fold_accepted, harness_signals, is_open, is_path_like,
-                    load_accepted,
+    from .state import (code_drift, fold_accepted, harness_signals, hygiene_change_unmeasured,
+                    is_open, is_path_like, load_accepted,
                     load_chain_anchor, load_runs, load_state, missing_durable,
                     norm_status, order_findings,
                     parse_timestamp, repo_for_root, resolve_root,
@@ -55,8 +55,8 @@ except ImportError:  # executed as a bare script (GitHub Action gate mode)
     import clock
     from project_key import derive_key
     from questions import facts_view as questions_view
-    from state import (code_drift, fold_accepted, harness_signals, is_open, is_path_like,
-                   load_accepted,
+    from state import (code_drift, fold_accepted, harness_signals, hygiene_change_unmeasured,
+                   is_open, is_path_like, load_accepted,
                    load_chain_anchor, load_runs, load_state, missing_durable,
                    norm_status, order_findings,
                    parse_timestamp, repo_for_root, resolve_root,
@@ -105,6 +105,19 @@ def evaluate(project, fail_on, max_age_hours, min_run_number, now=None,
         "findings_open": order_findings([f for f in folded if is_open(f)]),
         "accepted_risks": sum(1 for f in folded if norm_status(f.get("status")) == "accepted"),
     }
+    # The junk ledger's counts, for one line on each surface: never a finding, never a
+    # reason for an exit code. Only a measured scan has counts worth a line.
+    hyg = state.get("hygiene") if isinstance(state.get("hygiene"), dict) else {}
+    if hyg.get("status") == "measured" and isinstance(hyg.get("summary"), dict):
+        summary = dict(hyg["summary"])
+        if hygiene_change_unmeasured(summary):
+            # Counts the ledger could not take are null in the JSON too, as in the run history
+            # and on every rendered surface — never a 0 beside the flag that says so.
+            summary.update(new=None, resolved=None)
+            if isinstance(summary.get("by_kind"), dict):
+                summary["by_kind"] = {k: dict(v, new=None, resolved=None) if isinstance(v, dict) else v
+                                      for k, v in summary["by_kind"].items()}
+        out["hygiene"] = summary
     # The questions the tester parked for a person, read from the ledger the
     # way the banner and the report read it — pushed to the maintainer on
     # every surface that reaches them, never mailed.
@@ -240,6 +253,39 @@ def _drift_note(r):
     return None
 
 
+def _hygiene_line(r):
+    """The junk ledger in one line — open, new and removed, then the three kinds with
+    the most open — or None when the gate read no measured scan. Shared by the text and
+    comment renderers, like `_drift_note`. No return annotation: this module has no
+    `from __future__ import annotations`, and `str | None` fails a 3.9 import."""
+    hy = r.get("hygiene")
+    if not isinstance(hy, dict) or not hy:
+        return None
+
+    def count(v):
+        return v if type(v) is int else None      # an unknown is never 0
+
+    def shown(v):
+        return "?" if v is None else v
+    kinds = hy.get("by_kind") if isinstance(hy.get("by_kind"), dict) else {}
+    # Only kinds with something open are ranked: one swept clean this run is no top kind.
+    top = sorted(((k, count(v.get("open"))) for k, v in kinds.items()
+                  if isinstance(v, dict) and count(v.get("open"))),
+                 key=lambda kv: (-kv[1], kv[0]))[:3]
+    if hygiene_change_unmeasured(hy):
+        change = "new and removed not measured this run"
+    elif hy.get("first_inventory"):
+        # Every row is new because nothing was tracked before, not because this PR added it.
+        change = "first inventory"
+    else:
+        new, gone = count(hy.get("new")), count(hy.get("resolved"))
+        # The cap distorts the new count, not the open one: a row the ledger dropped is new again.
+        change = (f"{'?' if new is None else format(new, '+d')} new"
+                  + (" (capped)" if hy.get("capped") else "") + f", −{shown(gone)} removed")
+    return (f"{shown(count(hy.get('open')))} open ({change})"
+            + "".join(f" · {k.replace('_', ' ')} {n}" for k, n in top))
+
+
 def _fmt_text(r, n):
     lines = [f"VERDICT: {r.get('verdict') or 'no state'} → exit {r['exit_code']} ({r['reason']})"]
     if r.get("run_number") is not None:
@@ -255,6 +301,10 @@ def _fmt_text(r, n):
     for f in (r.get("findings_open") or [])[:n]:
         lines.append(f"  {f.get('delta', '?'):<10} {f.get('id')} "
                      f"{f.get('severity')}/{f.get('priority')} {f.get('title', '')}")
+    # After the findings, where the comment says it: above them, the indented rows
+    # would read as the ledger's.
+    if line := _hygiene_line(r):
+        lines.append(f"hygiene: {line}")
     if r.get("questions_parked"):
         qs = r["questions_parked"]
         lines.append(f"needs human decision: {len(qs)} parked — "
@@ -304,6 +354,8 @@ def _fmt_comment(r, n):
         if overflow > 0:
             head.append(f"\n<sub>…and {overflow} more open findings — see the report.</sub>")
         head.append("")
+    if line := _hygiene_line(r):
+        head += [f"**Hygiene:** {line}", ""]
     if r.get("questions_parked"):
         head.append(f"**Needs human decision ({len(r['questions_parked'])} parked):**")
         for q in r["questions_parked"][:5]:
