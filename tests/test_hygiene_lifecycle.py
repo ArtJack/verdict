@@ -628,18 +628,69 @@ def test_a_first_inventory_lists_its_rows_once():
     assert section.count("`web/new.py:7`") == 1 and "**New this run:**" not in section
 
 
-def test_the_section_says_what_each_flag_on_the_counts_means():
+# The flags, each on a block the real ledger() built: a hand-built summary can hold
+# counts no run produces, and a renderer checked against one proves nothing.
+JUNK = [item("unused_import", "u1", 2, path="a.py"), item("broad_swallow", "s1", 2, path="b.py")]
+
+
+def first_run():
+    return ledger(facts(), JUNK, None, "2026-10-01", 1, "a")
+
+
+def test_a_partial_scan_says_what_it_could_not_read_and_still_counts_what_it_did():
     from verdict_mcp.harness import render_report
-    state = on_disk()
-    state["hygiene"]["scope"].update(files=38, failed=2, failed_paths=["web/a.js", "web/b.js"])
-    state["hygiene"]["summary"].update(partial=True, carried=1, tier2_unread=True, prior_unread=True)
+    partial = dict(facts(status="partial"),
+                   scope={"files": 1, "capped": False, "file_cap": 5000, "failed": 1, "failed_paths": ["b.py"]})
+    block = ledger(partial, JUNK[:1], first_run(), "2026-10-02", 2, "b", evidence=read("a.py"))
+    assert block["summary"]["partial"] is True and block["summary"]["carried"] == 1
+    section = hygiene_section(render_report(on_disk(hygiene=block)))
+    assert section.startswith("\n\n2 open · 0 new · 0 removed since the last run · 1 files scanned\n")
+    assert ("- Partial scan: 1 file(s) could not be read, so nothing in them was marked removed: `b.py`"
+            in section)
+    assert ("- Carried open, not removed: 1 row(s) this run did not see — nothing this run read proves "
+            "them gone") in section
+
+
+def test_new_and_removed_are_not_measured_when_this_runs_rows_could_not_be_read():
+    from verdict_mcp.gate import _hygiene_line
+    from verdict_mcp.harness import render_report
+    from verdict_mcp.state import history_row
+    counted = dict(facts(), counts_by_kind={"unused_import": 1, "broad_swallow": 1})
+    block = ledger(counted, None, first_run(), "2026-10-02", 2, "b")
+    s = block["summary"]
+    assert s["tier2_unread"] is True and (s["open"], s["new"], s["resolved"], s["carried"]) == (2, 0, 0, 2)
+    state = on_disk(hygiene=block)
+    section = hygiene_section(render_report(state))
+    assert section.startswith("\n\n2 open · new and removed not measured this run · 1 files scanned\n")
+    assert "| broad swallow | 1 | — | — |" in section and "| unused import | 1 | — | — |" in section
+    assert ("- This run's junk list could not be read from `hygiene-items.json`: which rows are new or "
+            "removed is not known, and the open count is the scan's own") in section
+    assert [ln for ln in section.splitlines() if ln.startswith("- Carried open")] == [
+        "- Carried open, not removed: 2 row(s) from the last run — this run could not read its junk list, "
+        "so none is known to be gone"]
+    assert "did not see" not in section
+    assert _hygiene_line({"hygiene": s}) == ("2 open (new and removed not measured this run) · "
+                                             "broad swallow 1 · unused import 1")
+    assert history_row(state)["hygiene"] == {"open": 2, "new": None, "resolved": None}
+
+
+def test_new_and_removed_are_not_measured_when_last_runs_rows_could_not_be_read():
+    from verdict_mcp.gate import _hygiene_line
+    from verdict_mcp.harness import render_report
+    from verdict_mcp.state import history_row
+    block = ledger(facts(), JUNK, {"status": "measured", "rows_file": "hygiene-ledger.json"},
+                   "2026-10-03", 3, "c")
+    s = block["summary"]
+    assert s["prior_unread"] is True and (s["open"], s["new"], s["resolved"]) == (2, 2, 0)
+    state = on_disk(hygiene=block)
     text = render_report(state)
     section = hygiene_section(text)
-    assert ("- Partial scan: 2 file(s) could not be read, so nothing in them was marked removed: "
-            "`web/a.js`, `web/b.js`") in section
-    assert "- Carried open, not removed: 1 row(s) this run did not see" in section
-    assert "`hygiene-items.json`" in section and "none was marked new or removed" in section
+    assert section.startswith("\n\n2 open · new and removed not measured this run · 1 files scanned\n")
+    assert "| broad swallow | 1 | — | — |" in section and "**New this run:**" not in section
     assert text.count("last run's hygiene rows could not be read") == 1, "said once, under the scope"
+    assert _hygiene_line({"hygiene": s}) == ("2 open (new and removed not measured this run) · "
+                                             "broad swallow 1 · unused import 1")
+    assert history_row(state)["hygiene"] == {"open": 2, "new": None, "resolved": None}
 
 
 def test_an_unmeasured_scan_says_so_and_what_it_carried():

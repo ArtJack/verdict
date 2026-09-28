@@ -72,8 +72,8 @@ try:
                         load_accepted, load_chain_anchor, load_outcomes,
                         merge_outcomes, norm_status, order_findings,
                         project_key_for_root)
-    from .state import (RUNS_FILE, chain_link, history_row, load_runs,
-                        next_revision)
+    from .state import (RUNS_FILE, chain_link, history_row, hygiene_change_unmeasured,
+                        load_runs, next_revision)
     from .state import home as state_home
     from .usage import ENTRYPOINT_ENV, SESSION_ENV, run_usage
     from .usage import FIELDS as USAGE_FIELDS
@@ -99,8 +99,8 @@ except ImportError:  # bare-script execution
                        load_accepted, load_chain_anchor, load_outcomes,
                        merge_outcomes, norm_status, order_findings,
                        project_key_for_root)
-    from state import (RUNS_FILE, chain_link, history_row, load_runs,
-                       next_revision)
+    from state import (RUNS_FILE, chain_link, history_row, hygiene_change_unmeasured,
+                       load_runs, next_revision)
     from state import home as state_home
     from usage import ENTRYPOINT_ENV, SESSION_ENV, run_usage
     from usage import FIELDS as USAGE_FIELDS
@@ -3313,10 +3313,14 @@ def _render_hygiene(state: dict) -> list[str]:
     if block.get("status") != "measured":
         return []
     scope = block.get("scope") if isinstance(block.get("scope"), dict) else {}
-    head = (f"{s.get('open', 0)} open · {s.get('new', 0)} new · {s.get('resolved', 0)} removed "
-            f"since the last run · {scope.get('files', '?')} files scanned"
+    # A ledger that could not compare this run's rows with last run's counted no change:
+    # its 0s, or its every-row-new, are not measurements, and are not printed as ones.
+    unmeasured = hygiene_change_unmeasured(s)
+    change = ("new and removed not measured this run" if unmeasured else
+              f"{s.get('new', 0)} new · {s.get('resolved', 0)} removed since the last run")
+    head = (f"{s.get('open', 0)} open · {change} · {scope.get('files', '?')} files scanned"
             + (f" (capped at {scope.get('file_cap')})" if scope.get("capped") else ""))
-    if s.get("first_inventory"):
+    if s.get("first_inventory") and not unmeasured:
         head += " · first inventory: everything is new because nothing was tracked before"
     out = ["## Hygiene", "", head, ""]
     flags = []
@@ -3328,9 +3332,13 @@ def _render_hygiene(state: dict) -> list[str]:
                      + (": " + ", ".join(f"`{p}`" for p in failed[:3]) + (", …" if len(failed) > 3 else "")
                         if failed else ""))
     if s.get("tier2_unread"):
-        flags.append(f"- This run's rows could not be read from `{HYGIENE_ITEMS_FILE}`: none was marked "
-                     "new or removed, and the counts are the scan's own")
-    if s.get("carried"):
+        flags.append(f"- This run's junk list could not be read from `{HYGIENE_ITEMS_FILE}`: which rows are "
+                     "new or removed is not known, and the open count is the scan's own")
+    if s.get("carried") and s.get("tier2_unread"):
+        # Every row carried then is last run's, for want of this run's list — not unseen.
+        flags.append(f"- Carried open, not removed: {s['carried']} row(s) from the last run — this run "
+                     "could not read its junk list, so none is known to be gone")
+    elif s.get("carried"):
         flags.append(f"- Carried open, not removed: {s['carried']} row(s) this run did not see — "
                      "nothing this run read proves them gone")
     if flags:
@@ -3345,16 +3353,16 @@ def _render_hygiene(state: dict) -> list[str]:
     if by_kind:
         out += ["| Kind | Open | New | Removed |", "|---|---|---|---|"]
         for kind, c in sorted(by_kind.items(), key=lambda kv: (-kv[1].get("open", 0), kv[0])):
-            out.append(f"| {kind.replace('_', ' ')} | {c.get('open', 0)} | {c.get('new', 0)} "
-                       f"| {c.get('resolved', 0)} |")
+            new_n, gone_n = ("—", "—") if unmeasured else (c.get("new", 0), c.get("resolved", 0))
+            out.append(f"| {kind.replace('_', ' ')} | {c.get('open', 0)} | {new_n} | {gone_n} |")
         out.append("")
     preview = block.get("preview") if isinstance(block.get("preview"), dict) else {}
     oldest = [r for r in preview.get("oldest") or [] if isinstance(r, dict)]
     new = [r for r in preview.get("new") or [] if isinstance(r, dict)]
     # When every open row is new this run — a first inventory, say — the two lists are
-    # one list, and it is said once.
+    # one list, and it is said once. With the change unmeasured, no row is known new.
     for label, rows, dated in (("Oldest open", oldest, True),
-                               ("New this run", [] if new == oldest else new, False)):
+                               ("New this run", [] if unmeasured or new == oldest else new, False)):
         if rows:
             out += [f"**{label}:**", ""] + [
                 f"- `{r.get('path')}:{r.get('line')}` {str(r.get('kind')).replace('_', ' ')} — "

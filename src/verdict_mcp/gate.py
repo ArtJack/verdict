@@ -43,8 +43,8 @@ from pathlib import Path
 try:
     from .project_key import derive_key
     from .questions import facts_view as questions_view
-    from .state import (code_drift, fold_accepted, harness_signals, is_open, is_path_like,
-                    load_accepted,
+    from .state import (code_drift, fold_accepted, harness_signals, hygiene_change_unmeasured,
+                    is_open, is_path_like, load_accepted,
                     load_chain_anchor, load_runs, load_state, missing_durable,
                     norm_status, order_findings,
                     parse_timestamp, repo_for_root, resolve_root,
@@ -55,8 +55,8 @@ except ImportError:  # executed as a bare script (GitHub Action gate mode)
     import clock
     from project_key import derive_key
     from questions import facts_view as questions_view
-    from state import (code_drift, fold_accepted, harness_signals, is_open, is_path_like,
-                   load_accepted,
+    from state import (code_drift, fold_accepted, harness_signals, hygiene_change_unmeasured,
+                   is_open, is_path_like, load_accepted,
                    load_chain_anchor, load_runs, load_state, missing_durable,
                    norm_status, order_findings,
                    parse_timestamp, repo_for_root, resolve_root,
@@ -259,8 +259,11 @@ def _hygiene_line(r):
     kinds = hy.get("by_kind") if isinstance(hy.get("by_kind"), dict) else {}
     top = sorted(((k, count(v.get("open"))) for k, v in kinds.items() if isinstance(v, dict)),
                  key=lambda kv: (-kv[1], kv[0]))[:3]
-    return (f"{count(hy.get('open'))} open ({count(hy.get('new')):+d} new, "
-            f"−{count(hy.get('resolved'))} removed)"
+    if hygiene_change_unmeasured(hy):
+        change = "new and removed not measured this run"
+    else:
+        change = f"{count(hy.get('new')):+d} new, −{count(hy.get('resolved'))} removed"
+    return (f"{count(hy.get('open'))} open ({change})"
             + "".join(f" · {k.replace('_', ' ')} {n}" for k, n in top))
 
 

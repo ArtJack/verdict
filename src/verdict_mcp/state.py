@@ -668,6 +668,16 @@ def _chain_signal(state: dict, root) -> bool:
     return chain_link(prev, history_row(state, _row_revision(last))) == recorded
 
 
+def hygiene_change_unmeasured(summary) -> bool:
+    """Whether a junk ledger's `new` and `resolved` count nothing this run: its own rows
+    could not be read (`tier2_unread`: both read 0), or last run's could not
+    (`prior_unread`: every row reads as new). `open` is still the scan's own count. One
+    reading for the report, the gate and the run history, so no surface prints as
+    measured what another calls unmeasured."""
+    s = summary if isinstance(summary, dict) else {}
+    return bool(s.get("tier2_unread") or s.get("prior_unread"))
+
+
 def history_row(state: dict, revision: int = 0) -> dict:
     """One machine-native line of run history, derived from the state.
 
@@ -727,8 +737,12 @@ def history_row(state: dict, revision: int = 0) -> dict:
         # The junk ledger per run (0.91.0) — telemetry like gate_durations, and
         # excluded from the chain body for the same reason: a state signed before the
         # counts existed re-derives its row with them today (see _CHAIN_EXCLUDED).
-        row["hygiene"] = {"open": s.get("open", 0), "new": s.get("new", 0),
-                          "resolved": s.get("resolved", 0)}
+        # New and removed are null when the run could not count them: this file is the
+        # permanent record, and a 0 there would read as a measured zero for ever.
+        unmeasured = hygiene_change_unmeasured(s)
+        row["hygiene"] = {"open": s.get("open", 0),
+                          "new": None if unmeasured else s.get("new", 0),
+                          "resolved": None if unmeasured else s.get("resolved", 0)}
     for optional in ("run_label",):
         if state.get(optional) is not None:
             row[optional] = state[optional]
