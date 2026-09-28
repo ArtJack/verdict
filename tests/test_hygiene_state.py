@@ -240,3 +240,42 @@ def test_a_sweep_says_the_verdict_it_wrote(tmp_path):
     assert state_of(qa)["verdict"] == "pass with risks"
     assert "verdict 'pass with risks' written, not the carried 'pass'" in proc.stderr
     assert "'pass' carried" not in proc.stderr
+
+
+def test_a_sweep_starts_from_the_verdict_the_tester_wrote_not_the_cap(tmp_path):
+    # The cap belongs to the Critical, not to the verdict: a sweep that carried the
+    # capped verdict would keep `pass with risks` for ever after the key was gone.
+    from test_sweep import PY, git, run as run_runner, state_of
+    repo = tmp_path / "Proj"
+    repo.mkdir()
+    git(repo, "init", "-qb", "main")
+    (repo / "cited.py").write_bytes(b"def a(x):\n    return x + 1\n")
+    (repo / "other.py").write_text(f'def b(x):\n    return x\n\n\nKEY = "{LIVE}"\n', encoding="utf-8")
+    (repo / "test_a.py").write_bytes(b"from cited import a\n\ndef test_a():\n    assert a(1) == 2\n")
+    git(repo, "add", "-A")
+    git(repo, "commit", "-qm", "base")
+    home = tmp_path / "home"
+    qa = home / "proj"
+    (qa / "reports").mkdir(parents=True)
+    (qa / "profile.md").write_text(
+        f"---\ngates:\n  suite: {PY} -m pytest -q -p no:cacheprovider\n"
+        f"test_ids_cmd: {PY} -m pytest --collect-only -q -p no:cacheprovider\n---\n\n"
+        "# QA Profile — proj\n\nProject-Key: proj\n", encoding="utf-8")
+    assert harness.facts_main(["--repo", str(repo), "--qa-root", str(qa)]) == 0
+    j = {"topic": "baseline", "verdict": "pass", "isolation_check": {"result": "pass"},
+         "release_blockers": [], "not_tested": ["concurrency"],
+         "findings": [{"id": "PROJ-F-1", "title": "a is off by one", "severity": "Minor",
+                       "priority": "P3", "status": "open", "failure_classification": "REAL_DEFECT",
+                       "confidence": "proven", "evidence": ["cited.py:2 — `return x + 1`"]}]}
+    (qa / "judgment.json").write_text(json.dumps(j), encoding="utf-8")
+    assert harness.finalize_main(["--qa-root", str(qa), "--judgment", str(qa / "judgment.json")]) == 0
+    first = state_of(qa)
+    assert first["verdict"] == "pass with risks" and first["hygiene"]["verdict_capped"]["from"] == "pass"
+    (repo / "other.py").write_bytes(b"def b(x):\n    return x\n")
+    git(repo, "commit", "-qam", "the key is gone")
+    proc, model_ran = run_runner(tmp_path, repo, home, "--skip-unless-drift")
+    assert not model_ran, proc.stderr
+    swept = state_of(qa)
+    assert swept["run_type"] == "sweep" and swept["verdict"] == "pass"
+    assert "verdict_capped" not in swept["hygiene"]
+    assert "verdict 'pass' carried" in proc.stderr

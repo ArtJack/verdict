@@ -656,6 +656,19 @@ def sweep_blockers(facts: dict, previous: dict, changed, today) -> list[str]:
     return why
 
 
+def uncapped_verdict(previous: dict):
+    """The verdict a sweep carries: the tester's own, from before finalize capped it
+    over a Critical the hygiene scan filed. The cap belongs to the Critical, not to
+    the verdict — finalize applies it again while the Critical is open, and a sweep
+    that carried the capped verdict would keep `pass with risks` long after the key
+    was gone. Read only when the record says the verdict it holds is that cap."""
+    capped = (previous.get("hygiene") or {}).get("verdict_capped") \
+        if isinstance(previous.get("hygiene"), dict) else None
+    if isinstance(capped, dict) and capped.get("to") == previous.get("verdict") and capped.get("from"):
+        return capped["from"]
+    return previous.get("verdict")
+
+
 def sweep_judgment(facts: dict, previous: dict, changed: list, commits,
                    notes: list | None = None) -> dict:
     """The synthetic judgment of a sweep: the previous verdict, every open
@@ -677,7 +690,7 @@ def sweep_judgment(facts: dict, previous: dict, changed: list, commits,
     m = f"{len(changed)} file{'' if len(changed) == 1 else 's'}"
     return {
         "topic": "sweep",
-        "verdict": previous.get("verdict"),
+        "verdict": uncapped_verdict(previous),
         "isolation_check": {"result": "n/a", "method": "model-free sweep: no agent ran; "
                             "verdict-facts read the checkout and wrote only inside the QA root"},
         "full_sweep": False,
@@ -700,10 +713,11 @@ def sweep_judgment(facts: dict, previous: dict, changed: list, commits,
 
 
 def swept_verdict(qa_root, previous: dict) -> str:
-    """What the sweep wrote, said as such. It carries the previous verdict, and a
-    Critical the hygiene scan files on the way caps a `pass` at `pass with risks`: the
-    line said "'pass' carried" over a state that held the cap."""
-    carried = previous.get("verdict")
+    """What the sweep wrote, said as such. It carries the tester's verdict
+    (`uncapped_verdict`), and a Critical the hygiene scan files, or still sees, caps a
+    `pass` at `pass with risks`: the line said "'pass' carried" over a state that held
+    the cap."""
+    carried = uncapped_verdict(previous)
     try:
         state = json.loads((Path(qa_root) / "state.json").read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
