@@ -87,6 +87,7 @@ OVERSIZED_LINES = 2000
 DUPLICATE_MIN_LINES = 8
 LEAD_CAP = 60            # leads written to facts; the total is always exact
 LEDGER_CAP = 5000        # ledger rows; past it the counts stay exact, rows with a history first
+PREVIEW_ROWS = 10        # of the oldest open rows, and of the new ones, kept in the state
 LONG_LINE = 2000         # a minified line: junk and lead checks pass it by, the secret scan never does
 
 SEVERITY = {
@@ -1772,28 +1773,38 @@ def _resolved(p, reason: str, today: str, run_number) -> dict:
 def ledger(facts_hygiene, tier2, previous_block, today: str, run_number, sha: str,
            evidence=None) -> dict:
     """Tier-2 items → the junk ledger, keyed by fingerprint, with counts that stay
-    exact. `tier2` is this run's rows (harness.tier2_items): None when the side file
-    holding them could not be read, and then no row resolves. A row not seen
-    resolves only on `evidence`, like a tier-1 finding, and is otherwise carried."""
+    exact, and a preview of it (_preview). `tier2` is this run's rows
+    (harness.tier2_items): None when the side file holding them could not be read,
+    and then no row resolves. A row not seen resolves only on `evidence`, like a
+    tier-1 finding, and is otherwise carried.
+
+    `previous_block` holds last run's rows, read back from the file they went to
+    (harness.hygiene_previous). One that names that file and holds no rows could not
+    be read: nothing is carried forward and nothing resolves — every row this run
+    is NEW — and the summary says `prior_unread`."""
     fh = facts_hygiene if isinstance(facts_hygiene, dict) else {}
     ev = evidence if isinstance(evidence, Evidence) else Evidence()
-    prev = previous_block if (isinstance(previous_block, dict)
-                              and isinstance(previous_block.get("rows"), list)) else {}
+    prev = previous_block if isinstance(previous_block, dict) else {}
+    prev_rows = prev.get("rows") if isinstance(prev.get("rows"), list) else None
+    prior_unread = prev_rows is None and bool(prev.get("rows_file"))
+    first_inventory = prev_rows is None and not prior_unread
     prev_open: dict = {}
-    for r in prev.get("rows") or []:
-        if (isinstance(r, dict) and r.get("status") == "open" and r.get("kind") in TIER2_KINDS
-                and isinstance(r.get("fingerprint"), str)):
-            prev_open.setdefault(r["fingerprint"], r)
+    for r in prev_rows or []:
+        kept = _prior_row(r)
+        if kept is not None:
+            prev_open.setdefault(kept["fingerprint"], kept)
     if fh.get("status") not in ("measured", "partial"):
         block = {"status": "unavailable", "reason": fh.get("reason") or (
             "facts.json carries no hygiene scan — measured by a verdict-facts older than 0.91.0")}
-        if prev_open:
+        if prev_open or prior_unread:
             # Nothing measured, so nothing is known to be gone: last run's open rows are
             # kept rather than dropped, which would start the next inventory over.
             carried = [_carried_row(r, "the hygiene scan was unavailable this run")
                        for r in prev_open.values()]
-            block.update(summary=_ledger_summary(_count(carried), [], [], carried, False, False),
-                         rows=carried,
+            summary = _ledger_summary(_count(carried), [], [], carried, False, False)
+            if prior_unread:
+                summary["prior_unread"] = True
+            block.update(summary=summary, rows=carried, preview=_preview(carried),
                          carried_from_run=prev.get("measured_at_run") or prev.get("carried_from_run"))
         return block
     rows_read = tier2 is not None
@@ -1825,14 +1836,45 @@ def ledger(facts_hygiene, tier2, previous_block, today: str, run_number, sha: st
     capped = len(kept) > LEDGER_CAP
     if capped:
         kept = sorted(kept, key=lambda r: r["delta"] == "NEW")[:LEDGER_CAP]
-    summary = _ledger_summary(open_by_kind, current, removed, carried, not prev, capped)
+    summary = _ledger_summary(open_by_kind, current, removed, carried, first_inventory, capped)
     if fh.get("status") == "partial":
         summary["partial"] = True
     if not rows_read:
         summary["tier2_unread"] = True
+    if prior_unread:
+        summary["prior_unread"] = True
     return {"status": "measured", "scope": fh.get("scope"), "measured_at_run": run_number,
-            "summary": summary, "rows": kept + removed,
+            "summary": summary, "rows": kept + removed, "preview": _preview(kept + removed),
             "leads": {"handed": fh.get("leads_total", 0)}}
+
+
+# What a carried row keeps of last run's: its known fields, whatever else the file held.
+_ROW_FIELDS = ("fingerprint", "kind", "path", "line", "excerpt", "status", "delta", "first_seen",
+               "first_seen_run", "sites", "carried_forward")
+_PREVIEW_FIELDS = ("fingerprint", "kind", "path", "line", "excerpt", "first_seen", "delta")
+
+
+def _prior_row(r):
+    """An open row of last run's ledger, as this run may carry it, or None."""
+    if not (isinstance(r, dict) and r.get("status") == "open" and r.get("kind") in TIER2_KINDS
+            and isinstance(r.get("fingerprint"), str)):
+        return None
+    return {k: r[k] for k in _ROW_FIELDS if k in r}
+
+
+def _preview(rows) -> dict:
+    """What the state keeps of the ledger, its rows being in a file of their own: the
+    PREVIEW_ROWS open rows first seen longest ago, and the first PREVIEW_ROWS new this
+    run in path order — the two lists a reader looks at first."""
+    def where(r):
+        line = r.get("line")
+        return (str(r.get("path") or ""), line if type(line) is int else 0, str(r.get("fingerprint")))
+
+    oldest = sorted((r for r in rows if r.get("status") == "open"),
+                    key=lambda r: (str(r.get("first_seen") or ""), *where(r)))
+    new = sorted((r for r in rows if r.get("delta") == "NEW"), key=where)
+    return {"oldest": [{k: r.get(k) for k in _PREVIEW_FIELDS} for r in oldest[:PREVIEW_ROWS]],
+            "new": [{k: r.get(k) for k in _PREVIEW_FIELDS} for r in new[:PREVIEW_ROWS]]}
 
 
 def _ledger_row(it, p, today: str, run_number) -> dict:

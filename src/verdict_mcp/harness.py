@@ -2085,12 +2085,19 @@ def merge(facts: dict, judgment: dict, previous: dict | None, today: date | None
             state[optional] = judgment[optional]
     # Always assigned, so the end-of-merge carry of unknown keys cannot resurrect a
     # stale ledger.
-    state["hygiene"] = hygiene_ledger(hyg, tier2_items(hyg, root),
-                                      (previous or {}).get("hygiene"), today.isoformat(),
+    prev_ledger = hygiene_previous((previous or {}).get("hygiene"), root,
+                                   (previous or {}).get("run_number"))
+    state["hygiene"] = hygiene_ledger(hyg, tier2_items(hyg, root), prev_ledger, today.isoformat(),
                                       facts.get("run_number"), sha_now, evidence=evidence)
     if state["hygiene"].get("status") == "measured":
         state["hygiene"]["leads"]["followed"] = leads_followed(
             hyg.get("leads") if isinstance(hyg, dict) else None, findings)
+    # A hygiene finding the judgment named — in `still_open` or `resolved`, or as a
+    # copy — was ignored: the scan settles it. Said where a reader sees it rather than
+    # refused, since a refusal loop costs a run more than it teaches the tester.
+    ignored = _ignored_hygiene_ids(judgment, previous)
+    if ignored:
+        state["hygiene"]["ignored_judgment_ids"] = ignored
     if verdict != judgment.get("verdict"):
         state["hygiene"]["verdict_capped"] = {"from": judgment.get("verdict"), "to": verdict,
                                             "by": capped_by}
@@ -2234,6 +2241,7 @@ def write_state(qa_root: Path, state: dict) -> list[str]:
     row["chain"] = chain_link(prev, row)
     state.setdefault("last_run", {})["chain"] = row["chain"]
 
+    _write_hygiene_rows(qa_root, state)
     _atomic_write(qa_root / "state.json", json.dumps(state, indent=2) + "\n")
     # The chain's ratchet lives here rather than in the history it guards: a
     # signal a fabricator can shed by deleting one file is not a signal
@@ -2262,6 +2270,41 @@ def write_state(qa_root: Path, state: dict) -> list[str]:
         body = f"# QA run index — {state['project']}\n\n{INDEX_HEADER}"
     _atomic_write(index, body + "\n" + index_row(state) + "\n")
     return []
+
+
+def _ignored_hygiene_ids(judgment: dict, previous: dict | None) -> list[str]:
+    """The hygiene findings a judgment named, which merge passed over: an id of the
+    previous state's in `still_open` or `resolved`, or a finding marked as one."""
+    theirs = {str(f.get("id")) for f in ((previous or {}).get("findings") or [])
+              if is_hygiene(f) and f.get("id")}
+    named = {str(x) for verb in ("still_open", "resolved")
+             for x in (judgment.get(verb) if isinstance(judgment.get(verb), list) else [])
+             if str(x) in theirs}
+    copies = {str(f.get("id")) for f in (judgment.get("findings") or [])
+              if is_hygiene(f) and f.get("id")}
+    return sorted(named | copies)
+
+
+def _write_hygiene_rows(qa_root: Path, state: dict) -> None:
+    """Move the junk ledger's rows out of the state into `hygiene-ledger.json`, with
+    the run that wrote them — the state keeps the counts and the preview, and the
+    tester, who reads state.json first on every run, no longer reads 119 rows of junk
+    (Sales). Called once the state is accepted, so a refused run leaves last run's
+    rows in place. A file that cannot be written costs the run nothing: the rows stay
+    in the state, where the next run reads them, and `rows_note` says why."""
+    block = state.get("hygiene")
+    if not isinstance(block, dict) or not isinstance(block.get("rows"), list):
+        return
+    doc = {"schema": 1, "run_number": state.get("run_number"), "rows": block["rows"]}
+    try:
+        _atomic_write(Path(qa_root) / HYGIENE_LEDGER_FILE, json.dumps(doc, indent=1) + "\n")
+    except OSError as exc:
+        block["rows_note"] = (f"{HYGIENE_LEDGER_FILE} could not be written "
+                              f"({exc.strerror or type(exc).__name__}): the rows stay here")
+        return
+    block.pop("rows_note", None)
+    del block["rows"]
+    block["rows_file"] = HYGIENE_LEDGER_FILE
 
 
 def check_artifacts(qa_root: Path, state: dict) -> list[str]:
@@ -2343,6 +2386,8 @@ def _resolve_root(repo: Path, explicit: str | None) -> Path:
 
 # The tier-2 rows of this run's hygiene scan, beside facts.json rather than in it.
 HYGIENE_ITEMS_FILE = "hygiene-items.json"
+# The junk ledger's rows, beside state.json rather than in it (write_state).
+HYGIENE_LEDGER_FILE = "hygiene-ledger.json"
 # What the scan vouches for, file by file: finalize's evidence, never the tester's
 # reading, so it travels in the side file with the rows.
 _VOUCHED = ("scanned_paths", "parse_failed_paths", "rls_judged")
@@ -2429,12 +2474,35 @@ def hygiene_evidence(facts_hygiene: dict, qa_root: Path, repo=None, sha=None) ->
                     absent=(lambda paths: absent_from_tree(repo, sha, paths)) if repo else None)
 
 
+def hygiene_previous(block, qa_root: Path, run_number):
+    """The previous run's ledger block with its rows read back from the file they went
+    to (`write_state`), for `hygiene.ledger` to compare this run's against. A block
+    that still holds its rows — one merged in this process, or one whose file could
+    not be written — is returned as it is. The file must be the one that previous
+    state's own run wrote: a state restored from state.json.prev, or a run killed
+    between the two writes, leaves a file from another run, and comparing against it
+    would resolve rows the state never had. When the rows cannot be read the block is
+    returned without them, and the ledger carries nothing forward and says so."""
+    if not isinstance(block, dict) or isinstance(block.get("rows"), list):
+        return block
+    doc = _side_doc(qa_root, block.get("rows_file"))
+    if (doc is None or type(doc.get("run_number")) is not int or doc["run_number"] != run_number
+            or not isinstance(doc.get("rows"), list)):
+        return block
+    return dict(block, rows=doc["rows"])
+
+
 def _hygiene_side(facts_hygiene: dict, qa_root: Path):
-    """The side file a split block names, loaded — or None: no file named, a name
-    reaching out of the QA root, a file missing, unreadable or nested past what the
-    parser holds (RecursionError, at about 1,000 levels on 3.9), or a schema that is
-    not the integer 1 (`true == 1` in Python, and is no schema)."""
-    name = facts_hygiene.get("tier2_file") if isinstance(facts_hygiene, dict) else None
+    """The side file a split block names, loaded — or None (`_side_doc`)."""
+    return _side_doc(qa_root, facts_hygiene.get("tier2_file") if isinstance(facts_hygiene, dict)
+                     else None)
+
+
+def _side_doc(qa_root: Path, name):
+    """A hygiene file in the QA root, loaded — or None: no file named, a name reaching
+    out of the QA root, a file missing, unreadable or nested past what the parser
+    holds (RecursionError, at about 1,000 levels on 3.9), or a schema that is not the
+    integer 1 (`true == 1` in Python, and is no schema)."""
     if not isinstance(name, str) or name in ("", ".", "..") or Path(name).name != name:
         return None
     try:
@@ -3165,6 +3233,23 @@ def _judge_line(state: dict, last: dict) -> list:
     return [" · ".join(parts)]
 
 
+def _hygiene_lines(state: dict) -> list[str]:
+    """What the scan's ledger could not do this run, and what a judgment said that it
+    ignored — said under the scope, where a reader looks before trusting the counts."""
+    block = state.get("hygiene") if isinstance(state.get("hygiene"), dict) else {}
+    out = []
+    if (block.get("summary") or {}).get("prior_unread"):
+        out.append(f"- Hygiene ledger: last run's hygiene rows could not be read ({HYGIENE_LEDGER_FILE} "
+                   "missing, unreadable, or written by another run) — nothing was carried forward: "
+                   "every row this run is NEW, and none was resolved")
+    ids = block.get("ignored_judgment_ids") or []
+    if ids:
+        out.append(f"- Hygiene findings the judgment named, and ignored: {', '.join(map(str, ids))} — "
+                   "the scan's own: each resolves when the scan stops seeing it, never on a "
+                   "judgment's word")
+    return out
+
+
 def render_report(state: dict, prose: dict | None = None) -> str:
     """Render the report from the state, injecting the agent's prose.
 
@@ -3212,6 +3297,7 @@ def render_report(state: dict, prose: dict | None = None) -> str:
         detail = iso.get("method") or iso.get("note") or ""
         out.append(f"- Isolation check: **{iso.get('result', iso.get('status', 'n/a'))}**"
                    + (f" — {detail}" if detail else ""))
+    out += _hygiene_lines(state)
     if prose.get("scope"):
         out += ["", prose["scope"]]
 
