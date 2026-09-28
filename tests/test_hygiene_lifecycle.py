@@ -533,3 +533,22 @@ def test_a_squash_onto_a_baseline_too_large_to_read_keeps_the_rls_finding_open(r
                    judgment(findings=[]), first)
     [again] = [f for f in hygiene_findings(second) if f["id"] == rls["id"]]
     assert (again["delta"], again["status"]) == ("STILL_OPEN", "open")
+
+
+# ── the validator's refusal invites no copy ───────────────────────────────
+
+def test_the_refusal_says_whose_the_finding_is_and_invites_no_copy(repo, qa_root):
+    from verdict_mcp.validate import validate_judgment
+    marked = judgment()
+    marked["findings"][0]["source"] = "hygiene"
+    [said] = [p for p in validate_judgment(marked) if "hygiene" in p]
+    assert "W-F-1" in said and "belongs to the harness" in said
+    assert "not be copied or re-filed" in said and "your own finding" not in said
+    committed(repo, {"k.py": f'K = "{LIVE}"\n'}, "key")
+    previous = merge(collect(repo, qa_root, []), judgment(), None)
+    [key] = hygiene_findings(previous)
+    reused = judgment()
+    reused["findings"][0]["id"] = key["id"]
+    [said] = [p for p in validate_judgment(reused, previous) if "hygiene" in p]
+    assert f"the hygiene finding {key['id']}" in said and "belongs to the harness" in said
+    assert "not be copied or re-filed" in said and "mint" not in said

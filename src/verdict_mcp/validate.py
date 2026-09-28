@@ -212,13 +212,15 @@ def validate_judgment(judgment, previous=None, known_tests=None):
                    "each carrying its evidence like any finding would")
     bad.extend(_not_tested_shape(judgment))
     # A hygiene finding is the scan's, filed and resolved by verdict-finalize alone: a
-    # judgment that marks one as its own is claiming a measurement it did not make.
+    # judgment that marks one as its own is claiming a measurement it did not make. The
+    # refusal names it and invites no copy — a copy is the duplicate being refused.
     listed = judgment.get("findings")
     for i, f in enumerate(listed if isinstance(listed, list) else []):
         if isinstance(f, dict) and (f.get("source") == "hygiene" or "hygiene" in f):
-            bad.append(f"findings[{i}] ({f.get('id')}) is marked as a hygiene finding — those are "
-                       "filed by verdict-finalize from the hygiene scan, never by a judgment. File "
-                       "the harm it causes as your own finding, citing the same line")
+            bad.append(f"findings[{i}] ({f.get('id')}) is a copy of the hygiene finding "
+                       f"{f.get('id')}, which belongs to the harness: filed by verdict-finalize "
+                       "from the hygiene scan and resolved by it when the scan stops seeing it. "
+                       "It must not be copied or re-filed — leave it out of the judgment")
     if not isinstance(judgment.get("isolation_check"), dict):
         bad.append("isolation_check must be an object recording the §0 check you ran")
     if "full_sweep" in judgment and not isinstance(judgment["full_sweep"], bool):
@@ -257,9 +259,9 @@ def validate_judgment(judgment, previous=None, known_tests=None):
         elif fid:
             seen[fid] = i
         if fid in hygiene_ids and f.get("source") != "hygiene" and "hygiene" not in f:
-            bad.append(f"{where} ({fid}) reuses the id of a hygiene finding — the scan files and "
-                       "resolves those itself, and one id is one finding. Mint an id of your "
-                       "own for yours")
+            bad.append(f"{where} ({fid}) is filed under the id of the hygiene finding {fid}, which "
+                       "belongs to the harness: the scan files and resolves it every run. It must "
+                       "not be copied or re-filed — leave it out of the judgment")
         bad.extend(validate_finding(f, where, known_ids, known_tests))
 
     bad.extend(_verbs_shape(judgment, prev_findings, set(seen)))
