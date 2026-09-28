@@ -271,9 +271,11 @@ def _hygiene_line(r):
         change = "first inventory"
     else:
         new, gone = count(hy.get("new")), count(hy.get("resolved"))
-        change = f"{'?' if new is None else format(new, '+d')} new, −{shown(gone)} removed"
-    return (f"{shown(count(hy.get('open')))} open" + (" (capped)" if hy.get("capped") else "")
-            + f" ({change})" + "".join(f" · {k.replace('_', ' ')} {n}" for k, n in top))
+        # The cap distorts the new count, not the open one: a row the ledger dropped is new again.
+        change = (f"{'?' if new is None else format(new, '+d')} new"
+                  + (" (capped)" if hy.get("capped") else "") + f", −{shown(gone)} removed")
+    return (f"{shown(count(hy.get('open')))} open ({change})"
+            + "".join(f" · {k.replace('_', ' ')} {n}" for k, n in top))
 
 
 def _fmt_text(r, n):

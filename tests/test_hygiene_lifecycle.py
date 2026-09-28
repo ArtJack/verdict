@@ -696,18 +696,28 @@ def test_new_and_removed_are_not_measured_when_last_runs_rows_could_not_be_read(
     assert history_row(state)["hygiene"] == {"open": 2, "new": None, "resolved": None}
 
 
-def test_a_capped_ledger_says_so_on_its_counts(monkeypatch):
+def test_a_capped_ledger_marks_the_count_the_cap_distorts(monkeypatch):
+    # `open` stays exact past the cap; `new` does not — a row dropped from the file is new
+    # again the next run it is seen. So the mark sits on the new count, and the row says so.
     from verdict_mcp.gate import _hygiene_line
     from verdict_mcp.harness import render_report
+    from verdict_mcp.state import history_row
     one = ledger(facts(), JUNK[:1], None, "2026-10-01", 1, "a")
     monkeypatch.setattr(hygiene, "LEDGER_CAP", 1)
     two = ledger(facts(), JUNK, one, "2026-10-02", 2, "b", evidence=READ)
     s = two["summary"]
     assert s["capped"] is True and (s["open"], s["new"], s["resolved"]) == (2, 1, 0)
-    section = hygiene_section(render_report(on_disk(hygiene=two)))
-    assert section.startswith("\n\n2 open (capped) · 1 new · 0 removed since the last run · 1 files scanned\n")
-    assert _hygiene_line({"hygiene": s}) == ("2 open (capped) (+1 new, −0 removed) · broad swallow 1 · "
+    state = on_disk(hygiene=two)
+    section = hygiene_section(render_report(state))
+    assert section.startswith("\n\n2 open · 1 new (capped) · 0 removed since the last run · 1 files scanned\n")
+    assert _hygiene_line({"hygiene": s}) == ("2 open (+1 new (capped), −0 removed) · broad swallow 1 · "
                                              "unused import 1")
+    assert history_row(state)["hygiene"] == {"open": 2, "new": 1, "resolved": 0, "capped": True}
+    first = on_disk(hygiene=ledger(facts(), JUNK, None, "2026-10-01", 1, "a"))
+    assert hygiene_section(render_report(first)).startswith(
+        "\n\n2 open · 2 new (capped) · 0 removed since the last run · 1 files scanned · first inventory")
+    assert history_row(first)["hygiene"] == {"open": 2, "new": 2, "resolved": 0, "first_inventory": True,
+                                             "capped": True}
 
 
 def test_an_unknown_count_is_shown_as_unknown_never_as_zero():

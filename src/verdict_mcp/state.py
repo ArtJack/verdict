@@ -751,6 +751,10 @@ def history_row(state: dict, revision: int = 0) -> dict:
             # `new` equals `open` because nothing was tracked before, not because that
             # many were added; no other run's row carries the key.
             row["hygiene"]["first_inventory"] = True
+        if s.get("capped") is True:
+            # The ledger dropped rows past its cap: `open` is exact, `new` and `resolved` are
+            # not (a dropped row still there is new again, one that went is never removed).
+            row["hygiene"]["capped"] = True
     for optional in ("run_label",):
         if state.get(optional) is not None:
             row[optional] = state[optional]

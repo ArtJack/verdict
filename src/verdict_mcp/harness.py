@@ -3320,12 +3320,12 @@ def _render_hygiene(state: dict) -> list[str]:
     def shown(v):
         # An unknown is never 0: a count the state does not hold as a number reads "?".
         return v if type(v) is int else "?"
+    # "(capped)" marks the new count: past its cap (hygiene.LEDGER_CAP) the ledger file drops
+    # rows, and a dropped row still there is counted new again next run. `open` stays exact.
     change = ("new and removed not measured this run" if unmeasured else
-              f"{shown(s.get('new'))} new · {shown(s.get('resolved'))} removed since the last run")
-    # "(capped)": the ledger kept only its cap of rows (hygiene.LEDGER_CAP); this run's
-    # counts stay exact.
-    head = (f"{shown(s.get('open'))} open" + (" (capped)" if s.get("capped") else "")
-            + f" · {change} · {shown(scope.get('files'))} files scanned"
+              f"{shown(s.get('new'))} new" + (" (capped)" if s.get("capped") else "")
+              + f" · {shown(s.get('resolved'))} removed since the last run")
+    head = (f"{shown(s.get('open'))} open · {change} · {shown(scope.get('files'))} files scanned"
             + (f" (capped at {scope.get('file_cap')})" if scope.get("capped") else ""))
     if s.get("first_inventory") and not unmeasured:
         head += " · first inventory: everything is new because nothing was tracked before"
