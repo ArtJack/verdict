@@ -3322,7 +3322,8 @@ def _render_hygiene(state: dict) -> list[str]:
         return v if type(v) is int else "?"
     change = ("new and removed not measured this run" if unmeasured else
               f"{shown(s.get('new'))} new · {shown(s.get('resolved'))} removed since the last run")
-    # "(capped)": the ledger kept LEDGER_CAP rows of more; this run's counts stay exact.
+    # "(capped)": the ledger kept only its cap of rows (hygiene.LEDGER_CAP); this run's
+    # counts stay exact.
     head = (f"{shown(s.get('open'))} open" + (" (capped)" if s.get("capped") else "")
             + f" · {change} · {shown(scope.get('files'))} files scanned"
             + (f" (capped at {scope.get('file_cap')})" if scope.get("capped") else ""))
