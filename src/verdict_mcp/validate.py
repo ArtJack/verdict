@@ -786,6 +786,8 @@ def report_outside_reports(report: str):
         return "climbs out of the QA root — no `..`, `.` or empty segments"
     if len(parts) != 2 or parts[0] != "reports":
         return "must be `reports/<name>.md`, one file directly under reports/"
+    if parts[1].lower() == "index.md":
+        return "names the run index: a report written there replaces the record of every run"
     return None
 
 

@@ -44,11 +44,12 @@ import sys
 from pathlib import Path
 
 try:
-    from .state import ACCEPTED_FILE, is_open, load_state, norm_status
+    from .state import ACCEPTED_FILE, is_open, load_state, norm_status, root_refusal
     from . import clock
 except ImportError:  # invoked as a bare script
     sys.path.insert(0, str(Path(__file__).resolve().parent))
-    from state import ACCEPTED_FILE, is_open, load_state, norm_status  # type: ignore
+    from state import (ACCEPTED_FILE, is_open, load_state, norm_status,  # type: ignore
+                       root_refusal)
     import clock  # type: ignore
 
 # A citation or a reason shorter than this is a placeholder, not a record.
@@ -189,6 +190,11 @@ def main(argv=None) -> int:
         print(f"verdict-accept: {err['error']}", file=sys.stderr)
         return 4
     root = Path(state["_qa_root"])
+    if not args.list:
+        refusal = root_refusal(root, "verdict-accept")
+        if refusal:
+            print(refusal, file=sys.stderr)
+            return 2
     try:
         if args.list:
             print(listing(root))

@@ -2,7 +2,12 @@
 
 Location: `<qa-root>/state.json`. The QA root is `<repo>/.qa/` (team mode) or
 `$VERDICT_HOME/<project-key>/` (solo mode; `VERDICT_HOME` defaults to `~/.claude/verdict`,
-and the key derivation is specified in [project-key.md](project-key.md)). Rules: **preserve
+and the key derivation is specified in [project-key.md](project-key.md)). An explicit
+`--qa-root` may also name a directory outside any checkout — a throwaway root for a branch
+gate. Those are the only three places: since 0.90.3 every writer refuses a root that resolves
+anywhere else inside a git checkout (the harness would write among the code), and a root whose
+own entries, `reports/` or `findings/` hold a symlink, a junction or a hard-linked file (a
+write through a link is a write somewhere else). Rules: **preserve
 unknown keys on update**; bump `schema_version` only on structural change, and say so in
 the report; every timestamp is measured with `date -u +%Y-%m-%dT%H:%M:%SZ` at write time,
 never composed from memory.

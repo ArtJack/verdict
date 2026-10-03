@@ -18,6 +18,52 @@ nothing written; the validator refuses the same shape in a state, at rest includ
 of 16 real QA roots and 132 history rows found no other shape, so the rule refuses nothing a
 run has ever legitimately written. Mutants H-D-1a/b/c.
 
+**And the rule that fixed it read how the path was spelled.** The release's own gate — an Opus
+run the owner asked for before the tag — took the new rule to a scratch checkout and walked
+around it five ways, each one exit 0: `.qa/reports` a symlink to the repository, so
+`reports/README.md` was the project's README; `reports/x.md` itself a symlink to it; `reports`
+pointing at `src/`, where the generated report and `INDEX.md` then landed; `.qa/facts.json` a
+symlink to `src/app.py`, and `verdict-facts` wrote the facts over the code under test; and a
+judgment naming `reports/INDEX.md`, which replaced the index of every run with one run's
+report. A path spelled inside the root is not inside it when a name on the way is a link, and
+a second hard link is the same thing with no symlink to look for. Reading the fix back found
+the case with no link at all: `--qa-root` is the caller's word, so `verdict-facts --qa-root
+src` wrote the facts, the run marker and the test ids into `src/`, and `verdict-finalize
+--qa-root src` a state, a report and the run index.
+
+So every writer of a QA root — `verdict-facts`, `verdict-finalize`, `verdict-local`,
+`verdict-accept`, `verdict-answer`, `verdict-issues --create` — asks two questions before it
+creates or writes anything, and names what it found. Where is the root: under the solo home,
+at or under the `.qa/` at the top of a checkout, or outside any checkout. Anywhere else inside
+a checkout is the code, a `.qa` that is a link into `src/` resolves there, and inside the
+repository under test only its own `.qa/` counts, whatever `VERDICT_HOME` is said to be. And
+what is in it: a symlink, a Windows junction or a file with more than one name among the
+root's own entries, `reports/` or `findings/` is a write somewhere else. Finalize looks once
+more at the one name it is about to open. A judgment cannot name the run index;
+`verdict-facts --out` refuses a path that lands in the checkout outside the QA root; the Stop
+hook does not write its note through a linked marker. The Bash guard refuses the `ln` that
+would build such a root, refuses a hard link that gives a file in the checkout a name in
+scratch — the one write no `realpath` can see — and refuses `verdict-issues --create`, which
+posts under the maintainer's name.
+
+What it does not refuse was measured too. Links deeper in a root are left alone: testers park
+virtualenvs and pytest's temp trees there, and two of the author's own roots carry them. All
+sixteen real roots on the author's machine pass both questions in 1–6 ms, a root that does not
+exist yet is read through its parent, and a `.qa` linked to a directory outside the checkout
+is the caller's business. One thing that used to run is refused on purpose: a `.qa/` deeper in
+a checkout — a monorepo package's own — was never a QA root to the write guard, and is not one
+to the harness now; the message names the three places. And one rule was written and taken
+back before the release: refusing a judgment-named report that an earlier run had rendered
+broke seven tests that reuse one report name across runs, and that is a record-keeping
+question for the next release, not a containment one.
+
+That gate ended `blocked`, not passed: its response was stopped by the model provider's safety
+filter while it wrote up an adversarial section the packet had asked for, and the five
+experiments were read from its transcript. The one finding it filed is fixed too — a test of
+`usage.project_dir` that failed whenever `CLAUDE_CONFIG_DIR` was set, which a headless gate
+with its own config directory always has. Mutants `links a`–`z5`, twenty-nine; the re-run of
+the gate is recorded in the pull request.
+
 **The counterfactual ran a model's expression in your checkout.** To prove a claim,
 `verdict-local` asks the small model for one expression and runs it before and after flipping a
 line. The "before" run happened in the real tree, with the operator's whole environment, and

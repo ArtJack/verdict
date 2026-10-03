@@ -2064,6 +2064,48 @@ for _name in _COMPRESSORS:
     _HANDLERS[_name] = _check_compressor
 
 
+def _check_ln(args, cwd):
+    """`ln [-s] SRC... DST`: the destination is written, as for any copier — and the
+    source is judged too, whenever the link is a way to write it.
+
+    A link is a second name for a file somewhere else. Two cases matter here:
+
+    * **A hard link, wherever it lands.** Every other rule in this file judges a
+      write by its path, and a hard link gives a file in the checkout a path in
+      scratch: `ln src/app.py /tmp/x/alias && echo junk > /tmp/x/alias` was a
+      write to the code under test that named only scratch. No `realpath` can
+      see it, so the link itself is the write.
+    * **A symlink inside a QA root.** The harness writes the root's files by
+      name: `ln -s ../src/app.py .qa/facts.json` followed by `verdict-facts` put
+      the facts over the code under test (the release's own Opus gate,
+      2026-10-03). The harness refuses such a root now; this refuses to build
+      one. A symlink in scratch is left alone — `_target_ok` resolves a later
+      write through it — and a relative source is read against the link's own
+      directory, which is how the filesystem reads it.
+    """
+    symbolic = any((a.startswith("-") and not a.startswith("--") and "s" in a[1:])
+                   or a == "--symbolic" for a in args)
+    destination = None
+    for what, target in _check_copier("ln", args):
+        yield what, target
+        destination = target
+    if destination is None:
+        return
+    sources = [a for a in args if not a.startswith("-") and a != destination]
+    if not symbolic:
+        for source in sources:
+            yield "ln (a second name for the same file)", source
+        return
+    base = os.path.join(cwd, os.path.expanduser(destination))
+    dst_dir = base if os.path.isdir(base) else os.path.dirname(base)
+    if not is_allowed_path(dst_dir):
+        return            # scratch, or already refused as a destination out of scope
+    for source in sources:
+        if not os.path.isabs(os.path.expanduser(source)):
+            source = os.path.join(dst_dir, source)
+        yield "ln (a link out of the QA root)", source
+
+
 def _check_pen(pen, args):
     """`verdict-accept` / `verdict-answer` in any writing form. `--list` reads."""
     if not _PEN_READS.intersection(args):
@@ -2115,6 +2157,13 @@ def _check_segment(toks, cwd, depth=0):
         yield from _check_runner(head, args, cwd, depth)
     elif head in _PENS:
         yield from _check_pen(head, args)
+    elif head == "verdict-issues":
+        # Posting findings to a tracker leaves the machine under the maintainer's
+        # name. The dry run reads; `--create` is the maintainer's to run.
+        if "--create" in args:
+            yield "verdict-issues --create (the maintainer's pen)", _PEN
+    elif head == "ln":
+        yield from _check_ln(args, cwd)
     elif _PYTHON.match(head):
         pen = _python_pen(args)
         if pen:

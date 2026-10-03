@@ -75,6 +75,7 @@ try:
     from .state import (RUNS_FILE, chain_link, history_row, load_runs,
                         next_revision)
     from .state import home as state_home
+    from .state import misplaced_root, root_refusal
     from .usage import ENTRYPOINT_ENV, SESSION_ENV, run_usage
     from .usage import FIELDS as USAGE_FIELDS
     from .validate import (inherited_conflicts, known_tests, report_outside_reports, validate,
@@ -102,6 +103,7 @@ except ImportError:  # bare-script execution
     from state import (RUNS_FILE, chain_link, history_row, load_runs,
                        next_revision)
     from state import home as state_home
+    from state import misplaced_root, root_refusal
     from usage import ENTRYPOINT_ENV, SESSION_ENV, run_usage
     from usage import FIELDS as USAGE_FIELDS
     from validate import (inherited_conflicts, known_tests, report_outside_reports, validate,
@@ -2587,7 +2589,28 @@ def facts_main(argv=None) -> int:
 
     repo = args.repo.expanduser().resolve()
     qa_root = _resolve_root(repo, args.qa_root)
+    # Before the root is created, and before the marker, the ledger or the facts
+    # are written: a root among the code, or a link in it, is a write somewhere
+    # else (state.misplaced_root, state.planted_links).
+    refusal = root_refusal(qa_root, "verdict-facts", repo)
+    if refusal:
+        print(refusal, file=sys.stderr)
+        return 2
     qa_root.mkdir(parents=True, exist_ok=True)
+    if args.out is not None:
+        # `--out` is the caller's path, and the caller may be the tester:
+        # `verdict-facts --out README.md` is a write into the code under test by a
+        # command the Bash guard has no reason to refuse. Anywhere outside the
+        # repository is the caller's business; inside it, only the QA root.
+        # Read where the path lands, not how it is spelled: a link is followed.
+        out_real, root_real = args.out.expanduser().resolve(), qa_root.resolve()
+        in_repo = out_real == repo or repo in out_real.parents
+        in_root = out_real == root_real or root_real in out_real.parents
+        if in_repo and not in_root:
+            print(f"verdict-facts: refusing --out {args.out} — it lands inside the repository "
+                  "under test and outside the QA root; the harness does not write the checkout",
+                  file=sys.stderr)
+            return 2
 
     # The profile already records the project's real commands; retyping them
     # into flags on every run is a transcription step, and a transcription step
@@ -2909,6 +2932,10 @@ def finalize_main(argv=None) -> int:
     args = ap.parse_args(argv)
 
     qa_root = Path(args.qa_root).expanduser().resolve()
+    refusal = root_refusal(qa_root, "verdict-finalize")
+    if refusal:
+        print(refusal, file=sys.stderr)
+        return 1
     facts = _read_json(args.facts or (qa_root / "facts.json"))
     judgment = _read_json(args.judgment)
     if args.sweep and isinstance(facts, dict):
@@ -2923,6 +2950,12 @@ def finalize_main(argv=None) -> int:
     if judgment is None:
         print(f"verdict-finalize: {args.judgment} missing or unreadable", file=sys.stderr)
         return 2
+    # The same question once more, now that the facts say which repository this is:
+    # inside it, only its own `.qa/`, wherever the solo home is said to be.
+    among = misplaced_root(qa_root, facts.get("repo")) if isinstance(facts, dict) else None
+    if among:
+        print(f"verdict-finalize: refusing the QA root — {among}", file=sys.stderr)
+        return 1
 
     previous = _read_json(qa_root / "state.json")
 
@@ -3021,6 +3054,13 @@ def finalize_main(argv=None) -> int:
         return 1
     report_path = qa_root / report_rel
     report_path.parent.mkdir(parents=True, exist_ok=True)
+    # The link check at the top read the root as it stood; this reads the one name
+    # about to be opened, at the moment it is opened.
+    if report_path.is_symlink() or report_path.parent.resolve() != qa_root / "reports":
+        print(f"verdict-finalize: refusing the report path {report_rel!r} — it does not "
+              "resolve to a plain file directly under the QA root's reports/",
+              file=sys.stderr)
+        return 1
     displaced = report_path.read_bytes() if report_path.is_file() else None
     report_path.write_text(render_report(state, judgment.get("prose")), encoding="utf-8")
 

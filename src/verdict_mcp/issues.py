@@ -40,11 +40,13 @@ import tempfile
 from pathlib import Path
 
 try:
-    from .state import fold_accepted, is_open, load_accepted, load_state, order_findings, repo_for_root
+    from .state import (fold_accepted, is_open, load_accepted, load_state, order_findings,
+                        repo_for_root, root_refusal)
     from . import clock
 except ImportError:  # bare-script execution
     sys.path.insert(0, str(Path(__file__).resolve().parent))
-    from state import fold_accepted, is_open, load_accepted, load_state, order_findings, repo_for_root
+    from state import (fold_accepted, is_open, load_accepted, load_state, order_findings,
+                       repo_for_root, root_refusal)
     import clock
 
 ISSUES_FILE = "issues.json"
@@ -236,6 +238,13 @@ def main(argv=None) -> int:
                 print("re-run with --create to file them")
         return 0
 
+    # The ledger is written beside the state, by name; a link there is a write
+    # somewhere else (state.planted_links). Checked before anything is filed: an
+    # issue created and not recorded is an issue filed twice tomorrow.
+    refusal = root_refusal(root, "verdict-issues")
+    if refusal:
+        print(refusal, file=sys.stderr)
+        return 2
     cwd = repo_for_root(root)
     filed, failed = [], None
     for f, action in creates:

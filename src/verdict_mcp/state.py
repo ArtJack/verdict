@@ -24,6 +24,7 @@ import hashlib
 import json
 import os
 import re
+import stat
 import subprocess
 from datetime import date, datetime, timezone
 from pathlib import Path
@@ -34,6 +35,136 @@ _DRIVE_PREFIX = re.compile(r"^[A-Za-z]:[\\/]")
 # How far back to look for a rewritten commit's content before calling it
 # diverged. Bounded so the session banner never pays for a deep history.
 _DRIFT_SEARCH = 500
+
+
+# The directories the harness itself writes into, below a QA root's own entries.
+HARNESS_DIRS = ("reports", "findings", "findings.prev")
+# Windows: a junction links a directory without the privilege a symlink needs, and
+# `is_symlink()` says no to it. Read by its reparse tag, never by "is a reparse
+# point" — a OneDrive placeholder is one too, and is nobody's link.
+_JUNCTION = getattr(stat, "IO_REPARSE_TAG_MOUNT_POINT", None)
+
+
+def _is_link(st) -> bool:
+    if stat.S_ISLNK(st.st_mode):
+        return True
+    return _JUNCTION is not None and getattr(st, "st_reparse_tag", 0) == _JUNCTION
+
+
+def planted_links(qa_root) -> list:
+    """Links the harness would write THROUGH, as `<rel> → <target>` lines.
+
+    A write inside the QA root is only inside it if the name it opens is a real
+    file. The report-path rule of 0.90.3 read the path's spelling, and the
+    release's own gate walked around it four ways in a scratch checkout:
+    `.qa/reports` a symlink to the repository (the report landed on README.md),
+    `reports/x.md` a symlink to it, `reports` pointing at `src/`, and
+    `.qa/facts.json` a symlink to `src/app.py` — `verdict-facts` wrote the facts
+    over the code under test, exit 0. A second name for one file does the same
+    without a symlink in sight, so a file with more than one hard link counts.
+
+    What is looked at: the root's own entries, and everything under the three
+    directories the harness writes into. Not the rest of the tree — testers park
+    scratch copies and virtualenvs deeper in a solo root, and those are full of
+    links that are none of the harness's business (two of the author's own roots
+    carry them).
+    """
+    root = Path(qa_root)
+    found = []
+
+    def look(path: Path, rel: str) -> bool:
+        """Record a link; True when `path` is a real directory worth walking."""
+        try:
+            st = path.lstat()
+        except OSError:
+            return False
+        if _is_link(st):
+            try:
+                target = os.readlink(path)
+            except OSError:
+                target = "?"
+            found.append(f"{rel} → {target}")
+            return False
+        if stat.S_ISREG(st.st_mode) and st.st_nlink > 1:
+            found.append(f"{rel} (one of {st.st_nlink} names for the same file)")
+        return stat.S_ISDIR(st.st_mode)
+
+    try:
+        entries = sorted(os.scandir(root), key=lambda e: e.name)
+    except OSError:
+        return found
+    for entry in entries:
+        if look(Path(entry.path), entry.name) and entry.name in HARNESS_DIRS:
+            for dirpath, dirnames, filenames in os.walk(entry.path, followlinks=False):
+                for name in sorted(dirnames + filenames):
+                    path = Path(dirpath) / name
+                    look(path, path.relative_to(root).as_posix())
+    return found
+
+
+def _within(path: Path, top: Path) -> bool:
+    return path == top or top in path.parents
+
+
+def misplaced_root(qa_root, repo=None):
+    """Where a QA root would put the harness's files among somebody's code, as a
+    message — or None.
+
+    The harness writes wherever its root is, and `--qa-root` is the caller's word:
+    `verdict-facts --repo . --qa-root src` wrote `facts.json`, the run marker and
+    the test-id list into `src/`, and `verdict-finalize --qa-root src` put a
+    state, a report and the run index there — no link involved, and both commands
+    are ones the tester must be able to run. `.qa` replaced by a symlink to `src`
+    did the same through the default root. So a root may be in three places: under
+    the solo home and at or under the `.qa/` at the top of a checkout — the two
+    the write guard knows (`hooks/qa_paths.py`) — or outside any checkout. The
+    path is read as it resolves, so a link is followed first, and a root that does
+    not exist yet is read through its nearest existing parent.
+
+    `repo` is the repository under test, when the caller knows it, and is asked
+    first: inside it, only its own `.qa/` — wherever the solo home is said to be.
+    The solo home is an environment variable, and `VERDICT_HOME=. verdict-facts
+    --qa-root src` would otherwise have named the code a solo root.
+    """
+    real = Path(qa_root).expanduser().resolve()
+    if repo is not None:
+        under_test = Path(repo).expanduser().resolve()
+        if _within(real, under_test) and not _within(real, under_test / ".qa"):
+            return (f"{real} is inside the repository under test and outside its .qa/ — the "
+                    "harness would write its state, its report and its ledgers among the code. "
+                    "A QA root is the `.qa/` at the top of the checkout, a directory under the "
+                    "solo home ($VERDICT_HOME, default ~/.claude/verdict), or a directory "
+                    "outside any checkout.")
+    if _within(real, home().expanduser().resolve()):
+        return None
+    for top in (real, *real.parents):
+        if (top / ".git").exists():       # a directory in a clone, a file in a worktree
+            break
+    else:
+        return None
+    if _within(real, top / ".qa"):
+        return None
+    return (f"{real} is inside the git checkout at {top} and outside its .qa/ — the harness "
+            "would write its state, its report and its ledgers among the code. A QA root is "
+            "the `.qa/` at the top of a checkout, a directory under the solo home "
+            "($VERDICT_HOME, default ~/.claude/verdict), or a directory outside any checkout.")
+
+
+def root_refusal(qa_root, who: str, repo=None):
+    """The message a writer prints before refusing a QA root, or None: a root among
+    the code (`misplaced_root`), or one that holds a link (`planted_links`).
+    Asked before anything is created or written, by every writer of a root."""
+    misplaced = misplaced_root(qa_root, repo)
+    if misplaced:
+        return f"{who}: refusing the QA root — {misplaced}"
+    links = planted_links(qa_root)
+    if not links:
+        return None
+    return (f"{who}: refusing to write into {qa_root} — it holds a link the harness would "
+            "write through:\n  " + "\n  ".join(links[:8])
+            + ("\n  …" if len(links) > 8 else "")
+            + "\nA QA root's own files, its reports/ and its findings/ are plain files, and a "
+              "run never creates a link there. Remove it and run again.")
 
 
 def home() -> Path:

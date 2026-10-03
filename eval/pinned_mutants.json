@@ -174,6 +174,180 @@
   "new": "    if False:\n"
  },
  {
+  "label": "0.90.3 links a: a symlink among a QA root's files is written through",
+  "path": "src/verdict_mcp/state.py",
+  "old": "        if _is_link(st):\n",
+  "new": "        if False:\n"
+ },
+ {
+  "label": "0.90.3 links b: a second hard link is not a link",
+  "path": "src/verdict_mcp/state.py",
+  "old": "        if stat.S_ISREG(st.st_mode) and st.st_nlink > 1:\n",
+  "new": "        if False:\n"
+ },
+ {
+  "label": "0.90.3 links c: reports/ and findings/ are not looked into",
+  "path": "src/verdict_mcp/state.py",
+  "old": "        if look(Path(entry.path), entry.name) and entry.name in HARNESS_DIRS:\n",
+  "new": "        if look(Path(entry.path), entry.name) and False:\n"
+ },
+ {
+  "label": "0.90.3 links d: a link anywhere below a QA root refuses the run",
+  "path": "src/verdict_mcp/state.py",
+  "old": "        if look(Path(entry.path), entry.name) and entry.name in HARNESS_DIRS:\n",
+  "new": "        if look(Path(entry.path), entry.name):\n"
+ },
+ {
+  "label": "0.90.3 links e: verdict-facts writes a root that holds a link",
+  "path": "src/verdict_mcp/harness.py",
+  "old": "    refusal = root_refusal(qa_root, \"verdict-facts\", repo)\n",
+  "new": "    refusal = None\n"
+ },
+ {
+  "label": "0.90.3 links f: verdict-finalize writes a root that holds a link",
+  "path": "src/verdict_mcp/harness.py",
+  "old": "    refusal = root_refusal(qa_root, \"verdict-finalize\")\n",
+  "new": "    refusal = None\n"
+ },
+ {
+  "label": "0.90.3 links g: the report is written through a link that appeared after the check",
+  "path": "src/verdict_mcp/harness.py",
+  "old": "    if report_path.is_symlink() or report_path.parent.resolve() != qa_root / \"reports\":\n",
+  "new": "    if report_path.parent.resolve() != qa_root / \"reports\":\n"
+ },
+ {
+  "label": "0.90.3 links h: the report is written into a reports/ that is somewhere else",
+  "path": "src/verdict_mcp/harness.py",
+  "old": "    if report_path.is_symlink() or report_path.parent.resolve() != qa_root / \"reports\":\n",
+  "new": "    if report_path.is_symlink():\n"
+ },
+ {
+  "label": "0.90.3 links i: a judgment names the run index as its report",
+  "path": "src/verdict_mcp/validate.py",
+  "old": "    if parts[1].lower() == \"index.md\":\n",
+  "new": "    if False:\n"
+ },
+ {
+  "label": "0.90.3 links j: the run index is protected in one spelling",
+  "path": "src/verdict_mcp/validate.py",
+  "old": "    if parts[1].lower() == \"index.md\":\n",
+  "new": "    if parts[1] == \"INDEX.md\":\n"
+ },
+ {
+  "label": "0.90.3 links l: --out writes the checkout",
+  "path": "src/verdict_mcp/harness.py",
+  "old": "        if in_repo and not in_root:\n",
+  "new": "        if False:\n"
+ },
+ {
+  "label": "0.90.3 links m: --out refuses the QA root inside the repository",
+  "path": "src/verdict_mcp/harness.py",
+  "old": "        if in_repo and not in_root:\n",
+  "new": "        if in_repo:\n"
+ },
+ {
+  "label": "0.90.3 links n: verdict-local writes a root that holds a link",
+  "path": "src/verdict_mcp/small.py",
+  "old": "    refusal = root_refusal(qa_root, \"verdict-local\", repo)\n",
+  "new": "    refusal = None\n"
+ },
+ {
+  "label": "0.90.3 links o: verdict-accept writes through a link",
+  "path": "src/verdict_mcp/accept.py",
+  "old": "        refusal = root_refusal(root, \"verdict-accept\")\n",
+  "new": "        refusal = None\n"
+ },
+ {
+  "label": "0.90.3 links p: verdict-answer writes through a link",
+  "path": "src/verdict_mcp/questions.py",
+  "old": "        refusal = root_refusal(root, \"verdict-answer\")\n",
+  "new": "        refusal = None\n"
+ },
+ {
+  "label": "0.90.3 links q: verdict-issues files from a root its ledger cannot be written in",
+  "path": "src/verdict_mcp/issues.py",
+  "old": "    refusal = root_refusal(root, \"verdict-issues\")\n",
+  "new": "    refusal = None\n"
+ },
+ {
+  "label": "0.90.3 links r: a listing refuses a root that holds a link",
+  "path": "src/verdict_mcp/accept.py",
+  "old": "    if not args.list:\n        refusal = root_refusal(root, \"verdict-accept\")\n",
+  "new": "    if True:\n        refusal = root_refusal(root, \"verdict-accept\")\n"
+ },
+ {
+  "label": "0.90.3 links s: the stop hook writes its note through a link",
+  "path": "hooks/enforce_run_contract.py",
+  "old": "    if marker_path.is_symlink():\n",
+  "new": "    if False:\n"
+ },
+ {
+  "label": "0.90.3 hooks links t: a hard link gives the code a name in scratch",
+  "path": "hooks/enforce_bash_scope.py",
+  "old": "            yield \"ln (a second name for the same file)\", source\n",
+  "new": "            pass\n"
+ },
+ {
+  "label": "0.90.3 hooks links u: a symlink out of the QA root is not read",
+  "path": "hooks/enforce_bash_scope.py",
+  "old": "        yield \"ln (a link out of the QA root)\", source\n",
+  "new": "        pass\n"
+ },
+ {
+  "label": "0.90.3 hooks links v: a relative link target is read against the cwd",
+  "path": "hooks/enforce_bash_scope.py",
+  "old": "            source = os.path.join(dst_dir, source)\n",
+  "new": "            pass\n"
+ },
+ {
+  "label": "0.90.3 hooks links w: the tester posts findings to the tracker",
+  "path": "hooks/enforce_bash_scope.py",
+  "old": "        if \"--create\" in args:\n",
+  "new": "        if False:\n"
+ },
+ {
+  "label": "0.90.3 links x: --qa-root puts the harness's files among the code",
+  "path": "src/verdict_mcp/state.py",
+  "old": "    misplaced = misplaced_root(qa_root, repo)\n",
+  "new": "    misplaced = None\n"
+ },
+ {
+  "label": "0.90.3 links y: a linked worktree is not a checkout",
+  "path": "src/verdict_mcp/state.py",
+  "old": "        if (top / \".git\").exists():       # a directory in a clone, a file in a worktree\n",
+  "new": "        if (top / \".git\").is_dir():       # a directory in a clone, a file in a worktree\n"
+ },
+ {
+  "label": "0.90.3 links z: a solo home kept inside a checkout is refused",
+  "path": "src/verdict_mcp/state.py",
+  "old": "    if _within(real, home().expanduser().resolve()):\n",
+  "new": "    if False:\n"
+ },
+ {
+  "label": "0.90.3 links z2: a `.qa` anywhere in the tree is a QA root",
+  "path": "src/verdict_mcp/state.py",
+  "old": "    if _within(real, top / \".qa\"):\n",
+  "new": "    if \".qa\" in real.parts:\n"
+ },
+ {
+  "label": "0.90.3 links z3: a refused root is created first",
+  "path": "src/verdict_mcp/harness.py",
+  "old": "    refusal = root_refusal(qa_root, \"verdict-facts\", repo)\n",
+  "new": "    qa_root.mkdir(parents=True, exist_ok=True)\n    refusal = root_refusal(qa_root, \"verdict-facts\", repo)\n"
+ },
+ {
+  "label": "0.90.3 links z4: VERDICT_HOME names the code under test a solo root",
+  "path": "src/verdict_mcp/state.py",
+  "old": "    if repo is not None:\n        under_test = Path(repo).expanduser().resolve()\n",
+  "new": "    if False:\n        under_test = Path(repo).expanduser().resolve()\n"
+ },
+ {
+  "label": "0.90.3 links z5: verdict-finalize does not ask the facts which repository this is",
+  "path": "src/verdict_mcp/harness.py",
+  "old": "    among = misplaced_root(qa_root, facts.get(\"repo\")) if isinstance(facts, dict) else None\n",
+  "new": "    among = None\n"
+ },
+ {
   "label": "M1 F-42: consume an argument after any token containing f",
   "path": "hooks/enforce_bash_scope.py",
   "old": "            elif _tar_takes_value(name):\n                yield \"opt\", name, next(it, None)\n",

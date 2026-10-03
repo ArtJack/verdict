@@ -33,7 +33,7 @@ def test_ci_runs_the_hook_tests_on_the_interpreter_a_stock_mac_starts_them_with(
     job = ci[ci.index("hooks-floor:"):ci.index("delta-diff-freshness:")]
     assert "--python 3.9" in job and "--no-project" in job
     for name in ("test_hooks.py", "test_hooks_0903.py", "test_hooks_pens.py",
-                 "test_stop_hook.py", "test_validate_hook_scope.py"):
+                 "test_hooks_links.py", "test_stop_hook.py", "test_validate_hook_scope.py"):
         assert name in job, f"{name} is not run on the floor"
 
 

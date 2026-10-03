@@ -3,7 +3,7 @@
 [![ci](https://github.com/ArtJack/verdict/actions/workflows/ci.yml/badge.svg)](https://github.com/ArtJack/verdict/actions/workflows/ci.yml)
 [![verdict on itself](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fraw.githubusercontent.com%2FArtJack%2Fverdict%2Fmain%2F.qa%2Fstate.json&query=%24.verdict&label=verdict%20on%20itself&color=blue)](.qa/reports/INDEX.md)
 [![eval 8/8 seeded defects](https://img.shields.io/badge/eval-8%2F8_seeded_defects-brightgreen)](eval/README.md#published-results)
-[![pinned rules 297/297 killed](https://img.shields.io/badge/pinned_rules-297%2F297_killed-brightgreen)](eval/README.md#suite-fault-detection-power--mutation-testing-on-ourselves)
+[![pinned rules 326/326 killed](https://img.shields.io/badge/pinned_rules-326%2F326_killed-brightgreen)](eval/README.md#suite-fault-detection-power--mutation-testing-on-ourselves)
 [![PyPI](https://img.shields.io/pypi/v/verdict-qa-mcp?label=verdict-qa-mcp&color=blue)](https://pypi.org/project/verdict-qa-mcp/)
 [![Claude Code plugin](https://img.shields.io/badge/Claude_Code-plugin-6E56CF)](#install)
 [![license MIT](https://img.shields.io/github/license/ArtJack/verdict)](LICENSE)
@@ -605,6 +605,16 @@ exception. The maintainer's ledgers (`accepted.json`, `answers.json`) are writte
 `verdict-accept` and `verdict-answer` and by nothing else: a Write or Edit to either is
 refused whoever asks, and the two commands are refused to the tester.
 
+The harness holds its own writes to the same line. `facts.json`, the state, the report, the
+run index and the ledgers are written by name inside the QA root, so before anything is
+created `verdict-facts`, `verdict-finalize`, `verdict-local` and the maintainer's commands ask
+where the root is — under the solo home, at or under the `.qa/` at the top of a checkout, or
+outside any checkout; anywhere else inside a checkout is the code — and refuse a root whose
+own entries, `reports/` or `findings/` hold a symlink, a junction or a file with a second hard
+link, because a write through a link is a write somewhere else. The report is one plain file
+directly under `reports/`, and never the run index
+([tests/test_qa_root_links.py](tests/test_qa_root_links.py)).
+
 The Bash guard is a heuristic over a command string, not a sandbox, and the 2026-10-02 audit
 measured where it stops: it does **not** stop a program that writes through its own code — an
 interpreter (`python3 -c`, `node -e`), a build or package step (`pip`, `npm`, `cargo`,
@@ -615,7 +625,8 @@ the tester against a throwaway copy; the guard raises the cost of the *accidenta
 Malformed hook input fails open; once armed, a command the guard cannot read is refused
 rather than waved through. Tested in CI on Python 3.9, the `python3` a stock Mac starts them with
 ([tests/test_hooks.py](tests/test_hooks.py), [tests/test_hooks_0903.py](tests/test_hooks_0903.py),
-[tests/test_hooks_pens.py](tests/test_hooks_pens.py)). That is the whole truth; a QA tool
+[tests/test_hooks_pens.py](tests/test_hooks_pens.py),
+[tests/test_hooks_links.py](tests/test_hooks_links.py)). That is the whole truth; a QA tool
 should not oversell its own controls.
 
 ## FAQ

@@ -77,7 +77,7 @@ try:
     from .reports import read_report
     from .project_key import derive_key
     from .state import home as state_home
-    from .state import norm_status, resolve_root
+    from .state import norm_status, resolve_root, root_refusal
     from .validate import known_tests, validate_finding
     from . import clock
 except ImportError:  # bare-script execution
@@ -93,7 +93,7 @@ except ImportError:  # bare-script execution
     from reports import read_report
     from project_key import derive_key
     from state import home as state_home
-    from state import norm_status, resolve_root
+    from state import norm_status, resolve_root, root_refusal
     from validate import known_tests, validate_finding
 
 MAX_SOURCE_LINES = 120          # one question's worth of code
@@ -2121,6 +2121,10 @@ def run(repo: Path, qa_root: Path, model: Model, limit: int, gate: str | None,
         reruns: int, prove: bool = True, delta: bool = False,
         sha_range: str | None = None, reference_state=None,
         budget: Budget | None = None) -> int:
+    refusal = root_refusal(qa_root, "verdict-local", repo)
+    if refusal:
+        print(refusal, file=sys.stderr)
+        return 2
     qa_root.mkdir(parents=True, exist_ok=True)
     budget = budget or Budget()
     try:

@@ -83,6 +83,8 @@ def _unfinished_run(event: dict, root: Path):
     if not caller_is_verdict(event):
         return None         # somebody else's agent finishing beside a run still in progress
     marker_path = root / MARKER
+    if marker_path.is_symlink():
+        return None         # not the file `verdict-facts` wrote; never written through
     try:
         marker = json.loads(marker_path.read_text(encoding="utf-8"))
     except (OSError, ValueError):

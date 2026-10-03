@@ -50,7 +50,7 @@ jobs:
           uv run --no-project --python 3.9 --with pytest python -m pytest
           -p no:cacheprovider -o addopts=
           tests/test_hooks.py tests/test_hooks_0903.py tests/test_hooks_pens.py
-          tests/test_stop_hook.py tests/test_session_start.py
+          tests/test_hooks_links.py tests/test_stop_hook.py tests/test_session_start.py
           tests/test_validate_hook_scope.py tests/test_interpreter_floor.py
 
   delta-diff-freshness:
