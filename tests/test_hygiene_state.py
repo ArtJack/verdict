@@ -19,9 +19,8 @@ from conftest import judgment
 from verdict_mcp import harness, small
 from verdict_mcp.hygiene import ledger
 
-from test_hygiene import make_repo  # noqa: E402
+from test_hygiene import LIVE, make_repo  # noqa: E402
 
-LIVE = "sk-ant-api03-" + "Qm9vY2FsbDEzW7tVx2Lp8Rz4Kf0HdN5sGj3aYcBwXeTqUiO"   # not a real key
 PREVIEW_FIELDS = {"fingerprint", "kind", "path", "line", "excerpt", "first_seen", "delta"}
 
 

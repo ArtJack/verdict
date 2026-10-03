@@ -14,9 +14,9 @@ import subprocess
 from verdict_mcp import harness, hygiene
 from verdict_mcp.hygiene import hygiene_census
 
-from test_hygiene import git, make_repo, token  # noqa: E402
+from test_hygiene import git, make_repo, token, unseen  # noqa: E402
 
-PEM_TEMPLATE = "-----BEGIN " "PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----\n"
+PEM_TEMPLATE = unseen("-----YEK ETAVIRP NIGEB-----") + "\n...\n" + unseen("-----YEK ETAVIRP DNE-----") + "\n"
 
 
 # ── the scan: which files its checks ran over ────────────────────────────

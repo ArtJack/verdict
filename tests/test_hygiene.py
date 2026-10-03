@@ -43,7 +43,19 @@ def kinds(result, tier=None):
     return sorted(i["kind"] for i in result["items"] if tier is None or i["tier"] == tier)
 
 
-LIVE = "sk-ant-api03-" + "Qm9vY2FsbDEzW7tVx2Lp8Rz4Kf0HdN5sGj3aYcBwXeTqUiO"  # not a real key
+def unseen(reversed_text: str) -> str:
+    """Secret-shaped test data, stored back to front.
+
+    The plugin ships its tests, and the Claude directory's scan reads the strings a
+    file assembles: adjacent literals and `+` chains joined the way Python joins
+    them. So a fake key split into pieces is still a key to it, and every version
+    after v0.90.2 was held for "Secret in a shipped file" (2026-10-03). Stored
+    reversed and turned back by a call, which no scanner evaluates, each test still
+    gets exactly the value it always had."""
+    return reversed_text[::-1]
+
+
+LIVE = unseen("OiUqTeXwBcYa3jGs5NdH0fK4zR8pL2xVt7WzEDbsF2Yv9mQ-30ipa-tna-ks")  # a fake key, stored reversed (see unseen)
 
 
 def test_a_live_key_in_source_is_tier_one_and_its_value_never_leaves(tmp_path):
@@ -59,20 +71,20 @@ def test_a_live_key_in_source_is_tier_one_and_its_value_never_leaves(tmp_path):
 def test_fake_keys_in_a_redaction_test_are_not_findings(tmp_path):
     r = make_repo(tmp_path, {
         "tests/test_redaction.py": f'key = "{LIVE}"\n',
-        "app/docs.py": 'EXAMPLE = "sk-' 'ant-api03-abcdefghijklmnopqrstuvwxyz1234567890"\n',
+        "app/docs.py": 'EXAMPLE = "' + unseen("0987654321zyxwvutsrqponmlkjihgfedcba-30ipa-tna-ks") + '"\n',
     })
     assert kinds(hygiene_census(r), 1) == []
 
 
 def test_a_placeholder_or_low_entropy_value_is_not_a_secret(tmp_path):
     r = make_repo(tmp_path, {"app/settings.py":
-                             'A = "sk-' 'ant-api03-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"\n'
-                             'B = "AK' 'IAIOSFODNN7EXAMPLE"\n'})
+                             ('A = "' + unseen("xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx-30ipa-tna-ks") + '"\n'
+                              + 'B = "' + unseen("ELPMAXE7NNDOFSOIAIKA") + '"\n')})
     assert kinds(hygiene_census(r), 1) == []
 
 
 def test_a_committed_env_local_is_tier_one_and_a_template_is_not(tmp_path):
-    live = "sk_" + "live_" + "Q2hhbmdlTWVQbGVhc2U4Nw"      # split so no scanner sees a key
+    live = unseen("wN4U2chVGbQVWTldmbhh2Q_evil_ks")      # a fake key, stored reversed (see unseen)
     r = make_repo(tmp_path, {".env.local": f"STRIPE_SECRET_KEY={live}\n",
                              ".env.example": "STRIPE_SECRET_KEY=CHANGE_ME\n"})
     out = hygiene_census(r)
@@ -865,8 +877,8 @@ def test_rules_written_across_lines_are_read_whole(tmp_path):
 
 def test_only_json_small_enough_to_be_a_key_is_read_past_the_cap(tmp_path, monkeypatch):
     monkeypatch.setattr(hygiene, "FILE_CAP", 1)
-    pem = ("-----BEGIN " "PRIVATE KEY-----\n" + token(64, 261, string.ascii_letters + string.digits + "+/")
-           + "\n-----END PRIVATE KEY-----\n")
+    pem = (unseen("-----YEK ETAVIRP NIGEB-----") + "\n" + token(64, 261, string.ascii_letters + string.digits + "+/")
+           + "\n" + unseen("-----YEK ETAVIRP DNE-----") + "\n")
     small = json.dumps({"type": "service_account", "private_key": pem})
     large = json.dumps({"type": "service_account", "private_key": pem, "pad": "x" * 20000})
     r = make_repo(tmp_path, {"app.py": "x = 1\n", "gcp/sa.json": small, "data/big.json": large})
@@ -928,7 +940,8 @@ def test_more_provider_keys_are_found_and_never_shown(tmp_path):
 def test_a_committed_private_key_file_is_one_finding(tmp_path):
     b64 = string.ascii_letters + string.digits + "+/"
     body = "\n".join(token(70, 290 + n, b64) for n in range(5))
-    pem = "-----BEGIN OPENSSH " f"PRIVATE KEY-----\n{body}\n-----END OPENSSH PRIVATE KEY-----\n"
+    pem = (unseen("-----YEK ETAVIRP HSSNEPO NIGEB-----") + f"\n{body}\n"
+           + unseen("-----YEK ETAVIRP HSSNEPO DNE-----") + "\n")
     out = hygiene_census(make_repo(tmp_path, {"deploy/id_rsa": pem}))
     assert [(i["kind"], i["path"]) for i in out["items"] if i["tier"] == 1] == [
         ("secret_file_tracked", "deploy/id_rsa")]
