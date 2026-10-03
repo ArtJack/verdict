@@ -264,7 +264,7 @@ from conftest import git, judgment  # noqa: E402
 from verdict_mcp.harness import collect, facts_main, finalize_main, merge, split_hygiene  # noqa: E402
 from verdict_mcp.validate import validate  # noqa: E402
 
-LIVE = "sk-ant-api03-" + "Qm9vY2FsbDEzW7tVx2Lp8Rz4Kf0HdN5sGj3aYcBwXeTqUiO"   # not a real key
+from test_hygiene import LIVE  # noqa: E402  (one copy of the fake key)
 
 
 def committed(repo, files: dict, message="change"):

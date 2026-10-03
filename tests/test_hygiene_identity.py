@@ -11,10 +11,10 @@ import json
 
 from verdict_mcp.hygiene import Evidence, reconcile
 
-from test_hygiene import make_repo  # noqa: E402
+from test_hygiene import make_repo, unseen  # noqa: E402
 from test_hygiene_state import commit, run  # noqa: E402
 
-KEY = "sk_" + "live_" + "Zq8vLp2Kx9Wm4Rt7Yb3Nc6Hd"      # split so no scanner sees a key
+STRIPE_LIVE = unseen("dH6cN3bY7tR4mW9xK2pLv8qZ_evil_ks")      # a fake key, stored reversed (see test_hygiene.unseen)
 
 
 def hygiene(state):
@@ -33,7 +33,7 @@ def profile(qa, setting):
 # ── a key back after its fix is the same finding, however long it was gone ─
 
 def test_a_key_back_two_runs_after_its_fix_regresses_under_its_own_id(tmp_path):
-    repo = make_repo(tmp_path, {"app/config.py": f'KEY = "{KEY}"\n', "app/main.py": "x = 1\n"})
+    repo = make_repo(tmp_path, {"app/config.py": f'KEY = "{STRIPE_LIVE}"\n', "app/main.py": "x = 1\n"})
     qa = tmp_path / "qa"
     s1 = run(repo, qa)
     [(fid, _status, delta)] = hygiene(s1)
@@ -45,7 +45,7 @@ def test_a_key_back_two_runs_after_its_fix_regresses_under_its_own_id(tmp_path):
     assert hygiene(run(repo, qa)) == [(fid, "resolved", "RESOLVED")]
     commit(repo, {"app/main.py": "x = 2\n"}, "unrelated")
     assert hygiene(run(repo, qa)) == [], "a resolution stays one run"
-    commit(repo, {"app/config.py": f'KEY = "{KEY}"\n'}, "the key is back")
+    commit(repo, {"app/config.py": f'KEY = "{STRIPE_LIVE}"\n'}, "the key is back")
     s4 = run(repo, qa)
     assert hygiene(s4) == [(fid, "open", "REGRESSED")]
     [f4] = [f for f in s4["findings"] if f["id"] == fid]
@@ -55,7 +55,7 @@ def test_a_key_back_two_runs_after_its_fix_regresses_under_its_own_id(tmp_path):
 
 
 def test_a_key_still_there_when_filing_comes_back_on_is_the_same_finding(tmp_path):
-    repo = make_repo(tmp_path, {"app/config.py": f'KEY = "{KEY}"\n'})
+    repo = make_repo(tmp_path, {"app/config.py": f'KEY = "{STRIPE_LIVE}"\n'})
     qa = tmp_path / "qa"
     [(fid, _status, _delta)] = hygiene(run(repo, qa))
     profile(qa, "off")
@@ -69,7 +69,7 @@ def test_a_key_still_there_when_filing_comes_back_on_is_the_same_finding(tmp_pat
 
 
 def test_a_regression_keeps_the_acceptance_recorded_under_its_id(tmp_path):
-    repo = make_repo(tmp_path, {"app/config.py": f'KEY = "{KEY}"\n', "app/main.py": "x = 1\n"})
+    repo = make_repo(tmp_path, {"app/config.py": f'KEY = "{STRIPE_LIVE}"\n', "app/main.py": "x = 1\n"})
     qa = tmp_path / "qa"
     [(fid, _status, _delta)] = hygiene(run(repo, qa))
     (qa / "accepted.json").write_text(json.dumps({"accepted": {fid: {
@@ -79,7 +79,7 @@ def test_a_regression_keeps_the_acceptance_recorded_under_its_id(tmp_path):
     run(repo, qa)
     commit(repo, {"app/main.py": "x = 2\n"}, "unrelated")
     run(repo, qa)
-    commit(repo, {"app/config.py": f'KEY = "{KEY}"\n'}, "the key is back")
+    commit(repo, {"app/config.py": f'KEY = "{STRIPE_LIVE}"\n'}, "the key is back")
     s4 = run(repo, qa)
     [f] = [f for f in s4["findings"] if f.get("source") == "hygiene"]
     assert (f["id"], f["status"], f["delta"]) == (fid, "accepted", "ACCEPTED")

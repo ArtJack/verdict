@@ -29,6 +29,7 @@ from verdict_mcp.validate import validate_finding  # noqa: E402
 from test_local_delta import _ByPrompt, git  # noqa: E402
 from test_local_gate import GATE, ScriptedModel, _env_file, branch_repo, state_of  # noqa: E402
 from test_small import FakeModel  # noqa: E402
+from test_hygiene import unseen  # noqa: E402
 
 # The audit's own proof expression, verbatim in shape: a side effect smuggled through
 # `open(...).write(...)` and `__import__`, returning truthy so the probe "succeeds".
@@ -315,12 +316,12 @@ def test_a_secret_in_the_expression_is_scrubbed_from_the_record(tmp_path, monkey
     scrubbed with the hygiene scan's own scrub before it is written anywhere."""
     _refuse_subprocess(monkeypatch)
     repo, chunk = _probe_repo(tmp_path)
-    key = "sk-ant-api03-" + "A1b2C3d4E5f6G7h8I9j0K1l2M3n4O5p6Q7r8S9t0U1v2W3x4Y5z6A7b8C9d0E1f2G3h4I5j6K7l8M9n0-AbCdEfGh"
-    proof = small.counterfactual(FakeModel([{"expression": f"m.g({key!r})", "fix_line": 2,
+    planted = unseen("hGfEdCbA-0n9M8l7K6j5I4h3G2f1E0d9C8b7A6z5Y4x3W2v1U0t9S8r7Q6p5O4n3M2l1K0j9I8h7G6f5E4d3C2b1A-30ipa-tna-ks")
+    proof = small.counterfactual(FakeModel([{"expression": f"m.g({planted!r})", "fix_line": 2,
                                              "fix_replacement": "    return x + 2"}]),
                                  repo, chunk, {"mechanism": "x", "line": 2}, sys.executable)
-    assert key not in json.dumps(proof), proof
-    assert key not in proof["reason"]
+    assert planted not in json.dumps(proof), proof
+    assert planted not in proof["reason"]
 
 
 def test_the_run_writes_the_probe_ledger_into_facts(tmp_path):
