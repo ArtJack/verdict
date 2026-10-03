@@ -35,7 +35,8 @@ only names the function already uses, a few builtins and keywords — no `import
 no dunder, no f-string — or it is refused as `fix_unsafe` before any copy is made. Every
 probe, refused or run, is written to `facts.json`, and `probes: off` in the profile switches
 the whole thing off. A gate with no Python interpreter disables proving instead of borrowing
-Verdict's own. Deliberately not here: resource limits and a network block on the probe — the
+Verdict's own, and a quoted interpreter path is one word on Windows too — the release's first
+Windows CI run found the new lookup splitting `"C:\Program Files\…\python.exe"` at the space. Deliberately not here: resource limits and a network block on the probe — the
 project's own module still runs when it is imported, as it does under its test suite —
 telling an invalid fix from an unreachable call, and probing methods: a method needs a nested
 call, and nested calls are what was closed. Mutants O-S-1a–e, five of five killed.
@@ -87,7 +88,7 @@ Measured: 80 defects put back one at a time against the new hook tests in scratc
 recorded killed and one not recorded — the list and its outcomes are
 `eval/sweeps/2026-10-02-hooks-0903.json`; twenty of them, one per defect class plus the pen,
 the NUL byte and the refusal on failure, are pinned in the catalogue the whole suite is held
-to. Not in this release, and not claimed: a program that writes through its own code (an
+to, and `pin_check` killed twenty of twenty. Not in this release, and not claimed: a program that writes through its own code (an
 interpreter, a build, `npm run format`, a script read from a file or a pipe), a variable set on
 the same line (`T=$(mktemp -d) && cp -a . "$T"` is still refused — use a literal path), and
 Windows, where the new command tables were not run.
