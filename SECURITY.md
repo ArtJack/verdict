@@ -6,9 +6,11 @@ Installing Verdict means letting its code run in your Claude Code sessions. The 
 [trust table](README.md#what-installs-and-when-it-runs) is measured from `hooks/hooks.json`:
 six hook registrations, each a stdlib-only `python3` process, every one failing open.
 The agent itself has no `Edit` tool, its `Write` is confined to the QA root by a
-PreToolUse hook, and under `VERDICT_STRICT=1` a second hook denies the obvious Bash
-write channels. That last guard is a deny-heuristic over a command string, not a
-sandbox — it has been bypassed before and will be again; the OS is the boundary.
+PreToolUse hook, and a second hook — armed when the caller is the verdict agent, or under
+`VERDICT_STRICT=1` — denies the common Bash write channels. That last guard is a
+deny-heuristic over a command string, not a sandbox — it has been bypassed before and will
+be again (the 2026-10-02 audit measured 150 strings that got through; 0.90.3 closed the 86
+that were a spelling rather than a program, and says which remain); the OS is the boundary.
 
 Nothing routes through the author. No telemetry, no network calls from the plugin; the
 optional MCP server is read-only over local files; the GitHub Action's run mode uses your

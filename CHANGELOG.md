@@ -3,6 +3,148 @@
 Plugin and `verdict-mcp` share one version line; `.claude-plugin/plugin.json` and
 `pyproject.toml` are bumped together.
 
+## 0.90.3 — 2026-10-03 · "the guard that was not there"
+
+A safety release, from a full audit of the agent and the plugin at `b7c30a8` (six independent
+reviews, 2026-10-02; the ids below — H-D, O-S, K-D, D-D, T — are that audit's). Nothing here
+changes what the tester judges; everything here changes what it can touch.
+
+**`verdict-finalize` wrote the report wherever the judgment pointed.** `judgment.report` was
+honoured as written, so an absolute path or a `..` named any `*.md` in the code under test —
+the README of a team-mode checkout, proven by overwriting one — and a `topic` of `../../x`
+climbed out the same way through `mkdir(parents=True)`. The report now lives in one place,
+`reports/<name>.md` directly under the QA root, and finalize refuses anything else with
+nothing written; the validator refuses the same shape in a state, at rest included. A survey
+of 16 real QA roots and 132 history rows found no other shape, so the rule refuses nothing a
+run has ever legitimately written. Mutants H-D-1a/b/c.
+
+**The counterfactual ran a model's expression in your checkout.** To prove a claim,
+`verdict-local` asks the small model for one expression and runs it before and after flipping a
+line. The "before" run happened in the real tree, with the operator's whole environment, and
+the only checks on the expression were that it was one line and named the function. Measured on
+2026-10-02 with a fake gateway: an expression that wrote `os.getcwd()` through
+`open(...).write(...)` passed every check, and its marker read the checkout's own path with
+`env_has_token=True`; the scratch copy it ran in second was not excluding `.env` files. On the
+author's Sales nightly the model had already been asked to probe marketplace-facing modules.
+Now the expression is read as a syntax tree before anything starts — one call on `m` to the
+function under probe, literal arguments only, anything else refused as `probe_unsafe` — and
+both runs happen in one scratch copy with an allowlisted environment and no secret files.
+The line the model writes in place of the suspected one is code as well, and an environment
+without the token does not stop a line that opens the file the token lives in: a fix may use
+only names the function already uses, a few builtins and keywords — no `import`, no new name,
+no dunder, no f-string — or it is refused as `fix_unsafe` before any copy is made. Every
+probe, refused or run, is written to `facts.json`, and `probes: off` in the profile switches
+the whole thing off. A gate with no Python interpreter disables proving instead of borrowing
+Verdict's own. Deliberately not here: resource limits and a network block on the probe — the
+project's own module still runs when it is imported, as it does under its test suite —
+telling an invalid fix from an unreachable call, and probing methods: a method needs a nested
+call, and nested calls are what was closed. Mutants O-S-1a–e, five of five killed.
+
+**The one session that skips permissions ran with no guard.** The GitHub Action's run mode
+copied `agents/verdict.md` into the checkout and launched `claude -p … --setting-sources
+project --dangerously-skip-permissions`; `hooks/hooks.json` was never registered, so the
+`VERDICT_STRICT=1` it exported armed nothing. The Action now loads the whole plugin from its
+own checkout (`--plugin-dir`) and runs the tester directly (`--agent verdict`), passes
+`--strict-mcp-config`, and gates on `run_number + 1` so a pass that crashed cannot re-serve
+the committed state as tonight's verdict. A `max-budget-usd` input hands the CLI a ceiling.
+Verified against the CLI's own `--help` (2.1.281) and the documented flags, not against a
+live runner — the first real run of this mode is owed.
+
+**The Bash guard was off in every interactive session, and where it was on it could be walked
+around.** It returned on `VERDICT_STRICT` before it had read the event, so a tester started
+from a desktop session — 83% of Verdict's tokens, by the author's own measure — had its Write
+and Edit refused while its `rm`, `sed -i` and `git checkout` went through. Claude Code sends
+`agent_id` and `agent_type` in every hook input fired inside a subagent, so the guard is armed
+by the agent the event names, through the one rule all three hooks now share (the write guard
+and the Stop hook used to disagree about whose name counts). The user's own shell stays
+unguarded in ordinary sessions, as before; a desktop tester now runs under the guard a
+headless one always had. The audit fed the guard 1,631 command strings under both interpreters
+a plugin runs on. Of those that write the code under test, 86 that were a spelling rather than
+a program are closed: formatters in their writing shape (`black .`, `ruff format`,
+`prettier --write`, also behind `uvx`, `npx` and `python -m`), `git log --output=`,
+`git checkout-index`, `>&file` and `N<>`, `bash -lc`, `(rm f)`, `find -exec sed -i`,
+`xargs bash -c`, `sudo -n rm`, `gzip`, `sort -o`, and a directory lost after `cd -` or `pushd`.
+And 48 of the 60 commands it wrongly refused now pass, among them
+`cd .qa && pytest | tee report.log`, every `sed -i` inside `.qa/` and a heredoc whose body
+began with `rm`. Each rule was checked against the program it models — 81 shapes run in a real
+bash and 37 in a real git, the guard refusing exactly the ones that changed something outside
+`.qa/` — which is how `git clean -n --no-dry-run -f` was found: it deletes, and the guard's
+oldest exemption believed any `--dry-run` it saw.
+
+**The maintainer's pens were refused as files and open as commands.** `accepted.json` and
+`answers.json` are now refused to every writer in every mode (they were refused only under
+strict mode or to a caller the event named). But `verdict-accept` and `verdict-answer`
+themselves were unknown commands to the Bash guard: a tester could accept its own findings'
+risks by running the pen. An armed guard refuses both, by every spelling
+(`python -m verdict_mcp.accept`, the script path, behind `env` or `bash -c`); `--list` reads
+and passes, and the maintainer's own shell is not armed. Writing that rule found one more:
+an uncaught exception in the guard is exit 1, which Claude Code reads as a broken hook and
+lets the command run — a sentinel joined into a path did it, and so did a NUL byte in a
+command line (`echo x > src/app.py\0`; bash drops the NUL and writes). While armed, a command
+the guard cannot read is refused with the reason, never waved through.
+
+Measured: 80 defects put back one at a time against the new hook tests in scratch copies, 79
+recorded killed and one not recorded — the list and its outcomes are
+`eval/sweeps/2026-10-02-hooks-0903.json`; twenty of them, one per defect class plus the pen,
+the NUL byte and the refusal on failure, are pinned in the catalogue the whole suite is held
+to. Not in this release, and not claimed: a program that writes through its own code (an
+interpreter, a build, `npm run format`, a script read from a file or a pipe), a variable set on
+the same line (`T=$(mktemp -d) && cp -a . "$T"` is still refused — use a literal path), and
+Windows, where the new command tables were not run.
+
+**The headless session saw the operator's whole shell.** `verdict-run` handed `claude` its
+entire environment — cloud and `gh`/`op` tokens, a `GIT_DIR` from a hook, the `PYTHONPATH`
+0.90.1 stopped leaking — and the session hands its environment to every Bash call the tester
+makes, hence to the project's own tests and whatever they spawn. The child now receives an
+allowlist (`PATH`, `HOME`, locale, temp, proxies and CAs, `CLAUDE_*`, `ANTHROPIC_*`,
+`VERDICT_*`), the owner's own `env -i` recipe for asked gates built in; `--env-passthrough`
+names anything a project's gates need beyond it. `--strict-mcp-config` is always passed:
+user-scope MCP servers live in `~/.claude.json`, not in settings, and a
+`--dangerously-skip-permissions` night could reach every one of them — mail, deploys, the
+lab — from the outer session; `--mcp-config` names the ones a profile wants. `--max-budget-usd`
+reaches the CLI (budgets were stated in prose and filled, never used). `run_local` no longer
+writes the gateway token into the runner's own `os.environ` for the night. The local tier's
+default model is `chat`, not the `qwen3` alias that answers nothing. The eval's control arm is
+re-derived with the launch, as its tripwire test demands: `plain_argv` carries
+`--strict-mcp-config` and the plain environment passes through the same allowlist, so rows
+measured before 0.90.3 ran both arms with the operator's shell and user-scope MCP servers.
+
+**The state validator spoke about files that were not its own.** As a PostToolUse hook it
+validated every file named `state.json` anywhere: a user's own app settings got "15 problems"
+and exit 2 in a session that had never run Verdict. It checks only inside a QA root now — the
+solo home or a `.qa/` beside a `.git` — for `findings/<ID>.json` as well. Mutant T3-1.
+
+**Five skills duplicated five commands in the slash menu.** Claude Code loads `skills/*/SKILL.md`
+as plugin skills too, so `/verdict:flake` sat beside `/verdict:verdict-flaky-triage`. The five
+carry `user-invocable: false`: hidden from the `/` menu, still there for any agent that reads
+them, which is what they are for.
+
+**Three smaller things a stranger hit first.** `uses: ArtJack/verdict@v0` in the README named a
+ref that did not exist — `release.yml` now moves the major-version tag on every release. The
+weekly `eval.yml` piped through `tee` without `pipefail` and reported success with no API key in
+the repository's secrets; it runs under `bash -eo pipefail` and says when the key is missing.
+`verdict-mcp --help` started the server and sat on stdin; it answers now, and refuses a TTY
+with the command that starts it properly. And CI runs the hooks' tests on Python 3.9, the
+`python3` a stock Mac starts them with: the matrix had 3.10 and 3.13, and the floor was an AST
+shape check that a 3.10-only stdlib call would have passed.
+
+**Also since 0.90.2, merged without a changelog entry:** #129 pins `effort: xhigh` in the
+agent's frontmatter so a tester's effort is chosen, not inherited from the session that
+spawned it; #131 adds the hygiene scan (junk, near-certain secret exposures and leads on every
+`verdict-facts` run, three tiers, `hygiene: off` in the profile); #132 files tier-1 exposures
+as findings through the harness, keeps the junk ledger in `hygiene-ledger.json`, and resolves
+nothing on silence.
+
+**Deliberately not in this release.** The rest of the audit: the silence floor that closes
+unmentioned findings (H-D-2), a `pass` over a red gate (H-D-3), the ledger keyed by hash
+(H-D-7), the branch run that writes the main record (H-D-8) and the counts parser (H-D-9/10)
+are the next release, harness-only; the runner's stream-json flight recorder, process groups
+and timeout retry are the one after. The README's trust table and exit-code line are corrected
+where this release changed them, and two false facts are fixed (the library's star count, the
+MCP server's dependencies); the rest of the docs ledger — the control arm's parity result on
+the first screen, what a run costs, the stale badges and roadmap — is not in this release. No
+prompt or command file changed, so nothing here needed a paired eval.
+
 ## 0.90.2 — 2026-09-23 · "a refused run asks nothing"
 
 **A refused finalize kept the questions it asked.** `verdict-finalize` folded the judgment's

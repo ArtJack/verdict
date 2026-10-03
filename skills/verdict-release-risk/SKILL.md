@@ -1,5 +1,6 @@
 ---
 name: verdict-release-risk
+user-invocable: false
 description: Run a measured, skeptical QA pass on a repository and produce a release verdict you can defend — evidence-cited findings, a stated not-tested list, baseline → delta memory. Use before a merge or release, after a feature lands, or for a scheduled QA run. Reports and specifies; never fixes.
 ---
 

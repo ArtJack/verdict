@@ -22,9 +22,14 @@ def now_z(delta=timedelta()):
 
 @pytest.fixture()
 def root(tmp_path):
-    (tmp_path / "reports").mkdir()
-    (tmp_path / "reports" / "r.md").write_text("# report", encoding="utf-8")
-    return tmp_path
+    # A team-mode QA root — `.qa/` beside a `.git` — because the hook checks
+    # only inside a QA root since 0.90.3: it used to validate every file named
+    # state.json anywhere, a React app's settings file included (T3-1).
+    (tmp_path / ".git").mkdir()
+    qa = tmp_path / ".qa"
+    (qa / "reports").mkdir(parents=True)
+    (qa / "reports" / "r.md").write_text("# report", encoding="utf-8")
+    return qa
 
 
 def good_state(**overrides):

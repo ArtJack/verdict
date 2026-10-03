@@ -26,6 +26,16 @@ def front_matter(text: str) -> dict:
     return out
 
 
+def test_the_skills_stay_out_of_claude_codes_slash_menu():
+    """Claude Code loads `skills/*/SKILL.md` as plugin skills too, so a user saw
+    `/verdict:flake` beside `/verdict:verdict-flaky-triage` — five pairs for five
+    jobs (audit 2026-10-02, T3-2). `user-invocable: false` hides a skill from
+    the `/` menu while any agent can still read it, which is what these are for."""
+    for path in SKILLS:
+        fm = front_matter(path.read_text(encoding="utf-8"))
+        assert fm.get("user-invocable") == "false", f"{path}: visible in the slash menu"
+
+
 def test_the_five_skills_exist_and_are_named_by_their_directory():
     assert {p.parent.name for p in SKILLS} == EXPECTED
     for path in SKILLS:

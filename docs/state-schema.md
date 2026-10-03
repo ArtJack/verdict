@@ -150,6 +150,13 @@ dropping a gate would reintroduce exactly the failure the block removes. Keys be
 `gates`, `test_ids_cmd` and `coverage_cmd` are kept and reported as unread rather than
 discarded.
 
+Two keys are switches and take `off`. `hygiene: off` stops the hygiene scan from filing
+findings. `probes: off` (0.90.3) stops `verdict-local` from running any counterfactual
+probe: the small model's expression and replacement line are never executed, and
+`not_tested` says "probes disabled by profile". A project that touches money or live
+accounts should set it — a probe is a call to one of the project's own functions, in a
+scratch copy, with arguments a model chose.
+
 Explicit `--gate` still wins, and the override is recorded in the facts; a run that ends up
 with no gates at all records `no_gates` and says every count and duration gate is
 unmeasurable, because "nothing to measure" and "nobody said what to measure" are different

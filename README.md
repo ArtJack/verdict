@@ -3,7 +3,7 @@
 [![ci](https://github.com/ArtJack/verdict/actions/workflows/ci.yml/badge.svg)](https://github.com/ArtJack/verdict/actions/workflows/ci.yml)
 [![verdict on itself](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fraw.githubusercontent.com%2FArtJack%2Fverdict%2Fmain%2F.qa%2Fstate.json&query=%24.verdict&label=verdict%20on%20itself&color=blue)](.qa/reports/INDEX.md)
 [![eval 8/8 seeded defects](https://img.shields.io/badge/eval-8%2F8_seeded_defects-brightgreen)](eval/README.md#published-results)
-[![pinned rules 268/268 killed](https://img.shields.io/badge/pinned_rules-268%2F268_killed-brightgreen)](eval/README.md#suite-fault-detection-power--mutation-testing-on-ourselves)
+[![pinned rules 297/297 killed](https://img.shields.io/badge/pinned_rules-297%2F297_killed-brightgreen)](eval/README.md#suite-fault-detection-power--mutation-testing-on-ourselves)
 [![PyPI](https://img.shields.io/pypi/v/verdict-qa-mcp?label=verdict-qa-mcp&color=blue)](https://pypi.org/project/verdict-qa-mcp/)
 [![Claude Code plugin](https://img.shields.io/badge/Claude_Code-plugin-6E56CF)](#install)
 [![license MIT](https://img.shields.io/github/license/ArtJack/verdict)](LICENSE)
@@ -16,7 +16,7 @@ the guarding test at the old commit and the new one — and it keeps a memory: e
 delta against the last, findings age, regressions rank first, and the tester's own misses
 are published beside its hits. The contract it runs under is immutable and hashed into every
 verdict; what it learns lives beside the contract, dated and auditable, and never edits it.
-The number above is real: `FilePerms` in a 4k★ Python library could not revoke a permission
+The number above is real: `FilePerms` in a 7k★ Python library could not revoke a permission
 bit since 2014-02-07, and every one of its 625 tests was green the day Verdict filed it —
 [the run, and the misses, are in the ledger](eval/README.md#runs-on-strangers-repositories).
 
@@ -61,7 +61,8 @@ Verdict is a Claude Code plugin built the way QA is actually practiced:
 
 **Who pays for the model?** You do, with the Claude subscription you already have: the
 plugin runs inside your own session, nothing routes through anyone else, and everything
-below the model — the state, the gate, the MCP server, the eval scorer — is stdlib Python
+below the model — the state, the gate, the harness, the eval scorer — is stdlib Python
+(the optional MCP server adds the `mcp` SDK)
 that runs for free. Works on Python, TypeScript, Go, or anything with a test runner; the
 [eval fixtures](eval/) cover Python and TypeScript.
 
@@ -112,9 +113,9 @@ event fires:
 
 | Event | Fires on | Script | Silent when |
 |---|---|---|---|
-| `PreToolUse` | `Write`/`Edit`/`MultiEdit`/`NotebookEdit` | write-scope guard | always, unless `VERDICT_STRICT=1` or the caller is the verdict agent itself |
-| `PreToolUse` | `Bash` | bash-scope guard | always, unless `VERDICT_STRICT=1` |
-| `PostToolUse` | `Write`/`Edit`/`MultiEdit` | state validator | unless the written file is literally named `state.json` |
+| `PreToolUse` | `Write`/`Edit`/`MultiEdit`/`NotebookEdit` | write-scope guard | always, unless `VERDICT_STRICT=1` or the caller is the verdict agent itself — and for one path in any session: a QA root's `accepted.json` / `answers.json`, which only `verdict-accept` / `verdict-answer` write |
+| `PreToolUse` | `Bash` | bash-scope guard | always, unless `VERDICT_STRICT=1` or the caller is the verdict agent itself |
+| `PostToolUse` | `Write`/`Edit`/`MultiEdit` | state validator | unless the written file is a QA root's `state.json` or `findings/<ID>.json` |
 | `Stop` / `SubagentStop` | end of turn | run-contract check | unless a QA run *in this session* left hand-written state, or a Verdict agent *of this session* measured the facts and is stopping without `verdict-finalize` (the run marker names the session; another session's marker, or another agent stopping beside a run in progress, says nothing) — each blocks **at most once**, never loops |
 | `SessionStart` | session open | findings banner | unless the repository has QA state |
 
@@ -382,7 +383,8 @@ verdict-gate myapp --max-age-hours 24 --max-commits-behind 0 --fail-on risks
 ```
 
 Exit codes: `0` pass · `1` fail · `2` usage · `3` blocked · `4` no state (the tester never
-ran) · `5` stale. `4` and `5` are deliberately distinct from `1`: "the tester never ran"
+ran) · `5` stale · `6` hand-written state (with `--require-harness`). `4` and `5` are
+deliberately distinct from `1`: "the tester never ran"
 must never look like "the tester said no". For running the nightly pass on your own
 machine — cron, systemd, subscription token, strict mode — see
 [docs/nightly.md](docs/nightly.md).
@@ -589,20 +591,32 @@ real run broke it.
 ## The read-only guarantee, honestly stated
 
 Four layers: (1) the agent has no `Edit` tool; (2) its contract confines `Write` to the QA
-root; (3) a PreToolUse hook blocks out-of-scope `Write`/`Edit` calls; (4) under
-`VERDICT_STRICT=1` — set it for headless/CI/scheduled runs, where the whole session IS the
-QA run — a second hook also closes the obvious Bash write channels: output redirection,
-`tee`, `sed -i`, `rm`/`mv`/`cp` and friends, and mutating `git` verbs, each target resolved
-against the QA root. In mixed interactive sessions the hooks enforce when the platform
-identifies the calling subagent and stay out of your way otherwise — they will never block
-*your* edits.
+root; (3) a PreToolUse hook blocks out-of-scope `Write`/`Edit` calls; (4) a second hook
+closes the common Bash write channels — output redirection (`>`, `>>`, `&>`, `>&file`,
+`N<>`), `tee`, `sed -i`/`perl -i`, `rm`/`mv`/`cp` and friends, mutating `git` verbs and a
+read verb's `--output`, formatters in their writing shape (`black .`, `ruff format`,
+`prettier --write`), in-place compressors, `find -exec` and `xargs` on any of those — each
+target resolved against the QA root. Both hooks are armed when the platform names the verdict
+agent as the caller (Claude Code sends `agent_type` in every hook input fired inside a
+subagent) and under `VERDICT_STRICT=1`, which headless, CI and scheduled runs set because
+there the whole session IS the QA run. Your own edits and your own shell are not guarded:
+an event that names no agent, in a session without strict mode, passes untouched — with one
+exception. The maintainer's ledgers (`accepted.json`, `answers.json`) are written by
+`verdict-accept` and `verdict-answer` and by nothing else: a Write or Edit to either is
+refused whoever asks, and the two commands are refused to the tester.
 
-The Bash guard is a deny-heuristic, not a sandbox: unknown commands run (a QA pass needs
-pytest, coverage, linters), package installs are deliberately not denied, and a determined
-command can evade string analysis — OS sandboxing remains the real boundary. Both hooks
-fail open on malformed input and are tested in CI
-([tests/test_hooks.py](tests/test_hooks.py)). That is the whole truth; a QA tool should
-not oversell its own controls.
+The Bash guard is a heuristic over a command string, not a sandbox, and the 2026-10-02 audit
+measured where it stops: it does **not** stop a program that writes through its own code — an
+interpreter (`python3 -c`, `node -e`), a build or package step (`pip`, `npm`, `cargo`,
+`pytest`'s own cache and `.coverage`), a task runner (`npm run format`, `make fmt`), a script
+read from a file or a pipe, a shell function or alias. Unknown commands run, because a QA
+pass needs pytest, coverage and linters. The real boundary is OS-level sandboxing or running
+the tester against a throwaway copy; the guard raises the cost of the *accidental* mutation.
+Malformed hook input fails open; once armed, a command the guard cannot read is refused
+rather than waved through. Tested in CI on Python 3.9, the `python3` a stock Mac starts them with
+([tests/test_hooks.py](tests/test_hooks.py), [tests/test_hooks_0903.py](tests/test_hooks_0903.py),
+[tests/test_hooks_pens.py](tests/test_hooks_pens.py)). That is the whole truth; a QA tool
+should not oversell its own controls.
 
 ## FAQ
 

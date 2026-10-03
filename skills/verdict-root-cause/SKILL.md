@@ -1,5 +1,6 @@
 ---
 name: verdict-root-cause
+user-invocable: false
 description: Trace a failure to its root cause with proof, not a story — a four-link chain (symptom, mechanism, origin, class), a counterfactual in an isolated scratch copy, trigger separated from cause, and a diagnosis of where the fix belongs. Use on a failing test, a bug report, or a finding whose cause is disputed.
 ---
 

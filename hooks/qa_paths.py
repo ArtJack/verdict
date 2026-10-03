@@ -26,6 +26,42 @@ def utf8_stderr() -> None:
         pass
 
 
+# The names the tester runs under. `verdict` is the agent file's own name — a
+# per-repo copy in `.claude/agents/` — and the plugin's is `<plugin>:verdict`.
+# `verdict-rc` is what eval/run_eval.py provisions the candidate as, the third
+# name eval/usage_census.py counts, and the one tests/test_stop_hook.py fires.
+VERDICT_AGENTS = ("verdict", "verdict-rc")
+# Where an event may name its agent. Claude Code sends `agent_type` (with
+# `agent_id`) in every hook input fired inside a subagent; the other spellings
+# are the ones the write guard has read since before that was documented.
+AGENT_FIELDS = ("agent_type", "agent_name", "subagent_type", "agent")
+
+
+def caller_is_verdict(event) -> bool:
+    """True when a hook event positively names the Verdict agent as its caller.
+
+    One rule for every hook, because there were two and they disagreed
+    (K-D-13): the write guard asked for `verdict` or `<plugin>:verdict`, while
+    the Stop hook asked whether the name merely CONTAINED "verdict". So
+    `verdict-rc` was the tester to one and a stranger to the other — measured,
+    its Write outside the QA root was allowed in a non-strict session — and any
+    agent with the word in its name (`verdict-opus-check`, a read-only reviewer
+    that never runs the harness) was a tester to the Stop hook. A name is
+    matched whole, with or without a plugin prefix, and matched by case.
+
+    An event that names no agent is the user's own session, and is nobody's
+    tester: every doubt is a False, because all three hooks fire on every
+    session the plugin is enabled in.
+    """
+    if not isinstance(event, dict):
+        return False
+    for key in AGENT_FIELDS:
+        name = event.get(key)
+        if isinstance(name, str) and name.rsplit(":", 1)[-1] in VERDICT_AGENTS:
+            return True
+    return False
+
+
 def solo_root() -> str:
     root = os.environ.get("VERDICT_HOME") or "~/.claude/verdict"
     return os.path.realpath(os.path.expanduser(root))

@@ -34,6 +34,25 @@ jobs:
         # fixture's trap, found living in our own CI)
         run: uv run --group dev python -m pytest tests/
 
+  hooks-floor:
+    # `hooks.json` starts every hook with `python3`, and on a stock Mac that is 3.9 —
+    # below this package's own floor, which binds pip and not a plugin. The matrix
+    # above never ran the hooks' tests on it: the "floor" was an AST shape check, so
+    # a 3.10-only stdlib call would have passed CI and broken the guard on the one
+    # machine class it is installed on most (audit 2026-10-02, D-D-26). pytest itself
+    # runs on 3.9 here, no project install: the hooks are stdlib and so are their tests.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - name: Run the hook tests on Python 3.9
+        run: >-
+          uv run --no-project --python 3.9 --with pytest python -m pytest
+          -p no:cacheprovider -o addopts=
+          tests/test_hooks.py tests/test_hooks_0903.py tests/test_hooks_pens.py
+          tests/test_stop_hook.py tests/test_session_start.py
+          tests/test_validate_hook_scope.py tests/test_interpreter_floor.py
+
   delta-diff-freshness:
     # eval/fixtures/pricer-delta.diff is the tamper-evidence for the delta
     # fixture: any drift between rev-A, rev-B, and the committed diff fails here.

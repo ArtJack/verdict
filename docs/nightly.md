@@ -246,7 +246,7 @@ instead of reaching for the expensive model.
 
 ```
 verdict-run myapp --on-drift local \
-  --local-env-file ~/.config/verdict-gateway.env --local-model qwen3
+  --local-env-file ~/.config/verdict-gateway.env --local-model chat
 ```
 
 `--on-drift local` and `--on-drift none` both imply `--skip-unless-drift`, and **neither can

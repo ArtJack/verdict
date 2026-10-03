@@ -47,14 +47,19 @@ from __future__ import annotations
 import argparse
 import ast
 import configparser
+import fnmatch
+import io
 import json
+import keyword
 import os
 import re
+import shlex
 import shutil
 import subprocess
 import sys
 import tempfile
 import time
+import tokenize
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -66,6 +71,7 @@ try:
     from .harness import (RETRY_WINDOW_HOURS, _git, _parse_marker_time, _run_test, collect,
                           finalize_main, finding_hash, is_test_file, split_hygiene)
     from .filed import FINDINGS_DIR, archive_findings
+    from .hygiene import _scrub as scrub_secrets
     from .profile import ProfileError, gates_from, hygiene_filing_from
     from .profile import load as load_profile
     from .reports import read_report
@@ -81,6 +87,7 @@ except ImportError:  # bare-script execution
     from harness import (RETRY_WINDOW_HOURS, _git, _parse_marker_time, _run_test, collect,
                          finalize_main, finding_hash, is_test_file, split_hygiene)
     from filed import FINDINGS_DIR, archive_findings
+    from hygiene import _scrub as scrub_secrets
     from profile import ProfileError, gates_from, hygiene_filing_from
     from profile import load as load_profile
     from reports import read_report
@@ -503,11 +510,20 @@ def finding_of(claim: dict, ident: str, chunk_source: str, proof: dict | None = 
     ]
     if proven:
         evidence.insert(0, (
-            f"COUNTERFACTUAL (scratch copy, PYTHONDONTWRITEBYTECODE=1, __pycache__ swept, "
-            f"import verified inside the scratch): `{proof['expression']}` returns "
-            f"{proof['before']!r} at HEAD; with {claim['path']}:{proof['line']} changed from "
-            f"`{proof['was']}` to `{proof['now']}` it returns {proof['after']!r}. "
-            f"{proof['reason']}."))
+            f"COUNTERFACTUAL (both runs in the scratch copy at "
+            f"{proof.get('scratch') or 'a temporary directory'}, PYTHONDONTWRITEBYTECODE=1, "
+            f"__pycache__ swept, import verified inside the scratch, environment "
+            f"allowlisted): `{proof['expression']}` returns {proof['before']!r} at HEAD; with "
+            f"{claim['path']}:{proof['line']} changed from `{proof['was']}` to "
+            f"`{proof['now']}` it returns {proof['after']!r}. {proof['reason']}."))
+    elif proof:
+        # A probe that was refused or could not run is on the record beside the claim it
+        # failed to prove — what was asked to run, where, and why it did not (audit
+        # 2026-10-02, O-S-1 (5)). The citation stays the first line.
+        text = f"`{proof['expression']}`" if proof.get("expression") else "(no expression)"
+        evidence.append(
+            f"PROBE {text} — {proof.get('status')}: {proof.get('reason')}; "
+            + (f"ran in {proof['scratch']}" if proof.get("scratch") else "nothing ran"))
     narrative = f"{claim['mechanism']} {claim['impact']}".strip()
     narrative += (" Proven by counterfactual, not by reading: the value follows the line."
                   if proven else
@@ -558,8 +574,145 @@ Reply with JSON only, and put a real call to `{function}` in the expression:
 
 COPY_SKIP = {".git", ".venv", "venv", "node_modules", "__pycache__", ".tox", ".mypy_cache",
              ".pytest_cache", ".ruff_cache", "build", "dist", ".idea", ".claude"}
+# What never reaches the scratch copy, by name pattern. Audit 2026-10-02, O-S-1: the copy
+# carried every `.env` in the tree, and the module under probe imports its config on
+# import — so the "after" run read the project's live credentials in a directory the
+# model's expression could reach. A project whose module is called `secrets.py` loses
+# that import in the scratch and the probe says so; that is the safe direction.
+SECRET_SKIP = (".env", ".env.*", "*.pem", "*.key", "id_rsa*", ".netrc", ".npmrc", ".pypirc",
+               "credentials*.json", "*.p12", "*.pfx", "secrets.*")
+# The child's environment is built from this list, never from the parent's environment.
+# Measured 2026-10-02 (`probe_small2.py`): `env=dict(os.environ, …)` handed the probe the
+# gateway token the nightly exports — `env_has_token=True` in both runs — and whatever
+# else launchd's environment holds. `LC_*` is kept with these; `PYTHONPATH` is the
+# scratch roots only; `SYSTEMROOT`/`TEMP`/`TMP` are what a Windows CRT needs to start.
+PROBE_ENV_KEEP = ("PATH", "HOME", "LANG", "TMPDIR", "SYSTEMROOT", "TEMP", "TMP")
 PROBE_TIMEOUT_S = 60
 MAX_COPY_BYTES = 300 * 1024 * 1024
+
+
+def probe_env(roots) -> dict:
+    """The environment a probe runs under: the allowlist above, bytecode writing off,
+    and an import path made of the scratch roots and nothing else."""
+    env = {k: v for k, v in os.environ.items()
+           if k.upper() in PROBE_ENV_KEEP or k.upper().startswith("LC_")}
+    env["PYTHONDONTWRITEBYTECODE"] = "1"
+    env["PYTHONPATH"] = os.pathsep.join(str(r) for r in roots)
+    return env
+
+
+def _not_literal(node) -> str | None:
+    """None when `ast.literal_eval` accepts the node — a number, negative too, a string,
+    bytes, None, True, False, or a tuple, list, set or dict of those — else what it is."""
+    try:
+        ast.literal_eval(node)
+    except (ValueError, TypeError, SyntaxError, MemoryError, RecursionError):
+        return ast.unparse(node)[:60]
+    return None
+
+
+def safe_probe(expression: str, function: str | None = None) -> tuple:
+    """The expression as a syntax tree, read before anything runs → (the call rendered
+    back from the tree, None) or (None, "probe_unsafe: <which rule>").
+
+    Measured 2026-10-02 (audit O-S-1): the only checks on the model's expression were
+    one line, names the function, fix line inside the chunk — and
+    `m.f(open(...).write(os.getcwd()) or 1)` passed all three and ran in the checkout.
+    What is accepted now is exactly one call on `m` to the function under probe, every
+    positional argument and keyword value a literal. No other call, no name, no attribute
+    chain, no subscript, no lambda, no comprehension, no f-string, no starred or `**`
+    argument, no dunder. A method call needs `m.Holder().beta()`, a nested call, and is
+    refused with the rest: the price of a probe that cannot be told from `m.run_share(...)`.
+    """
+    try:
+        tree = ast.parse(expression, mode="eval")
+    except (SyntaxError, ValueError) as exc:
+        detail = str(exc).splitlines()[0][:80] if str(exc) else "empty"
+        return None, f"probe_unsafe: not one Python expression ({detail})"
+    call = tree.body
+    if not isinstance(call, ast.Call):
+        return None, f"probe_unsafe: not a call ({type(call).__name__})"
+    func = call.func
+    if not (isinstance(func, ast.Attribute) and isinstance(func.value, ast.Name)
+            and func.value.id == "m"):
+        return None, f"probe_unsafe: calls {ast.unparse(func)[:60]}, not a function of m"
+    if func.attr.startswith("__"):
+        return None, f"probe_unsafe: a dunder attribute (m.{func.attr})"
+    if function is not None and func.attr != function:
+        return None, f"probe_unsafe: does not call {function} (m.{func.attr})"
+    for i, node in enumerate(call.args, 1):
+        if isinstance(node, ast.Starred):
+            return None, f"probe_unsafe: argument {i} is starred"
+        why = _not_literal(node)
+        if why:
+            return None, f"probe_unsafe: argument {i} is not a literal ({why})"
+    for kw in call.keywords:
+        if kw.arg is None:
+            return None, "probe_unsafe: `**` unpacking"
+        why = _not_literal(kw.value)
+        if why:
+            return None, f"probe_unsafe: keyword {kw.arg} is not a literal ({why})"
+    return ast.unparse(call), None
+
+
+# The few builtins a one-line boundary or arithmetic fix reaches for. Nothing here
+# opens, imports, evaluates or reflects.
+FIX_BUILTINS = frozenset({
+    "abs", "all", "any", "bool", "dict", "divmod", "enumerate", "float", "frozenset", "int",
+    "isinstance", "len", "list", "max", "min", "pow", "range", "reversed", "round", "set",
+    "sorted", "str", "sum", "tuple", "zip", "self", "cls"})
+
+
+def _names(source: str) -> set:
+    """Every identifier in a piece of source, read lexically — partial code tokenizes."""
+    out = set()
+    try:
+        for tok in tokenize.generate_tokens(io.StringIO(source).readline):
+            if tok.type == tokenize.NAME:
+                out.add(tok.string)
+    except (tokenize.TokenError, SyntaxError, IndentationError):
+        pass
+    return out
+
+
+def safe_replacement(replacement: str, function_source: str) -> str | None:
+    """Why the model's replacement line may not be written into the scratch, or None.
+
+    The expression is read as a syntax tree; the line that replaces the suspected one is
+    code as well, and it runs — in the scratch, under the allowlisted environment, but with
+    the operator's privileges: `import os; os.system(...)` reads `~/.ssh` from a scratch as
+    easily as from a checkout, and an environment without the token does not stop a line
+    that opens the file the token lives in. So a fix may use only what the function already
+    uses: every name in it is a keyword, a name that appears in the function's own source,
+    or one of a few builtins a boundary fix reaches for. No `import`, no name the function
+    never mentioned, no dunder attribute it did not already have, no f-string (its fields
+    are code a lexical read cannot see before 3.12), one physical line. Conservative on
+    purpose: a refused fix leaves the claim a hypothesis, which is what it was.
+    """
+    if "\n" in replacement or "\r" in replacement:
+        return "fix_unsafe: more than one line"
+    known = _names(function_source)
+    try:
+        tokens = list(tokenize.generate_tokens(io.StringIO(replacement.strip() + "\n").readline))
+    except (tokenize.TokenError, SyntaxError, IndentationError) as exc:
+        return f"fix_invalid: {str(exc)[:80]}"
+    after_dot = False
+    for tok in tokens:
+        kind = tokenize.tok_name.get(tok.type, "")
+        if kind == "FSTRING_START" or (tok.type == tokenize.STRING
+                                       and re.match(r"(?i)[rbu]*f", tok.string)):
+            return "fix_unsafe: an f-string — its fields are code this check cannot read"
+        if tok.type == tokenize.NAME:
+            name = tok.string
+            if name in ("import", "from"):
+                return f"fix_unsafe: `{name}` in a one-line fix"
+            if after_dot:
+                if name.startswith("__") and name not in known:
+                    return f"fix_unsafe: reaches the dunder `{name}`"
+            elif not (keyword.iskeyword(name) or name in known or name in FIX_BUILTINS):
+                return f"fix_unsafe: introduces `{name}`, a name the function never uses"
+        after_dot = tok.type == tokenize.OP and tok.string == "."
+    return None
 
 
 def module_name(repo: Path, rel: str) -> str:
@@ -651,7 +804,8 @@ def scratch_copy(repo: Path, into: Path) -> bool:
     large to copy, which is a refusal, not a silent skip."""
     total = 0
     for path in repo.rglob("*"):
-        if any(part in COPY_SKIP for part in path.parts):
+        if any(part in COPY_SKIP or any(fnmatch.fnmatch(part, pat) for pat in SECRET_SKIP)
+               for part in path.relative_to(repo).parts):
             continue
         if path.is_file():
             try:
@@ -661,7 +815,7 @@ def scratch_copy(repo: Path, into: Path) -> bool:
             if total > MAX_COPY_BYTES:
                 return False
     shutil.copytree(repo, into, dirs_exist_ok=True,
-                    ignore=shutil.ignore_patterns(*COPY_SKIP))
+                    ignore=shutil.ignore_patterns(*COPY_SKIP, *SECRET_SKIP))
     return True
 
 
@@ -675,7 +829,15 @@ def run_probe(python: str, root: Path, module: str, expression: str,
     without that check. Bytecode writing is off and `__pycache__` swept, because CPython
     validates a cached file on mtime-in-seconds plus size and a same-size edit within one
     second re-runs the old bytecode.
+
+    This is the only path to a child process, so it reads the expression as a syntax tree
+    itself (`safe_probe`, any function of `m`) and refuses before anything starts: a
+    caller that skipped the check cannot run arbitrary code. The environment is the
+    allowlist in `probe_env`, never the parent's (audit 2026-10-02, O-S-1).
     """
+    call, why = safe_probe(expression)
+    if why:
+        return None, why
     for cache in root.rglob("__pycache__"):
         shutil.rmtree(cache, ignore_errors=True)
     # Compare resolved paths on both sides: on macOS `/var` is a symlink to `/private/var`,
@@ -686,10 +848,8 @@ def run_probe(python: str, root: Path, module: str, expression: str,
         f"import {module} as m\n"
         f"assert os.path.realpath(m.__file__).startswith({resolved!r}), "
         "'imported ' + m.__file__\n"
-        f"print('<<<' + json.dumps({expression}, default=repr) + '>>>')\n")
-    env = dict(os.environ, PYTHONDONTWRITEBYTECODE="1",
-               PYTHONPATH=os.pathsep.join([str(root)] + [str(p) for p in extra_paths]
-                                          + [os.environ.get("PYTHONPATH", "")]))
+        f"print('<<<' + json.dumps({call}, default=repr) + '>>>')\n")
+    env = probe_env([root, *extra_paths])
     try:
         proc = subprocess.run([python, "-c", script], cwd=str(root), env=env,
                               capture_output=True, text=True, timeout=PROBE_TIMEOUT_S)
@@ -711,59 +871,75 @@ def counterfactual(model: Model, repo: Path, chunk: Chunk, claim: dict,
     Three outcomes, all of them useful: the value flips to what the model predicted
     (`proven`), the value does not move (`disproven` — the claim is withdrawn before it is
     ever filed), or the probe cannot run (unchanged, still a hypothesis).
+
+    Nothing here runs in the checkout. Measured 2026-10-02 (audit O-S-1, `probe_small2.py`):
+    the "before" run executed the model's expression with `cwd=<repo>` and the real tree on
+    `PYTHONPATH`, and the marker it wrote read `<the checkout> env_has_token=True`. Now the
+    tree is copied once, the original is probed in the copy, the copy's file is patched, and
+    the patched copy is probed — and the expression is a syntax tree the harness has read
+    (`safe_probe`) before the copy is even made. Every outcome is a record: the expression
+    (scrubbed, so a key the model copied out of a docstring never lands in a file), the
+    scratch it ran in or None, the status and the reason.
     """
+    def refused(reason: str, expression: str = "", scratch: str | None = None) -> dict:
+        return {"status": "unavailable", "reason": scrub_secrets(reason)[:300],
+                "expression": scrub_secrets(expression)[:200], "scratch": scratch}
+
     root_rel, module = probe_root(repo, chunk.path)
     if not module:
-        return {"status": "unavailable",
-                "reason": f"{chunk.path} is not importable from the repository root"}
+        return refused(f"{chunk.path} is not importable from the repository root")
     answer = model.ask_json(PROBE_Q.format(path=chunk.path, source=chunk.numbered(),
                                            mechanism=claim["mechanism"], module=module,
                                            function=chunk.name), max_tokens=700)
     if not answer:
-        return {"status": "unavailable", "reason": "the model did not answer with JSON"}
+        return refused("the model did not answer with JSON")
     expression = str(answer.get("expression") or "").strip()
     replacement = answer.get("fix_replacement")
     line = answer.get("fix_line")
     if not expression or "\n" in expression or not isinstance(replacement, str):
-        return {"status": "unavailable",
-                "reason": "the probe was not one expression and one replacement line"}
+        return refused("the probe was not one expression and one replacement line", expression)
     if chunk.name not in expression:
         # A small model copies the schema's example instead of writing a call: measured on
         # boltons, where every probe came back as `m.some_function(1, 2)` and failed on an
         # attribute that does not exist. The expression must reach the function it is about.
-        return {"status": "unavailable",
-                "reason": f"the probe does not call {chunk.name}: {expression[:80]}"}
+        return refused(f"the probe does not call {chunk.name}: {expression[:80]}", expression)
     if not isinstance(line, (int, float)) or not (chunk.start <= int(line) <= chunk.end):
-        return {"status": "unavailable",
-                "reason": f"the line to flip ({line}) is outside {chunk.name}"}
+        return refused(f"the line to flip ({line}) is outside {chunk.name}", expression)
     line = int(line)
+    call, why = safe_probe(expression, chunk.name)
+    if why:
+        return refused(why, expression)
+    # The replacement line is code too, and it runs: the same wall, before the copy.
+    unsafe_fix = safe_replacement(replacement, chunk.source)
+    if unsafe_fix:
+        return refused(unsafe_fix, call)
 
     with tempfile.TemporaryDirectory(prefix="verdict-cf-") as tmp:
         scratch = Path(tmp) / "tree"
+        where = str(scratch)
         if not scratch_copy(repo, scratch):
-            return {"status": "unavailable", "reason": "the tree is too large to copy"}
-        others = [r for r in import_roots(repo)]
-        before, err = run_probe(python, root_rel, module, expression,
-                                [repo / r for r in others])
+            return refused("the tree is too large to copy", call)
+        scratch_root = scratch / root_rel.relative_to(repo) if root_rel != repo else scratch
+        others = [scratch / r for r in import_roots(repo)]
+        before, err = run_probe(python, scratch_root, module, call, others)
         if err:
-            return {"status": "unavailable", "reason": f"probe failed on the original: {err}"}
+            return refused(f"probe failed on the original: {err}", call, where)
         target = scratch / chunk.path
         lines = target.read_text(encoding="utf-8", errors="replace").splitlines()
         if not (1 <= line <= len(lines)):
-            return {"status": "unavailable", "reason": "the line to flip is outside the file"}
+            return refused("the line to flip is outside the file", call, where)
         original_line = lines[line - 1]
         lines[line - 1] = replacement
         target.write_text("\n".join(lines) + "\n", encoding="utf-8")
-        scratch_root = scratch / root_rel.relative_to(repo) if root_rel != repo else scratch
-        after, err = run_probe(python, scratch_root, module, expression,
-                               [scratch / r for r in others])
+        after, err = run_probe(python, scratch_root, module, call, others)
         if err:
-            return {"status": "unavailable", "reason": f"probe failed on the scratch: {err}"}
+            return refused(f"probe failed on the scratch: {err}", call, where)
 
     flipped = before != after
     return {
         "status": "proven" if flipped else "disproven",
-        "expression": expression, "before": before, "after": after,
+        "expression": scrub_secrets(call)[:200], "scratch": where,
+        "before": before, "after": after,
         "line": line, "was": original_line.strip()[:160], "now": replacement.strip()[:160],
         "reason": ("the value follows the line: flipping it changed the result"
                    if flipped else
@@ -1668,13 +1844,17 @@ def regressed_finding(prior: dict, claim_entry: dict, how: str) -> dict:
 def file_findings(model: Model, repo: Path, targets: list, mint, findings_dir: Path,
                   filed: list, python: str, prove: bool, budget: Budget,
                   prior_index: PriorIndex | None = None, already_open: list | None = None,
-                  leads: list | None = None) -> tuple:
+                  leads: list | None = None, probes: list | None = None) -> tuple:
     """Read the source, one function at a time, and try to prove each claim by flipping
     the line in a scratch copy. Returns (examined, proven, disproven).
 
     `targets` is `(path, the changed lines or None)`: a run over a range asks only
     about the functions the range touched, because a function nobody edited is a
     question this engine already asked on some earlier night.
+
+    `probes`, when given, collects one row per counterfactual attempted — the
+    expression, where it ran, the status and the reason — so `facts.json` says what
+    was executed this run, refusals included (audit 2026-10-02, O-S-1 (5)).
     """
     examined = proven = disproven = 0
     for rel, lines in targets:
@@ -1687,6 +1867,11 @@ def file_findings(model: Model, repo: Path, targets: list, mint, findings_dir: P
                 continue
             proof = (counterfactual(model, repo, chunk, claim, python)
                      if prove and budget.take_probe() else None)
+            if proof is not None and probes is not None:
+                probes.append({"path": chunk.path, "function": chunk.name,
+                               "line": claim["line"], "expression": proof.get("expression", ""),
+                               "scratch": proof.get("scratch"), "status": proof["status"],
+                               "reason": proof.get("reason", "")})
             if proof and proof.get("status") == "unavailable":
                 print(f"verdict-local: not proven, {chunk.path}:{claim['line']} — "
                       f"{proof['reason']}", file=sys.stderr)
@@ -1730,14 +1915,101 @@ def file_findings(model: Model, repo: Path, targets: list, mint, findings_dir: P
     return examined, proven, disproven
 
 
-def interpreter_of(command: str) -> str:
-    """The python the project's own gate uses — a probe run with a different interpreter
-    is measuring a different environment."""
-    for token in command.split():
-        low = token.lower()
-        if low.endswith("python") or low.endswith("python3") or low.endswith("python.exe"):
-            return token
-    return sys.executable
+_ENV_ASSIGN = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*=")
+_PYTHON_NAME = re.compile(r"^(?:python|pypy)[0-9.]*w?(?:\.exe)?$")
+_PY_TOOLS = frozenset({"pytest", "py.test", "coverage", "pytest.exe", "coverage.exe"})
+_RUNNERS = frozenset({"uv", "poetry", "pipenv", "pdm", "hatch", "rye"})
+_RUNNER_PYTHON: dict = {}           # (runner, repo) → what `<runner> run python` is, or None
+RUNNER_TIMEOUT_S = 30
+
+
+def interpreter_of(command: str, repo=None) -> str | None:
+    """The python the project's own gate runs — or None when the gate runs none.
+
+    A probe run with a different interpreter is measuring a different environment.
+    Measured 2026-10-02 (audit O-D-11): only a token ending in `python` was recognised, so
+    `uv run pytest`, `.venv/bin/pytest` and `npm test` all fell back to Verdict's own
+    interpreter, every probe died on the first third-party import, and the run reported
+    "probe failed on the original" as the model's failure to prove. Now `<dir>/bin/pytest`
+    is `<dir>/bin/python`; `uv run …` (poetry, pipenv, pdm, hatch and rye the same) is asked
+    once what it runs; a bare `pytest` or `python` is looked up on PATH; and a gate with no
+    Python in it — `npm test`, `go test`, `cargo test` — is None, so the caller says proving
+    is off instead of importing the project with the wrong interpreter.
+    """
+    try:
+        tokens = shlex.split(command) if os.name != "nt" else command.split()
+    except ValueError:
+        tokens = command.split()
+    for i, token in enumerate(tokens):
+        if _ENV_ASSIGN.match(token):
+            continue
+        head, _, name = token.replace("\\", "/").rpartition("/")
+        low = name.lower()
+        if _PYTHON_NAME.match(low):
+            return token if head else shutil.which(token)
+        if low in _PY_TOOLS:
+            found = token if head else shutil.which(token)
+            return _python_beside(found) if found else None
+        if low in _RUNNERS and tokens[i + 1:i + 2] == ["run"]:
+            return runner_python(token, repo)
+    return None
+
+
+def _python_beside(tool: str) -> str:
+    """`<dir>/bin/pytest` → `<dir>/bin/python`; `Scripts/pytest.exe` → `Scripts/python.exe`."""
+    head, _, name = tool.replace("\\", "/").rpartition("/")
+    python = "python.exe" if name.lower().endswith(".exe") else "python"
+    return f"{head}/{python}" if head else python
+
+
+def runner_python(runner: str, repo) -> str | None:
+    """What `<runner> run python` actually is, asked once per repository and remembered:
+    the project's interpreter, not Verdict's, and it does not change within a run. A
+    runner that cannot answer — not installed, no project, thirty seconds gone — is None,
+    said on stderr, and the caller records that proving is off."""
+    key = (runner, str(repo) if repo else "")
+    if key not in _RUNNER_PYTHON:
+        found, why = None, None
+        try:
+            proc = subprocess.run(
+                [runner, "run", "python", "-c", "import sys; print(sys.executable)"],
+                cwd=str(repo) if repo else None, capture_output=True, text=True,
+                timeout=RUNNER_TIMEOUT_S)
+            if proc.returncode == 0 and proc.stdout.strip():
+                found = proc.stdout.strip().splitlines()[-1].strip()
+            else:
+                why = (proc.stderr.strip().splitlines() or [f"exit {proc.returncode}"])[-1][:160]
+        except (OSError, subprocess.SubprocessError) as exc:
+            why = str(exc)[:160]
+        if not found:
+            print(f"verdict-local: `{runner} run python` could not name the gate's interpreter "
+                  f"({why}) — proving is disabled", file=sys.stderr)
+        _RUNNER_PYTHON[key] = found
+    return _RUNNER_PYTHON[key]
+
+
+_PROBES_OFF = ("off", "false", "no")
+
+
+def probes_off(config: dict, notes: list | None = None) -> bool:
+    """The profile's `probes:` setting — `off`, `false` or `no` in any case switches the
+    counterfactual off for the project, which is what a project whose public functions
+    talk to live accounts sets (audit 2026-10-02, O-S-1 (4): Sales' share runners were
+    among the modules the nightly asked the model to probe). Read the way `hygiene:` is:
+    a value it cannot read leaves probes on and adds a note, because a typo must never
+    pass for a setting that took."""
+    value = config.get("probes")
+    if isinstance(value, str):
+        value = value.strip()
+    if not value:
+        return False
+    if isinstance(value, str) and value.lower() in _PROBES_OFF:
+        return True
+    if isinstance(value, str) and value.lower() in ("on", "true", "yes"):
+        return False
+    if notes is not None:
+        notes.append(f"probes: '{value}' is not understood — probes stay on")
+    return False
 
 
 def read_reference(path) -> dict | None:
@@ -1851,6 +2123,22 @@ def run(repo: Path, qa_root: Path, model: Model, limit: int, gate: str | None,
               "run is a baseline, with nothing to carry", file=sys.stderr)
     reference = read_reference(reference_state) if reference_state else None
 
+    # Whether a counterfactual may run at all, decided before anything is measured and
+    # said in `not_tested` either way: the profile's `probes: off`, `--no-prove`,
+    # `--max-probes 0`, or a gate that runs no Python interpreter (audit 2026-10-02,
+    # O-S-1 (4) and O-D-11). The old code fell back to Verdict's own interpreter.
+    python = interpreter_of(command, repo)
+    disabled = None
+    if probes_off(config, profile_notes):
+        disabled = "probes disabled by profile (`probes: off` in profile.md)"
+    elif not prove:
+        disabled = "probes disabled by flag (`--no-prove`)"
+    elif budget.probes == 0:
+        disabled = "probes disabled by flag (`--max-probes 0`)"
+    elif python is None:
+        disabled = f"proving disabled: no Python interpreter in the gate (`{command}`)"
+    prove = disabled is None
+
     print(f"verdict-local: measuring {repo} · gate {name}", file=sys.stderr)
     facts = measure(repo, qa_root, gates, config, sha_range, profile_notes)
     (qa_root / "facts.json").write_text(json.dumps(facts, indent=1), encoding="utf-8")
@@ -1873,9 +2161,8 @@ def run(repo: Path, qa_root: Path, model: Model, limit: int, gate: str | None,
     over_limit = len(ranked) > limit
     non_python = bool(ranged and changed and not python_in(changed))
 
-    python = interpreter_of(command)
     print(f"verdict-local: {len(files)} file(s) to read, model {model.name}"
-          + (f", proving with {python}" if prove else ", proving disabled"), file=sys.stderr)
+          + (f", proving with {python}" if prove else f", {disabled}"), file=sys.stderr)
     prefix = str(facts.get("next_finding_id") or "F-1").rsplit("-", 1)[0]
     number = int(str(facts.get("next_finding_id") or "F-1").rsplit("-", 1)[1] or 1)
 
@@ -1996,10 +2283,15 @@ def run(repo: Path, qa_root: Path, model: Model, limit: int, gate: str | None,
     # 3. What reading says, function by function — the source, then the tests.
     already_open: list = []
     leads: list | None = [] if previous else None      # a project with a record to protect
+    probe_ledger: list = []                            # every counterfactual, refusals too
     examined, proven, disproven = file_findings(model, repo, targets, mint, findings_dir,
                                                 filed, python, prove, budget,
                                                 prior_index=PriorIndex(previous),
-                                                already_open=already_open, leads=leads)
+                                                already_open=already_open, leads=leads,
+                                                probes=probe_ledger)
+    # Beside `last_run`, not inside its `local` block: that block is copied into a
+    # `usage.jsonl` row every run, and the ledger is a record, not a bill.
+    facts["probes"] = probe_ledger
     suite_files = ([p for p in python_in(changed) if is_test_file(p)] if ranged
                    else test_files(repo)[:limit])
     examined += brittle_findings(model, repo, suite_files, mint, findings_dir, filed, budget,
@@ -2100,7 +2392,8 @@ def run(repo: Path, qa_root: Path, model: Model, limit: int, gate: str | None,
                            "test, or release the quarantine deliberately"})
 
     not_tested = not_tested_lines(model, files, examined, prior_open, still_open_ids,
-                                  refiled, prove, budget, quarantine_notes, non_python)
+                                  refiled, prove, budget, quarantine_notes, non_python,
+                                  disabled=disabled)
     if leads:
         not_tested.append(
             f"{len(leads)} reading(s) this engine could not prove were listed as leads in the "
@@ -2209,12 +2502,15 @@ def leads_text(leads) -> str:
 
 def not_tested_lines(model: Model, files: list, examined: int, prior_open: list,
                      still_open: list, refiled: list, prove: bool, budget: Budget,
-                     quarantine_notes: list, non_python: bool) -> list:
+                     quarantine_notes: list, non_python: bool,
+                     disabled: str | None = None) -> list:
     """What a night like this one does not do, counted rather than described.
 
     The temptation with a cheap engine is to let its report read like the
     expensive one's. This list is what stops that: every line is a number the run
     measured, so a local `pass` is visibly a different sentence from an agent's.
+    `disabled` is why no counterfactual ran, when none did — the profile's switch, a
+    flag, or a gate with no Python interpreter — named rather than summarised.
     """
     out = [
         f"no agent ran: {model.answered + model.unanswered} bounded question(s) went to "
@@ -2229,8 +2525,8 @@ def not_tested_lines(model: Model, files: list, examined: int, prior_open: list,
         ("claims the counterfactual could not reach — a probe that would not run leaves its "
          f"finding a hypothesis, and an unproven severity is held at {UNPROVEN_CEILING}"
          if prove else
-         "everything a counterfactual would show: proving was disabled this run, so every "
-         "finding from reading is a hypothesis"),
+         f"everything a counterfactual would show: {disabled or 'proving was disabled this run'}"
+         ", so every finding from reading is a hypothesis"),
         "nothing outside the checkout was read — no database, no MCP tools, no production "
         "numbers — so a standing blocker that quotes one was NOT re-read",
         f"{model.unanswered} question(s) the model did not answer"
@@ -2316,7 +2612,13 @@ def main(argv=None) -> int:
         formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("project", nargs="?", default=None)
     ap.add_argument("--repo", default=None)
-    ap.add_argument("--model", default=os.environ.get("VERDICT_LOCAL_MODEL", "qwen3"))
+    # `chat`, not the alias the first nights used: DECISIONS.md 2026-09-25 measured that one
+    # thinking through its whole budget and answering 1 question in 9, so a run that omitted
+    # `--model` spent the night to exit 5 (audit 2026-10-02, O-D-5).
+    ap.add_argument("--model", default=os.environ.get("VERDICT_LOCAL_MODEL", "chat"),
+                    help="the model name sent to the gateway (default: $VERDICT_LOCAL_MODEL, "
+                         "else `chat`). An alias that thinks through its whole budget "
+                         "answers nothing, and the run exits 5 after the suite has run")
     ap.add_argument("--env-file", type=Path, default=None,
                     help="KEY=VALUE file with ANTHROPIC_BASE_URL and ANTHROPIC_AUTH_TOKEN")
     ap.add_argument("--limit", type=int, default=8, metavar="N",

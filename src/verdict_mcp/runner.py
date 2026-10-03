@@ -415,6 +415,44 @@ def session_env(env: dict, repo) -> tuple[dict, list]:
     return env, notes
 
 
+# The environment a headless session may see. Everything else the operator's
+# shell holds stays out — cloud and `gh`/`op` tokens, a `GIT_DIR` exported by
+# a git hook, the `PYTHONPATH` 0.90.1 stopped leaking — because the session
+# hands its environment to every Bash call the tester makes, hence to the
+# project's own test suite and whatever that spawns (audit 2026-10-02, O-S-2).
+# The owner's hand recipe for asked gates was `env -i` with exactly these
+# names; the runner does it itself now. `--env-passthrough` is the door for a
+# project whose gates need one more.
+_ENV_KEEP = frozenset({
+    "PATH", "HOME", "USER", "LOGNAME", "SHELL", "LANG", "LANGUAGE", "TMPDIR", "TEMP",
+    "TMP", "TERM", "COLORTERM", "TZ",
+    # Windows needs these to run anything at all.
+    "SYSTEMROOT", "SystemRoot", "COMSPEC", "ComSpec", "PATHEXT", "APPDATA",
+    "LOCALAPPDATA", "USERPROFILE", "HOMEDRIVE", "HOMEPATH", "PROGRAMDATA", "ProgramData",
+    "WINDIR", "PROGRAMFILES", "PROGRAMFILES(X86)", "COMMONPROGRAMFILES", "ALLUSERSPROFILE",
+    "PUBLIC", "USERNAME", "USERDOMAIN", "OS", "PROCESSOR_ARCHITECTURE", "NUMBER_OF_PROCESSORS",
+    # A corporate proxy or a private CA is how the CLI reaches the API.
+    "SSL_CERT_FILE", "SSL_CERT_DIR", "REQUESTS_CA_BUNDLE", "NODE_EXTRA_CA_CERTS",
+    "HTTP_PROXY", "HTTPS_PROXY", "NO_PROXY", "http_proxy", "https_proxy", "no_proxy",
+})
+_ENV_KEEP_PREFIXES = ("LC_", "CLAUDE_", "ANTHROPIC_", "VERDICT_", "XDG_")
+
+
+def child_env(source, passthrough=()) -> dict:
+    """The allowlisted subset of `source`, plus the names in `passthrough`."""
+    # `.union`, not `|`: the hooks' interpreter-floor test reads a `|` between two
+    # expressions as a 3.10 type union, and this file shares that floor.
+    keep = set(_ENV_KEEP).union(name.strip() for name in passthrough if name and name.strip())
+    return {k: v for k, v in source.items()
+            if k in keep or k.startswith(_ENV_KEEP_PREFIXES)}
+
+
+def passthrough_names(args) -> list:
+    """`--env-passthrough A,B` (repeatable) and `$VERDICT_ENV_PASSTHROUGH`, split."""
+    raw = [*(args.env_passthrough or []), os.environ.get("VERDICT_ENV_PASSTHROUGH", "")]
+    return [name.strip() for chunk in raw for name in chunk.split(",") if name.strip()]
+
+
 PROVISION_RECORD = "verdict-provision.json"   # under .claude/, beside what it describes
 
 
@@ -829,16 +867,14 @@ def run_local(repo, qa_root, args, base_url, token) -> int:
             "--model", args.local_model, "--limit", str(args.local_limit), "--reruns", "0"]
     if args.local_env_file:
         argv += ["--env-file", str(args.local_env_file)]
-    env_before = {k: os.environ.get(k) for k in ("ANTHROPIC_BASE_URL", "ANTHROPIC_AUTH_TOKEN")}
-    os.environ["ANTHROPIC_BASE_URL"], os.environ["ANTHROPIC_AUTH_TOKEN"] = base_url, token
-    try:
-        return local_main(argv)
-    finally:
-        for key, value in env_before.items():
-            if value is None:
-                os.environ.pop(key, None)
-            else:
-                os.environ[key] = value
+    # The endpoint reaches verdict-local the way it reached this runner: from
+    # the env file (passed on as --env-file, which small.main reads into a local
+    # copy) or from the ambient environment it already shares. It used to be
+    # written into this process's os.environ for the whole night as well, from
+    # where every gate, re-run and probe inherited the token (audit 2026-10-02,
+    # O-S-2). `base_url` and `token` are what the liveness check above used.
+    del base_url, token
+    return local_main(argv)
 
 
 def main(argv=None) -> int:
@@ -881,8 +917,22 @@ def main(argv=None) -> int:
     ap.add_argument("--local-env-file", type=Path, default=None, metavar="PATH",
                     help="KEY=VALUE file with ANTHROPIC_BASE_URL and ANTHROPIC_AUTH_TOKEN for "
                          "--on-drift local (default: the ambient environment)")
-    ap.add_argument("--local-model", default=os.environ.get("VERDICT_LOCAL_MODEL", "qwen3"),
-                    metavar="NAME", help="the model name the gateway serves")
+    # `chat`, not `qwen3`: on the author's gateway the `qwen3` alias thinks
+    # through its budget and answers nothing (1 of 9 calls answered,
+    # DECISIONS 2026-09-25); the nightly only worked because its script passed
+    # the flag. A default that spends a night to produce nothing is no default.
+    ap.add_argument("--local-model", default=os.environ.get("VERDICT_LOCAL_MODEL", "chat"),
+                    metavar="NAME", help="the model name the gateway serves (default: chat)")
+    ap.add_argument("--env-passthrough", action="append", default=[], metavar="NAME[,NAME]",
+                    help="environment variables to hand the session beyond the allowlist "
+                         "(PATH, HOME, locale, temp, proxies and CAs, CLAUDE_*, ANTHROPIC_*, "
+                         "VERDICT_*); also $VERDICT_ENV_PASSTHROUGH")
+    ap.add_argument("--mcp-config", action="append", default=[], type=Path, metavar="PATH",
+                    help="an MCP config file the session may load; with none, the session "
+                         "loads no MCP server at all (--strict-mcp-config is always passed)")
+    ap.add_argument("--max-budget-usd", default=os.environ.get("VERDICT_MAX_BUDGET_USD"),
+                    metavar="USD", help="a dollar ceiling the CLI enforces on the run "
+                                        "(also $VERDICT_MAX_BUDGET_USD)")
     ap.add_argument("--local-limit", type=int, default=6, metavar="N",
                     help="how many files the local engine may read (default 6)")
     ap.add_argument("--max-commits-behind", type=int, default=None,
@@ -1025,7 +1075,8 @@ def main(argv=None) -> int:
     if not any(p.startswith(_PERMISSION_FLAGS) for p in passthrough):
         passthrough = [*passthrough, "--dangerously-skip-permissions"]
 
-    env = dict(os.environ, VERDICT_STRICT="1", VERDICT_MODEL=args.model)
+    env = dict(child_env(os.environ, passthrough_names(args)),
+               VERDICT_STRICT="1", VERDICT_MODEL=args.model)
     if args.env_file:
         if not args.env_file.is_file():
             print(f"verdict-run: --env-file {args.env_file} does not exist", file=sys.stderr)
@@ -1042,10 +1093,28 @@ def main(argv=None) -> int:
     # run is this runner's own --timeout-s, which kills the process; the CLI's ceiling only
     # ever kills the work. An operator who set their own value keeps it.
     env.setdefault(BG_WAIT_ENV, "0")
+    # A dollar ceiling the CLI itself enforces. Budgets were stated in prose
+    # and filled, never used (P-49); the flag existed and was never passed
+    # (audit 2026-10-02, O-S-9).
+    budget = []
+    if args.max_budget_usd not in (None, ""):
+        try:
+            budget = ["--max-budget-usd", f"{float(args.max_budget_usd):g}"]
+        except ValueError:
+            print(f"verdict-run: --max-budget-usd {args.max_budget_usd!r} is not a number",
+                  file=sys.stderr)
+            return 2
     # `project,local`: the user-scope plugin stays out (isolation), and the
-    # hooks provisioned into settings.local.json come in.
+    # hooks provisioned into settings.local.json come in. `--strict-mcp-config`
+    # is the half of "isolation" the setting sources never covered: user-scope
+    # MCP servers live in ~/.claude.json, not in settings, and without it a
+    # `--dangerously-skip-permissions` night could reach every one of them —
+    # mail, deploys, the lab — from the outer session (audit 2026-10-02,
+    # O-S-3). Only the servers the operator names with --mcp-config load.
+    mcp = [arg for path in args.mcp_config for arg in ("--mcp-config", str(path))]
+    strict = [] if "--strict-mcp-config" in passthrough else ["--strict-mcp-config"]
     cmd = [args.claude_cmd, "-p", prompt, "--model", args.model,
-           "--setting-sources", "project,local", *passthrough]
+           "--setting-sources", "project,local", *strict, *mcp, *budget, *passthrough]
 
     for attempt in (1, 2):
         rc, output = _run_streaming(cmd, repo, env, args.timeout_s)

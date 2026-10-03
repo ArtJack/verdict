@@ -77,7 +77,7 @@ try:
     from .state import home as state_home
     from .usage import ENTRYPOINT_ENV, SESSION_ENV, run_usage
     from .usage import FIELDS as USAGE_FIELDS
-    from .validate import (inherited_conflicts, known_tests, validate,
+    from .validate import (inherited_conflicts, known_tests, report_outside_reports, validate,
                            validate_judgment)
     from . import clock
 except ImportError:  # bare-script execution
@@ -104,7 +104,7 @@ except ImportError:  # bare-script execution
     from state import home as state_home
     from usage import ENTRYPOINT_ENV, SESSION_ENV, run_usage
     from usage import FIELDS as USAGE_FIELDS
-    from validate import (inherited_conflicts, known_tests, validate,
+    from validate import (inherited_conflicts, known_tests, report_outside_reports, validate,
                           validate_judgment)
 
 RE_BASELINE_AFTER_DAYS = 7
@@ -2725,6 +2725,22 @@ def _report_belongs_to(path: Path, run_number) -> bool:
     return bool(m) and m.group(1) == str(run_number)
 
 
+_TOPIC_SAFE = re.compile(r"[^A-Za-z0-9._-]+")
+
+
+def _safe_topic(topic, fallback: str) -> str:
+    """A report topic is a filename fragment, never a path.
+
+    `judgment.topic` went into `reports/<date>-<topic>.md` as written, so a
+    topic of `../../x` named a file outside `reports/` and the `mkdir` below
+    built the way there (audit 2026-10-02, H-D-1). One character class, runs
+    of anything else collapsed to one dash, nothing left that a path could
+    use."""
+    text = _TOPIC_SAFE.sub("-", str(topic or ""))
+    text = re.sub(r"-{2,}", "-", text).strip("-.")
+    return text or fallback
+
+
 def _report_name(qa_root: Path, stamp: str, topic: str, run_number) -> str:
     """`reports/<date>-<topic>.md`, unless an earlier run already wrote that
     file. A second delta on the same day used to overwrite the first one's
@@ -2732,7 +2748,7 @@ def _report_name(qa_root: Path, stamp: str, topic: str, run_number) -> str:
     acceptance run for 0.83.0 on its own history (boltons run 3 over run 2).
     Another run's file is left alone and this one gets `-run<n>` appended; a
     file this run itself wrote is reused."""
-    base = f"reports/{stamp}-{topic}".replace(" ", "-")
+    base = f"reports/{stamp}-{_safe_topic(topic, 'run')}"
     for rel in (f"{base}.md", f"{base}-run{run_number}.md"):
         path = qa_root / rel
         if not path.exists() or _report_belongs_to(path, run_number):
@@ -2992,6 +3008,17 @@ def finalize_main(argv=None) -> int:
         topic = judgment.get("topic") or state.get("run_type", "run")
         report_rel = _report_name(qa_root, stamp, topic, state.get("run_number"))
         state["last_run"]["report"] = report_rel
+    # Contained before it is written. The field was honoured as given, so an
+    # absolute path or a `..` named any `*.md` in the code under test — the
+    # README of a team-mode checkout, proven — and `mkdir(parents=True)` built
+    # the way there (audit 2026-10-02, H-D-1). The report lives directly under
+    # the QA root's reports/, which is where every real record has ever put it;
+    # anything else is refused with nothing written.
+    outside = report_outside_reports(report_rel)
+    if outside:
+        print(f"verdict-finalize: refusing the report path {report_rel!r} — {outside}",
+              file=sys.stderr)
+        return 1
     report_path = qa_root / report_rel
     report_path.parent.mkdir(parents=True, exist_ok=True)
     displaced = report_path.read_bytes() if report_path.is_file() else None

@@ -21,13 +21,16 @@ friendlier for agent consumers.
 # installed by pip.
 from __future__ import annotations
 
+import argparse
+import os
 import re
+import sys
 from pathlib import Path
 
 from mcp.server.fastmcp import FastMCP
 from mcp.types import ToolAnnotations
 
-from . import clock
+from . import __version__, clock
 from .questions import facts_view as questions_view
 from .state import (
     DELTA_VALUES,
@@ -338,7 +341,27 @@ def get_state(project: str) -> dict:
     return err if err else state
 
 
-def main() -> None:
+def main(argv=None) -> None:
+    # `verdict-mcp --help` started the server and sat on stdin: the first
+    # command a stranger types, blocking with no output (audit 2026-10-02,
+    # D-D-10). An argument parser costs nothing and says what this is.
+    ap = argparse.ArgumentParser(
+        prog="verdict-mcp",
+        description="Read-only MCP server over Verdict QA state, speaking JSON-RPC on "
+                    "stdin/stdout. Start it from an MCP client, e.g. "
+                    "`claude mcp add verdict -- verdict-mcp`.")
+    ap.add_argument("--version", action="version", version=f"verdict-mcp {__version__}")
+    ap.add_argument("--home", default=None, metavar="DIR",
+                    help="the solo QA home to serve (default: $VERDICT_HOME, else "
+                         "~/.claude/verdict)")
+    args = ap.parse_args(argv)
+    if args.home:
+        os.environ["VERDICT_HOME"] = str(args.home)
+    if sys.stdin.isatty():
+        print("verdict-mcp: this is an MCP server — it reads JSON-RPC from stdin and would "
+              "wait here forever. Start it from an MCP client (`claude mcp add verdict -- "
+              "verdict-mcp`), or see --help.", file=sys.stderr)
+        sys.exit(2)
     mcp.run()
 
 

@@ -67,10 +67,14 @@ def run_finalize(qa_root, j):
 
 
 def hook(path):
+    # The hook speaks only inside a QA root since 0.90.3 (T3-1): this test's root is one
+    # because its parent is named as the solo home.
+    env = dict(os.environ, VERDICT_HOME=str(Path(path).resolve().parent.parent.parent))
     proc = subprocess.run([sys.executable, str(SRC / "validate.py")],
                           input=json.dumps({"tool_name": "Write",
                                             "tool_input": {"file_path": str(path)}}),
-                          capture_output=True, text=True, encoding="utf-8", errors="replace")
+                          capture_output=True, text=True, encoding="utf-8", errors="replace",
+                          env=env)
     return proc.returncode, proc.stderr or ""
 
 

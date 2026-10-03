@@ -1,5 +1,179 @@
 [
  {
+  "label": "0.90.3 H-D-1a: finalize writes the report wherever the judgment points",
+  "path": "src/verdict_mcp/harness.py",
+  "old": "    outside = report_outside_reports(report_rel)\n    if outside:\n",
+  "new": "    outside = None\n    if outside:\n"
+ },
+ {
+  "label": "0.90.3 H-D-1b: the validator accepts a report outside reports/",
+  "path": "src/verdict_mcp/validate.py",
+  "old": "            elif outside:\n                bad.append(f\"last_run.report {report!r} {outside}\")\n",
+  "new": "            elif False:\n                bad.append(f\"last_run.report {report!r} {outside}\")\n"
+ },
+ {
+  "label": "0.90.3 H-D-1c: a report topic is used as a path",
+  "path": "src/verdict_mcp/harness.py",
+  "old": "    text = _TOPIC_SAFE.sub(\"-\", str(topic or \"\"))\n",
+  "new": "    text = str(topic or \"\")\n"
+ },
+ {
+  "label": "0.90.3 T3-1: the PostToolUse validator fires on any state.json",
+  "path": "src/verdict_mcp/validate.py",
+  "old": "    if not target or not _in_qa_root(target):\n        return 0        # somebody else's state.json; none of this hook's business\n",
+  "new": "    if not target:\n        return 0        # somebody else's state.json; none of this hook's business\n"
+ },
+ {
+  "label": "0.90.3 O-S-1a: the counterfactual probes the real tree, not the scratch copy",
+  "path": "src/verdict_mcp/small.py",
+  "old": "        scratch_root = scratch / root_rel.relative_to(repo) if root_rel != repo else scratch\n",
+  "new": "        scratch_root = root_rel\n"
+ },
+ {
+  "label": "0.90.3 O-S-1b: a probe inherits the operator's whole environment",
+  "path": "src/verdict_mcp/small.py",
+  "old": "    env = {k: v for k, v in os.environ.items()\n           if k.upper() in PROBE_ENV_KEEP or k.upper().startswith(\"LC_\")}\n",
+  "new": "    env = dict(os.environ)\n"
+ },
+ {
+  "label": "0.90.3 O-S-1c: the model's expression runs without being read as a syntax tree",
+  "path": "src/verdict_mcp/small.py",
+  "old": "    call, why = safe_probe(expression, chunk.name)\n    if why:\n        return refused(why, expression)\n",
+  "new": "    call, why = expression, None\n    if why:\n        return refused(why, expression)\n"
+ },
+ {
+  "label": "0.90.3 O-S-1d: the model's replacement line is written without being read",
+  "path": "src/verdict_mcp/small.py",
+  "old": "    unsafe_fix = safe_replacement(replacement, chunk.source)\n    if unsafe_fix:\n",
+  "new": "    unsafe_fix = None\n    if unsafe_fix:\n"
+ },
+ {
+  "label": "0.90.3 O-S-1e: secret files ride along in the scratch copy",
+  "path": "src/verdict_mcp/small.py",
+  "old": "                    ignore=shutil.ignore_patterns(*COPY_SKIP, *SECRET_SKIP))",
+  "new": "                    ignore=shutil.ignore_patterns(*COPY_SKIP))"
+ },
+ {
+  "label": "0.90.3 hooks T0-4 strict-only again",
+  "path": "hooks/enforce_bash_scope.py",
+  "old": "    if not (strict or caller_is_verdict(data)):\n",
+  "new": "    if not strict:\n"
+ },
+ {
+  "label": "0.90.3 hooks K-D-13 a name that contains the word",
+  "path": "hooks/qa_paths.py",
+  "old": "name.rsplit(\":\", 1)[-1] in VERDICT_AGENTS",
+  "new": "\"verdict\" in name"
+ },
+ {
+  "label": "0.90.3 hooks K-D-12 refused only when armed",
+  "path": "hooks/enforce_write_scope.py",
+  "old": "    if _is_maintainer(target):\n",
+  "new": "    if _is_maintainer(target) and (os.environ.get(\"VERDICT_STRICT\", \"\") not in (\"\", \"0\", \"false\") or caller_is_verdict(data)):\n"
+ },
+ {
+  "label": "0.90.3 hooks K-D-14 the event cwd is ignored",
+  "path": "hooks/enforce_write_scope.py",
+  "old": "        target = os.path.join(cwd, target)\n",
+  "new": "        pass\n"
+ },
+ {
+  "label": "0.90.3 hooks K-D-1 formatters are unknown commands again",
+  "path": "hooks/enforce_bash_scope.py",
+  "old": "    elif head in _FORMAT_TOOLS:\n",
+  "new": "    elif False:\n"
+ },
+ {
+  "label": "0.90.3 hooks K-D-2 --output is not looked for",
+  "path": "hooks/enforce_bash_scope.py",
+  "old": "    yield from _git_outputs(verb, rest, there)\n",
+  "new": "    yield from ()\n"
+ },
+ {
+  "label": "0.90.3 hooks K-D-3 the working-tree verbs leave the set",
+  "path": "hooks/enforce_bash_scope.py",
+  "old": "    \"checkout-index\", \"read-tree\", \"add\", \"mergetool\", \"fetch\", \"remote\",\n    \"symbolic-ref\", \"clone\", \"init\",\n",
+  "new": ""
+ },
+ {
+  "label": "0.90.3 hooks a dry run cannot be taken back",
+  "path": "hooks/enforce_bash_scope.py",
+  "old": "    if not any(len(f) > 5 and \"--no-dry-run\".startswith(f) for f in flags):\n",
+  "new": "    if True:\n"
+ },
+ {
+  "label": "0.90.3 hooks K-D-10 >&word is a descriptor",
+  "path": "hooks/enforce_bash_scope.py",
+  "old": "            if word and word != \"-\" and not word.isdigit():\n",
+  "new": "            if False:\n"
+ },
+ {
+  "label": "0.90.3 hooks K-D-9 only a bare -c",
+  "path": "hooks/enforce_bash_scope.py",
+  "old": "    return tok[:1] == \"-\" and tok[1:].isalpha() and \"c\" in tok[1:]\n",
+  "new": "    return tok == \"-c\"\n"
+ },
+ {
+  "label": "0.90.3 hooks K-D-6 the command after -exec is not read",
+  "path": "hooks/enforce_bash_scope.py",
+  "old": "            for what, target in _check_segment(expr[j + 1:end], cwd, depth):\n",
+  "new": "            for what, target in ():\n"
+ },
+ {
+  "label": "0.90.3 hooks K-D-7 sudo -n takes a value",
+  "path": "hooks/enforce_bash_scope.py",
+  "old": "    \"sudo\": (\"ugCDhpRrTtU\", ",
+  "new": "    \"sudo\": (\"nugCDhpRrTtU\", "
+ },
+ {
+  "label": "0.90.3 hooks K-D-8 cd - goes nowhere",
+  "path": "hooks/enforce_bash_scope.py",
+  "old": "            elif words[0] == \"-\":\n                there = self.old\n",
+  "new": "            elif words[0] == \"-\":\n                there = self.here\n"
+ },
+ {
+  "label": "0.90.3 hooks K-D-11 the compressors are unknown commands",
+  "path": "hooks/enforce_bash_scope.py",
+  "old": "for _name in _COMPRESSORS:\n",
+  "new": "for _name in ():\n"
+ },
+ {
+  "label": "0.90.3 hooks K-D-4 a heredoc body is a command",
+  "path": "hooks/enforce_bash_scope.py",
+  "old": "            if _BODY in seg_view and not seg_view.strip(_BODY + \" \\t\\r\"):\n",
+  "new": "            if False:\n"
+ },
+ {
+  "label": "0.90.3 hooks K-D-5 the script is a file",
+  "path": "hooks/enforce_bash_scope.py",
+  "old": "    files = operands if scripted else operands[1:]\n",
+  "new": "    files = operands\n"
+ },
+ {
+  "label": "0.90.3 hooks K-D-15 /var/tmp is not scratch",
+  "path": "hooks/enforce_bash_scope.py",
+  "old": "    roots = {\"/tmp\", \"/private/tmp\", \"/var/tmp\", \"/private/var/tmp\",\n",
+  "new": "    roots = {\"/tmp\", \"/private/tmp\",\n"
+ },
+ {
+  "label": "0.90.3 hooks T0-10b: the tester runs the maintainer's pen through Bash",
+  "path": "hooks/enforce_bash_scope.py",
+  "old": "    if not _PEN_READS.intersection(args):\n        yield f\"{pen} (the maintainer's pen)\", _PEN\n",
+  "new": "    if False:\n        yield f\"{pen} (the maintainer's pen)\", _PEN\n"
+ },
+ {
+  "label": "0.90.3 hooks fail-closed: a parser failure while armed is waved through",
+  "path": "hooks/enforce_bash_scope.py",
+  "old": "            \"be told \u2014 run it in simpler steps.\\n\")\n        return 2\n",
+  "new": "            \"be told \u2014 run it in simpler steps.\\n\")\n        return 1\n"
+ },
+ {
+  "label": "0.90.3 hooks a NUL byte in the command crashes the guard",
+  "path": "hooks/enforce_bash_scope.py",
+  "old": "    if \"\\x00\" in command:\n",
+  "new": "    if False:\n"
+ },
+ {
   "label": "M1 F-42: consume an argument after any token containing f",
   "path": "hooks/enforce_bash_scope.py",
   "old": "            elif _tar_takes_value(name):\n                yield \"opt\", name, next(it, None)\n",
@@ -56,7 +230,7 @@
  {
   "label": "M11 regression: eval stops being parsed as a shell",
   "path": "hooks/enforce_bash_scope.py",
-  "old": "    elif head == \"eval\" and depth < 3:\n        yield from _check_eval(args, cwd, depth)",
+  "old": "    elif head == \"eval\" and depth < _MAX_DEPTH:\n        yield from _check_eval(args, cwd, depth)",
   "new": "    elif head == \"eval\" and False:\n        yield from _check_eval(args, cwd, depth)"
  },
  {
@@ -351,8 +525,8 @@
  {
   "label": "0.78.0 R7 the write guard hands the ledger to the tester",
   "path": "hooks/enforce_write_scope.py",
-  "old": "    if _is_maintainer(target) and (strict or _caller_is_verdict(data)):\n",
-  "new": "    if False and _is_maintainer(target) and (strict or _caller_is_verdict(data)):\n"
+  "old": "    if _is_maintainer(target):\n",
+  "new": "    if False and _is_maintainer(target):\n"
  },
  {
   "label": "0.78.0 R8 the bash guard hands the ledger to the tester",
@@ -839,8 +1013,8 @@
  {
   "label": "0.84.0 M3 hook: a finding file is written without being checked",
   "path": "src/verdict_mcp/validate.py",
-  "old": "    filed = finding_file(target) if target else None\n    if filed is not None:\n        return _hook_finding(Path(target), *filed)\n",
-  "new": "    filed = finding_file(target) if target else None\n    if filed is not None:\n        return 0\n"
+  "old": "    filed = finding_file(target)\n    if filed is not None:\n        return _hook_finding(Path(target), *filed)\n",
+  "new": "    filed = finding_file(target)\n    if filed is not None:\n        return 0\n"
  },
  {
   "label": "0.84.0 M4 hook: a file whose id disagrees with its name is accepted",
@@ -1067,8 +1241,8 @@
  {
   "label": "0.89.0 Q3 stop hook: a parallel agent finishing beside a run in progress is told to finalize it",
   "path": "hooks/enforce_run_contract.py",
-  "old": "    if \"verdict\" not in str(event.get(\"agent_type\") or \"\").lower():\n        return None",
-  "new": "    if \"\" not in str(event.get(\"agent_type\") or \"\").lower():\n        return None"
+  "old": "    if not caller_is_verdict(event):\n        return None",
+  "new": "    if False:\n        return None"
  },
  {
   "label": "0.89.0 Q4 stop hook: the never-finalized rule is never called",

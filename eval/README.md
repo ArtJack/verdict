@@ -313,6 +313,13 @@ is the control, and it differs from the Verdict arm in the plugin and the prompt
   arms call.
 - **Taken out:** no agent, command, skill, hook or guard is provisioned, the generated QA
   profile is deleted before the session, and no `VERDICT_*` variable reaches the CLI.
+- **Since 0.90.3 the launch changed, on both arms.** `verdict-run` always passes
+  `--strict-mcp-config` and hands the CLI an allowlisted environment rather than the
+  operator's shell; `plain_argv` and `plain_env` are re-derived with it (the tripwire in
+  `tests/test_swebench_plain.py` is what forced that). The 2026-09-13 rows below were measured
+  before: both arms ran with the operator's environment and user-scope MCP servers loaded.
+  The comparison held them equal then and holds them equal now; a row from one side of the
+  change is not strictly comparable with a row from the other.
 - **The prompt** names the repository, the profile's suite command (less Verdict's
   `--junitxml={report}` placeholder) and a scratch directory; asks for the defect, with no fix
   and no edit; and wants one closing JSON block — `title`, `severity`, `file`, `line`,

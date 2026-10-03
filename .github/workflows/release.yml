@@ -112,6 +112,18 @@ jobs:
           else
             gh release create "$GITHUB_REF_NAME" --title "$title" --notes-file notes.md --verify-tag
           fi
+      # The README's CI snippet says `uses: ArtJack/verdict@v0`, and until
+      # 0.90.3 no such ref existed: every stranger who pasted it got "Unable
+      # to resolve action" (audit 2026-10-02, D-D-1). A moving major-version
+      # tag is GitHub's own convention for actions; it follows every tagged
+      # release and only ever points at one that published.
+      - name: Move the major-version tag to this release
+        run: |
+          major="${GITHUB_REF_NAME%%.*}"
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag -f "$major" "$GITHUB_SHA"
+          git push -f origin "$major"
 
   # The MCP Server Registry entry for `io.github.ArtJack/verdict`, kept at the
   # version PyPI has. It was published once by hand at 0.49.0 and never again.

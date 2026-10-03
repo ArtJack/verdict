@@ -54,7 +54,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from qa_paths import utf8_stderr  # noqa: E402  (path set above, as the guards do)
+# (the path is set above, as the guards do)
+from qa_paths import caller_is_verdict, utf8_stderr  # noqa: E402
 
 # A QA run that finished more than this long ago is not this turn's work. Long
 # enough for a slow suite inside one turn, short enough that yesterday's state
@@ -76,7 +77,10 @@ def _unfinished_run(event: dict, root: Path):
     None. Every doubt is a None: this runs at the end of every subagent's turn."""
     if event.get("hook_event_name") != "SubagentStop":
         return None
-    if "verdict" not in str(event.get("agent_type") or "").lower():
+    # The same question the two scope guards ask, answered by the same function. This
+    # one used to ask whether the name CONTAINED "verdict", which also made a tester of
+    # any agent with the word in its name (K-D-13).
+    if not caller_is_verdict(event):
         return None         # somebody else's agent finishing beside a run still in progress
     marker_path = root / MARKER
     try:
