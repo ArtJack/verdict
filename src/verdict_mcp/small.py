@@ -60,6 +60,7 @@ import sys
 import tempfile
 import time
 import tokenize
+import unicodedata
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -579,8 +580,10 @@ COPY_SKIP = {".git", ".venv", "venv", "node_modules", "__pycache__", ".tox", ".m
 # import — so the "after" run read the project's live credentials in a directory the
 # model's expression could reach. A project whose module is called `secrets.py` loses
 # that import in the scratch and the probe says so; that is the safe direction.
-SECRET_SKIP = (".env", ".env.*", "*.pem", "*.key", "id_rsa*", ".netrc", ".npmrc", ".pypirc",
-               "credentials*.json", "*.p12", "*.pfx", "secrets.*")
+SECRET_SKIP = (".env", ".env.*", "*.env", ".envrc", "*.pem", "*.key", "id_rsa*", ".ssh",
+               ".netrc", ".npmrc", ".pypirc", ".gnupg", ".aws", ".git-credentials",
+               "credentials", "credentials.*", "credentials*.json", "*.p12", "*.pfx",
+               "secrets.*")
 # The child's environment is built from this list, never from the parent's environment.
 # Measured 2026-10-02 (`probe_small2.py`): `env=dict(os.environ, …)` handed the probe the
 # gateway token the nightly exports — `env_has_token=True` in both runs — and whatever
@@ -670,7 +673,9 @@ def _names(source: str) -> set:
     try:
         for tok in tokenize.generate_tokens(io.StringIO(source).readline):
             if tok.type == tokenize.NAME:
-                out.add(tok.string)
+                # The form Python runs: it normalises identifiers to NFKC before
+                # executing them, so the check must compare the same form it will (F-4).
+                out.add(unicodedata.normalize("NFKC", tok.string))
     except (tokenize.TokenError, SyntaxError, IndentationError):
         pass
     return out
@@ -704,7 +709,10 @@ def safe_replacement(replacement: str, function_source: str) -> str | None:
                                        and re.match(r"(?i)[rbu]*f", tok.string)):
             return "fix_unsafe: an f-string — its fields are code this check cannot read"
         if tok.type == tokenize.NAME:
-            name = tok.string
+            # NFKC, as `_names` above and as the interpreter: a fullwidth or
+            # mathematical spelling of `__globals__` or `eval` tokenises as itself but
+            # runs as the ASCII name, so the raw spelling must not be what is judged (F-4).
+            name = unicodedata.normalize("NFKC", tok.string)
             if name in ("import", "from"):
                 return f"fix_unsafe: `{name}` in a one-line fix"
             if after_dot:
@@ -815,8 +823,22 @@ def scratch_copy(repo: Path, into: Path) -> bool:
                 pass
             if total > MAX_COPY_BYTES:
                 return False
-    shutil.copytree(repo, into, dirs_exist_ok=True,
+    # `symlinks=True`: copy a link as a link, never the bytes it points at. The default
+    # followed it, so a link to `~/.aws/credentials` materialised the secret in the scratch
+    # (gate F-1, 2026-10-03). Then drop any link that resolves OUTSIDE the tree — a link in
+    # is scratch's own file; a link out is a door to the real filesystem, which the probe
+    # runs with no OS sandbox to stop. A dangling link is removed too: it names a path, and
+    # the path may fill in later.
+    shutil.copytree(repo, into, dirs_exist_ok=True, symlinks=True,
                     ignore=shutil.ignore_patterns(*COPY_SKIP, *SECRET_SKIP))
+    into_real = into.resolve()
+    for link in into.rglob("*"):
+        if not link.is_symlink():
+            continue
+        target = link.resolve()
+        if target == into_real or into_real in target.parents:
+            continue            # a link that stays inside the copy
+        link.unlink()
     return True
 
 

@@ -61,8 +61,24 @@ That gate ended `blocked`, not passed: its response was stopped by the model pro
 filter while it wrote up an adversarial section the packet had asked for, and the five
 experiments were read from its transcript. The one finding it filed is fixed too — a test of
 `usage.project_dir` that failed whenever `CLAUDE_CONFIG_DIR` was set, which a headless gate
-with its own config directory always has. Mutants `links a`–`z5`, twenty-nine; the re-run of
-the gate is recorded in the pull request.
+with its own config directory always has. Mutants `links a`–`z5`, twenty-nine.
+
+**The re-run, re-scoped so the model was not asked to write bypasses, completed: `pass with
+risks`, no release blocker.** It filed five Minor findings, four of them on this release's own
+surface, and four are fixed here. The counterfactual's scratch copy still carried secrets its
+skip-list missed (`.envrc`, `<name>.env`, `.aws/`, `.git-credentials`) and `copytree` followed
+a symlink out of the tree and copied the file it pointed at — the list is wider now, the copy
+keeps links as links, and a link resolving outside the tree is dropped. `safe_replacement`
+judged a fix line's identifiers by their raw spelling while Python runs their NFKC-normalised
+form, so a fullwidth or mathematical spelling of `__globals__` or `eval` read as an unknown
+name and slipped the dunder rule; both it and `_names` normalise now, as the interpreter does.
+The nightly guide never mentioned the environment allowlist or `--env-passthrough`; it does.
+The suite's one-in-a-blue-moon red — a coverage-scratch test that read the machine's shared
+temp directory and saw another run's directory there — is the flaky test fixed two commits up,
+now scoped to a temp directory of its own. Five more mutants (`gate2 F-1a`–`F-4b`). Left for
+0.91.0, and said so to the owner: the guard refuses `git archive | (cd <scratch> && tar xf -)`,
+a `cd` inside a group that is a pipeline stage — a false denial that fails safe, and whose fix
+is in the guard's riskiest path.
 
 **The counterfactual ran a model's expression in your checkout.** To prove a claim,
 `verdict-local` asks the small model for one expression and runs it before and after flipping a

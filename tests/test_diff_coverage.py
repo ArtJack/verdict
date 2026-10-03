@@ -188,7 +188,7 @@ def test_the_render_command_keeps_the_suite_interpreter():
     assert _render_cmd("./run_cov.sh", out).startswith("coverage json --show-contexts")
 
 
-def test_the_coverage_run_leaves_nothing_in_the_qa_root(tmp_path):
+def test_the_coverage_run_leaves_nothing_in_the_qa_root(tmp_path, monkeypatch):
     """VERDICT-F-29: the rc file, the database and a 95 MB rendered JSON were
     written into the QA root — which in team mode is the committed directory,
     ignored by nothing. Run 5 of this repository left 94,987,311 bytes there,
@@ -197,15 +197,19 @@ def test_the_coverage_run_leaves_nothing_in_the_qa_root(tmp_path):
     (repo / "mod.py").write_text(MOD_A + "\n\ndef b(x):\n    return x * 2\n", encoding="utf-8")
     commit(repo, "add b")
     qa = qa_with_previous(tmp_path, sha_a)
-    # Scoped to what THIS measurement creates: a stale directory from someone
-    # else's crashed run must not fail this test, or the check becomes noise.
-    tmpdir = Path(tempfile.gettempdir())
-    before = set(tmpdir.glob("verdict-coverage-*"))
+    # Scoped to what THIS measurement creates, in a temp directory of its own. It
+    # used to glob the machine's shared one before and after, which forgave a stale
+    # directory and convicted a live one: a second Verdict run measuring coverage at
+    # the same moment — the 0.90.3 gate's suite beside a mutation run, 2026-10-03 —
+    # put its own scratch there and this test went red in both, for neither's code.
+    private = tmp_path / "tmp"
+    private.mkdir()
+    monkeypatch.setattr(tempfile, "tempdir", str(private))
     facts = collect(repo, qa, [], coverage_suite_cmd=CMD)
     assert facts["coverage"]["status"] == "measured"
     left = sorted(p.name for p in qa.iterdir() if p.name.startswith("coverage"))
     assert left == [], left
-    assert set(tmpdir.glob("verdict-coverage-*")) - before == set(), \
+    assert sorted(p.name for p in private.iterdir()) == [], \
         "the scratch directory outlived the measurement"
 
 

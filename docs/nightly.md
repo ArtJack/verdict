@@ -335,6 +335,15 @@ would rather it never left the building at all. `verdict-run --env-file <path>` 
 `KEY=VALUE` file into the run's environment, so the choice lives in a file you own
 (`chmod 600`) instead of in a command line, a crontab, or a log.
 
+Since 0.90.3 the child session does **not** inherit the operator's whole environment — a
+night under `--dangerously-skip-permissions` would otherwise hand the tester every token
+and MCP server the shell holds. It receives an allowlist (`PATH`, `HOME`, locale, temp,
+proxies and CAs, and the `CLAUDE_*`/`ANTHROPIC_*`/`VERDICT_*` families), plus whatever
+`--env-file` merged in. If a project's gates need another variable from the ambient
+environment — a private index URL, a cache root — name it with `--env-passthrough NAME`
+(repeatable); `--strict-mcp-config` is always set, so a profile that wants a user-scope MCP
+server names it with `--mcp-config`.
+
 **A dedicated account.** Sign it in once, into its own configuration directory:
 
 ```bash

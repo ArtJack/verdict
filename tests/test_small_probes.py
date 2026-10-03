@@ -227,9 +227,27 @@ def test_secret_files_are_left_out_of_the_scratch_copy(tmp_path):
     (repo / "m.py").write_text("x = 1\n", encoding="utf-8")
     (repo / "config" / "settings.py").write_text("y = 2\n", encoding="utf-8")
     (repo / "environment.py").write_text("z = 3\n", encoding="utf-8")   # not a secret
+    # The names the release's own gate found still in the copy (F-4 of that gate, 2026-10-03):
+    # an `.envrc`, a `<name>.env`, an `.aws/` tree, a `.git-credentials`, and a symlink whose
+    # target is a secret outside the tree — copytree followed it and copied the bytes.
+    more = [".envrc", "app.env", "prod.env", ".git-credentials",
+            ".aws/credentials", ".aws/config", "config/credentials"]
+    for rel in more:
+        (repo / rel).parent.mkdir(parents=True, exist_ok=True)
+        (repo / rel).write_text("SECRET=1\n", encoding="utf-8")
+    outside_secret = tmp_path / "outside" / "id_rsa"
+    outside_secret.parent.mkdir()
+    outside_secret.write_text("PRIVATE KEY\n", encoding="utf-8")
+    if os.name != "nt":
+        os.symlink(outside_secret, repo / "link_to_key")        # a link that points out
+        os.symlink("m.py", repo / "link_inside")                # a link that stays in
     assert small.scratch_copy(repo, into) is True
-    copied = sorted(p.relative_to(into).as_posix() for p in into.rglob("*") if p.is_file())
+    copied = sorted(p.relative_to(into).as_posix() for p in into.rglob("*")
+                    if p.is_file() and not p.is_symlink())
     assert copied == ["config/settings.py", "environment.py", "m.py"], copied
+    assert not (into / "link_to_key").exists(), "a link out of the tree was kept"
+    if os.name != "nt":
+        assert (into / "link_inside").is_symlink(), "a link inside the tree should survive"
 
 
 # ── O-S-1 (5): every probe is on the record ───────────────────────────────────
@@ -492,8 +510,31 @@ def test_a_fix_that_introduces_a_name_is_refused_before_any_copy(fix, tmp_path, 
 
 
 @pytest.mark.parametrize("fix", [
+    "    return x.\uff3f\uff3fclass\uff3f\uff3f.\uff3f\uff3fmro\uff3f\uff3f()",   # NFKC → x.__class__.__mro__
+    "    return \U0001D41Eval('x')",                               # NFKC → eval('x')
+    "    return \uff3f\uff3fimport\uff3f\uff3f('os')",             # NFKC → __import__('os')
+])
+def test_a_fix_reaching_a_forbidden_name_by_a_non_ascii_spelling_is_refused(fix):
+    """Python normalises identifiers to NFKC before running them, so a fullwidth or
+    mathematical spelling of `__class__` or `eval` runs as the ASCII name. The check
+    reads the raw token, so it compared the wrong string (gate F-4, 2026-10-03)."""
+    why = small.safe_replacement(fix, "def f(x):\n    return x.value\n")
+    assert why and why.startswith("fix_unsafe"), why
+
+
+@pytest.mark.parametrize("fix", [
     "    return x + 2", "    return max(x, 0) + 1", "    return x if x else 0",
     "    return abs(x) - 1  # the boundary",
 ])
 def test_a_fix_made_of_the_functions_own_names_is_allowed(fix):
     assert small.safe_replacement(fix, "def f(x):\n    return x + 1\n") is None
+
+
+def test_a_fix_using_the_functions_own_non_ascii_name_is_allowed():
+    """The other direction of F-4: a function that legitimately uses a non-ASCII
+    identifier. `_names` normalises too, so the ASCII spelling of a name the function
+    already uses is admitted — `known` and the fix are compared in the one form Python
+    runs. Without the `_names` normalisation the function's own name would read as
+    unknown and its own fix would be refused."""
+    source = "def f(\uff58):\n    return \uff58 + 1\n"       # the parameter is fullwidth x
+    assert small.safe_replacement("    return x + 2", source) is None

@@ -348,6 +348,42 @@
   "new": "    among = None\n"
  },
  {
+  "label": "0.90.3 F-29b: the coverage scratch directory outlives the measurement",
+  "path": "src/verdict_mcp/harness.py",
+  "old": "        shutil.rmtree(scratch, ignore_errors=True)\n",
+  "new": "        pass\n"
+ },
+ {
+  "label": "0.90.3 gate2 F-1a: a secret name the scratch copy carries",
+  "path": "src/verdict_mcp/small.py",
+  "old": "SECRET_SKIP = (\".env\", \".env.*\", \"*.env\", \".envrc\", \"*.pem\", \"*.key\", \"id_rsa*\", \".ssh\",",
+  "new": "SECRET_SKIP = (\".env\", \".env.*\", \"*.pem\", \"*.key\", \"id_rsa*\", \".ssh\","
+ },
+ {
+  "label": "0.90.3 gate2 F-1b: copytree follows a symlink out of the tree and copies the secret",
+  "path": "src/verdict_mcp/small.py",
+  "old": "    shutil.copytree(repo, into, dirs_exist_ok=True, symlinks=True,\n",
+  "new": "    shutil.copytree(repo, into, dirs_exist_ok=True,\n"
+ },
+ {
+  "label": "0.90.3 gate2 F-1c: a link out of the tree is left in the scratch copy",
+  "path": "src/verdict_mcp/small.py",
+  "old": "        if target == into_real or into_real in target.parents:\n            continue            # a link that stays inside the copy\n",
+  "new": "        if True:\n            continue            # a link that stays inside the copy\n"
+ },
+ {
+  "label": "0.90.3 gate2 F-4a: _names reads the raw identifier spelling, not the form Python runs",
+  "path": "src/verdict_mcp/small.py",
+  "old": "                out.add(unicodedata.normalize(\"NFKC\", tok.string))\n",
+  "new": "                out.add(tok.string)\n"
+ },
+ {
+  "label": "0.90.3 gate2 F-4b: safe_replacement judges a fix line by its raw spelling",
+  "path": "src/verdict_mcp/small.py",
+  "old": "            name = unicodedata.normalize(\"NFKC\", tok.string)\n",
+  "new": "            name = tok.string\n"
+ },
+ {
   "label": "M1 F-42: consume an argument after any token containing f",
   "path": "hooks/enforce_bash_scope.py",
   "old": "            elif _tar_takes_value(name):\n                yield \"opt\", name, next(it, None)\n",
