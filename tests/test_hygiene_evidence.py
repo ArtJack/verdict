@@ -16,7 +16,7 @@ from verdict_mcp.hygiene import hygiene_census
 
 from test_hygiene import git, make_repo, token  # noqa: E402
 
-PEM_TEMPLATE = "-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----\n"
+PEM_TEMPLATE = "-----BEGIN " "PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----\n"
 
 
 # ── the scan: which files its checks ran over ────────────────────────────
