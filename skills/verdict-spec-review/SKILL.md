@@ -1,5 +1,6 @@
 ---
 name: verdict-spec-review
+user-invocable: false
 description: Judge a specification, issue or PRD for testability before any code exists — inventory the requirements, find the untestable, contradictory, unbounded and silent ones with a verbatim quote each, and rewrite the core as Given/When/Then acceptance criteria. Use when a spec is about to be implemented.
 ---
 

@@ -378,10 +378,13 @@ def test_the_plain_argv_is_still_the_one_the_runner_builds():
 
     (cmd,) = assigned("cmd")
     shape = [e.value if isinstance(e, ast.Constant) else type(e).__name__ for e in cmd.elts]
+    # 0.90.3: `*strict, *mcp, *budget` sit before the passthrough. `--strict-mcp-config`
+    # is always there and the control carries it; the other two are empty unless an
+    # operator names an MCP config or a budget, which a swebench run does not.
     assert shape == ["Attribute", "-p", "Name", "--model", "Attribute", "--setting-sources",
-                     "project,local", "Starred"]
+                     "project,local", "Starred", "Starred", "Starred", "Starred"]
     strings = {n.value for n in ast.walk(main) if isinstance(n, ast.Constant)}
-    assert "--dangerously-skip-permissions" in strings
+    assert "--dangerously-skip-permissions" in strings and "--strict-mcp-config" in strings
     env_calls = [v for v in assigned("env") if isinstance(v, ast.Call)]
     assert [sorted(k.arg for k in c.keywords) for c in env_calls] == \
         [["VERDICT_MODEL", "VERDICT_STRICT"]]
@@ -390,7 +393,7 @@ def test_the_plain_argv_is_still_the_one_the_runner_builds():
     assert 'env.pop("CLAUDE_PLUGIN_ROOT", None)' in harness
     assert swebench.plain_argv("P", "opus") == [
         swebench.CLAUDE_CMD, "-p", "P", "--model", "opus", "--setting-sources", "project,local",
-        "--output-format", "json", "--dangerously-skip-permissions"]
+        "--strict-mcp-config", "--output-format", "json", "--dangerously-skip-permissions"]
 
 
 def write_stub(tmp_path, body, name):
@@ -404,7 +407,7 @@ def write_stub(tmp_path, body, name):
 
 RECORD = r'''
 import json, os, sys
-dump = os.environ["PLAIN_STUB_DUMP"]
+dump = os.environ["CLAUDE_STUB_DUMP"]
 calls = json.load(open(dump)) if os.path.exists(dump) else []
 calls.append({"argv": sys.argv[1:], "cwd": os.getcwd(),
               "verdict_vars": sorted(k for k in os.environ if k.startswith("VERDICT_")),
@@ -441,7 +444,10 @@ def plain_run(tmp_path, monkeypatch):
     monkeypatch.setenv("VERDICT_HOME", str(tmp_path / "qa-home"))
     monkeypatch.setenv("VERDICT_STRICT", "1")
     monkeypatch.setenv("CLAUDE_PLUGIN_ROOT", str(tmp_path / "plugin"))
-    monkeypatch.setenv("PLAIN_STUB_DUMP", str(tmp_path / "calls.json"))
+    # Named with a prefix the runner's allowlist keeps (0.90.3, `child_env`): the plain arm
+    # hands the CLI the same allowlisted environment the Verdict arm gets, and a variable
+    # called anything else would never reach the stub.
+    monkeypatch.setenv("CLAUDE_STUB_DUMP", str(tmp_path / "calls.json"))
     return {"work": str(work), "checkout": str(checkout)}, tmp_path
 
 
@@ -458,7 +464,7 @@ def test_the_plain_launch_is_the_runners_launch_without_the_plugin(plain_run, mo
                                       extra_env={"CLAUDE_CONFIG_DIR": str(cfg)})
     (call,) = _calls(tmp_path)
     assert call["argv"] == ["-p", "PROMPT TEXT", "--model", "opus", "--setting-sources",
-                            "project,local", "--output-format", "json",
+                            "project,local", "--strict-mcp-config", "--output-format", "json",
                             "--dangerously-skip-permissions"]
     checkout = Path(info["checkout"]).resolve()
     assert call["cwd"] == str(checkout)

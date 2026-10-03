@@ -59,6 +59,9 @@ inputs:
   commit-state:
     description: "run mode: commit an updated team-mode .qa/ back to the branch"
     default: "false"
+  max-budget-usd:
+    description: "run mode: a dollar ceiling the claude CLI enforces on the pass (empty = none)"
+    default: ""
 
 outputs:
   verdict:
@@ -88,6 +91,7 @@ runs:
         VERDICT_STRICT: "1"
         RUN_PROMPT: ${{ inputs.run-prompt }}
         CLAUDE_VERSION: ${{ inputs.claude-version }}
+        MAX_BUDGET_USD: ${{ inputs.max-budget-usd }}
       run: |
         set -euo pipefail
         if [ -z "$ANTHROPIC_API_KEY" ] && [ -z "$CLAUDE_CODE_OAUTH_TOKEN" ]; then
@@ -95,11 +99,24 @@ runs:
           exit 2
         fi
         npm install -g "@anthropic-ai/claude-code@$CLAUDE_VERSION"
-        # Provision the agent project-locally from this action's own checkout —
-        # no plugin installation step to depend on in CI.
-        mkdir -p .claude/agents
-        sed -e "s|\${CLAUDE_PLUGIN_ROOT}|${{ github.action_path }}|g" \
-          "${{ github.action_path }}/agents/verdict.md" > .claude/agents/verdict.md
+        # The run_number before the pass. The gate below demands one more, so a
+        # session that crashes cannot re-serve the committed state as tonight's
+        # verdict — the race the README warns about, and the reason verdict-run
+        # has --min-run-number (audit 2026-10-02, D-D-11).
+        before=$(python3 -c 'import json
+        try:
+            print(int(json.load(open(".qa/state.json")).get("run_number") or 0))
+        except Exception:
+            print(0)')
+        echo "VERDICT_MIN_RUN_NUMBER=$((before + 1))" >> "$GITHUB_ENV"
+        # The whole plugin — agent, hooks, guards — loaded from this action's own
+        # checkout with --plugin-dir, and the tester run directly with --agent.
+        # Until 0.90.3 only the agent file was copied in, so the write and Bash
+        # guards that VERDICT_STRICT=1 arms were never registered: the one
+        # session that skips permissions ran with no guard at all (audit
+        # 2026-10-02, D-D-11). --strict-mcp-config keeps the runner's own MCP
+        # servers out of a session nobody is watching.
+        #
         # Through env, never an Actions expression inside the script body.
         # Expression substitution splices text into the shell before bash
         # parses the line, so quoting does not help and an input like
@@ -108,8 +125,13 @@ runs:
         # that into remote code execution. (Writing the expression delimiters
         # even inside a comment here is itself a parse error — the runner
         # templates the whole block before bash ever sees it.)
-        claude -p "Use the verdict agent. $RUN_PROMPT" \
-          --setting-sources project --dangerously-skip-permissions
+        claude -p "$RUN_PROMPT" \
+          --agent verdict \
+          --plugin-dir "${{ github.action_path }}" \
+          --setting-sources project \
+          --strict-mcp-config \
+          ${MAX_BUDGET_USD:+--max-budget-usd "$MAX_BUDGET_USD"} \
+          --dangerously-skip-permissions
 
     - name: Commit updated QA state (team mode)
       if: ${{ inputs.mode == 'run' && inputs.commit-state == 'true' }}
@@ -142,6 +164,9 @@ runs:
         # because substitution happens before bash parses the line.
         ARGS=("$PROJECT" --fail-on "$FAIL_ON" --findings "$FINDINGS")
         [ -n "$MAX_AGE_HOURS" ] && ARGS+=(--max-age-hours "$MAX_AGE_HOURS")
+        # In run mode the pass just made must have advanced the run number, or
+        # the gate would read the state the checkout already carried.
+        [ -z "$MIN_RUN_NUMBER" ] && MIN_RUN_NUMBER="${VERDICT_MIN_RUN_NUMBER:-}"
         [ -n "$MIN_RUN_NUMBER" ] && ARGS+=(--min-run-number "$MIN_RUN_NUMBER")
         [ -n "$MAX_COMMITS_BEHIND" ] && ARGS+=(--max-commits-behind "$MAX_COMMITS_BEHIND")
         [ "$REQUIRE_HARNESS" = "true" ] && ARGS+=(--require-harness)

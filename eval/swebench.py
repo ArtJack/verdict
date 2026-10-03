@@ -68,7 +68,8 @@ ARMS = ("verdict", "plain")
 sys.path.insert(0, str(REPO / "src"))
 from verdict_mcp.anchors import refs_in  # noqa: E402
 from verdict_mcp.project_key import derive_key  # noqa: E402
-from verdict_mcp.runner import limit_kind, plugin_root, seconds_until_reset  # noqa: E402
+from verdict_mcp.runner import child_env, limit_kind, plugin_root  # noqa: E402
+from verdict_mcp.runner import seconds_until_reset  # noqa: E402
 from verdict_mcp.runner import _run_streaming, limit_line, session_env  # noqa: E402
 
 DATASET = "princeton-nlp/SWE-bench_Verified"
@@ -1185,9 +1186,11 @@ def plain_findings(items: list) -> list[dict]:
 def plain_argv(prompt: str, model: str) -> list[str]:
     """The argv `verdict-run` hands the claude CLI on a swebench run — `cmd` in
     `runner.main`, plus the `-- --output-format json` passthrough `run_instance` gives it
-    and the permission flag the runner appends — carrying the plain arm's prompt."""
+    and the permission flag the runner appends — carrying the plain arm's prompt.
+    Since 0.90.3 the runner always passes `--strict-mcp-config`, so the control does too:
+    rows measured before it ran both arms with the operator's user-scope MCP servers."""
     return [CLAUDE_CMD, "-p", prompt, "--model", model, "--setting-sources", "project,local",
-            "--output-format", "json", "--dangerously-skip-permissions"]
+            "--strict-mcp-config", "--output-format", "json", "--dangerously-skip-permissions"]
 
 
 def plain_env(base: dict, extra_env: dict | None, checkout: Path) -> tuple[dict, list[str]]:
@@ -1197,8 +1200,9 @@ def plain_env(base: dict, extra_env: dict | None, checkout: Path) -> tuple[dict,
     `session_env()` (gateway flags; the directory seeded again). Not there: `VERDICT_HOME`,
     `VERDICT_STRICT`, `VERDICT_MODEL` — only Verdict's hooks, agent and harness read them —
     nor any other `VERDICT_*` the batch inherited, in which a model running `env` would
-    read the plugin's name."""
-    env = dict(base, **(extra_env or {}))
+    read the plugin's name. The batch's environment passes through the runner's own
+    allowlist (`child_env`, 0.90.3) before the `--env-file` is merged, as it does there."""
+    env = dict(child_env(base), **(extra_env or {}))
     env.pop("CLAUDE_PLUGIN_ROOT", None)
     stripped = sorted(k for k in env if k.startswith("VERDICT_"))
     for key in stripped:

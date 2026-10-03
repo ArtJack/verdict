@@ -286,9 +286,12 @@ def _argv_of(tmp_path, repo, *extra, name="dump"):
     out = tmp_path / f"{name}-argv.json"
     env = {k: v for k, v in os.environ.items() if not k.startswith("VERDICT_")}
     env.update(VERDICT_HOME=str(tmp_path / "home"), ARGV_OUT=str(out))
+    # The child's environment is an allowlist since 0.90.3 (O-S-2); the stub's
+    # own variable has to be let through by name.
     proc = subprocess.run(
         [sys.executable, str(RUNNER), "--repo", str(repo),
-         "--claude-cmd", str(stub), "--model", "opus", *extra],
+         "--claude-cmd", str(stub), "--model", "opus", "--env-passthrough", "ARGV_OUT",
+         *extra],
         capture_output=True, text=True, env=env)
     argv = json.loads(out.read_text(encoding="utf-8"))["argv"] if out.is_file() else None
     return proc, argv
@@ -545,17 +548,21 @@ def test_the_local_command_line_carries_the_delta_and_the_caps(monkeypatch):
 
     def fake_local(argv):
         seen["argv"] = list(argv)
-        seen["base"] = os.environ.get("ANTHROPIC_BASE_URL")
+        seen["token_in_env"] = "ANTHROPIC_AUTH_TOKEN" in os.environ
         return 0
 
     monkeypatch.setattr(small_mod, "main", fake_local)
     monkeypatch.delenv("ANTHROPIC_BASE_URL", raising=False)
-    args = type("A", (), {"local_model": "qwen3", "local_limit": 6, "local_env_file": None})()
+    monkeypatch.delenv("ANTHROPIC_AUTH_TOKEN", raising=False)
+    args = type("A", (), {"local_model": "chat", "local_limit": 6,
+                          "local_env_file": Path("/etc/verdict-gateway.env")})()
     assert runner.run_local(Path("/repo"), Path("/qa"), args, "http://gw:4000", "t") == 0
     assert "--delta" in seen["argv"] and "--reruns" in seen["argv"]
     assert seen["argv"][seen["argv"].index("--limit") + 1] == "6"
-    assert seen["base"] == "http://gw:4000"
+    # The endpoint travels as --env-file, which verdict-local reads into a local
+    # copy; it is never written into this process's environment, from where every
+    # gate, re-run and probe of the night inherited the token (O-S-2).
+    assert seen["argv"][seen["argv"].index("--env-file") + 1] == str(args.local_env_file)
+    assert seen["token_in_env"] is False
     assert "claude" not in " ".join(seen["argv"])
-    assert os.environ.get("ANTHROPIC_BASE_URL") is None, \
-        "the endpoint is put back: a runner that leaves a credential in its own " \
-        "process environment leaves it for whatever runs next"
+    assert os.environ.get("ANTHROPIC_BASE_URL") is None

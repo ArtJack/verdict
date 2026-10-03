@@ -1,0 +1,642 @@
+[
+ {
+  "label": "T0-4 strict-only again",
+  "path": "hooks/enforce_bash_scope.py",
+  "old": "    if not (strict or caller_is_verdict(data)):\n",
+  "new": "    if not strict:\n",
+  "outcome": "killed",
+  "measured_by": "tests/test_hooks_0903.py against a scratch copy of hooks/ with this one replacement applied"
+ },
+ {
+  "label": "K-D-13 a name that contains the word",
+  "path": "hooks/qa_paths.py",
+  "old": "name.rsplit(\":\", 1)[-1] in VERDICT_AGENTS",
+  "new": "\"verdict\" in name",
+  "outcome": "killed",
+  "measured_by": "tests/test_hooks_0903.py against a scratch copy of hooks/ with this one replacement applied"
+ },
+ {
+  "label": "K-D-13 the plugin prefix is not accepted",
+  "path": "hooks/qa_paths.py",
+  "old": "name.rsplit(\":\", 1)[-1] in VERDICT_AGENTS",
+  "new": "name in VERDICT_AGENTS",
+  "outcome": "killed",
+  "measured_by": "tests/test_hooks_0903.py against a scratch copy of hooks/ with this one replacement applied"
+ },
+ {
+  "label": "K-D-13 the stop hook tells every agent",
+  "path": "hooks/enforce_run_contract.py",
+  "old": "    if not caller_is_verdict(event):\n        return None",
+  "new": "    if False:\n        return None",
+  "outcome": "killed",
+  "measured_by": "tests/test_hooks_0903.py against a scratch copy of hooks/ with this one replacement applied"
+ },
+ {
+  "label": "K-D-12 the ledger is handed to the tester",
+  "path": "hooks/enforce_write_scope.py",
+  "old": "    if _is_maintainer(target):\n",
+  "new": "    if False and _is_maintainer(target):\n",
+  "outcome": "killed",
+  "measured_by": "tests/test_hooks_0903.py against a scratch copy of hooks/ with this one replacement applied"
+ },
+ {
+  "label": "K-D-12 refused only when armed",
+  "path": "hooks/enforce_write_scope.py",
+  "old": "    if _is_maintainer(target):\n",
+  "new": "    if _is_maintainer(target) and (os.environ.get(\"VERDICT_STRICT\", \"\") not in (\"\", \"0\", \"false\") or caller_is_verdict(data)):\n",
+  "outcome": "killed",
+  "measured_by": "tests/test_hooks_0903.py against a scratch copy of hooks/ with this one replacement applied"
+ },
+ {
+  "label": "K-D-14 the event cwd is ignored",
+  "path": "hooks/enforce_write_scope.py",
+  "old": "        target = os.path.join(cwd, target)\n",
+  "new": "        pass\n",
+  "outcome": "killed",
+  "measured_by": "tests/test_hooks_0903.py against a scratch copy of hooks/ with this one replacement applied"
+ },
+ {
+  "label": "fail-open: a non-event reaches .get()",
+  "path": "hooks/enforce_write_scope.py",
+  "old": "    if not isinstance(data, dict):\n        return 0  # JSON, but not an event: the same rule\n",
+  "new": "",
+  "outcome": "killed",
+  "measured_by": "tests/test_hooks_0903.py against a scratch copy of hooks/ with this one replacement applied"
+ },
+ {
+  "label": "K-D-1 formatters are unknown commands again",
+  "path": "hooks/enforce_bash_scope.py",
+  "old": "    elif head in _FORMAT_TOOLS:\n",
+  "new": "    elif False:\n",
+  "outcome": "killed",
+  "measured_by": "tests/test_hooks_0903.py against a scratch copy of hooks/ with this one replacement applied"
+ },
+ {
+  "label": "K-D-1 a formatter asked to report is refused",
+  "path": "hooks/enforce_bash_scope.py",
+  "old": "    if names.intersection(_FORMAT_HELP[style]) or names.intersection(reads):\n",
+  "new": "    if False:\n",
+  "outcome": "killed",
+  "measured_by": "tests/test_hooks_0903.py against a scratch copy of hooks/ with this one replacement applied"
+ },
+ {
+  "label": "K-D-1 a formatter writes whatever its flags",
+  "path": "hooks/enforce_bash_scope.py",
+  "old": "    if writes and not names.intersection(writes):\n",
+  "new": "    if False:\n",
+  "outcome": "killed",
+  "measured_by": "tests/test_hooks_0903.py against a scratch copy of hooks/ with this one replacement applied"
+ },
+ {
+  "label": "K-D-1 runners are not seen through",
+  "path": "hooks/enforce_bash_scope.py",
+  "old": "    elif head in _RUNNERS:\n",
+  "new": "    elif False:\n",
+  "outcome": "killed",
+  "measured_by": "tests/test_hooks_0903.py against a scratch copy of hooks/ with this one replacement applied"
+ },
+ {
+  "label": "K-D-1 python -m is not seen through",
+  "path": "hooks/enforce_bash_scope.py",
+  "old": "        if module and module[0] in _FORMAT_TOOLS:\n",
+  "new": "        if False:\n",
+  "outcome": "killed",
+  "measured_by": "tests/test_hooks_0903.py against a scratch copy of hooks/ with this one replacement applied"
+ },
+ {
+  "label": "K-D-1 pre-commit is judged where it stands",
+  "path": "hooks/enforce_bash_scope.py",
+  "old": "        yield what, _nearest(cwd, \".git\")\n",
+  "new": "        yield what, cwd\n",
+  "outcome": "killed",
+  "measured_by": "tests/test_hooks_0903.py against a scratch copy of hooks/ with this one replacement applied"
+ },
+ {
+  "label": "K-D-2 --output is not looked for",
+  "path": "hooks/enforce_bash_scope.py",
+  "old": "    yield from _git_outputs(verb, rest, there)\n",
+  "new": "    yield from ()\n",
+  "outcome": "killed",
+  "measured_by": "tests/test_hooks_0903.py against a scratch copy of hooks/ with this one replacement applied"
+ },
+ {
+  "label": "K-D-2 -o is an output for every verb or none",
+  "path": "hooks/enforce_bash_scope.py",
+  "old": "    lettered = verb in (\"format-patch\", \"archive\")",
+  "new": "    lettered = False",
+  "outcome": "killed",
+  "measured_by": "tests/test_hooks_0903.py against a scratch copy of hooks/ with this one replacement applied"
+ },
+ {
+  "label": "K-D-3 the working-tree verbs leave the set",
+  "path": "hooks/enforce_bash_scope.py",
+  "old": "    \"checkout-index\", \"read-tree\", \"add\", \"mergetool\", \"fetch\", \"remote\",\n    \"symbolic-ref\", \"clone\", \"init\",\n",
+  "new": "",
+  "outcome": "killed",
+  "measured_by": "tests/test_hooks_0903.py against a scratch copy of hooks/ with this one replacement applied"
+ },
+ {
+  "label": "T3-9 -n is not a dry run",
+  "path": "hooks/enforce_bash_scope.py",
+  "old": "        if \"-n\" in flags and verb in _GIT_DRY_RUN_N:\n",
+  "new": "        if False:\n",
+  "outcome": "killed",
+  "measured_by": "tests/test_hooks_0903.py against a scratch copy of hooks/ with this one replacement applied"
+ },
+ {
+  "label": "-n is a dry run for every verb",
+  "path": "hooks/enforce_bash_scope.py",
+  "old": "        if \"-n\" in flags and verb in _GIT_DRY_RUN_N:\n",
+  "new": "        if \"-n\" in flags:\n",
+  "outcome": "killed",
+  "measured_by": "tests/test_hooks_0903.py against a scratch copy of hooks/ with this one replacement applied"
+ },
+ {
+  "label": "a dry run cannot be taken back",
+  "path": "hooks/enforce_bash_scope.py",
+  "old": "    if not any(len(f) > 5 and \"--no-dry-run\".startswith(f) for f in flags):\n",
+  "new": "    if True:\n",
+  "outcome": "killed",
+  "measured_by": "tests/test_hooks_0903.py against a scratch copy of hooks/ with this one replacement applied"
+ },
+ {
+  "label": "T3-9 --help is a mutation",
+  "path": "hooks/enforce_bash_scope.py",
+  "old": "    if verb is None or rest[:1] == [\"--help\"]:\n",
+  "new": "    if verb is None:\n",
+  "outcome": "killed",
+  "measured_by": "tests/test_hooks_0903.py against a scratch copy of hooks/ with this one replacement applied"
+ },
+ {
+  "label": "--help is honoured in any position",
+  "path": "hooks/enforce_bash_scope.py",
+  "old": "    if verb is None or rest[:1] == [\"--help\"]:\n",
+  "new": "    if verb is None or \"--help\" in rest:\n",
+  "outcome": "killed",
+  "measured_by": "tests/test_hooks_0903.py against a scratch copy of hooks/ with this one replacement applied"
+ },
+ {
+  "label": "T3-9 reflog with an operand is a mutation",
+  "path": "hooks/enforce_bash_scope.py",
+  "old": "        if verb == \"reflog\" and operands[0] not in _GIT_REFLOG_WRITES:\n",
+  "new": "        if False:\n",
+  "outcome": "killed",
+  "measured_by": "tests/test_hooks_0903.py against a scratch copy of hooks/ with this one replacement applied"
+ },
+ {
+  "label": "symbolic-ref always reads",
+  "path": "hooks/enforce_bash_scope.py",
+  "old": "        if verb == \"symbolic-ref\" and len(operands) <= 1:\n",
+  "new": "        if verb == \"symbolic-ref\":\n",
+  "outcome": "killed",
+  "measured_by": "tests/test_hooks_0903.py against a scratch copy of hooks/ with this one replacement applied"
+ },
+ {
+  "label": "T3-9 submodule foreach is a mutation",
+  "path": "hooks/enforce_bash_scope.py",
+  "old": "    if verb == \"submodule\" and operands[:1] == [\"foreach\"]:\n",
+  "new": "    if False:\n",
+  "outcome": "killed",
+  "measured_by": "tests/test_hooks_0903.py against a scratch copy of hooks/ with this one replacement applied"
+ },
+ {
+  "label": "clone lands where it stands",
+  "path": "hooks/enforce_bash_scope.py",
+  "old": "               _anchor(where[0], there) if where else repo)\n",
+  "new": "               repo)\n",
+  "outcome": "killed",
+  "measured_by": "tests/test_hooks_0903.py against a scratch copy of hooks/ with this one replacement applied"
+ },
+ {
+  "label": "K-D-10 <> is not a redirect",
+  "path": "hooks/enforce_bash_scope.py",
+  "old": "    for m in _REDIRECT_RW.finditer(view):\n",
+  "new": "    for m in ():\n",
+  "outcome": "killed",
+  "measured_by": "tests/test_hooks_0903.py against a scratch copy of hooks/ with this one replacement applied"
+ },
+ {
+  "label": "K-D-10 >&word is a descriptor",
+  "path": "hooks/enforce_bash_scope.py",
+  "old": "            if word and word != \"-\" and not word.isdigit():\n",
+  "new": "            if False:\n",
+  "outcome": "killed",
+  "measured_by": "tests/test_hooks_0903.py against a scratch copy of hooks/ with this one replacement applied"
+ },
+ {
+  "label": "K-D-10 >&2 is a file",
+  "path": "hooks/enforce_bash_scope.py",
+  "old": "            if word and word != \"-\" and not word.isdigit():\n",
+  "new": "            if word:\n",
+  "outcome": "killed",
+  "measured_by": "tests/test_hooks_0903.py against a scratch copy of hooks/ with this one replacement applied"
+ },
+ {
+  "label": "P-48 redirections stay in the command's words",
+  "path": "hooks/enforce_bash_scope.py",
+  "old": "    text = _without_redirections(segment, view)\n",
+  "new": "    text = segment\n",
+  "outcome": "killed",
+  "measured_by": "tests/test_hooks_0903.py against a scratch copy of hooks/ with this one replacement applied"
+ },
+ {
+  "label": "K-D-9 only a bare -c",
+  "path": "hooks/enforce_bash_scope.py",
+  "old": "    return tok[:1] == \"-\" and tok[1:].isalpha() and \"c\" in tok[1:]\n",
+  "new": "    return tok == \"-c\"\n",
+  "outcome": "killed",
+  "measured_by": "tests/test_hooks_0903.py against a scratch copy of hooks/ with this one replacement applied"
+ },
+ {
+  "label": "K-D-9 a long option with a c in it",
+  "path": "hooks/enforce_bash_scope.py",
+  "old": "    return tok[:1] == \"-\" and tok[1:].isalpha() and \"c\" in tok[1:]\n",
+  "new": "    return tok[:1] == \"-\" and \"c\" in tok[1:]\n",
+  "outcome": "killed",
+  "measured_by": "tests/test_hooks_0903.py against a scratch copy of hooks/ with this one replacement applied"
+ },
+ {
+  "label": "K-D-9 keywords stay in front",
+  "path": "hooks/enforce_bash_scope.py",
+  "old": "        if head in _PREFIX_WORDS or _ASSIGNMENT.match(head):\n",
+  "new": "        if _ASSIGNMENT.match(head):\n",
+  "outcome": "killed",
+  "measured_by": "tests/test_hooks_0903.py against a scratch copy of hooks/ with this one replacement applied"
+ },
+ {
+  "label": "K-D-9 a paren stays on the command word",
+  "path": "hooks/enforce_bash_scope.py",
+  "old": "        elif head[:1] in (\"(\", \"&\"):\n",
+  "new": "        elif False:\n",
+  "outcome": "killed",
+  "measured_by": "tests/test_hooks_0903.py against a scratch copy of hooks/ with this one replacement applied"
+ },
+ {
+  "label": "K-D-9 the closing paren stays on the last word",
+  "path": "hooks/enforce_bash_scope.py",
+  "old": "    closing = opened + view.count(\")\") - view.count(\"(\")\n",
+  "new": "    closing = 0\n",
+  "outcome": "killed",
+  "measured_by": "tests/test_hooks_0903.py against a scratch copy of hooks/ with this one replacement applied"
+ },
+ {
+  "label": "K-D-9 the depth cap is three",
+  "path": "hooks/enforce_bash_scope.py",
+  "old": "_MAX_DEPTH = 8\n",
+  "new": "_MAX_DEPTH = 3\n",
+  "outcome": "killed",
+  "measured_by": "tests/test_hooks_0903.py against a scratch copy of hooks/ with this one replacement applied"
+ },
+ {
+  "label": "K-D-9 a lone & does not end a command",
+  "path": "hooks/enforce_bash_scope.py",
+  "old": "    cuts = sorted([*_SEPARATOR.finditer(view), *_BACKGROUND.finditer(view)],\n",
+  "new": "    cuts = sorted([*_SEPARATOR.finditer(view)],\n",
+  "outcome": "killed",
+  "measured_by": "tests/test_hooks_0903.py against a scratch copy of hooks/ with this one replacement applied"
+ },
+ {
+  "label": "a script file's arguments are the shell's",
+  "path": "hooks/enforce_bash_scope.py",
+  "old": "        elif not t.startswith((\"-\", \"+\")):\n            return          # a script file",
+  "new": "        elif False:\n            return          # a script file",
+  "outcome": "killed",
+  "measured_by": "tests/test_hooks_0903.py against a scratch copy of hooks/ with this one replacement applied"
+ },
+ {
+  "label": "K-D-6 the command after -exec is not read",
+  "path": "hooks/enforce_bash_scope.py",
+  "old": "            for what, target in _check_segment(expr[j + 1:end], cwd, depth):\n",
+  "new": "            for what, target in ():\n",
+  "outcome": "killed",
+  "measured_by": "tests/test_hooks_0903.py against a scratch copy of hooks/ with this one replacement applied"
+ },
+ {
+  "label": "K-D-6 -fprint writes nothing",
+  "path": "hooks/enforce_bash_scope.py",
+  "old": "        elif tok in (\"-fprint\", \"-fprint0\", \"-fprintf\", \"-fls\") and j + 1 < len(expr):\n",
+  "new": "        elif False:\n",
+  "outcome": "killed",
+  "measured_by": "tests/test_hooks_0903.py against a scratch copy of hooks/ with this one replacement applied"
+ },
+ {
+  "label": "K-D-6 -ok is not -exec",
+  "path": "hooks/enforce_bash_scope.py",
+  "old": "        elif tok in (\"-exec\", \"-execdir\", \"-ok\", \"-okdir\"):\n",
+  "new": "        elif tok in (\"-exec\", \"-execdir\"):\n",
+  "outcome": "killed",
+  "measured_by": "tests/test_hooks_0903.py against a scratch copy of hooks/ with this one replacement applied"
+ },
+ {
+  "label": "K-D-6 {} is a path of its own",
+  "path": "hooks/enforce_bash_scope.py",
+  "old": "                if \"{}\" in target or (beside and _is_relative(target)):\n",
+  "new": "                if False:\n",
+  "outcome": "killed",
+  "measured_by": "tests/test_hooks_0903.py against a scratch copy of hooks/ with this one replacement applied"
+ },
+ {
+  "label": "K-D-6 xargs hands its command nothing",
+  "path": "hooks/enforce_bash_scope.py",
+  "old": "        command = command + [_UNKNOWABLE]\n",
+  "new": "        pass\n",
+  "outcome": "killed",
+  "measured_by": "tests/test_hooks_0903.py against a scratch copy of hooks/ with this one replacement applied"
+ },
+ {
+  "label": "K-D-6 xargs refuses whatever it runs",
+  "path": "hooks/enforce_bash_scope.py",
+  "old": "        if _UNKNOWABLE in target:\n",
+  "new": "        if True:\n",
+  "outcome": "killed",
+  "measured_by": "tests/test_hooks_0903.py against a scratch copy of hooks/ with this one replacement applied"
+ },
+ {
+  "label": "K-D-7 sudo -n takes a value",
+  "path": "hooks/enforce_bash_scope.py",
+  "old": "    \"sudo\": (\"ugCDhpRrTtU\", ",
+  "new": "    \"sudo\": (\"nugCDhpRrTtU\", ",
+  "outcome": "killed",
+  "measured_by": "tests/test_hooks_0903.py against a scratch copy of hooks/ with this one replacement applied"
+ },
+ {
+  "label": "K-D-7 time -p takes a value",
+  "path": "hooks/enforce_bash_scope.py",
+  "old": "    \"time\": (\"fo\", ",
+  "new": "    \"time\": (\"pfo\", ",
+  "outcome": "killed",
+  "measured_by": "tests/test_hooks_0903.py against a scratch copy of hooks/ with this one replacement applied"
+ },
+ {
+  "label": "K-D-7 script is a wrapper of flags",
+  "path": "hooks/enforce_bash_scope.py",
+  "old": "    elif head == \"script\":\n",
+  "new": "    elif False:\n",
+  "outcome": "killed",
+  "measured_by": "tests/test_hooks_0903.py against a scratch copy of hooks/ with this one replacement applied"
+ },
+ {
+  "label": "K-D-7 a wrapper's positional is the command",
+  "path": "hooks/enforce_bash_scope.py",
+  "old": "    return rest[positionals:], there, writes\n",
+  "new": "    return rest, there, writes\n",
+  "outcome": "killed",
+  "measured_by": "tests/test_hooks_0903.py against a scratch copy of hooks/ with this one replacement applied"
+ },
+ {
+  "label": "K-D-7 env -S is one word",
+  "path": "hooks/enforce_bash_scope.py",
+  "old": "        if split:                   # `env -S 'rm f'`: the command, as one string\n",
+  "new": "        if False:\n",
+  "outcome": "killed",
+  "measured_by": "tests/test_hooks_0903.py against a scratch copy of hooks/ with this one replacement applied"
+ },
+ {
+  "label": "K-D-8 only cd moves",
+  "path": "hooks/enforce_bash_scope.py",
+  "old": "    return bool(toks) and os.path.basename(toks[0]) in (\"cd\", \"pushd\", \"popd\")\n",
+  "new": "    return bool(toks) and os.path.basename(toks[0]) in (\"cd\",)\n",
+  "outcome": "killed",
+  "measured_by": "tests/test_hooks_0903.py against a scratch copy of hooks/ with this one replacement applied"
+ },
+ {
+  "label": "K-D-8 cd - goes nowhere",
+  "path": "hooks/enforce_bash_scope.py",
+  "old": "            elif words[0] == \"-\":\n                there = self.old\n",
+  "new": "            elif words[0] == \"-\":\n                there = self.here\n",
+  "outcome": "killed",
+  "measured_by": "tests/test_hooks_0903.py against a scratch copy of hooks/ with this one replacement applied"
+ },
+ {
+  "label": "K-D-8 a pipe resets the directory",
+  "path": "hooks/enforce_bash_scope.py",
+  "old": "            self.base = self.here or self.root\n            yield sep, segment, seg_view\n",
+  "new": "            self.base = self.root if sep == \"|\" else (self.here or self.root)\n            yield sep, segment, seg_view\n",
+  "outcome": "killed",
+  "measured_by": "tests/test_hooks_0903.py against a scratch copy of hooks/ with this one replacement applied"
+ },
+ {
+  "label": "K-D-8 a cd in a pipeline carries",
+  "path": "hooks/enforce_bash_scope.py",
+  "old": "            if sep != \"|\" and not piped_on:\n",
+  "new": "            if True:\n",
+  "outcome": "killed",
+  "measured_by": "tests/test_hooks_0903.py against a scratch copy of hooks/ with this one replacement applied"
+ },
+ {
+  "label": "K-D-8 a subshell's cd carries",
+  "path": "hooks/enforce_bash_scope.py",
+  "old": "            for _ in range(opened):\n                self.scopes.append((self.here, self.old, list(self.stack)))\n",
+  "new": "            for _ in range(0):\n                self.scopes.append((self.here, self.old, list(self.stack)))\n",
+  "outcome": "killed",
+  "measured_by": "tests/test_hooks_0903.py against a scratch copy of hooks/ with this one replacement applied"
+ },
+ {
+  "label": "K-D-8 an unfollowable cd keeps the last directory",
+  "path": "hooks/enforce_bash_scope.py",
+  "old": "        if \"$\" in word or \"`\" in word:\n            return None",
+  "new": "        if \"$\" in word or \"`\" in word:\n            return self.here",
+  "outcome": "killed",
+  "measured_by": "tests/test_hooks_0903.py against a scratch copy of hooks/ with this one replacement applied"
+ },
+ {
+  "label": "K-D-8 $PWD is the hook's own",
+  "path": "hooks/enforce_bash_scope.py",
+  "old": "        lambda m: cwd if m.group(1) == \"PWD\" else os.environ.get(m.group(1), m.group(0)),\n",
+  "new": "        lambda m: os.environ.get(m.group(1), m.group(0)),\n",
+  "outcome": "killed",
+  "measured_by": "tests/test_hooks_0903.py against a scratch copy of hooks/ with this one replacement applied"
+ },
+ {
+  "label": "K-D-8 sudo cd moves the line",
+  "path": "hooks/enforce_bash_scope.py",
+  "old": "    while toks and os.path.basename(toks[0]) in (\"command\", \"builtin\", \"time\"):\n",
+  "new": "    while toks and os.path.basename(toks[0]) in (\"command\", \"builtin\", \"time\", \"sudo\", \"env\"):\n",
+  "outcome": "killed",
+  "measured_by": "tests/test_hooks_0903.py against a scratch copy of hooks/ with this one replacement applied"
+ },
+ {
+  "label": "K-D-8 a nested shell's targets are read against the caller",
+  "path": "hooks/enforce_bash_scope.py",
+  "old": "        yield what, _anchor(target, trail.base)\n",
+  "new": "        yield what, target\n",
+  "outcome": "killed",
+  "measured_by": "tests/test_hooks_0903.py against a scratch copy of hooks/ with this one replacement applied"
+ },
+ {
+  "label": "K-D-11 the new writers are unknown commands",
+  "path": "hooks/enforce_bash_scope.py",
+  "old": "    elif head in _HANDLERS:\n",
+  "new": "    elif False:\n",
+  "outcome": "killed",
+  "measured_by": "tests/test_hooks_0903.py against a scratch copy of hooks/ with this one replacement applied"
+ },
+ {
+  "label": "K-D-11 the compressors are unknown commands",
+  "path": "hooks/enforce_bash_scope.py",
+  "old": "for _name in _COMPRESSORS:\n",
+  "new": "for _name in ():\n",
+  "outcome": "killed",
+  "measured_by": "tests/test_hooks_0903.py against a scratch copy of hooks/ with this one replacement applied"
+ },
+ {
+  "label": "K-D-11 gzip -c is a write",
+  "path": "hooks/enforce_bash_scope.py",
+  "old": "    if names.intersection(_COMPRESSOR_READS):\n",
+  "new": "    if False:\n",
+  "outcome": "killed",
+  "measured_by": "tests/test_hooks_0903.py against a scratch copy of hooks/ with this one replacement applied"
+ },
+ {
+  "label": "K-D-11 wget writes only when told where",
+  "path": "hooks/enforce_bash_scope.py",
+  "old": "        yield \"wget (saves into the directory)\", (values.get(\"-P\")\n                                                  or values.get(\"--directory-prefix\") or cwd)\n",
+  "new": "        yield \"wget (saves into the directory)\", (values.get(\"-P\")\n                                                  or values.get(\"--directory-prefix\") or \"\")\n",
+  "outcome": "killed",
+  "measured_by": "tests/test_hooks_0903.py against a scratch copy of hooks/ with this one replacement applied"
+ },
+ {
+  "label": "K-D-11 curl -O saves nowhere",
+  "path": "hooks/enforce_bash_scope.py",
+  "old": "    if set(values).intersection((\"-O\", \"--remote-name\", \"--remote-name-all\")):\n",
+  "new": "    if False:\n",
+  "outcome": "killed",
+  "measured_by": "tests/test_hooks_0903.py against a scratch copy of hooks/ with this one replacement applied"
+ },
+ {
+  "label": "T3-9 truncate's size is a path",
+  "path": "hooks/enforce_bash_scope.py",
+  "old": "_MUTATOR_VALUE_OPTS = {\"truncate\": (\"sr\", (\"--size\", \"--reference\")),\n",
+  "new": "_MUTATOR_VALUE_OPTS = {\"truncate\": (\"\", ()),\n",
+  "outcome": "killed",
+  "measured_by": "tests/test_hooks_0903.py against a scratch copy of hooks/ with this one replacement applied"
+ },
+ {
+  "label": "mkfifo's mode is a path",
+  "path": "hooks/enforce_bash_scope.py",
+  "old": "                       \"mkfifo\": (\"m\", (\"--mode\",))}\n",
+  "new": "                       \"mkfifo\": (\"\", ())}\n",
+  "outcome": "not recorded",
+  "measured_by": "tests/test_hooks_0903.py against a scratch copy of hooks/ with this one replacement applied"
+ },
+ {
+  "label": "T3-9 truncate as the spec put it: _MODE_FIRST",
+  "path": "hooks/enforce_bash_scope.py",
+  "old": "_MODE_FIRST = {\"chmod\", \"chown\", \"chgrp\", \"install\"}\n",
+  "new": "_MODE_FIRST = {\"chmod\", \"chown\", \"chgrp\", \"install\", \"truncate\"}\n",
+  "outcome": "killed",
+  "measured_by": "tests/test_hooks_0903.py against a scratch copy of hooks/ with this one replacement applied"
+ },
+ {
+  "label": "patch with no operand writes nothing",
+  "path": "hooks/enforce_bash_scope.py",
+  "old": "        yield \"patch (rewrites the files its input names)\", there or cwd\n",
+  "new": "        yield \"patch (rewrites the files its input names)\", \"\"\n",
+  "outcome": "killed",
+  "measured_by": "tests/test_hooks_0903.py against a scratch copy of hooks/ with this one replacement applied"
+ },
+ {
+  "label": "K-D-4 a heredoc body is a command",
+  "path": "hooks/enforce_bash_scope.py",
+  "old": "            if _BODY in seg_view and not seg_view.strip(_BODY + \" \\t\\r\"):\n",
+  "new": "            if False:\n",
+  "outcome": "killed",
+  "measured_by": "tests/test_hooks_0903.py against a scratch copy of hooks/ with this one replacement applied"
+ },
+ {
+  "label": "K-D-4 a heredoc fed to a shell is data",
+  "path": "hooks/enforce_bash_scope.py",
+  "old": "                if script:\n",
+  "new": "                if False:\n",
+  "outcome": "killed",
+  "measured_by": "tests/test_hooks_0903.py against a scratch copy of hooks/ with this one replacement applied"
+ },
+ {
+  "label": "K-D-4 a here-string fed to a shell is data",
+  "path": "hooks/enforce_bash_scope.py",
+  "old": "            if feeds_shell and \"<<<\" in seg_view:\n",
+  "new": "            if False:\n",
+  "outcome": "killed",
+  "measured_by": "tests/test_hooks_0903.py against a scratch copy of hooks/ with this one replacement applied"
+ },
+ {
+  "label": "K-D-4 quoted words are a heredoc body",
+  "path": "hooks/enforce_bash_scope.py",
+  "old": "                out[k] = _BODY\n",
+  "new": "                out[k] = _MASK\n",
+  "outcome": "killed",
+  "measured_by": "tests/test_hooks_0903.py against a scratch copy of hooks/ with this one replacement applied"
+ },
+ {
+  "label": "K-D-5 the script is a file",
+  "path": "hooks/enforce_bash_scope.py",
+  "old": "    files = operands if scripted else operands[1:]\n",
+  "new": "    files = operands\n",
+  "outcome": "killed",
+  "measured_by": "tests/test_hooks_0903.py against a scratch copy of hooks/ with this one replacement applied"
+ },
+ {
+  "label": "K-D-5 GNU sed's word after -i is never a file",
+  "path": "hooks/enforce_bash_scope.py",
+  "old": "    if suffix and (scripted or not files):\n",
+  "new": "    if False:\n",
+  "outcome": "killed",
+  "measured_by": "tests/test_hooks_0903.py against a scratch copy of hooks/ with this one replacement applied"
+ },
+ {
+  "label": "a command nested past reading is a traceback",
+  "path": "hooks/enforce_bash_scope.py",
+  "old": "    except RecursionError:\n",
+  "new": "    except ZeroDivisionError:\n",
+  "outcome": "killed",
+  "measured_by": "tests/test_hooks_0903.py against a scratch copy of hooks/ with this one replacement applied"
+ },
+ {
+  "label": "terraform -chdir is ignored",
+  "path": "hooks/enforce_bash_scope.py",
+  "old": "    if head == \"terraform\" and values.get(\"chdir\"):\n",
+  "new": "    if False:\n",
+  "outcome": "killed",
+  "measured_by": "tests/test_hooks_0903.py against a scratch copy of hooks/ with this one replacement applied"
+ },
+ {
+  "label": "submodule foreach's own flags are the command",
+  "path": "hooks/enforce_bash_scope.py",
+  "old": "        while command and command[0] in (\"--recursive\", \"-q\", \"--quiet\"):\n",
+  "new": "        while False:\n",
+  "outcome": "killed",
+  "measured_by": "tests/test_hooks_0903.py against a scratch copy of hooks/ with this one replacement applied"
+ },
+ {
+  "label": "K-D-5 the BSD suffix is the script",
+  "path": "hooks/enforce_bash_scope.py",
+  "old": "                if not perl and not letters and i < n and _is_backup_suffix(args[i]):\n",
+  "new": "                if False:\n",
+  "outcome": "killed",
+  "measured_by": "tests/test_hooks_0903.py against a scratch copy of hooks/ with this one replacement applied"
+ },
+ {
+  "label": "K-D-5 an i anywhere is -i",
+  "path": "hooks/enforce_bash_scope.py",
+  "old": "            elif perl and ch in \"MmFxCDdV\":\n                letters = \"\"",
+  "new": "            elif False:\n                letters = \"\"",
+  "outcome": "killed",
+  "measured_by": "tests/test_hooks_0903.py against a scratch copy of hooks/ with this one replacement applied"
+ },
+ {
+  "label": "gsed is an unknown command",
+  "path": "hooks/enforce_bash_scope.py",
+  "old": "    elif head in (\"sed\", \"gsed\", \"perl\"):\n",
+  "new": "    elif head in (\"sed\", \"perl\"):\n",
+  "outcome": "killed",
+  "measured_by": "tests/test_hooks_0903.py against a scratch copy of hooks/ with this one replacement applied"
+ },
+ {
+  "label": "K-D-15 /var/tmp is not scratch",
+  "path": "hooks/enforce_bash_scope.py",
+  "old": "    roots = {\"/tmp\", \"/private/tmp\", \"/var/tmp\", \"/private/var/tmp\",\n",
+  "new": "    roots = {\"/tmp\", \"/private/tmp\",\n",
+  "outcome": "killed",
+  "measured_by": "tests/test_hooks_0903.py against a scratch copy of hooks/ with this one replacement applied"
+ }
+]

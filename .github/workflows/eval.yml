@@ -24,9 +24,19 @@ jobs:
       - name: Install Claude Code
         run: npm install -g @anthropic-ai/claude-code
       - name: Run the eval
+        # `shell: bash` is `bash -eo pipefail`: with the default shell the job's
+        # status was `tee`'s, so a run that failed in the first second — no API
+        # key in the repository's secrets, "claude run failed rc=1" in a
+        # 422-byte artifact — reported success every week and never produced a
+        # score (audit 2026-10-02, D-D-2). The missing key is said up front.
+        shell: bash
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
         run: |
+          if [ -z "$ANTHROPIC_API_KEY" ]; then
+            echo "::error::ANTHROPIC_API_KEY is not set in this repository's secrets — no model can run, nothing was measured"
+            exit 2
+          fi
           python3 eval/run_eval.py \
             --mode "${{ github.event.inputs.mode || 'seeded' }}" \
             --model "${{ github.event.inputs.model || 'opus' }}" \

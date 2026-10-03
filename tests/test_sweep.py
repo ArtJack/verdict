@@ -62,8 +62,11 @@ def run(tmp_path, repo, home, *extra):
     out = tmp_path / "argv.json"
     env = {k: v for k, v in os.environ.items() if not k.startswith("VERDICT_")}
     env.update(VERDICT_HOME=str(home), ARGV_OUT=str(out))
+    # The child's environment is an allowlist since 0.90.3 (O-S-2): the stub's own
+    # variable is let through by name.
     proc = subprocess.run([sys.executable, str(RUNNER), "--repo", str(repo), "--claude-cmd",
-                           str(launcher), "--model", "opus", "--no-provision", *extra],
+                           str(launcher), "--model", "opus", "--no-provision",
+                           "--env-passthrough", "ARGV_OUT", *extra],
                           capture_output=True, text=True, env=env, encoding="utf-8",
                           errors="replace")
     return proc, out.exists()

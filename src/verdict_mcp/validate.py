@@ -633,13 +633,16 @@ def validate(state, root: Path, previous=None, now=None, at_rest=False):
             bad.append("last_run.report must name the report file this run wrote")
         else:
             candidate = Path(report)
-            resolved = candidate if candidate.is_absolute() else root / candidate
+            outside = report_outside_reports(report)
             if candidate.suffix != ".md":
                 bad.append(
                     f"last_run.report {report!r} is not a path to a .md file — the report "
                     "artifact is part of the contract and no caller may waive it")
-            elif not resolved.is_file():
-                bad.append(f"last_run.report points at a file that does not exist: {resolved}")
+            elif outside:
+                bad.append(f"last_run.report {report!r} {outside}")
+            elif not (root / candidate).is_file():
+                bad.append(f"last_run.report points at a file that does not exist: "
+                           f"{root / candidate}")
 
     findings = state.get("findings")
     if findings is None:
@@ -764,6 +767,53 @@ def _load(path: Path):
         return None, f"unreadable: {exc}"
 
 
+def report_outside_reports(report: str):
+    """Why `report` is not one file directly under the QA root's `reports/`, or None.
+
+    The field was honoured as written — an absolute path, or one carrying
+    `..` — and finalize rendered the report there, which on a team-mode
+    checkout is any `*.md` in the code under test (README.md, proven; audit
+    2026-10-02, H-D-1). Every real record names `reports/<file>.md`: a survey
+    of 16 QA roots and 132 history rows found no other shape, so the rule
+    refuses nothing a run has ever legitimately written. Windows spellings
+    are read with their backslashes turned, so `C:\\x\\y.md` is absolute here too.
+    """
+    text = str(report).replace("\\", "/")
+    if text.startswith("/") or Path(report).is_absolute() or re.match(r"^[A-Za-z]:", text):
+        return "is an absolute path — the report lives under the QA root's reports/"
+    parts = text.split("/")
+    if any(part in ("", ".", "..") for part in parts):
+        return "climbs out of the QA root — no `..`, `.` or empty segments"
+    if len(parts) != 2 or parts[0] != "reports":
+        return "must be `reports/<name>.md`, one file directly under reports/"
+    if parts[1].lower() == "index.md":
+        return "names the run index: a report written there replaces the record of every run"
+    return None
+
+
+def _in_qa_root(path: str) -> bool:
+    """Is `path` inside a QA root — the solo home, or a `.qa/` beside a `.git`?
+
+    The hook validated every file named `state.json` anywhere: a React app's
+    settings file got "15 problems" and exit 2 in a session that never ran
+    Verdict (audit 2026-10-02, T3-1). The same rule as hooks/qa_paths.py, kept
+    here in stdlib because this module imports nothing.
+    """
+    if not path:
+        return False
+    p = os.path.realpath(os.path.expanduser(path))
+    home = os.path.realpath(os.path.expanduser(
+        os.environ.get("VERDICT_HOME") or "~/.claude/verdict"))
+    if p == home or p.startswith(home + os.sep):
+        return True
+    parts = p.split(os.sep)
+    for i, part in enumerate(parts):
+        if part == ".qa":
+            repo = os.sep.join(parts[:i]) or os.sep
+            return os.path.exists(os.path.join(repo, ".git"))
+    return False
+
+
 def _hook_mode() -> int:
     """PostToolUse: validate a state.json, or a findings/<ID>.json, the agent just wrote."""
     # UTF-8 on the way out, whatever the console codepage: every message here
@@ -780,7 +830,9 @@ def _hook_mode() -> int:
     except Exception:
         return 0  # fail open: a broken hook must never brick a session
     target = ((data.get("tool_input") or {}).get("file_path") or "")
-    filed = finding_file(target) if target else None
+    if not target or not _in_qa_root(target):
+        return 0        # somebody else's state.json; none of this hook's business
+    filed = finding_file(target)
     if filed is not None:
         return _hook_finding(Path(target), *filed)
     if os.path.basename(target) != "state.json":

@@ -409,9 +409,14 @@ def test_a_probe_the_model_malformed_is_refused_and_says_why(tmp_path):
 
 
 def test_the_interpreter_comes_from_the_projects_own_gate():
+    """Until 2026-10-02 this test pinned `npm test` → `sys.executable`: a gate with no
+    Python in it imported the project with Verdict's own interpreter, and every probe's
+    `ModuleNotFoundError` was reported as the model's failure to prove (audit O-D-11).
+    Rewritten to pin the new rule: no interpreter in the gate means none, and the caller
+    says proving is off."""
     assert small.interpreter_of("PYTHONDONTWRITEBYTECODE=1 /x/.venv/bin/python -m pytest") \
         == "/x/.venv/bin/python"
-    assert small.interpreter_of("npm test") == sys.executable
+    assert small.interpreter_of("npm test") is None
 
 
 def test_severity_from_reading_is_capped_until_something_is_executed():

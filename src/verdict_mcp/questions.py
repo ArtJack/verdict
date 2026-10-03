@@ -31,11 +31,11 @@ from pathlib import Path
 
 try:
     from . import clock
-    from .state import load_state
+    from .state import load_state, root_refusal
 except ImportError:  # bare-script execution
     sys.path.insert(0, str(Path(__file__).resolve().parent))
     import clock
-    from state import load_state
+    from state import load_state, root_refusal
 
 QUESTIONS_FILE = "questions.json"
 ANSWERS_FILE = "answers.json"
@@ -313,6 +313,11 @@ def main(argv=None) -> int:
         print(f"verdict-answer: {err['error']}", file=sys.stderr)
         return 4
     root = Path(state["_qa_root"])
+    if not args.list:
+        refusal = root_refusal(root, "verdict-answer")
+        if refusal:
+            print(refusal, file=sys.stderr)
+            return 2
     today = args.today or clock.today().isoformat()
     try:
         if args.list:

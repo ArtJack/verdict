@@ -1,5 +1,389 @@
 [
  {
+  "label": "0.90.3 H-D-1a: finalize writes the report wherever the judgment points",
+  "path": "src/verdict_mcp/harness.py",
+  "old": "    outside = report_outside_reports(report_rel)\n    if outside:\n",
+  "new": "    outside = None\n    if outside:\n"
+ },
+ {
+  "label": "0.90.3 H-D-1b: the validator accepts a report outside reports/",
+  "path": "src/verdict_mcp/validate.py",
+  "old": "            elif outside:\n                bad.append(f\"last_run.report {report!r} {outside}\")\n",
+  "new": "            elif False:\n                bad.append(f\"last_run.report {report!r} {outside}\")\n"
+ },
+ {
+  "label": "0.90.3 H-D-1c: a report topic is used as a path",
+  "path": "src/verdict_mcp/harness.py",
+  "old": "    text = _TOPIC_SAFE.sub(\"-\", str(topic or \"\"))\n",
+  "new": "    text = str(topic or \"\")\n"
+ },
+ {
+  "label": "0.90.3 T3-1: the PostToolUse validator fires on any state.json",
+  "path": "src/verdict_mcp/validate.py",
+  "old": "    if not target or not _in_qa_root(target):\n        return 0        # somebody else's state.json; none of this hook's business\n",
+  "new": "    if not target:\n        return 0        # somebody else's state.json; none of this hook's business\n"
+ },
+ {
+  "label": "0.90.3 O-S-1a: the counterfactual probes the real tree, not the scratch copy",
+  "path": "src/verdict_mcp/small.py",
+  "old": "        scratch_root = scratch / root_rel.relative_to(repo) if root_rel != repo else scratch\n",
+  "new": "        scratch_root = root_rel\n"
+ },
+ {
+  "label": "0.90.3 O-S-1b: a probe inherits the operator's whole environment",
+  "path": "src/verdict_mcp/small.py",
+  "old": "    env = {k: v for k, v in os.environ.items()\n           if k.upper() in PROBE_ENV_KEEP or k.upper().startswith(\"LC_\")}\n",
+  "new": "    env = dict(os.environ)\n"
+ },
+ {
+  "label": "0.90.3 O-S-1c: the model's expression runs without being read as a syntax tree",
+  "path": "src/verdict_mcp/small.py",
+  "old": "    call, why = safe_probe(expression, chunk.name)\n    if why:\n        return refused(why, expression)\n",
+  "new": "    call, why = expression, None\n    if why:\n        return refused(why, expression)\n"
+ },
+ {
+  "label": "0.90.3 O-S-1d: the model's replacement line is written without being read",
+  "path": "src/verdict_mcp/small.py",
+  "old": "    unsafe_fix = safe_replacement(replacement, chunk.source)\n    if unsafe_fix:\n",
+  "new": "    unsafe_fix = None\n    if unsafe_fix:\n"
+ },
+ {
+  "label": "0.90.3 O-S-1e: secret files ride along in the scratch copy",
+  "path": "src/verdict_mcp/small.py",
+  "old": "                    ignore=shutil.ignore_patterns(*COPY_SKIP, *SECRET_SKIP))",
+  "new": "                    ignore=shutil.ignore_patterns(*COPY_SKIP))"
+ },
+ {
+  "label": "0.90.3 hooks T0-4 strict-only again",
+  "path": "hooks/enforce_bash_scope.py",
+  "old": "    if not (strict or caller_is_verdict(data)):\n",
+  "new": "    if not strict:\n"
+ },
+ {
+  "label": "0.90.3 hooks K-D-13 a name that contains the word",
+  "path": "hooks/qa_paths.py",
+  "old": "name.rsplit(\":\", 1)[-1] in VERDICT_AGENTS",
+  "new": "\"verdict\" in name"
+ },
+ {
+  "label": "0.90.3 hooks K-D-12 refused only when armed",
+  "path": "hooks/enforce_write_scope.py",
+  "old": "    if _is_maintainer(target):\n",
+  "new": "    if _is_maintainer(target) and (os.environ.get(\"VERDICT_STRICT\", \"\") not in (\"\", \"0\", \"false\") or caller_is_verdict(data)):\n"
+ },
+ {
+  "label": "0.90.3 hooks K-D-14 the event cwd is ignored",
+  "path": "hooks/enforce_write_scope.py",
+  "old": "        target = os.path.join(cwd, target)\n",
+  "new": "        pass\n"
+ },
+ {
+  "label": "0.90.3 hooks K-D-1 formatters are unknown commands again",
+  "path": "hooks/enforce_bash_scope.py",
+  "old": "    elif head in _FORMAT_TOOLS:\n",
+  "new": "    elif False:\n"
+ },
+ {
+  "label": "0.90.3 hooks K-D-2 --output is not looked for",
+  "path": "hooks/enforce_bash_scope.py",
+  "old": "    yield from _git_outputs(verb, rest, there)\n",
+  "new": "    yield from ()\n"
+ },
+ {
+  "label": "0.90.3 hooks K-D-3 the working-tree verbs leave the set",
+  "path": "hooks/enforce_bash_scope.py",
+  "old": "    \"checkout-index\", \"read-tree\", \"add\", \"mergetool\", \"fetch\", \"remote\",\n    \"symbolic-ref\", \"clone\", \"init\",\n",
+  "new": ""
+ },
+ {
+  "label": "0.90.3 hooks a dry run cannot be taken back",
+  "path": "hooks/enforce_bash_scope.py",
+  "old": "    if not any(len(f) > 5 and \"--no-dry-run\".startswith(f) for f in flags):\n",
+  "new": "    if True:\n"
+ },
+ {
+  "label": "0.90.3 hooks K-D-10 >&word is a descriptor",
+  "path": "hooks/enforce_bash_scope.py",
+  "old": "            if word and word != \"-\" and not word.isdigit():\n",
+  "new": "            if False:\n"
+ },
+ {
+  "label": "0.90.3 hooks K-D-9 only a bare -c",
+  "path": "hooks/enforce_bash_scope.py",
+  "old": "    return tok[:1] == \"-\" and tok[1:].isalpha() and \"c\" in tok[1:]\n",
+  "new": "    return tok == \"-c\"\n"
+ },
+ {
+  "label": "0.90.3 hooks K-D-6 the command after -exec is not read",
+  "path": "hooks/enforce_bash_scope.py",
+  "old": "            for what, target in _check_segment(expr[j + 1:end], cwd, depth):\n",
+  "new": "            for what, target in ():\n"
+ },
+ {
+  "label": "0.90.3 hooks K-D-7 sudo -n takes a value",
+  "path": "hooks/enforce_bash_scope.py",
+  "old": "    \"sudo\": (\"ugCDhpRrTtU\", ",
+  "new": "    \"sudo\": (\"nugCDhpRrTtU\", "
+ },
+ {
+  "label": "0.90.3 hooks K-D-8 cd - goes nowhere",
+  "path": "hooks/enforce_bash_scope.py",
+  "old": "            elif words[0] == \"-\":\n                there = self.old\n",
+  "new": "            elif words[0] == \"-\":\n                there = self.here\n"
+ },
+ {
+  "label": "0.90.3 hooks K-D-11 the compressors are unknown commands",
+  "path": "hooks/enforce_bash_scope.py",
+  "old": "for _name in _COMPRESSORS:\n",
+  "new": "for _name in ():\n"
+ },
+ {
+  "label": "0.90.3 hooks K-D-4 a heredoc body is a command",
+  "path": "hooks/enforce_bash_scope.py",
+  "old": "            if _BODY in seg_view and not seg_view.strip(_BODY + \" \\t\\r\"):\n",
+  "new": "            if False:\n"
+ },
+ {
+  "label": "0.90.3 hooks K-D-5 the script is a file",
+  "path": "hooks/enforce_bash_scope.py",
+  "old": "    files = operands if scripted else operands[1:]\n",
+  "new": "    files = operands\n"
+ },
+ {
+  "label": "0.90.3 hooks K-D-15 /var/tmp is not scratch",
+  "path": "hooks/enforce_bash_scope.py",
+  "old": "    roots = {\"/tmp\", \"/private/tmp\", \"/var/tmp\", \"/private/var/tmp\",\n",
+  "new": "    roots = {\"/tmp\", \"/private/tmp\",\n"
+ },
+ {
+  "label": "0.90.3 hooks T0-10b: the tester runs the maintainer's pen through Bash",
+  "path": "hooks/enforce_bash_scope.py",
+  "old": "    if not _PEN_READS.intersection(args):\n        yield f\"{pen} (the maintainer's pen)\", _PEN\n",
+  "new": "    if False:\n        yield f\"{pen} (the maintainer's pen)\", _PEN\n"
+ },
+ {
+  "label": "0.90.3 hooks fail-closed: a parser failure while armed is waved through",
+  "path": "hooks/enforce_bash_scope.py",
+  "old": "            \"be told \u2014 run it in simpler steps.\\n\")\n        return 2\n",
+  "new": "            \"be told \u2014 run it in simpler steps.\\n\")\n        return 1\n"
+ },
+ {
+  "label": "0.90.3 hooks a NUL byte in the command crashes the guard",
+  "path": "hooks/enforce_bash_scope.py",
+  "old": "    if \"\\x00\" in command:\n",
+  "new": "    if False:\n"
+ },
+ {
+  "label": "0.90.3 links a: a symlink among a QA root's files is written through",
+  "path": "src/verdict_mcp/state.py",
+  "old": "        if _is_link(st):\n",
+  "new": "        if False:\n"
+ },
+ {
+  "label": "0.90.3 links b: a second hard link is not a link",
+  "path": "src/verdict_mcp/state.py",
+  "old": "        if stat.S_ISREG(st.st_mode) and st.st_nlink > 1:\n",
+  "new": "        if False:\n"
+ },
+ {
+  "label": "0.90.3 links c: reports/ and findings/ are not looked into",
+  "path": "src/verdict_mcp/state.py",
+  "old": "        if look(Path(entry.path), entry.name) and entry.name in HARNESS_DIRS:\n",
+  "new": "        if look(Path(entry.path), entry.name) and False:\n"
+ },
+ {
+  "label": "0.90.3 links d: a link anywhere below a QA root refuses the run",
+  "path": "src/verdict_mcp/state.py",
+  "old": "        if look(Path(entry.path), entry.name) and entry.name in HARNESS_DIRS:\n",
+  "new": "        if look(Path(entry.path), entry.name):\n"
+ },
+ {
+  "label": "0.90.3 links e: verdict-facts writes a root that holds a link",
+  "path": "src/verdict_mcp/harness.py",
+  "old": "    refusal = root_refusal(qa_root, \"verdict-facts\", repo)\n",
+  "new": "    refusal = None\n"
+ },
+ {
+  "label": "0.90.3 links f: verdict-finalize writes a root that holds a link",
+  "path": "src/verdict_mcp/harness.py",
+  "old": "    refusal = root_refusal(qa_root, \"verdict-finalize\")\n",
+  "new": "    refusal = None\n"
+ },
+ {
+  "label": "0.90.3 links g: the report is written through a link that appeared after the check",
+  "path": "src/verdict_mcp/harness.py",
+  "old": "    if report_path.is_symlink() or report_path.parent.resolve() != qa_root / \"reports\":\n",
+  "new": "    if report_path.parent.resolve() != qa_root / \"reports\":\n"
+ },
+ {
+  "label": "0.90.3 links h: the report is written into a reports/ that is somewhere else",
+  "path": "src/verdict_mcp/harness.py",
+  "old": "    if report_path.is_symlink() or report_path.parent.resolve() != qa_root / \"reports\":\n",
+  "new": "    if report_path.is_symlink():\n"
+ },
+ {
+  "label": "0.90.3 links i: a judgment names the run index as its report",
+  "path": "src/verdict_mcp/validate.py",
+  "old": "    if parts[1].lower() == \"index.md\":\n",
+  "new": "    if False:\n"
+ },
+ {
+  "label": "0.90.3 links j: the run index is protected in one spelling",
+  "path": "src/verdict_mcp/validate.py",
+  "old": "    if parts[1].lower() == \"index.md\":\n",
+  "new": "    if parts[1] == \"INDEX.md\":\n"
+ },
+ {
+  "label": "0.90.3 links l: --out writes the checkout",
+  "path": "src/verdict_mcp/harness.py",
+  "old": "        if in_repo and not in_root:\n",
+  "new": "        if False:\n"
+ },
+ {
+  "label": "0.90.3 links m: --out refuses the QA root inside the repository",
+  "path": "src/verdict_mcp/harness.py",
+  "old": "        if in_repo and not in_root:\n",
+  "new": "        if in_repo:\n"
+ },
+ {
+  "label": "0.90.3 links n: verdict-local writes a root that holds a link",
+  "path": "src/verdict_mcp/small.py",
+  "old": "    refusal = root_refusal(qa_root, \"verdict-local\", repo)\n",
+  "new": "    refusal = None\n"
+ },
+ {
+  "label": "0.90.3 links o: verdict-accept writes through a link",
+  "path": "src/verdict_mcp/accept.py",
+  "old": "        refusal = root_refusal(root, \"verdict-accept\")\n",
+  "new": "        refusal = None\n"
+ },
+ {
+  "label": "0.90.3 links p: verdict-answer writes through a link",
+  "path": "src/verdict_mcp/questions.py",
+  "old": "        refusal = root_refusal(root, \"verdict-answer\")\n",
+  "new": "        refusal = None\n"
+ },
+ {
+  "label": "0.90.3 links q: verdict-issues files from a root its ledger cannot be written in",
+  "path": "src/verdict_mcp/issues.py",
+  "old": "    refusal = root_refusal(root, \"verdict-issues\")\n",
+  "new": "    refusal = None\n"
+ },
+ {
+  "label": "0.90.3 links r: a listing refuses a root that holds a link",
+  "path": "src/verdict_mcp/accept.py",
+  "old": "    if not args.list:\n        refusal = root_refusal(root, \"verdict-accept\")\n",
+  "new": "    if True:\n        refusal = root_refusal(root, \"verdict-accept\")\n"
+ },
+ {
+  "label": "0.90.3 links s: the stop hook writes its note through a link",
+  "path": "hooks/enforce_run_contract.py",
+  "old": "    if marker_path.is_symlink():\n",
+  "new": "    if False:\n"
+ },
+ {
+  "label": "0.90.3 hooks links t: a hard link gives the code a name in scratch",
+  "path": "hooks/enforce_bash_scope.py",
+  "old": "            yield \"ln (a second name for the same file)\", source\n",
+  "new": "            pass\n"
+ },
+ {
+  "label": "0.90.3 hooks links u: a symlink out of the QA root is not read",
+  "path": "hooks/enforce_bash_scope.py",
+  "old": "        yield \"ln (a link out of the QA root)\", source\n",
+  "new": "        pass\n"
+ },
+ {
+  "label": "0.90.3 hooks links v: a relative link target is read against the cwd",
+  "path": "hooks/enforce_bash_scope.py",
+  "old": "            source = os.path.join(dst_dir, source)\n",
+  "new": "            pass\n"
+ },
+ {
+  "label": "0.90.3 hooks links w: the tester posts findings to the tracker",
+  "path": "hooks/enforce_bash_scope.py",
+  "old": "        if \"--create\" in args:\n",
+  "new": "        if False:\n"
+ },
+ {
+  "label": "0.90.3 links x: --qa-root puts the harness's files among the code",
+  "path": "src/verdict_mcp/state.py",
+  "old": "    misplaced = misplaced_root(qa_root, repo)\n",
+  "new": "    misplaced = None\n"
+ },
+ {
+  "label": "0.90.3 links y: a linked worktree is not a checkout",
+  "path": "src/verdict_mcp/state.py",
+  "old": "        if (top / \".git\").exists():       # a directory in a clone, a file in a worktree\n",
+  "new": "        if (top / \".git\").is_dir():       # a directory in a clone, a file in a worktree\n"
+ },
+ {
+  "label": "0.90.3 links z: a solo home kept inside a checkout is refused",
+  "path": "src/verdict_mcp/state.py",
+  "old": "    if _within(real, home().expanduser().resolve()):\n",
+  "new": "    if False:\n"
+ },
+ {
+  "label": "0.90.3 links z2: a `.qa` anywhere in the tree is a QA root",
+  "path": "src/verdict_mcp/state.py",
+  "old": "    if _within(real, top / \".qa\"):\n",
+  "new": "    if \".qa\" in real.parts:\n"
+ },
+ {
+  "label": "0.90.3 links z3: a refused root is created first",
+  "path": "src/verdict_mcp/harness.py",
+  "old": "    refusal = root_refusal(qa_root, \"verdict-facts\", repo)\n",
+  "new": "    qa_root.mkdir(parents=True, exist_ok=True)\n    refusal = root_refusal(qa_root, \"verdict-facts\", repo)\n"
+ },
+ {
+  "label": "0.90.3 links z4: VERDICT_HOME names the code under test a solo root",
+  "path": "src/verdict_mcp/state.py",
+  "old": "    if repo is not None:\n        under_test = Path(repo).expanduser().resolve()\n",
+  "new": "    if False:\n        under_test = Path(repo).expanduser().resolve()\n"
+ },
+ {
+  "label": "0.90.3 links z5: verdict-finalize does not ask the facts which repository this is",
+  "path": "src/verdict_mcp/harness.py",
+  "old": "    among = misplaced_root(qa_root, facts.get(\"repo\")) if isinstance(facts, dict) else None\n",
+  "new": "    among = None\n"
+ },
+ {
+  "label": "0.90.3 F-29b: the coverage scratch directory outlives the measurement",
+  "path": "src/verdict_mcp/harness.py",
+  "old": "        shutil.rmtree(scratch, ignore_errors=True)\n",
+  "new": "        pass\n"
+ },
+ {
+  "label": "0.90.3 gate2 F-1a: a secret name the scratch copy carries",
+  "path": "src/verdict_mcp/small.py",
+  "old": "SECRET_SKIP = (\".env\", \".env.*\", \"*.env\", \".envrc\", \"*.pem\", \"*.key\", \"id_rsa*\", \".ssh\",",
+  "new": "SECRET_SKIP = (\".env\", \".env.*\", \"*.pem\", \"*.key\", \"id_rsa*\", \".ssh\","
+ },
+ {
+  "label": "0.90.3 gate2 F-1b: copytree follows a symlink out of the tree and copies the secret",
+  "path": "src/verdict_mcp/small.py",
+  "old": "    shutil.copytree(repo, into, dirs_exist_ok=True, symlinks=True,\n",
+  "new": "    shutil.copytree(repo, into, dirs_exist_ok=True,\n"
+ },
+ {
+  "label": "0.90.3 gate2 F-1c: a link out of the tree is left in the scratch copy",
+  "path": "src/verdict_mcp/small.py",
+  "old": "        if target == into_real or into_real in target.parents:\n            continue            # a link that stays inside the copy\n",
+  "new": "        if True:\n            continue            # a link that stays inside the copy\n"
+ },
+ {
+  "label": "0.90.3 gate2 F-4a: _names reads the raw identifier spelling, not the form Python runs",
+  "path": "src/verdict_mcp/small.py",
+  "old": "                out.add(unicodedata.normalize(\"NFKC\", tok.string))\n",
+  "new": "                out.add(tok.string)\n"
+ },
+ {
+  "label": "0.90.3 gate2 F-4b: safe_replacement judges a fix line by its raw spelling",
+  "path": "src/verdict_mcp/small.py",
+  "old": "            name = unicodedata.normalize(\"NFKC\", tok.string)\n",
+  "new": "            name = tok.string\n"
+ },
+ {
   "label": "M1 F-42: consume an argument after any token containing f",
   "path": "hooks/enforce_bash_scope.py",
   "old": "            elif _tar_takes_value(name):\n                yield \"opt\", name, next(it, None)\n",
@@ -56,7 +440,7 @@
  {
   "label": "M11 regression: eval stops being parsed as a shell",
   "path": "hooks/enforce_bash_scope.py",
-  "old": "    elif head == \"eval\" and depth < 3:\n        yield from _check_eval(args, cwd, depth)",
+  "old": "    elif head == \"eval\" and depth < _MAX_DEPTH:\n        yield from _check_eval(args, cwd, depth)",
   "new": "    elif head == \"eval\" and False:\n        yield from _check_eval(args, cwd, depth)"
  },
  {
@@ -351,8 +735,8 @@
  {
   "label": "0.78.0 R7 the write guard hands the ledger to the tester",
   "path": "hooks/enforce_write_scope.py",
-  "old": "    if _is_maintainer(target) and (strict or _caller_is_verdict(data)):\n",
-  "new": "    if False and _is_maintainer(target) and (strict or _caller_is_verdict(data)):\n"
+  "old": "    if _is_maintainer(target):\n",
+  "new": "    if False and _is_maintainer(target):\n"
  },
  {
   "label": "0.78.0 R8 the bash guard hands the ledger to the tester",
@@ -839,8 +1223,8 @@
  {
   "label": "0.84.0 M3 hook: a finding file is written without being checked",
   "path": "src/verdict_mcp/validate.py",
-  "old": "    filed = finding_file(target) if target else None\n    if filed is not None:\n        return _hook_finding(Path(target), *filed)\n",
-  "new": "    filed = finding_file(target) if target else None\n    if filed is not None:\n        return 0\n"
+  "old": "    filed = finding_file(target)\n    if filed is not None:\n        return _hook_finding(Path(target), *filed)\n",
+  "new": "    filed = finding_file(target)\n    if filed is not None:\n        return 0\n"
  },
  {
   "label": "0.84.0 M4 hook: a file whose id disagrees with its name is accepted",
@@ -1067,8 +1451,8 @@
  {
   "label": "0.89.0 Q3 stop hook: a parallel agent finishing beside a run in progress is told to finalize it",
   "path": "hooks/enforce_run_contract.py",
-  "old": "    if \"verdict\" not in str(event.get(\"agent_type\") or \"\").lower():\n        return None",
-  "new": "    if \"\" not in str(event.get(\"agent_type\") or \"\").lower():\n        return None"
+  "old": "    if not caller_is_verdict(event):\n        return None",
+  "new": "    if False:\n        return None"
  },
  {
   "label": "0.89.0 Q4 stop hook: the never-finalized rule is never called",

@@ -37,6 +37,12 @@ def test_project_dir_matches_claude_codes_own_key(tmp_path, monkeypatch):
     rather than written out in POSIX."""
     import re as _re
     monkeypatch.setattr(Path, "home", staticmethod(lambda: tmp_path))
+    # project_dir() prefers CLAUDE_CONFIG_DIR to the home directory (0.89.0), and this
+    # test pinned only the home: with the variable set in the shell that runs the suite
+    # — a headless gate launched with a dedicated config directory — it failed, and the
+    # release's own Opus gate measured a red suite over code nothing had broken
+    # (VERDICT-F-1 of that gate, 2026-10-03; proven by unsetting the variable).
+    monkeypatch.delenv("CLAUDE_CONFIG_DIR", raising=False)
     cwd = "/Users/x/.cache/verdict/psf__requests-1"
     key = _re.sub(r"[^A-Za-z0-9-]", "-", str(Path(cwd).resolve()))
     assert usage.project_dir(cwd) == tmp_path / ".claude" / "projects" / key

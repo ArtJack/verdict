@@ -1,5 +1,6 @@
 ---
 name: verdict-flaky-triage
+user-invocable: false
 description: Classify an intermittent test failure with evidence — REAL_DEFECT, STALE_EXPECTATION, BRITTLE_TEST, ENVIRONMENT or FLAKY — and decide quarantine with a mandatory expiry. Use when a test fails one run in five, when CI is "just flaky", or before anyone skips a test.
 ---
 

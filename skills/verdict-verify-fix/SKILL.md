@@ -1,5 +1,6 @@
 ---
 name: verdict-verify-fix
+user-invocable: false
 description: Prove that a fix fixed the defect — re-run the guarding test at the previous commit and at HEAD, re-inject the defect in an isolated scratch copy, and let the harness record fix_verified from measurement, never from a claim. Use after you (the coding agent) fixed a finding and before you call it done.
 ---
 
