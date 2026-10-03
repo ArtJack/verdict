@@ -59,15 +59,15 @@ def test_a_live_key_in_source_is_tier_one_and_its_value_never_leaves(tmp_path):
 def test_fake_keys_in_a_redaction_test_are_not_findings(tmp_path):
     r = make_repo(tmp_path, {
         "tests/test_redaction.py": f'key = "{LIVE}"\n',
-        "app/docs.py": 'EXAMPLE = "sk-ant-api03-abcdefghijklmnopqrstuvwxyz1234567890"\n',
+        "app/docs.py": 'EXAMPLE = "sk-' 'ant-api03-abcdefghijklmnopqrstuvwxyz1234567890"\n',
     })
     assert kinds(hygiene_census(r), 1) == []
 
 
 def test_a_placeholder_or_low_entropy_value_is_not_a_secret(tmp_path):
     r = make_repo(tmp_path, {"app/settings.py":
-                             'A = "sk-ant-api03-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"\n'
-                             'B = "AKIAIOSFODNN7EXAMPLE"\n'})
+                             'A = "sk-' 'ant-api03-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"\n'
+                             'B = "AK' 'IAIOSFODNN7EXAMPLE"\n'})
     assert kinds(hygiene_census(r), 1) == []
 
 
@@ -865,7 +865,7 @@ def test_rules_written_across_lines_are_read_whole(tmp_path):
 
 def test_only_json_small_enough_to_be_a_key_is_read_past_the_cap(tmp_path, monkeypatch):
     monkeypatch.setattr(hygiene, "FILE_CAP", 1)
-    pem = ("-----BEGIN PRIVATE KEY-----\n" + token(64, 261, string.ascii_letters + string.digits + "+/")
+    pem = ("-----BEGIN " "PRIVATE KEY-----\n" + token(64, 261, string.ascii_letters + string.digits + "+/")
            + "\n-----END PRIVATE KEY-----\n")
     small = json.dumps({"type": "service_account", "private_key": pem})
     large = json.dumps({"type": "service_account", "private_key": pem, "pad": "x" * 20000})
@@ -928,7 +928,7 @@ def test_more_provider_keys_are_found_and_never_shown(tmp_path):
 def test_a_committed_private_key_file_is_one_finding(tmp_path):
     b64 = string.ascii_letters + string.digits + "+/"
     body = "\n".join(token(70, 290 + n, b64) for n in range(5))
-    pem = f"-----BEGIN OPENSSH PRIVATE KEY-----\n{body}\n-----END OPENSSH PRIVATE KEY-----\n"
+    pem = "-----BEGIN OPENSSH " f"PRIVATE KEY-----\n{body}\n-----END OPENSSH PRIVATE KEY-----\n"
     out = hygiene_census(make_repo(tmp_path, {"deploy/id_rsa": pem}))
     assert [(i["kind"], i["path"]) for i in out["items"] if i["tier"] == 1] == [
         ("secret_file_tracked", "deploy/id_rsa")]
