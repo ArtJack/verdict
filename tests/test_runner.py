@@ -562,7 +562,7 @@ def test_the_local_command_line_carries_the_delta_and_the_caps(monkeypatch):
     # The endpoint travels as --env-file, which verdict-local reads into a local
     # copy; it is never written into this process's environment, from where every
     # gate, re-run and probe of the night inherited the token (O-S-2).
-    assert seen["argv"][seen["argv"].index("--env-file") + 1] == "/etc/verdict-gateway.env"
+    assert seen["argv"][seen["argv"].index("--env-file") + 1] == str(args.local_env_file)
     assert seen["token_in_env"] is False
     assert "claude" not in " ".join(seen["argv"])
     assert os.environ.get("ANTHROPIC_BASE_URL") is None

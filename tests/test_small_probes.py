@@ -204,7 +204,8 @@ def test_the_probe_environment_is_an_allowlist(tmp_path, monkeypatch):
     leaked = {k for k in keys if k.startswith(("ANTHROPIC_", "VERDICT_", "CLAUDE_", "AWS_", "OP_"))
               or k.endswith(("_TOKEN", "_KEY", "_SECRET", "_URL"))}
     assert leaked == set(), f"reached the probe: {sorted(leaked)}"
-    assert {"PATH", "HOME", "PYTHONDONTWRITEBYTECODE", "PYTHONPATH"} <= keys, sorted(keys)
+    home = "USERPROFILE" if os.name == "nt" else "HOME"      # Windows has no HOME to keep
+    assert {"PATH", home, "PYTHONDONTWRITEBYTECODE", "PYTHONPATH"} <= keys, sorted(keys)
     assert str(decoy) not in (value["pythonpath"] or ""), \
         "the parent's PYTHONPATH is not the scratch's import path"
     assert os.path.realpath(value["pythonpath"].split(os.pathsep)[0]) == os.path.realpath(str(root))
@@ -227,7 +228,7 @@ def test_secret_files_are_left_out_of_the_scratch_copy(tmp_path):
     (repo / "config" / "settings.py").write_text("y = 2\n", encoding="utf-8")
     (repo / "environment.py").write_text("z = 3\n", encoding="utf-8")   # not a secret
     assert small.scratch_copy(repo, into) is True
-    copied = sorted(str(p.relative_to(into)) for p in into.rglob("*") if p.is_file())
+    copied = sorted(p.relative_to(into).as_posix() for p in into.rglob("*") if p.is_file())
     assert copied == ["config/settings.py", "environment.py", "m.py"], copied
 
 
@@ -401,6 +402,17 @@ def test_a_venv_tool_resolves_to_the_python_beside_it():
     assert small.interpreter_of('"/a b/.venv/bin/python" -m pytest') == "/a b/.venv/bin/python", \
         "a quoted path is one token"
     assert small.interpreter_of("cd core && .venv/bin/coverage run -m pytest") == ".venv/bin/python"
+
+
+def test_a_quoted_windows_path_is_one_word():
+    """Found by the first Windows CI run of 0.90.3: whitespace splitting cut a quoted
+    interpreter path in two and the gate's own python was never found."""
+    words = small._gate_tokens(r'"C:\Program Files\Python312\python.exe" -m pytest -q', windows=True)
+    assert words == [r"C:\Program Files\Python312\python.exe", "-m", "pytest", "-q"]
+    assert small._gate_tokens("'/a b/bin/python' -m pytest", windows=True)[0] == "/a b/bin/python"
+    assert small._gate_tokens('"/a b/.venv/bin/python" -m pytest', windows=False)[0] \
+        == "/a b/.venv/bin/python"
+    assert small._gate_tokens('unterminated "quote', windows=True) == ["unterminated", '"quote']
 
 
 def test_uv_run_asks_uv_once_for_its_interpreter(tmp_path, monkeypatch):

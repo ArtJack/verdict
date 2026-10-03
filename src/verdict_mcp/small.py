@@ -586,7 +586,8 @@ SECRET_SKIP = (".env", ".env.*", "*.pem", "*.key", "id_rsa*", ".netrc", ".npmrc"
 # gateway token the nightly exports — `env_has_token=True` in both runs — and whatever
 # else launchd's environment holds. `LC_*` is kept with these; `PYTHONPATH` is the
 # scratch roots only; `SYSTEMROOT`/`TEMP`/`TMP` are what a Windows CRT needs to start.
-PROBE_ENV_KEEP = ("PATH", "HOME", "LANG", "TMPDIR", "SYSTEMROOT", "TEMP", "TMP")
+PROBE_ENV_KEEP = ("PATH", "HOME", "LANG", "TMPDIR", "SYSTEMROOT", "TEMP", "TMP",
+                  "USERPROFILE", "HOMEDRIVE", "HOMEPATH")   # the last three: Windows' HOME
 PROBE_TIMEOUT_S = 60
 MAX_COPY_BYTES = 300 * 1024 * 1024
 
@@ -1936,10 +1937,7 @@ def interpreter_of(command: str, repo=None) -> str | None:
     Python in it — `npm test`, `go test`, `cargo test` — is None, so the caller says proving
     is off instead of importing the project with the wrong interpreter.
     """
-    try:
-        tokens = shlex.split(command) if os.name != "nt" else command.split()
-    except ValueError:
-        tokens = command.split()
+    tokens = _gate_tokens(command)
     for i, token in enumerate(tokens):
         if _ENV_ASSIGN.match(token):
             continue
@@ -1953,6 +1951,25 @@ def interpreter_of(command: str, repo=None) -> str | None:
         if low in _RUNNERS and tokens[i + 1:i + 2] == ["run"]:
             return runner_python(token, repo)
     return None
+
+
+def _gate_tokens(command: str, windows: bool | None = None) -> list:
+    """A gate command as words, a quoted path kept whole on either platform.
+
+    On Windows this was `command.split()`: `"C:\\Program Files\\Python312\\python.exe" -m
+    pytest` came apart at the space, no token ended in `python`, and the lookup fell
+    through to whatever `pytest` was on PATH — Verdict's own, again (found by the first
+    Windows CI run of 0.90.3). shlex's non-POSIX mode keeps a path's backslashes; it also
+    keeps the quotes on a token, which come off here.
+    """
+    windows = (os.name == "nt") if windows is None else windows
+    try:
+        if not windows:
+            return shlex.split(command)
+        return [t[1:-1] if len(t) >= 2 and t[0] == t[-1] and t[0] in "\"'" else t
+                for t in shlex.split(command, posix=False)]
+    except ValueError:
+        return command.split()
 
 
 def _python_beside(tool: str) -> str:
