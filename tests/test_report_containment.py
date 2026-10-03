@@ -11,7 +11,7 @@ the rule refuses nothing a run has ever legitimately written.
 import json
 import subprocess
 import sys
-from pathlib import Path
+from datetime import datetime, timezone
 
 import pytest
 
@@ -31,13 +31,30 @@ def test_a_report_directly_under_reports_is_fine():
     assert report_outside_reports("reports/2026-10-02-delta-run3.md") is None
 
 
+def _state(report: str) -> dict:
+    """A state the validator accepts but for its report — built here, not read from this
+    repository's own `.qa/`: the first version read the committed state, and the release's
+    own local gate, whose throwaway root holds a profile and nothing else, went red on it."""
+    return {
+        "project": "scratch", "schema_version": 1, "run_type": "delta", "run_number": 2,
+        "last_run": {"timestamp_utc": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+                     "git_sha": "abc1234", "sha_range": "aaa..abc", "report": report},
+        "isolation_check": {"result": "pass"}, "gates": {}, "tests": {"collected": 1},
+        "flaky_quarantine": [], "findings": [], "verdict": "pass with risks",
+        "release_blockers": [], "not_tested": ["everything but the shape of the report path"],
+    }
+
+
 def test_the_validator_refuses_a_report_that_left_reports(tmp_path):
+    qa = tmp_path / ".qa"
+    (qa / "reports").mkdir(parents=True)
+    (qa / "reports" / "r.md").write_text("# report", encoding="utf-8")
     (tmp_path / "README.md").write_text("# not a report", encoding="utf-8")
-    state = json.loads((Path(__file__).parent.parent / ".qa" / "state.json")
-                       .read_text(encoding="utf-8"))
-    state["last_run"]["report"] = "../README.md"
-    bad = validate(state, tmp_path / ".qa", None, at_rest=True)
+    assert not [b for b in validate(_state("reports/r.md"), qa, None) if "report" in b]
+    bad = validate(_state("../README.md"), qa, None)
     assert any("climbs out" in b for b in bad), bad
+    bad = validate(_state(str(tmp_path / "README.md")), qa, None, at_rest=True)
+    assert any("absolute path" in b for b in bad), bad
 
 
 def test_topic_is_a_filename_fragment_never_a_path(tmp_path):
