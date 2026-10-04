@@ -2005,5 +2005,59 @@
   "path": "src/verdict_mcp/state.py",
   "old": "        **({\"hygiene_identity\": finding[\"hygiene\"][\"identity\"]}\n",
   "new": "        **({}\n"
+ },
+ {
+  "label": "0.90.4 first-run a: a resumed or compacted session spends the hint",
+  "path": "hooks/report_open_findings.py",
+  "old": "    if event.get(\"source\", \"startup\") != \"startup\":\n        return None\n",
+  "new": "    pass\n"
+ },
+ {
+  "label": "0.90.4 first-run b: the hint repeats in a repository it was shown in",
+  "path": "hooks/report_open_findings.py",
+  "old": "    if key in shown or len(shown) >= FIRST_RUN_MAX:\n",
+  "new": "    if len(shown) >= FIRST_RUN_MAX:\n"
+ },
+ {
+  "label": "0.90.4 first-run c: no cap, every repository is hinted",
+  "path": "hooks/report_open_findings.py",
+  "old": "    if key in shown or len(shown) >= FIRST_RUN_MAX:\n",
+  "new": "    if key in shown:\n"
+ },
+ {
+  "label": "0.90.4 first-run d: a hint is shown although it could not be recorded",
+  "path": "hooks/report_open_findings.py",
+  "old": "    except OSError:\n        return None\n    return HINT_FOR_USER, HINT_FOR_MODEL\n",
+  "new": "    except OSError:\n        pass\n    return HINT_FOR_USER, HINT_FOR_MODEL\n"
+ },
+ {
+  "label": "0.90.4 first-run e: CI and opted-out sessions are hinted",
+  "path": "hooks/report_open_findings.py",
+  "old": "    if os.environ.get(\"VERDICT_STRICT\") or os.environ.get(\"VERDICT_NO_HINT\"):\n        return None\n",
+  "new": ""
+ },
+ {
+  "label": "0.90.4 first-run f: a headless SDK session spends the hint",
+  "path": "hooks/report_open_findings.py",
+  "old": "    if os.environ.get(\"CLAUDE_CODE_ENTRYPOINT\", \"\").startswith(\"sdk\"):\n        return None\n",
+  "new": ""
+ },
+ {
+  "label": "0.90.4 first-run g: npm's placeholder test script counts as a test suite",
+  "path": "hooks/report_open_findings.py",
+  "old": "        if script and \"no test specified\" not in script:\n",
+  "new": "        if script:\n"
+ },
+ {
+  "label": "0.90.4 first-run h: a repository already set up for Verdict is hinted",
+  "path": "hooks/report_open_findings.py",
+  "old": "    if root is None or (root / \".qa\").exists() or not _has_tests(root):\n",
+  "new": "    if root is None or not _has_tests(root):\n"
+ },
+ {
+  "label": "0.90.4 first-run i: any repository is hinted, tests or not",
+  "path": "hooks/report_open_findings.py",
+  "old": "    if root is None or (root / \".qa\").exists() or not _has_tests(root):\n",
+  "new": "    if root is None or (root / \".qa\").exists():\n"
  }
 ]

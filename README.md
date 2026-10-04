@@ -3,7 +3,7 @@
 [![ci](https://github.com/ArtJack/verdict/actions/workflows/ci.yml/badge.svg)](https://github.com/ArtJack/verdict/actions/workflows/ci.yml)
 [![verdict on itself](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fraw.githubusercontent.com%2FArtJack%2Fverdict%2Fmain%2F.qa%2Fstate.json&query=%24.verdict&label=verdict%20on%20itself&color=blue)](.qa/reports/INDEX.md)
 [![eval 8/8 seeded defects](https://img.shields.io/badge/eval-8%2F8_seeded_defects-brightgreen)](eval/README.md#published-results)
-[![pinned rules 332/332 killed](https://img.shields.io/badge/pinned_rules-332%2F332_killed-brightgreen)](eval/README.md#suite-fault-detection-power--mutation-testing-on-ourselves)
+[![pinned rules 341/341 killed](https://img.shields.io/badge/pinned_rules-341%2F341_killed-brightgreen)](eval/README.md#suite-fault-detection-power--mutation-testing-on-ourselves)
 [![PyPI](https://img.shields.io/pypi/v/verdict-qa-mcp?label=verdict-qa-mcp&color=blue)](https://pypi.org/project/verdict-qa-mcp/)
 [![Claude Code plugin](https://img.shields.io/badge/Claude_Code-plugin-6E56CF)](#install)
 [![license MIT](https://img.shields.io/github/license/ArtJack/verdict)](LICENSE)
@@ -117,7 +117,7 @@ event fires:
 | `PreToolUse` | `Bash` | bash-scope guard | always, unless `VERDICT_STRICT=1` or the caller is the verdict agent itself |
 | `PostToolUse` | `Write`/`Edit`/`MultiEdit` | state validator | unless the written file is a QA root's `state.json` or `findings/<ID>.json` |
 | `Stop` / `SubagentStop` | end of turn | run-contract check | unless a QA run *in this session* left hand-written state, or a Verdict agent *of this session* measured the facts and is stopping without `verdict-finalize` (the run marker names the session; another session's marker, or another agent stopping beside a run in progress, says nothing) — each blocks **at most once**, never loops |
-| `SessionStart` | session open | findings banner | unless the repository has QA state |
+| `SessionStart` | session open | findings banner, or a one-time first-run hint | unless the repository has QA state — or, for the hint, unless it is a fresh interactive start in a git repository with a test suite Verdict has never seen (once per repository, three repositories per person, never with `VERDICT_STRICT`, `VERDICT_NO_HINT=1` or a headless `claude -p`) |
 
 Every hook **fails open**: malformed input, missing files, or an exception mean
 exit 0 and silence — a broken hook must never brick a session. `VERDICT_STRICT=1`
@@ -541,6 +541,14 @@ Deliberately short — a session opener that scrolls is one nobody reads — and
 repeats a finding it already named as a blocker. Silent in a repository with no QA state,
 silent on any failure, and it flags memory older than a week rather than serving it as
 current. It informs a session; it does not commandeer one.
+
+In a repository Verdict has never looked at, the same hook says one thing, once: that Verdict
+is installed and `/verdict:run` takes a first, read-only QA pass. It speaks only on a fresh
+interactive start in a git repository with a test suite, once per repository and in at most
+three repositories per person, and never headless, in CI or with `VERDICT_NO_HINT=1`. The
+record of where it has spoken is `.first-run.json` in Verdict's own home, never in your
+repository. It exists because the Claude directory counted 96 accounts that installed
+Verdict and none that ever used it.
 
 ## The last guard fires whether or not the model remembers
 
