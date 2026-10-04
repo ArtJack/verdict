@@ -11,7 +11,8 @@ nothing in this suite looked at:
   (`test_hygiene.unseen`).
 * **"Files or downloads the validator couldn't inspect: CHANGELOG.md".** The 0.90.3
   entry took the changelog from 250 KB, which was read, to 267 KB, which was not.
-  Releases before 0.77.0 moved to `docs/changelog/`.
+  Releases before 0.77.0 moved to `docs/changelog/`. Images and fonts are exempt
+  by the directory's own rule, which is how the 842 KB listing icon ships.
 
 Both are properties of the whole tree, so both are checked over every tracked file.
 The size line sits below the limit on purpose: a file that grows toward it fails here
@@ -27,9 +28,13 @@ import pytest
 
 REPO = Path(__file__).resolve().parent.parent
 
-# Measured, not documented: 250,417 bytes was read and 267,029 was held. The limit
-# is most likely 256 KiB; failing at 240 KiB leaves room to act.
+# The checklist says it in so many words: "Keep every file that isn't an image or
+# font under 256 KiB." Measured first — 250,417 bytes was read and 267,029 was held
+# — and failing at 240 KiB leaves room to act. Images and fonts have their own,
+# looser limits (the listing icon alone is 2 MB), so they are not held to this one.
 SIZE_LINE = 240 * 1024
+EXEMPT = {".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg", ".ico",
+          ".ttf", ".otf", ".woff", ".woff2"}
 
 # Common key shapes, as a secret scanner matches them. A value that matches any of
 # these after Python-style joining is what got the directory to refuse a version.
@@ -116,6 +121,7 @@ def test_the_check_sees_a_key_split_the_way_python_joins_it(tmp_path):
 
 def test_no_shipped_file_is_too_large_for_the_directory_to_read():
     big = sorted(((p.stat().st_size, p.relative_to(REPO).as_posix()) for p in tracked_files()
-                  if p.is_file() and p.stat().st_size > SIZE_LINE), reverse=True)
+                  if p.is_file() and p.suffix.lower() not in EXEMPT
+                  and p.stat().st_size > SIZE_LINE), reverse=True)
     assert big == [], (f"over {SIZE_LINE // 1024} KiB, close to the size the directory stops "
                        f"reading at — split the file: {big}")
