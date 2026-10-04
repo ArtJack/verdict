@@ -22,6 +22,7 @@ session startup is worse than the gap it fills.
 """
 
 import json
+import os
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -30,9 +31,91 @@ STALE_DAYS = 7
 _ISO_Z = "%Y-%m-%dT%H:%M:%SZ"
 _ORDER = ("Blocker", "Critical", "Major", "Minor", "Trivial")
 
+# The first-run hint (2026-10-04). The Claude directory counted 112 installs by 96
+# accounts, 1,747 loads in 1,136 sessions — and 0 uses, ever. Verdict does nothing
+# until it is asked, and nothing told an installer how to ask. So the one session
+# start that matters gets one line: in a repository with a test suite that Verdict
+# has never looked at, once per repository and in at most three repositories per
+# person, ever. Never in a resumed or compacted session, never headless or in CI.
+FIRST_RUN_FILE = ".first-run.json"
+FIRST_RUN_MAX = 3
+_TEST_MARKERS = ("tests", "test", "spec", "__tests__", "pytest.ini", "tox.ini", "conftest.py",
+                 "noxfile.py", "go.mod", "Cargo.toml", "pom.xml", "build.gradle",
+                 "build.gradle.kts", "Gemfile", "mix.exs")
+HINT_FOR_USER = ("Verdict is installed and has not looked at this repository yet. Run "
+                 "/verdict:run for a first QA pass: it runs your tests, files findings with "
+                 "evidence and ends with a release verdict. Read-only: it never edits your code. "
+                 "(Shown once per repository; VERDICT_NO_HINT=1 turns it off.)")
+HINT_FOR_MODEL = ("The Verdict QA plugin is installed but has never run on this repository. "
+                  "If the user asks about tests, QA, regressions or release readiness, "
+                  "/verdict:run is a read-only QA pass they can start.")
+
 
 def _silent() -> int:
     return 0
+
+
+def _repo_root(cwd):
+    """The nearest directory at or above `cwd` holding `.git` (a directory in a clone,
+    a file in a worktree), or None."""
+    here = Path(cwd).resolve()
+    for d in (here, *here.parents):
+        if (d / ".git").exists():
+            return d
+    return None
+
+
+def _has_tests(root) -> bool:
+    """A cheap look at the repository root, no walk: a test directory, a runner's
+    config, a build file that implies one, a real npm test script, or pytest in
+    pyproject. npm's placeholder ("no test specified") is not a test suite."""
+    if any((root / name).exists() for name in _TEST_MARKERS):
+        return True
+    try:
+        pkg = json.loads((root / "package.json").read_text(encoding="utf-8"))
+        script = str(((pkg or {}).get("scripts") or {}).get("test") or "")
+        if script and "no test specified" not in script:
+            return True
+    except (OSError, ValueError, AttributeError):
+        pass
+    try:
+        return "pytest" in (root / "pyproject.toml").read_text(encoding="utf-8")
+    except OSError:
+        return False
+
+
+def _first_run_hint(event, cwd, verdict_home, key):
+    """The hint's two texts, or None. Recorded before it is shown: a record that cannot
+    be written would make the hint repeat in every session, which is worse than never."""
+    if os.environ.get("VERDICT_STRICT") or os.environ.get("VERDICT_NO_HINT"):
+        return None
+    # `claude -p` and the Agent SDK report an `sdk-*` entrypoint: nobody is there to
+    # read a hint, and spending one of the three on a script would waste it.
+    if os.environ.get("CLAUDE_CODE_ENTRYPOINT", "").startswith("sdk"):
+        return None
+    if event.get("source", "startup") != "startup":
+        return None
+    root = _repo_root(cwd)
+    if root is None or (root / ".qa").exists() or not _has_tests(root):
+        return None
+    record_path = Path(verdict_home) / FIRST_RUN_FILE
+    try:
+        record = json.loads(record_path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        record = {}
+    shown = record.get("shown") if isinstance(record, dict) else None
+    shown = dict(shown) if isinstance(shown, dict) else {}
+    if key in shown or len(shown) >= FIRST_RUN_MAX:
+        return None
+    shown[key] = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    try:
+        record_path.parent.mkdir(parents=True, exist_ok=True)
+        tmp = record_path.with_name(record_path.name + ".tmp")
+        tmp.write_text(json.dumps({"shown": shown}, indent=1) + "\n", encoding="utf-8")
+        os.replace(tmp, record_path)
+    except OSError:
+        return None
+    return HINT_FOR_USER, HINT_FOR_MODEL
 
 
 def _parked_questions(root) -> list:
@@ -67,12 +150,18 @@ def main() -> int:
 
     try:
         root = resolve_root(cwd)
+        key = None
         if root is None:
             key, _ = derive_key(Path(cwd))
             candidate = state_home() / key
             root = candidate if (candidate / "state.json").is_file() else None
         if root is None:
-            return _silent()
+            hint = _first_run_hint(event, cwd, state_home(), key)
+            if hint is None:
+                return _silent()
+            return _say_json({"systemMessage": hint[0],
+                              "hookSpecificOutput": {"hookEventName": "SessionStart",
+                                                     "additionalContext": hint[1]}})
         state = json.loads((Path(root) / "state.json").read_text(encoding="utf-8"))
 
         project = state.get("project") or Path(root).name
@@ -186,6 +275,17 @@ def main() -> int:
     except (AttributeError, ValueError, OSError):
         pass
     sys.stdout.write("\n".join(lines) + "\n")
+    return 0
+
+
+def _say_json(payload) -> int:
+    """Structured hook output: `systemMessage` is shown to the person, `additionalContext`
+    goes to the model. UTF-8 for the same reason as the banner below."""
+    try:
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    except (AttributeError, ValueError, OSError):
+        pass
+    sys.stdout.write(json.dumps(payload, ensure_ascii=False) + "\n")
     return 0
 
 

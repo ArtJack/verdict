@@ -9,6 +9,39 @@ They moved there on 2026-10-03, when this file outgrew what the Claude directory
 will read: at 250 KB it was read, at 267 KB it held 0.90.3 for "Files or downloads the
 validator couldn't inspect". The limit is most likely 256 KiB.
 
+## 0.90.4 — 2026-10-04 · "the first step"
+
+**96 accounts installed Verdict and none of them ever used it.** The Claude directory's Usage
+tab, data through Oct 2: 112 installs by 96 accounts, no uninstalls, the plugin loaded 1,747
+times in 1,136 sessions without an error — and 0 uses, 0 active accounts, 0 accounts that used it
+even once. Those totals count everything; the zeros are real. A plugin installed from the
+directory on claude.ai reaches the account's Claude Code as a synced plugin, which is where those
+loads came from, so the installers were opening sessions with Verdict loaded and nothing on
+screen said what it was for. Verdict does nothing until it is asked, and nothing told anyone how
+to ask.
+
+So the `SessionStart` hook, silent in a repository with no QA state, now says one thing in one
+case: a fresh interactive start, in a git repository with a test suite (a test directory, a
+runner's config, a build file that implies one, a real npm test script, or pytest in
+pyproject), that Verdict has never looked at. The person sees one line — Verdict is installed,
+`/verdict:run` takes a first read-only QA pass — and the model gets one sentence of context, so a
+question about tests or release readiness can be answered with the command. Once per repository
+and in at most three repositories per person, ever; never on a resumed, cleared or compacted
+session, never headless (`claude -p` and the Agent SDK report an `sdk-*` entrypoint), never under
+`VERDICT_STRICT`, never with `VERDICT_NO_HINT=1`, never in a repository that already has a `.qa/`.
+Where it has spoken is recorded in `.first-run.json` in Verdict's own home, not in the
+repository; the record is written before the hint is shown, because a hint that could not be
+recorded would repeat in every session. Checked end to end with a real `claude -p` session on a
+scratch repository: Claude Code parsed the structured output and the model received the context
+verbatim. Mutants `first-run a`–`i`, nine of nine killed by the hook tests, which run on the
+Python 3.9 floor.
+
+This is an experiment, and the measure is fixed in advance: the directory's Uses and Active
+accounts, from a baseline of exactly 0, read 2–4 weeks after this version goes live there —
+with component usage and retention as the check that a hint was followed by a real run, not
+counted as one. Until the directory's reviewer clears the open "Secret in a shipped file" hold,
+no version newer than 0.90.2 reaches its installers.
+
 ## 0.90.3 — 2026-10-03 · "the guard that was not there"
 
 A safety release, from a full audit of the agent and the plugin at `b7c30a8` (six independent
