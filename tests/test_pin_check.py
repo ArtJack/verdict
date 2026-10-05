@@ -77,18 +77,20 @@ def test_only_the_final_summary_line_counts():
 def test_the_readme_badge_states_the_catalogue_size():
     """A badge that goes stale is a claim that quietly stops being true: the
     README carried "mutation kill 66.4%" from an early campaign long after the
-    suite had tripled. The pinned-rules badge states the catalogue's scored
-    size, and any change to the catalogue must move it."""
+    suite had tripled. The pinned-rules entry on the status line states the
+    catalogue's scored size, and any change to the catalogue must move it. It is
+    text, not an image, since 0.90.5: the plugin page in Claude does not load
+    images (tests/test_listing_render.py)."""
     import json
     import re
     root = Path(__file__).resolve().parent.parent
     catalogue = json.loads((root / "eval" / "pinned_mutants.json").read_text(encoding="utf-8"))
     scored = sum(1 for m in catalogue if not m.get("equivalent"))
     readme = (root / "README.md").read_text(encoding="utf-8")
-    m = re.search(r"pinned_rules-(\d+)%2F(\d+)_killed", readme)
-    assert m, "the README has no pinned-rules badge"
+    m = re.search(r"pinned rules: (\d+)/(\d+) killed", readme)
+    assert m, "the README's status line has no pinned-rules entry"
     assert (int(m.group(1)), int(m.group(2))) == (scored, scored), (
-        f"badge says {m.group(1)}/{m.group(2)}, the catalogue scores {scored}")
+        f"the README says {m.group(1)}/{m.group(2)}, the catalogue scores {scored}")
 
 
 def test_every_catalogue_anchor_matches_exactly_once():
