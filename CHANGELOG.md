@@ -9,6 +9,27 @@ They moved there on 2026-10-03, when this file outgrew what the Claude directory
 will read: at 250 KB it was read, at 267 KB it held 0.90.3 for "Files or downloads the
 validator couldn't inspect". The limit is most likely 256 KiB.
 
+## 0.90.5 — 2026-10-05 · "the page reads clean"
+
+**Verdict's own pages in the Claude app looked broken.** The plugin page there renders the README
+but does not load images, so the seven badges at the top and the demo picture showed as empty
+"Show Image" boxes — the first screen anyone sees. Settings → Skills prints the agent's
+description with its line breaks removed, so the hard-wrapped block read "daily delta QAruns"
+and "requirementschange", followed by three `<example>` blocks printed as raw markup.
+
+- **The README carries no images.** The badge row is one line of plain links — CI, verdict on
+  itself, eval 8/8 seeded defects, pinned rules 341/341 killed, PyPI, MIT license — and the demo
+  picture is a link to a real delta report, Verdict's run 14 on its own code. The skills.sh
+  badge is a text link.
+- **The agent's description is one plain paragraph:** the same scope and the same triggers
+  (before a release or merge, after a feature lands, a reported bug, a scheduled run, a flaky
+  test), and the same refusal (it never fixes), without the example blocks. What the agent does
+  once spawned is unchanged: only the routing description moved, not one line of its prompt.
+- **A test keeps it that way** (`tests/test_listing_render.py`): every agent, skill and command
+  description is one line of plain text under 1,024 characters, and the README has no image.
+  Its control is the 0.90.4 agent file, which it rejects. The pinned-rules count is checked on
+  the status line's text instead of the badge URL.
+
 ## 0.90.4 — 2026-10-04 · "the first step"
 
 **96 accounts installed Verdict and none of them ever used it.** The Claude directory's Usage

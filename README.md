@@ -1,12 +1,11 @@
 # Verdict
 
-[![ci](https://github.com/ArtJack/verdict/actions/workflows/ci.yml/badge.svg)](https://github.com/ArtJack/verdict/actions/workflows/ci.yml)
-[![verdict on itself](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fraw.githubusercontent.com%2FArtJack%2Fverdict%2Fmain%2F.qa%2Fstate.json&query=%24.verdict&label=verdict%20on%20itself&color=blue)](.qa/reports/INDEX.md)
-[![eval 8/8 seeded defects](https://img.shields.io/badge/eval-8%2F8_seeded_defects-brightgreen)](eval/README.md#published-results)
-[![pinned rules 341/341 killed](https://img.shields.io/badge/pinned_rules-341%2F341_killed-brightgreen)](eval/README.md#suite-fault-detection-power--mutation-testing-on-ourselves)
-[![PyPI](https://img.shields.io/pypi/v/verdict-qa-mcp?label=verdict-qa-mcp&color=blue)](https://pypi.org/project/verdict-qa-mcp/)
-[![Claude Code plugin](https://img.shields.io/badge/Claude_Code-plugin-6E56CF)](#install)
-[![license MIT](https://img.shields.io/github/license/ArtJack/verdict)](LICENSE)
+[CI](https://github.com/ArtJack/verdict/actions/workflows/ci.yml) ·
+[verdict on itself](.qa/reports/INDEX.md) ·
+[eval: 8/8 seeded defects](eval/README.md#published-results) ·
+[pinned rules: 341/341 killed](eval/README.md#suite-fault-detection-power--mutation-testing-on-ourselves) ·
+[PyPI: verdict-qa-mcp](https://pypi.org/project/verdict-qa-mcp/) ·
+[MIT license](LICENSE)
 
 **Your test suite is green. Verdict found a defect that had lived 4,595 days.**
 
@@ -57,7 +56,7 @@ Verdict is a Claude Code plugin built the way QA is actually practiced:
   closed without proof, which its own ledger counts as unknown, not as wins. Every fixed
   harness rule is pinned as a mutant the suite must kill.
 
-![A Verdict delta run: verdict first, REGRESSED findings ranked on top, a flake quarantined with an expiry, and the gate's exit codes keeping "never ran" apart from "said no"](docs/demo.svg)
+**What a run looks like:** [a real delta report — Verdict on its own code, run 14](.qa/reports/2026-09-05-delta-run14.md).
 
 **Who pays for the model?** You do, with the Claude subscription you already have: the
 plugin runs inside your own session, nothing routes through anyone else, and everything
@@ -87,7 +86,7 @@ npx skills add ArtJack/verdict        # release risk · verify a fix · flaky tr
 pip install verdict-qa-mcp            # verdict-facts, verdict-finalize, verdict-gate, verdict-accept, verdict-answer
 ```
 
-[![skills.sh](https://skills.sh/b/ArtJack/verdict)](https://skills.sh/ArtJack/verdict)
+Listed on [skills.sh](https://skills.sh/ArtJack/verdict).
 
 The skills restate the contract for an agent that cannot run the `verdict` agent; the
 hooks that enforce the read-only guarantee exist only in Claude Code, so there the
