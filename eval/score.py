@@ -260,14 +260,34 @@ def _is_open_row(f) -> bool:
     return isinstance(f, dict) and str(f.get("status") or "").strip().lower() == "open"
 
 
+_PINNED_SITE = re.compile(r"^(.+):(\d+)$")
+
+
 def _site_hits(f, terms) -> int:
-    """How many of `terms` name a file the finding's class sites reference —
-    by `path:line` reference, not by substring: a test named
-    `test_invoice_renders_lines` is not a site in `invoice.py`."""
+    """How many of `terms` name a site the finding's class references — by
+    `path:line` reference, not by substring: a test named
+    `test_invoice_renders_lines` is not a site in `invoice.py`.
+
+    A term may pin the line (`invoice.py:8`), for a class whose identity is a
+    line rather than a file. A file-only term read a second finding of another
+    class as a second owner: on 2026-10-10 two Opus runs of the rates fixture
+    filed the truncation once, with all three sites, and also a legitimate
+    finding that money moves as float dollars, whose own sites were other lines
+    of the same two files (`invoice.py:13`, `report.py:8`). The row scored both
+    runs as a split; nothing was split, and finalize's rule, which compares
+    exact references, had found nothing to refuse."""
     rc = f.get("root_cause") if isinstance(f.get("root_cause"), dict) else {}
     cls = rc.get("class") if isinstance(rc.get("class"), dict) else {}
-    paths = {path.lower() for path, _ in refs_in(cls.get("sites") or [])}
-    return sum(1 for t in terms if any(t.lower() in path for path in paths))
+    refs = [(path.lower(), line) for path, line in refs_in(cls.get("sites") or [])]
+
+    def hit(term) -> bool:
+        pinned = _PINNED_SITE.match(term)
+        if pinned:
+            name, line = pinned.group(1).lower(), int(pinned.group(2))
+            return any(name in path and n == line for path, n in refs)
+        return any(term.lower() in path for path, _ in refs)
+
+    return sum(1 for t in terms if hit(t))
 
 
 def _questions_row(qa_root: Path, state: dict, row) -> tuple:
