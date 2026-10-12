@@ -1,0 +1,156 @@
+{
+  "read_by": "the orchestrator, 2026-10-12, each located finding against the fix's diff and withheld tests",
+  "scale": "yes = names what the fix changed; partly = the right defect named incompletely; no = located elsewhere or not at all",
+  "instances": {
+    "babel-b203c67": {
+      "verdict": {
+        "mechanism": "yes",
+        "note": "F-1 Critical proven: KeyError('many') for exact multiples of 1,000,000 in fr/es/it/pt"
+      },
+      "plain": {
+        "mechanism": "yes",
+        "note": "PLAIN-4 Minor: no fallback for a missing plural category"
+      }
+    },
+    "bt-7d371a3": {
+      "verdict": {
+        "mechanism": "yes",
+        "note": "F-2 Critical proven: liquidation sells deficit/2 through allocate, right only at exactly 2x"
+      },
+      "plain": {
+        "mechanism": "yes",
+        "note": "PLAIN-2 Critical: sells weight*shortfall/2, not the shortfall"
+      }
+    },
+    "capital-gains-calculator-51ca617": {
+      "verdict": {
+        "mechanism": "no",
+        "note": "not located"
+      },
+      "plain": {
+        "mechanism": "no",
+        "note": "not located"
+      }
+    },
+    "capital-gains-calculator-c95cb62": {
+      "verdict": {
+        "mechanism": "partly",
+        "note": "F-3 Major proven: yield logs keyed without currency; the month boundary not named"
+      },
+      "plain": {
+        "mechanism": "partly",
+        "note": "PLAIN-3/4 Major: mixed-currency interest crash; monthly sum at one rate"
+      }
+    },
+    "capital-gains-calculator-ed44336": {
+      "verdict": {
+        "mechanism": "yes",
+        "note": "F-1 Critical proven: every quote treated as USD"
+      },
+      "plain": {
+        "mechanism": "yes",
+        "note": "PLAIN-1 Critical: price always treated as USD"
+      }
+    },
+    "commerce-coordinator-23306e4": {
+      "verdict": {
+        "mechanism": "partly",
+        "note": "F-2 Minor proven: line-item discount ignores quantity"
+      },
+      "plain": {
+        "mechanism": "partly",
+        "note": "PLAIN-1 Critical: line-item discounts ignore quantity"
+      }
+    },
+    "django-payments-90775b8": {
+      "verdict": {
+        "mechanism": "no",
+        "note": "found the minor-units refund bug still present at this base, not the premature REFUNDED status"
+      },
+      "plain": {
+        "mechanism": "partly",
+        "note": "PLAIN-4 Major: any refund marks the payment fully REFUNDED"
+      }
+    },
+    "django-payments-980c295": {
+      "verdict": {
+        "mechanism": "yes",
+        "note": "F-1 Critical proven: refund returns minor units, subtracted as major"
+      },
+      "plain": {
+        "mechanism": "yes",
+        "note": "PLAIN-1 Blocker: refund amount in minor units"
+      }
+    },
+    "fava-9bb6366": {
+      "verdict": {
+        "mechanism": "yes",
+        "note": "F-3 Minor proven: precision 0 ignored because Decimal('0') is falsy"
+      },
+      "plain": {
+        "mechanism": "yes",
+        "note": "PLAIN-1 Major: explicit precision of 0 silently ignored"
+      }
+    },
+    "ffn-53576ff": {
+      "verdict": {
+        "mechanism": "partly",
+        "note": "F-1 Major proven: prior period found by counting resample bins; NaN rows fabricate 0.0"
+      },
+      "plain": {
+        "mechanism": "yes",
+        "note": "PLAIN-1 Major: MTD/YTD NaN when the previous period has no prices"
+      }
+    },
+    "ffn-576324a": {
+      "verdict": {
+        "mechanism": "no",
+        "note": "function-level hits on other defects (intraday first-day move dropped)"
+      },
+      "plain": {
+        "mechanism": "no",
+        "note": "function-level hits on other defects (intraday first-day move dropped)"
+      }
+    },
+    "numpy-financial-2e6ab00": {
+      "verdict": {
+        "mechanism": "yes",
+        "note": "F-3 Minor proven: one non-converging element makes every rate NaN"
+      },
+      "plain": {
+        "mechanism": "yes",
+        "note": "PLAIN-6 Major: all-NaN array if one element fails to converge"
+      }
+    },
+    "ofxstatement-5862c38": {
+      "verdict": {
+        "mechanism": "yes",
+        "note": "F-1 Critical proven: CURRATE written at money precision"
+      },
+      "plain": {
+        "mechanism": "yes",
+        "note": "PLAIN-1 Critical: exchange rate rounded to 2 places"
+      }
+    },
+    "ofxstatement-de00b2f": {
+      "verdict": {
+        "mechanism": "yes",
+        "note": "F-1 Critical proven: UNITS written at 2 decimal places"
+      },
+      "plain": {
+        "mechanism": "yes",
+        "note": "PLAIN-1 Critical: UNITS rounded to 2 places"
+      }
+    },
+    "ofxtools-b5c35c7": {
+      "verdict": {
+        "mechanism": "yes",
+        "note": "F-2 Minor proven: float/int input skips scale quantisation"
+      },
+      "plain": {
+        "mechanism": "no",
+        "note": "not located"
+      }
+    }
+  }
+}

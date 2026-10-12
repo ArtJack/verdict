@@ -1,0 +1,23 @@
+{
+  "tune": [
+    "ofxstatement-de00b2f",
+    "fava-9bb6366",
+    "capital-gains-calculator-ed44336",
+    "capital-gains-calculator-51ca617",
+    "numpy-financial-2e6ab00",
+    "ffn-53576ff",
+    "bt-7d371a3",
+    "commerce-coordinator-23306e4"
+  ],
+  "held_out": [
+    "babel-b203c67",
+    "django-payments-980c295",
+    "capital-gains-calculator-c95cb62",
+    "django-payments-90775b8",
+    "ffn-576324a",
+    "ofxtools-b5c35c7",
+    "ofxstatement-5862c38"
+  ],
+  "rule": "money instances ordered by sha256(id); first half rounded up = tune",
+  "fixed": "2026-10-11"
+}

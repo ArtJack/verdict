@@ -104,7 +104,7 @@ def test_the_profile_runs_every_gate_inside_the_container_and_names_the_risk(iso
                                                                "test_one_cmd:"))]
     assert len(gates) == 3
     assert all(f"/home/dev/src/bin/qa-container 3.11 {co} --" in g for g in gates)
-    assert 'pytest -q -p no:cacheprovider "{id}"' in text
+    assert 'pytest -q -p no:cacheprovider --color=no "{id}"' in text
     assert "Risk class: **MONEY**" in text and "Security-Pass: disabled" in text
     sec = dict(INST, kind="security")
     assert "Security-Pass: enabled" in external.profile_text(sec, "prices", co)
@@ -242,3 +242,38 @@ def test_lanes_split_by_repository_and_cover_every_instance():
         assert all(r not in {iid.rsplit("-", 1)[0] for iid in other} for r in repos
                    for other in lanes if other is not lane)
     assert external.in_lane(insts[0], None)
+
+
+def test_colour_codes_never_hide_an_outcome(monkeypatch, tmp_path):
+    """django-payments forces colour: the `-rA` summary arrived behind ANSI codes and both of
+    its instances read 'no withheld test fails at base' while the tests had failed."""
+    class Proc:
+        stdout = "\x1b[31mFAILED\x1b[0m t.py::test_a - AssertionError\n\x1b[32mPASSED\x1b[0m t.py::test_b\n"
+        stderr = ""
+    monkeypatch.setattr(external, "container", lambda *a, **k: Proc())
+    outcomes, _ = external.run_withheld({"withheld_tests": ["t.py::test_a", "t.py::test_b"],
+                                          "python": "3.11"}, tmp_path)
+    assert outcomes == {"t.py::test_a": "FAILED", "t.py::test_b": "PASSED"}
+    assert "--color=no" in external.pytest_cmd()
+
+
+def test_a_stopped_run_still_has_its_refusals_counted(monkeypatch, tmp_path):
+    """No result line means no session id; the transcripts written since the run began are
+    still the run's, and its refusals are still refusals."""
+    monkeypatch.setattr(external.Path, "home", staticmethod(lambda: tmp_path))
+    cwd = tmp_path / "src" / "starlette"
+    proj = external._project_dir(cwd)
+    (proj / "s1" / "subagents").mkdir(parents=True)
+    old = proj / "old.jsonl"
+    old.write_text("{}\n")
+    import os, time
+    os.utime(old, (time.time() - 3600, time.time() - 3600))
+    sub = proj / "s1" / "subagents" / "agent-x.jsonl"
+    sub.write_text(json.dumps({"type": "assistant", "message": {
+        "id": "m1", "model": "claude-opus-5-5", "stop_reason": "refusal"}}) + "\n" + json.dumps({
+        "type": "assistant", "message": {"id": "m2", "model": "claude-opus-4-8", "stop_reason": "tool_use"}}) + "\n")
+    paths = external.transcripts_of(cwd, None, since=time.time() - 60)
+    assert paths == [sub]
+    models, _, refusals = external.models_and_refusals(paths)
+    assert refusals == 1 and models == {"claude-opus-5-5": 1, "claude-opus-4-8": 1}
+    assert external.transcripts_of(cwd, None) == []

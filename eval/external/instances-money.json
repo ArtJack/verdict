@@ -1,0 +1,477 @@
+[
+ {
+  "id": "capital-gains-calculator-ed44336",
+  "kind": "money",
+  "repo": "cgt-calc/capital-gains-calculator",
+  "fix_commit": "ed4433673f3a5df473a6617349b61687fd562b02",
+  "base_commit": "076d236ea7592cf1cabf38d879a3cbd93470736e",
+  "fix_url": "https://github.com/cgt-calc/capital-gains-calculator/commit/ed4433673f3a5df473a6617349b61687fd562b02",
+  "introducing_commit": "0337c56182cce843937155a8cd5db3b03dca98b0",
+  "intro_share": 0.75,
+  "intro_changed_lines": 495,
+  "intro_subject": "Calculate unrealized gains (#497)",
+  "python": "3.12",
+  "install": "python -m venv .venv-qa && .venv-qa/bin/pip install -q -e . pytest pytest-env pytest-xdist pytest-clarity pytest-cov",
+  "withheld_tests": [
+   "tests/general/test_current_price_fetcher.py::test_defaults_to_usd_when_currency_field_absent",
+   "tests/general/test_current_price_fetcher.py::test_eur_quoted_ticker_uses_eur_rate_not_usd",
+   "tests/general/test_current_price_fetcher.py::test_gbp_pence_quoted_ticker_is_divided_by_100"
+  ],
+  "test_cmd": "PATH=/w/.venv-qa/bin:$PATH .venv-qa/bin/python -m pytest -q -p no:cacheprovider tests/general/test_current_price_fetcher.py::test_defaults_to_usd_when_currency_field_absent tests/general/test_current_price_fetcher.py::test_eur_quoted_ticker_uses_eur_rate_not_usd tests/general/test_current_price_fetcher.py::test_gbp_pence_quoted_ticker_is_divided_by_100",
+  "fail_at_base": "AssertionError: assert Decimal('8E+1') == Decimal('1.0')  (pence-quoted price converted via USD rate)",
+  "defect_class": "price quoted in non-USD currency converted using the USD exchange rate",
+  "fix_files": [
+   "cgt_calc/current_price_fetcher.py"
+  ],
+  "suite_seconds": 11,
+  "fix_date": "2026-08-13",
+  "intro_date": "2024-05-23",
+  "test_files": [
+   "tests/general/test_current_price_fetcher.py"
+  ],
+  "notes": "Full suite has unrelated failures unless the venv bin is first on PATH (tests spawn a bare python); test_cmd sets PATH."
+ },
+ {
+  "id": "capital-gains-calculator-51ca617",
+  "kind": "money",
+  "repo": "cgt-calc/capital-gains-calculator",
+  "fix_commit": "51ca617ea775bde3eb59590ee5648f4a4177af48",
+  "base_commit": "019a9f20dd6bafef26d1506578656c264b6c7201",
+  "fix_url": "https://github.com/cgt-calc/capital-gains-calculator/commit/51ca617ea775bde3eb59590ee5648f4a4177af48",
+  "introducing_commit": "381f8db2c613bbce7c95a0605beb59404516be15",
+  "intro_share": 0.541,
+  "intro_changed_lines": 296,
+  "intro_subject": "Split process_disposal over a DisposalContext (#1073)",
+  "python": "3.12",
+  "install": "python -m venv .venv-qa && .venv-qa/bin/pip install -q -e . pytest pytest-env pytest-xdist pytest-clarity pytest-cov",
+  "withheld_tests": [
+   "tests/general/test_calc.py::test_a_gain_of_exactly_half_a_penny_rounds_up",
+   "tests/general/test_calc.py::test_proceeds_sitting_on_a_rounding_step_reconcile"
+  ],
+  "test_cmd": "PATH=/w/.venv-qa/bin:$PATH .venv-qa/bin/python -m pytest -q -p no:cacheprovider tests/general/test_calc.py::test_a_gain_of_exactly_half_a_penny_rounds_up tests/general/test_calc.py::test_proceeds_sitting_on_a_rounding_step_reconcile",
+  "fail_at_base": "AssertionError: assert Decimal('-52.91') == Decimal('-52.92')",
+  "defect_class": "apportioned proceeds lose precision so half-penny gains round the wrong way",
+  "fix_files": [
+   "cgt_calc/matching.py"
+  ],
+  "suite_seconds": 70,
+  "fix_date": "2026-10-02",
+  "intro_date": "2026-08-31",
+  "test_files": [
+   "tests/general/test_calc.py"
+  ],
+  "notes": "Second withheld function passes at base (kept because the fix changed it). Fix touches only matching.py."
+ },
+ {
+  "id": "capital-gains-calculator-c95cb62",
+  "kind": "money",
+  "repo": "cgt-calc/capital-gains-calculator",
+  "fix_commit": "c95cb622f30c3cc3885bd4346db72d5f0a0e762b",
+  "base_commit": "75140a765445233ae8ab983b910df7cc4175eb5c",
+  "fix_url": "https://github.com/cgt-calc/capital-gains-calculator/commit/c95cb622f30c3cc3885bd4346db72d5f0a0e762b",
+  "introducing_commit": "a2f0ea430463619512986c20fddf67cf5d363d81",
+  "intro_share": 0.947,
+  "intro_changed_lines": 500,
+  "intro_subject": "Add support for dividends, interests and their taxes in CGT report (#603)",
+  "python": "3.12",
+  "install": "python -m venv .venv-qa && .venv-qa/bin/pip install -q -e . pytest pytest-env pytest-xdist pytest-clarity pytest-cov",
+  "withheld_tests": [
+   "tests/general/test_calc.py::test_basic[dividends_and_interests]"
+  ],
+  "test_cmd": "PATH=/w/.venv-qa/bin:$PATH .venv-qa/bin/python -m pytest -q -p no:cacheprovider 'tests/general/test_calc.py::test_basic[dividends_and_interests]'",
+  "fail_at_base": "AssertionError: assert 'interestUSD$Testing' in {'interestForeign$Testing': [...]}",
+  "defect_class": "interest accruals keyed without currency and merged by wrong month boundary",
+  "fix_files": [
+   "cgt_calc/main.py",
+   "cgt_calc/resources/template.tex.j2"
+  ],
+  "suite_seconds": 12,
+  "fix_date": "2025-12-11",
+  "intro_date": "2025-09-28",
+  "test_files": [
+   "tests/general/calc_test_data_2.py"
+  ],
+  "notes": "The fix changed only a test-data module (calc_test_data_2.py); the failing test is test_calc.py::test_basic[dividends_and_interests]."
+ },
+ {
+  "id": "numpy-financial-2e6ab00",
+  "kind": "money",
+  "repo": "numpy/numpy-financial",
+  "fix_commit": "2e6ab001d0fcd880eeedd5be621b3857930698dc",
+  "base_commit": "c9a7fbac6345f7e68f95a45c42753303c097a36c",
+  "fix_url": "https://github.com/numpy/numpy-financial/commit/2e6ab001d0fcd880eeedd5be621b3857930698dc",
+  "introducing_commit": "22dfb2ced1886ac93a9019279183603351ba8e7f",
+  "intro_share": 0.714,
+  "intro_changed_lines": 151,
+  "intro_subject": "Add fromregex function (needs more testing) and some simple spreadsheet-like financial calculations.",
+  "python": "3.11",
+  "install": "python -m venv .venv-qa && .venv-qa/bin/pip install -q -e . pytest",
+  "withheld_tests": [
+   "numpy_financial/tests/test_financial.py::TestRate::test_gh48"
+  ],
+  "test_cmd": ".venv-qa/bin/python -m pytest -q -p no:cacheprovider numpy_financial/tests/test_financial.py::TestRate::test_gh48",
+  "fail_at_base": "AssertionError: Not equal to tolerance rtol=1e-07 (array of all-NaN rates returned)",
+  "defect_class": "one non-converging element nulls the whole vectorized interest rate result",
+  "fix_files": [
+   "numpy_financial/_financial.py"
+  ],
+  "suite_seconds": 1,
+  "fix_date": "2022-03-07",
+  "intro_date": "2008-04-04",
+  "test_files": [
+   "numpy_financial/tests/test_financial.py"
+  ],
+  "notes": "Fix is a merge commit (PR #49); base is its first parent. Introducing commit dates from 2008 (numpy lineage)."
+ },
+ {
+  "id": "ofxstatement-de00b2f",
+  "kind": "money",
+  "repo": "kedder/ofxstatement",
+  "fix_commit": "de00b2faea8b7adbb19bf149360655addbcc117b",
+  "base_commit": "6916e58a68fd74b20b7f2f144aacd2537ef1c847",
+  "fix_url": "https://github.com/kedder/ofxstatement/commit/de00b2faea8b7adbb19bf149360655addbcc117b",
+  "introducing_commit": "0fdb0bd4fdf99b92d340d67d678704c48c8355ac",
+  "intro_share": 1.0,
+  "intro_changed_lines": 403,
+  "intro_subject": "Support for invest transactions (#129)",
+  "python": "3.11",
+  "install": "python -m venv .venv-qa && .venv-qa/bin/pip install -q -e . pytest pytest-cov mock",
+  "withheld_tests": [
+   "src/ofxstatement/tests/test_ofx_invest.py::OfxInvestLinesWriterTest::test_ofxWriter"
+  ],
+  "test_cmd": ".venv-qa/bin/python -m pytest -q -p no:cacheprovider src/ofxstatement/tests/test_ofx_invest.py::OfxInvestLinesWriterTest::test_ofxWriter",
+  "fail_at_base": "AssertionError: written OFX has <UNITS>3.00</UNITS> where <UNITS>3.00000</UNITS> is expected",
+  "defect_class": "fractional share units written with too few decimal places",
+  "fix_files": [
+   "src/ofxstatement/ofx.py"
+  ],
+  "suite_seconds": 2,
+  "fix_date": "2024-01-03",
+  "intro_date": "2021-05-11",
+  "test_files": [
+   "src/ofxstatement/tests/test_ofx_invest.py"
+  ],
+  "notes": "Fix is a merge commit (PR #257); base is its first parent."
+ },
+ {
+  "id": "ofxstatement-5862c38",
+  "kind": "money",
+  "repo": "kedder/ofxstatement",
+  "fix_commit": "5862c38bf24c601f80c5fe23be01d096e72b4266",
+  "base_commit": "d3a8635aeb07dd0cc087831b810125b3a7c9dc32",
+  "fix_url": "https://github.com/kedder/ofxstatement/commit/5862c38bf24c601f80c5fe23be01d096e72b4266",
+  "introducing_commit": "4d0521d1e75f81dccd8eb9387830f8d6f7203b71",
+  "intro_share": 1.0,
+  "intro_changed_lines": 39,
+  "intro_subject": "Support OFX CURRENCY and ORIGCURRENCY in statement lines",
+  "python": "3.11",
+  "install": "python -m venv .venv-qa && .venv-qa/bin/pip install -q -e . pytest pytest-cov mock",
+  "withheld_tests": [
+   "src/ofxstatement/tests/test_ofx.py::OfxWriterTest::test_ofxWriter"
+  ],
+  "test_cmd": ".venv-qa/bin/python -m pytest -q -p no:cacheprovider src/ofxstatement/tests/test_ofx.py::OfxWriterTest::test_ofxWriter",
+  "fail_at_base": "AssertionError: written OFX has <CURRATE>3.45</CURRATE> where <CURRATE>3.4543</CURRATE> is expected",
+  "defect_class": "currency exchange rate written with too few decimal places",
+  "fix_files": [
+   "src/ofxstatement/ofx.py"
+  ],
+  "suite_seconds": 1,
+  "fix_date": "2025-10-29",
+  "intro_date": "2020-11-17",
+  "test_files": [
+   "src/ofxstatement/tests/test_ofx.py"
+  ],
+  "notes": "Fix is a merge commit (PR #369); base is its first parent."
+ },
+ {
+  "id": "ofxtools-b5c35c7",
+  "kind": "money",
+  "repo": "csingley/ofxtools",
+  "fix_commit": "b5c35c7597ca2a6e4030938e253549ffddf1ff23",
+  "base_commit": "894cfe94fa5d0820c24c9435687b296895a36f81",
+  "fix_url": "https://github.com/csingley/ofxtools/commit/b5c35c7597ca2a6e4030938e253549ffddf1ff23",
+  "introducing_commit": "4704810a0eddfff588bda5e046a5d098ecf2a2f4",
+  "intro_share": 0.5,
+  "intro_changed_lines": 680,
+  "intro_subject": "Rewrite Types.py: drop call_signature/singledispatchmethod, use plain __init__ and match statements",
+  "python": "3.11",
+  "install": "python -m venv .venv-qa && .venv-qa/bin/pip install -q -e \".[dev]\"",
+  "withheld_tests": [
+   "tests/test_types.py::DecimalTestCase::test_decimal_subclass_conversion",
+   "tests/test_types.py::DecimalTestCase::test_euro_decimal_separator",
+   "tests/test_types.py::DecimalTestCase::test_float_operation_trap",
+   "tests/test_types.py::DecimalTestCase::test_illegal",
+   "tests/test_types.py::DecimalTestCase::test_no_scale_preserves_precision",
+   "tests/test_types.py::DecimalTestCase::test_scale_aggregate_export",
+   "tests/test_types.py::DecimalTestCase::test_scale_input_types",
+   "tests/test_types.py::DecimalTestCase::test_scale_native_float_conversion",
+   "tests/test_types.py::DecimalTestCase::test_scale_quantization_traps",
+   "tests/test_types.py::DecimalTestCase::test_scale_rounding",
+   "tests/test_types.py::DecimalTestCase::test_scale_untrapped_invalid_operation"
+  ],
+  "test_cmd": ".venv-qa/bin/python -m pytest -q -p no:cacheprovider tests/test_types.py::DecimalTestCase::test_decimal_subclass_conversion tests/test_types.py::DecimalTestCase::test_euro_decimal_separator tests/test_types.py::DecimalTestCase::test_float_operation_trap tests/test_types.py::DecimalTestCase::test_illegal tests/test_types.py::DecimalTestCase::test_no_scale_preserves_precision tests/test_types.py::DecimalTestCase::test_scale_aggregate_export tests/test_types.py::DecimalTestCase::test_scale_input_types tests/test_types.py::DecimalTestCase::test_scale_native_float_conversion tests/test_types.py::DecimalTestCase::test_scale_quantization_traps tests/test_types.py::DecimalTestCase::test_scale_rounding tests/test_types.py::DecimalTestCase::test_scale_untrapped_invalid_operation",
+  "fail_at_base": "ValueError: '1.5' doesn't match scale=0.01 (plus AssertionError on unquantized int/float inputs)",
+  "defect_class": "decimal scale quantization skipped for non-string input types",
+  "fix_files": [
+   "ofxtools/Types.py"
+  ],
+  "suite_seconds": 11,
+  "fix_date": "2026-10-05",
+  "intro_date": "2026-06-11",
+  "test_files": [
+   "tests/test_types.py"
+  ],
+  "notes": "intro_share is exactly 0.50; the introducing commit is a 680-line rewrite of Types.py (576 lines ignoring whitespace)."
+ },
+ {
+  "id": "ffn-53576ff",
+  "kind": "money",
+  "repo": "pmorissette/ffn",
+  "fix_commit": "53576fffea9d1d76922f734c49bad71e989f467b",
+  "base_commit": "9e31ed366eb913beb1a1662f66bc7380d440e0b5",
+  "fix_url": "https://github.com/pmorissette/ffn/commit/53576fffea9d1d76922f734c49bad71e989f467b",
+  "introducing_commit": "8d019dabdcd0b44566a237563d9bf9c8a17f42ac",
+  "intro_share": 0.6,
+  "intro_changed_lines": 44,
+  "intro_subject": "added mtd and ytd functions",
+  "python": "3.11",
+  "install": "python -m venv .venv-qa && .venv-qa/bin/pip install -q -e \".[test]\"",
+  "withheld_tests": [
+   "tests/test_core.py::test_mtd_uses_current_period_when_prior_month_is_unavailable",
+   "tests/test_core.py::test_mtd_ytd_keep_unavailable_with_one_current_period_price",
+   "tests/test_core.py::test_mtd_ytd_select_current_period_fallback_per_column",
+   "tests/test_core.py::test_ytd_uses_current_period_when_prior_year_is_unavailable"
+  ],
+  "test_cmd": ".venv-qa/bin/python -m pytest -q -p no:cacheprovider tests/test_core.py::test_mtd_uses_current_period_when_prior_month_is_unavailable tests/test_core.py::test_mtd_ytd_keep_unavailable_with_one_current_period_price tests/test_core.py::test_mtd_ytd_select_current_period_fallback_per_column tests/test_core.py::test_ytd_uses_current_period_when_prior_year_is_unavailable",
+  "fail_at_base": "AssertionError: assert np.False_ (calc_mtd/calc_ytd differ from expected 0.1)",
+  "defect_class": "period-to-date return ignores current-period prices when the prior period is missing",
+  "fix_files": [
+   "ffn/core.py"
+  ],
+  "suite_seconds": 9,
+  "fix_date": "2026-09-15",
+  "intro_date": "2021-03-24",
+  "test_files": [
+   "tests/test_core.py"
+  ],
+  "notes": "Fix is a merge commit (PR #356); base is its first parent."
+ },
+ {
+  "id": "ffn-576324a",
+  "kind": "money",
+  "repo": "pmorissette/ffn",
+  "fix_commit": "576324a8af36ffdbf5138931343f3e952377803c",
+  "base_commit": "ee4145a3e3e4be7ee0ecf8c258fc3ac1ff5c8f3d",
+  "fix_url": "https://github.com/pmorissette/ffn/commit/576324a8af36ffdbf5138931343f3e952377803c",
+  "introducing_commit": "1011228355c6a3d28dd56086d552822b847d2fcd",
+  "intro_share": 0.75,
+  "intro_changed_lines": 43,
+  "intro_subject": "Issue #43",
+  "python": "3.11",
+  "install": "python -m venv .venv-qa && .venv-qa/bin/pip install -q -e \".[test]\"",
+  "withheld_tests": [
+   "tests/test_multi_year_returns.py::test_multi_year_returns_are_nan_with_less_history",
+   "tests/test_multi_year_returns.py::test_multi_year_returns_with_enough_history",
+   "tests/test_multi_year_returns.py::test_three_year_needs_three_years_of_history"
+  ],
+  "test_cmd": ".venv-qa/bin/python -m pytest -q -p no:cacheprovider tests/test_multi_year_returns.py::test_multi_year_returns_are_nan_with_less_history tests/test_multi_year_returns.py::test_multi_year_returns_with_enough_history tests/test_multi_year_returns.py::test_three_year_needs_three_years_of_history",
+  "fail_at_base": "AssertionError: assert np.False_ -- np.isnan(0.3017...) (three_year reported with 13 months of data)",
+  "defect_class": "multi-year annualized return reported without enough price history",
+  "fix_files": [
+   "ffn/core.py"
+  ],
+  "suite_seconds": 12,
+  "fix_date": "2026-09-26",
+  "intro_date": "2018-05-17",
+  "test_files": [
+   "tests/test_multi_year_returns.py"
+  ],
+  "notes": "Fix is a merge commit (PR #375); the regression test is a new file."
+ },
+ {
+  "id": "bt-7d371a3",
+  "kind": "money",
+  "repo": "pmorissette/bt",
+  "fix_commit": "7d371a30d9473687d56eb5ead6c1d1d42bc2a07a",
+  "base_commit": "dc7f92427d4ac0fdfd30785b6d5ff16fe8e63c53",
+  "fix_url": "https://github.com/pmorissette/bt/commit/7d371a30d9473687d56eb5ead6c1d1d42bc2a07a",
+  "introducing_commit": "67940b76af433d89b9d17de3f938906ed4423e0e",
+  "intro_share": 1.0,
+  "intro_changed_lines": 60,
+  "intro_subject": "Adding a margin algorithm. Can be used to simulate brokerage margin accounts",
+  "python": "3.11",
+  "install": "python -m venv .venv-qa && .venv-qa/bin/pip install -q -e \".[dev]\"",
+  "withheld_tests": [
+   "tests/test_algos.py::test_margin_liquidation_scales_with_leverage"
+  ],
+  "test_cmd": ".venv-qa/bin/python -m pytest -q -p no:cacheprovider tests/test_algos.py::test_margin_liquidation_scales_with_leverage",
+  "fail_at_base": "assert np.float64(1312.5) == 1250.0 +- 0.00125",
+  "defect_class": "margin liquidation sells the wrong amount for a leveraged portfolio",
+  "fix_files": [
+   "bt/algos.py"
+  ],
+  "suite_seconds": 12,
+  "fix_date": "2026-09-11",
+  "intro_date": "2025-09-25",
+  "test_files": [
+   "tests/test_algos.py"
+  ],
+  "notes": "bt is a backtesting library (no live trading). Fix is a merge commit (PR #557); introducing-line blame is mostly docstring lines (code-line share 1.0 on 1 line)."
+ },
+ {
+  "id": "django-payments-980c295",
+  "kind": "money",
+  "repo": "jazzband/django-payments",
+  "fix_commit": "980c2959287b305c8dda0a19b0042570bdc7adbe",
+  "base_commit": "90775b8a3c8857278bd8bf835d61c9e69576a749",
+  "fix_url": "https://github.com/jazzband/django-payments/commit/980c2959287b305c8dda0a19b0042570bdc7adbe",
+  "introducing_commit": "d3bd34a65bc72ff8c278fb1b75cb140462e5a75c",
+  "intro_share": 0.5,
+  "intro_changed_lines": 650,
+  "intro_subject": "Imlement stripe Webhooks (#358)",
+  "python": "3.11",
+  "install": "python -m venv .venv-qa && .venv-qa/bin/pip install -q -e \".[braintree,cybersource,mercadopago,sagepay,sofort,stripe]\" pytest pytest-django pytest-cov mock",
+  "withheld_tests": [
+   "payments/stripe/test_stripev3.py::test_provider_refund_partial_returns_currency_units",
+   "payments/stripe/test_stripev3.py::test_provider_refund_returns_currency_units",
+   "payments/stripe/test_stripev3.py::test_provider_refund_zero_decimal_currency_returns_currency_units"
+  ],
+  "test_cmd": ".venv-qa/bin/python -m pytest -q -p no:cacheprovider payments/stripe/test_stripev3.py",
+  "fail_at_base": "assert 3000 == 30 (provider.refund() returns cents)",
+  "defect_class": "refund returns minor currency units instead of currency units",
+  "fix_files": [
+   "payments/stripe/providers.py"
+  ],
+  "suite_seconds": 4,
+  "fix_date": "2026-03-02",
+  "intro_date": "2023-07-19",
+  "test_files": [
+   "payments/stripe/test_stripev3.py"
+  ],
+  "notes": "Tests in test_stripev3.py depend on module-level state set by earlier tests: they pass only when the whole file runs, so test_cmd runs the file. intro_share is exactly 0.50 (1 of 2 lines)."
+ },
+ {
+  "id": "django-payments-90775b8",
+  "kind": "money",
+  "repo": "jazzband/django-payments",
+  "fix_commit": "90775b8a3c8857278bd8bf835d61c9e69576a749",
+  "base_commit": "6e635ba490efec94553a181c223e1f050c97f316",
+  "fix_url": "https://github.com/jazzband/django-payments/commit/90775b8a3c8857278bd8bf835d61c9e69576a749",
+  "introducing_commit": "e1726bc2189eadc0a86aa6e8abbeb8d047587e95",
+  "intro_share": 1.0,
+  "intro_changed_lines": 357,
+  "intro_subject": "Update to Stripve v3",
+  "python": "3.11",
+  "install": "python -m venv .venv-qa && .venv-qa/bin/pip install -q -e \".[braintree,cybersource,mercadopago,sagepay,sofort,stripe]\" pytest pytest-django pytest-cov mock",
+  "withheld_tests": [
+   "payments/stripe/test_stripev3.py::test_provider_refund_success"
+  ],
+  "test_cmd": ".venv-qa/bin/python -m pytest -q -p no:cacheprovider payments/stripe/test_stripev3.py",
+  "fail_at_base": "AssertionError: assert 'refunded' == 'confirmed'",
+  "defect_class": "payment marked refunded before the refund workflow completes",
+  "fix_files": [
+   "payments/stripe/providers.py"
+  ],
+  "suite_seconds": 5,
+  "fix_date": "2026-03-09",
+  "intro_date": "2023-04-27",
+  "test_files": [
+   "payments/stripe/test_stripev3.py"
+  ],
+  "notes": "Same order-dependence as the sibling instance in this file: test_cmd runs the whole test file."
+ },
+ {
+  "id": "commerce-coordinator-23306e4",
+  "kind": "money",
+  "repo": "edx/commerce-coordinator",
+  "fix_commit": "23306e430acb88bc1f7fc7aaaaa5d6482aa25723",
+  "base_commit": "11dd257dd35927a803993dcccc0836983a1d7def",
+  "fix_url": "https://github.com/edx/commerce-coordinator/commit/23306e430acb88bc1f7fc7aaaaa5d6482aa25723",
+  "introducing_commit": "8b4c3e6721c26f80f7585678bb6d81806c7c9fe0",
+  "intro_share": 1.0,
+  "intro_changed_lines": 59,
+  "intro_subject": "fix: handle discounts (#351)",
+  "python": "3.12",
+  "install": "python -m venv .venv-qa && .venv-qa/bin/pip install -q -r requirements/test.txt \"setuptools<81\"",
+  "withheld_tests": [
+   "commerce_coordinator/apps/commercetools/tests/test_utils.py::TestCalculateDiscount::test_calculate_discount_on_order_without_cart_level_discount",
+   "commerce_coordinator/apps/commercetools/tests/test_utils.py::TestCalculateDiscount::test_calculate_total_discount_on_order"
+  ],
+  "test_cmd": ".venv-qa/bin/python -m pytest -q -p no:cacheprovider commerce_coordinator/apps/commercetools/tests/test_utils.py::TestCalculateDiscount::test_calculate_discount_on_order_without_cart_level_discount commerce_coordinator/apps/commercetools/tests/test_utils.py::TestCalculateDiscount::test_calculate_total_discount_on_order",
+  "fail_at_base": "AssertionError: 300 != 600 (and 800 != 1100)",
+  "defect_class": "order discount total omits product-level discounts",
+  "fix_files": [
+   "commerce_coordinator/apps/commercetools/utils.py"
+  ],
+  "suite_seconds": 62,
+  "fix_date": "2025-03-06",
+  "intro_date": "2025-03-03",
+  "test_files": [
+   "commerce_coordinator/apps/commercetools/tests/test_utils.py"
+  ],
+  "notes": "Introducing commit is itself a fix (#351 handle discounts)."
+ },
+ {
+  "id": "fava-9bb6366",
+  "kind": "money",
+  "repo": "beancount/fava",
+  "fix_commit": "9bb6366423f81dfb3ad997c75630807376a9a58c",
+  "base_commit": "39cce56a301be3fed9455fdca6bd20e0dd5bd13d",
+  "fix_url": "https://github.com/beancount/fava/commit/9bb6366423f81dfb3ad997c75630807376a9a58c",
+  "introducing_commit": "7564872b283e9b832d75229518c002badafceae7",
+  "intro_share": 1.0,
+  "intro_changed_lines": 22,
+  "intro_subject": "commodities: allow for precision to be specified explicitly",
+  "python": "3.11",
+  "install": "python -m venv .venv-qa && .venv-qa/bin/pip install -q \"pip<24.1\" \"setuptools<66\" \"wheel<0.38\" \"setuptools_scm[toml]<8\" \"packaging<22\" && .venv-qa/bin/pip install -q --no-build-isolation -e \".[excel]\" pytest \"Flask<2.3\" \"Werkzeug<3\" \"Jinja2<3.2\" \"Flask-Babel<3\"",
+  "withheld_tests": [
+   "tests/test_core_commodities.py::test_commodity_precision"
+  ],
+  "test_cmd": ".venv-qa/bin/python -m pytest -q -p no:cacheprovider tests/test_core_commodities.py::test_commodity_precision",
+  "fail_at_base": "AssertionError: assert {'USD': 2, 'VMMXX': 4} == {'USD': 2, 'VMMXX': 4, 'VACHR': 0}",
+  "defect_class": "commodity display precision of zero treated as unset",
+  "fix_files": [
+   "src/fava/core/commodities.py"
+  ],
+  "suite_seconds": 10,
+  "fix_date": "2022-07-06",
+  "intro_date": "2022-07-02",
+  "test_files": [
+   "tests/__snapshots__/test_json_api.py-test_api_context",
+   "tests/__snapshots__/test_json_api.py-test_api_context-2",
+   "tests/data/long-example.beancount",
+   "tests/test_core_commodities.py"
+  ],
+  "notes": "Old setup.cfg carries an invalid requirement spec, hence the old pip/setuptools/wheel pins. Full suite has 1 unrelated failure."
+ },
+ {
+  "id": "babel-b203c67",
+  "kind": "money",
+  "repo": "python-babel/babel",
+  "fix_commit": "b203c672a265bc9d4e6b44cc46359d9414252736",
+  "base_commit": "3ae540289aa4669f0cab079876b05863abee0f0d",
+  "fix_url": "https://github.com/python-babel/babel/commit/b203c672a265bc9d4e6b44cc46359d9414252736",
+  "introducing_commit": "72d681aa0f52eb33c92d0c0d4848597472d350c7",
+  "intro_share": 1.0,
+  "intro_changed_lines": 69,
+  "intro_subject": "Expanded currency formatting to support full currency names",
+  "python": "3.11",
+  "install": "python -m venv .venv-qa && .venv-qa/bin/pip install -q -e . \"pytest<8\" pytest-cov freezegun pytz && .venv-qa/bin/python scripts/download_import_cldr.py",
+  "withheld_tests": [
+   "tests/test_numbers.py::test_format_currency"
+  ],
+  "test_cmd": ".venv-qa/bin/python -m pytest -q -p no:cacheprovider tests/test_numbers.py::test_format_currency",
+  "fail_at_base": "KeyError: 'many' (format_currency(1000000, 'USD', locale='es_AR'))",
+  "defect_class": "currency formatting fails for amounts needing a missing plural form",
+  "fix_files": [
+   "babel/numbers.py"
+  ],
+  "suite_seconds": 9,
+  "fix_date": "2022-05-08",
+  "intro_date": "2013-07-05",
+  "test_files": [
+   "tests/test_numbers.py"
+  ],
+  "notes": "Install step downloads CLDR data (network). Failure is a KeyError raised in babel.numbers.get_currency_name."
+ }
+]

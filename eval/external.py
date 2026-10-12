@@ -264,7 +264,13 @@ def container(inst: dict, tree: Path, command: str, net: bool = False, timeout=N
 
 
 def pytest_cmd(extra: str = "") -> str:
-    return f"{VENV}/bin/python -m pytest -q -p no:cacheprovider{(' ' + extra) if extra else ''}"
+    """`--color=no`: a project whose pytest config forces colour (django-payments does)
+    prints its summary lines behind ANSI codes, and nothing downstream reads them."""
+    return (f"{VENV}/bin/python -m pytest -q -p no:cacheprovider --color=no"
+            f"{(' ' + extra) if extra else ''}")
+
+
+_ANSI = re.compile(r"\x1b\[[0-9;]*[A-Za-z]")
 
 
 def run_withheld(inst: dict, checkout: Path) -> tuple[dict[str, str], str]:
@@ -273,7 +279,7 @@ def run_withheld(inst: dict, checkout: Path) -> tuple[dict[str, str], str]:
     files = sorted({t.split("::")[0] for t in inst["withheld_tests"]})
     proc = container(inst, checkout, pytest_cmd("-rA " + " ".join(shlex.quote(f) for f in files)),
                      timeout=900)
-    output = proc.stdout + proc.stderr
+    output = _ANSI.sub("", proc.stdout + proc.stderr)
     return sb.outcomes_from(output), output
 
 
@@ -443,10 +449,16 @@ def _project_dir(cwd: Path, config_dir=None) -> Path:
     return root / "projects" / re.sub(r"[^A-Za-z0-9-]", "-", str(cwd))
 
 
-def transcripts_of(cwd: Path, session_id, config_dir=None) -> list[Path]:
-    if not session_id:
-        return []
+def transcripts_of(cwd: Path, session_id, config_dir=None, since: float | None = None) -> list[Path]:
+    """The session's transcripts. A run the watcher stopped printed no result line and so no
+    session id: then every transcript under `cwd` written since the run began — on
+    2026-10-12 a stopped run's two refusals were read as none for want of this."""
     proj = _project_dir(cwd, config_dir)
+    if not session_id:
+        if since is None or not proj.is_dir():
+            return []
+        return [p for p in sorted(proj.glob("*.jsonl")) + sorted(proj.glob("*/subagents/*.jsonl"))
+                if p.stat().st_mtime >= since]
     main = proj / f"{session_id}.jsonl"
     subs = sorted((proj / str(session_id) / "subagents").glob("*.jsonl"))
     return ([main] if main.is_file() else []) + subs
@@ -535,7 +547,8 @@ def watch(cmd, cwd: Path, env: dict, log: Path, timeout_s: int, stop_on=()) -> d
                 proc.wait(timeout=60)
                 break
     return {"exit": proc.returncode, "wall_s": round(time.monotonic() - started),
-            "stopped": stopped, "output": log.read_text(encoding="utf-8", errors="replace")}
+            "stopped": stopped, "since": wall_start,
+            "output": log.read_text(encoding="utf-8", errors="replace")}
 
 
 def verdict_of_plain(text: str) -> str | None:
@@ -603,7 +616,7 @@ def run_arm(inst: dict, info: dict, arm: str, work: Path | None = None) -> dict:
         shutil.rmtree(scratch, ignore_errors=True)
         row.update(verdict=verdict_of_plain(answer_text), answer_parsed=items is not None,
                    env_notes=notes)
-    paths = transcripts_of(checkout, res.get("session_id"))
+    paths = transcripts_of(checkout, res.get("session_id"), since=ran.get("since"))
     models, efforts, refusals = models_and_refusals(paths)
     usage = sb.transcript_usage(checkout, res.get("session_id"))
     row.update(
