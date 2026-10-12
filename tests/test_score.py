@@ -581,3 +581,44 @@ def test_the_cause_keys_two_truncation_rows_are_one_class(tmp_path):
         ["money.py:6 int(amount * 100) — the failing site"], "Critical")]
     rc, out = run_score(tmp_path, state, expected_file=expected)
     assert [r["point"] for r in out["rows"]] == [1, 0], "one site found is one row earned"
+
+
+def test_the_cause_keys_class_row_reads_the_truncating_lines_not_the_files(tmp_path):
+    """The rates key as shipped. Two Opus 5.5 runs on 2026-10-10 filed the truncation
+    once, with all three sites, plus a legitimate finding of another class — money
+    carried as float dollars — whose own sites were other lines of the same two files.
+    The row read files, so it counted two owners and scored a split that was not there.
+    It reads the two truncating lines now; a second finding that cites one of them is
+    still the split it exists to catch."""
+    key = json.loads((EVAL / "expected-cause.json").read_text(encoding="utf-8"))
+    row = next(r for r in key["rows"] if r["key"] == "class-not-split")
+    row = {k: v for k, v in row.items() if k != "since"}
+    expected = _expected_file(tmp_path, {"rows": [row]})
+
+    owner = _finding("R-F-1", "Dollars-to-cents conversion truncates with int()", "REAL_DEFECT",
+                     ["money.py:6 int(amount * 100)"], "Critical")
+    owner["root_cause"] = {"class": {"sites": [
+        "money.py:6 — to_cents, the failing test's path",
+        "invoice.py:8 — line_total, an inline copy that does not call to_cents",
+        "report.py:9 — monthly_total, an inline copy that does not call to_cents"]}}
+    floats = _finding("R-F-2", "Money is carried as float dollars, not integer cents",
+                      "REAL_DEFECT", ["zones.py:4 rate 0.775 as a float"])
+    floats["root_cause"] = {"class": {"sites": [
+        "zones.py:4 — west rate as float dollars",
+        "invoice.py:13 — float unit_price consumed per line",
+        "report.py:8 — float sum of daily dollar figures"]}}
+    state = perfect_state()
+    state["findings"] = [owner, floats]
+    rc, out = run_score(tmp_path, state, expected_file=expected)
+    assert out["rows"][0]["point"] == 1 and out["rows"][0]["matched"] == "R-F-1"
+
+    # the files alone were the defect: the same two findings, read by file, are two owners
+    by_file = dict(row, match_any=["invoice.py", "report.py"])
+    rc, out = run_score(tmp_path, state, expected_file=_expected_file(tmp_path, {"rows": [by_file]}))
+    assert out["rows"][0]["point"] == 0 and "2 findings own the class" in out["rows"][0]["note"]
+
+    # and a second finding that cites a truncating line as its own defect is still a split
+    floats["evidence"] = ["invoice.py:8 int(unit_price * quantity * 100) truncates"]
+    expected = _expected_file(tmp_path, {"rows": [row]})
+    rc, out = run_score(tmp_path, state, expected_file=expected)
+    assert out["rows"][0]["point"] == 0 and "names as a site of its class" in out["rows"][0]["note"]

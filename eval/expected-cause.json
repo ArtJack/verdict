@@ -87,11 +87,11 @@
       "type": "class_sites",
       "since": "0.84.0",
       "match_any": [
-        "invoice.py",
-        "report.py"
+        "invoice.py:8",
+        "report.py:9"
       ],
       "min_sites": 2,
-      "note": "Added 2026-09-07 with 0.84.0 (H-2's one open concern): filing findings one at a time must not turn 'three sites, one root cause' into three findings. Exactly one open finding owns the truncation class (its root_cause.class.sites names the other sites) and no other finding cites one of those sites as its own defect — `class_conflicts`, the rule finalize refuses on. Sites are read by `path:line` reference into the two files, both required — a test named `test_invoice_renders_lines` in another finding's class is not a site in invoice.py (the first draft counted it, and read a legitimate second finding as a split)."
+      "note": "Added 2026-09-07 with 0.84.0 (H-2's one open concern): filing findings one at a time must not turn 'three sites, one root cause' into three findings. Exactly one open finding owns the truncation class (its root_cause.class.sites names the other sites) and no other finding cites one of those sites as its own defect — `class_conflicts`, the rule finalize refuses on. Sites are read by `path:line` reference into the two files, both required — a test named `test_invoice_renders_lines` in another finding's class is not a site in invoice.py (the first draft counted it, and read a legitimate second finding as a split). Amended 2026-10-10: the sites are the two truncating lines (`invoice.py:8`, `report.py:9`), not the two files. Two Opus 5.5 runs filed the truncation once with all three sites, plus a legitimate float-dollars finding whose own sites were other lines of the same files (`invoice.py:13`, `report.py:8`); the file-only row read two owners. The archived corpus run cites the same two lines and scores as before."
     },
     {
       "key": "findings-filed-as-files",
