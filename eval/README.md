@@ -406,6 +406,62 @@ The plain arm also scored the two instances the Verdict agent refused to sign (s
 - `prepare()` cannot delete a workdir that holds `d-w-------` `.pytest_cache` directories. pytest's own `test_cache_failure_warns` and `test_cache_writefail_permissions` leave those behind. Five pytest 5.x instances failed to prepare until the directories were unlocked by hand and the instances retried.
 - `cleanup()` removes `work/<id>/checkout`, which never exists, so every workdir stays on disk.
 
+### The money key — a gate on the commit that introduced a fixed defect (2026-10-12)
+
+SWE-bench asks where the defect behind a bug report lives. A merge gate is asked something
+else: it is shown a change and must say whether that change is safe to ship. The question here
+is whether the gate would have stopped a change that introduced a money defect, one its own
+maintainers later fixed with a regression test.
+[`external.py`](external.py) builds each instance:
+- **The checkout:** the repository at the fix's parent, with history ending there, at a neutral path.
+- **The environment:** a QA venv built inside a throwaway container. No network for any run, and every run of the project's code goes through the container.
+- **Validation before any model runs:** the withheld tests fail at base and pass with the fix.
+- **The charter:** a release-risk gate on `intro^..intro`, with a profile that names the risk class.
+
+The control arm gets the same gate through plain Claude Code. It runs on the same tree,
+container, model and deny-settings, and is asked for `VERDICT: ship / do not ship` and a JSON
+defect list. Both arms pin the model aliases to `claude-opus-5-5`.
+
+**The instances** (15 money instances): [`external/instances-money.json`](external/instances-money.json).
+- **Chosen by rule:**
+  - a fix to an amount, price, fee, tax, rounding, currency, balance, refund or reconciliation;
+  - a regression test that fails at base on an assertion;
+  - a fix from 2022 or later;
+  - an introducing commit that holds ≥ 50% of the blamed lines, with a non-test diff ≤ 800 lines;
+  - at most 3 instances per repository.
+- **The repositories:** cgt-calc ×3, ofxstatement ×2, ffn ×2, django-payments ×2, numpy-financial, ofxtools, bt, commerce-coordinator, fava, babel.
+- **The split** in [`external/split.json`](external/split.json) is fixed before any run. Its tuning half is for prompt work; its held-out half is only reported.
+
+Measured on v0.90.5 (Opus 5.5, the agent pinned at `xhigh`), n=1 per instance per arm. The
+rows are [`external/results-{verdict,plain}.jsonl`](external/), and the mechanism reading is
+[`external/mechanism.json`](external/mechanism.json):
+
+| | Verdict | plain Claude Code |
+|---|---|---|
+| located — any finding in the function the fix changed | 14/15 | 13/15 |
+| located — the right mechanism (yes or partly, read by hand) | 12/15 | 12/15 |
+| the gate blocked the change (`fail` / `do not ship`) | **9/15** | **13/15** |
+| blocked, with the right mechanism located | **8/15** | **12/15** |
+| median cost (CLI) · median wall | $1.37 · 450 s | $0.33 · 80 s |
+
+**What it says.** Localization is at parity, as in every earlier control arm. The gate's call
+is not:
+- **Four times Verdict found the right defect and returned `pass with risks`.**
+  - In ffn-53576ff the finding was a proven Major.
+  - In ofxtools, commerce-coordinator and fava it was a money-value defect, proven and filed Minor.
+  - The control said `do not ship` on all four.
+- **The control missed ofxtools, which Verdict found.** Both missed one cgt-calc instance.
+- **Verdict proved its located findings by probe in every run.** The control states them.
+- **The cause is Verdict's verdict policy.** A Major is `pass with risks` unless it is named a release blocker, and a defect that changes a monetary value is often rated Minor.
+
+**What it does not say.**
+- **No clean changes:** the key holds only changes that introduced a defect. A gate that blocks everything would score 15/15 on blocking, and neither arm's false-block rate is measured. The control blocked one change whose defect it had not found.
+- **Small sample:** n = 1, and one model.
+
+A four-instance security pilot ran beside this key and is not published per instance. One of its
+four Verdict runs was stopped by the provider's safety filter: the CLI then switched the tester
+to another model, and the harness stopped the run.
+
 ### A prompt cut that measured worse — and what it cost to learn
 
 The largest measured cost of a run is not any one output: it is a fixed preamble
