@@ -65,7 +65,7 @@ try:
     from .hygiene import reconcile as reconcile_hygiene
     from .filed import FINDINGS_DIR, archive_findings, load_filed
     from .reports import read_report
-    from .profile import ProfileError, gates_from, hygiene_filing_from
+    from .profile import RISK_CLASSES, ProfileError, gates_from, hygiene_filing_from, risk_class_from
     from .profile import load as load_profile
     from .project_key import derive_key
     from .state import (OUTCOMES_FILE, accepted_block, calibration, in_force, is_open,
@@ -93,7 +93,7 @@ except ImportError:  # bare-script execution
     from hygiene import reconcile as reconcile_hygiene
     from filed import FINDINGS_DIR, archive_findings, load_filed
     from reports import read_report
-    from profile import ProfileError, gates_from, hygiene_filing_from
+    from profile import RISK_CLASSES, ProfileError, gates_from, hygiene_filing_from, risk_class_from
     from profile import load as load_profile
     from project_key import derive_key
     from state import (OUTCOMES_FILE, accepted_block, calibration, in_force, is_open,
@@ -2572,6 +2572,11 @@ def facts_main(argv=None) -> int:
                          "-m coverage run -m pytest`) — measures which changed lines any test "
                          "executed (default: the profile's coverage_suite_cmd)")
     ap.add_argument("--out", type=Path, default=None, help="also write facts.json here")
+    ap.add_argument("--range", dest="sha_range", default=os.environ.get("VERDICT_RANGE") or None,
+                    metavar="BASE..HEAD",
+                    help="the change under review — a PR gate's range (default: $VERDICT_RANGE, "
+                         "which `verdict-run --range` exports; else the range since the previous "
+                         "run). Recorded as last_run.sha_range")
     ap.add_argument("--reuse-if-fresh", action="store_true",
                     help="reuse an existing facts.json when it describes this same HEAD "
                          "and is recent — a retry should not re-run the suite")
@@ -2692,7 +2697,7 @@ def facts_main(argv=None) -> int:
     archived = archive_findings(qa_root, keep=retry)
     facts = collect(repo, qa_root, gates, args.test_ids_cmd, abandoned=abandoned,
                     test_one_cmd=args.test_one_cmd, coverage_suite_cmd=args.coverage_suite_cmd,
-                    hygiene_filing=filing)
+                    sha_range=args.sha_range, hygiene_filing=filing)
     if archived:
         facts["findings_archived"] = archived
     if declared_authorship:
@@ -2874,14 +2879,56 @@ def _measure_bill(qa_root: Path, facts: dict) -> dict | None:
                      fingerprint=facts.get("measured_at"))
 
 
-def gate_policy(state: dict, bill: dict | None) -> list[str]:
-    """A verdict rule a judgment cannot talk its way past → what it did, for the run.
+_MINOR_OR_WORSE = ("Blocker", "Critical", "Major", "Minor")
 
-    **One model.** A tester whose own transcript answers on more than one model did not run
-    on the model it was launched on, and its verdict is nobody's: `blocked`, with the models
-    named. On 2026-10-12 the provider's safety filter stopped two responses of a security
-    gate, the CLI carried on with another model and said nothing, and only the eval's
-    watcher noticed.
+
+def change_lines(repo, sha_range):
+    """`(path, line) -> bool`: whether `git blame` at HEAD attributes the line to a commit
+    in `sha_range` — the change under review, told from the tree. None when the range is
+    unknown or names no commit, because then nothing can be told apart."""
+    if not repo or not sha_range:
+        return None
+    listed = _git(["rev-list", str(sha_range)], repo)
+    commits = set((listed or "").split())
+    if not commits:
+        return None
+    owners: dict = {}
+
+    def in_change(path, line) -> bool:
+        key = str(path)
+        if key not in owners:
+            out = _git(["blame", "-w", "-M", "-C", "--line-porcelain", "HEAD", "--", key], repo)
+            lines = {}
+            for row in (out or "").splitlines():
+                parts = row.split(" ")
+                if len(parts) >= 3 and len(parts[0]) == 40 and parts[2].isdigit():
+                    lines[int(parts[2])] = parts[0]
+            owners[key] = lines
+        try:
+            return owners[key].get(int(line)) in commits
+        except (TypeError, ValueError):
+            return False
+    return in_change
+
+
+def gate_policy(state: dict, bill: dict | None, risk_class: str | None = None,
+                in_change=None) -> list[str]:
+    """The verdict rules a judgment cannot talk its way past → what each did, for the run.
+
+    1. **One model.** A tester whose own transcript answers on more than one model did not
+       run on the model it was launched on, and its verdict is nobody's: `blocked`, with the
+       models named. On 2026-10-12 the provider's safety filter stopped two responses of a
+       security gate, the CLI carried on with another model and said nothing, and only the
+       eval's watcher noticed.
+    2. **A proven defect the change made blocks a money or security gate.** Under
+       `risk_class: money` or `security`, an open, tester-filed finding that is `proven`, a
+       `REAL_DEFECT`, Minor or worse, *and* cites a line `git blame` attributes to the gate's
+       range (`in_change`) makes the verdict `fail` and joins the release blockers. Measured
+       on the 2026-10 money key: the tester located the right defect, proved it and returned
+       `pass with risks` five times in nineteen, and three times in six on fresh positives.
+       Unscoped, the rule also blocked three of eight clean changes for defects that were
+       already there; scoped to the change it is what Phase 2b measures. No range, no rule:
+       a defect the change made cannot be told from one it found.
     """
     models = {str(m): int(n) for m, n in ((bill or {}).get("models") or {}).items() if m}
     if len(models) > 1:
@@ -2891,7 +2938,38 @@ def gate_policy(state: dict, bill: dict | None) -> list[str]:
                                  "reason": reason}
         state["verdict"] = "blocked"
         return [f"verdict blocked: {reason} — no verdict is signed by a model nobody chose"]
-    return []
+    if risk_class not in RISK_CLASSES or state.get("verdict") not in ("pass", "pass with risks"):
+        return []
+    if in_change is None:
+        return [f"risk_class {risk_class}: no gate range, so a defect the change made cannot be "
+                "told from one it found — the judgment's verdict stands"]
+    proven = []
+    for f in state.get("findings") or []:
+        if not (is_open(f) and not is_hygiene(f)
+                and str(f.get("confidence") or "") == "proven"
+                and str(f.get("failure_classification") or "") == "REAL_DEFECT"
+                and str(f.get("severity") or "") in _MINOR_OR_WORSE):
+            continue
+        if any(isinstance(a, dict) and a.get("path") and a.get("line")
+               and in_change(a["path"], a["line"]) for a in f.get("anchors") or []):
+            proven.append(f)
+    if not proven:
+        return []
+    was = state.get("verdict")
+    blockers = list(state.get("release_blockers") or [])
+    named = " ".join(str(b) for b in blockers)
+    for f in proven:
+        fid = str(f.get("id"))
+        if fid not in named:
+            blockers.append(f"{fid}: {f.get('title') or ''} ({f.get('severity')}, proven, in "
+                            f"the change; risk_class {risk_class}: a proven defect blocks)")
+    state["release_blockers"] = blockers
+    state["verdict"] = "fail"
+    state["verdict_rule"] = {"rule": f"risk_class {risk_class}: a proven defect the change made "
+                                     "blocks",
+                             "was": was, "raised_by": [str(f.get("id")) for f in proven]}
+    return [f"verdict raised from '{was}' to 'fail': risk_class {risk_class}, and "
+            f"{', '.join(str(f.get('id')) for f in proven)} proven in the change"]
 
 
 def _record_bill(qa_root: Path, state: dict, bill: dict | None) -> None:
@@ -3042,8 +3120,19 @@ def finalize_main(argv=None) -> int:
     state = merge(facts, judgment, previous, ledger=load_outcomes(qa_root),
                   accepted=load_accepted(qa_root), qa_root=qa_root)
     state.pop("verdict_rule", None)              # this run's rule or none, never the last one's
-    for note in gate_policy(state, bill):
-        print(f"verdict-finalize: {note}", file=sys.stderr)
+    try:
+        profile_config, profile_notes = load_profile(qa_root)
+    except ProfileError as exc:
+        profile_config, profile_notes = {}, [f"profile not read for risk_class: {exc}"]
+    risk_class = risk_class_from(profile_config, profile_notes)
+    in_change = None
+    if risk_class:
+        repo_dir = facts.get("repo")
+        in_change = change_lines(Path(repo_dir) if repo_dir else None,
+                                 (facts.get("last_run") or {}).get("sha_range"))
+    for note in profile_notes + gate_policy(state, bill, risk_class, in_change):
+        if note.startswith(("verdict ", "risk_class", "profile not read")):
+            print(f"verdict-finalize: {note}", file=sys.stderr)
     # Folded in memory; the ledger is saved only once the state is accepted (questions.fold).
     asked, qnotes, qledger = questions.fold(
         qa_root, questions.id_prefix(state["findings"], state["project"]),

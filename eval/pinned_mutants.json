@@ -2071,5 +2071,53 @@
   "path": "src/verdict_mcp/runner.py",
   "old": "    pinned = [name for name in _ALIAS_ENV if not env.get(name)]\n",
   "new": "    pinned = []\n"
+ },
+ {
+  "label": "scoped gate 1: a proven defect off the change blocks too",
+  "path": "src/verdict_mcp/harness.py",
+  "old": "               and in_change(a[\"path\"], a[\"line\"]) for a in f.get(\"anchors\") or []):\n",
+  "new": "               for a in f.get(\"anchors\") or []):\n"
+ },
+ {
+  "label": "scoped gate 2: a Trivial blocks too",
+  "path": "src/verdict_mcp/harness.py",
+  "old": "_MINOR_OR_WORSE = (\"Blocker\", \"Critical\", \"Major\", \"Minor\")\n",
+  "new": "_MINOR_OR_WORSE = (\"Blocker\", \"Critical\", \"Major\", \"Minor\", \"Trivial\")\n"
+ },
+ {
+  "label": "scoped gate 3: no range, and it blocks anyway",
+  "path": "src/verdict_mcp/harness.py",
+  "old": "    if in_change is None:\n        return [f\"risk_class {risk_class}: no gate range",
+  "new": "    if in_change is None:\n        in_change = lambda path, line: True\n    if False:\n        return [f\"risk_class {risk_class}: no gate range"
+ },
+ {
+  "label": "scoped gate 4: an unproven defect blocks",
+  "path": "src/verdict_mcp/harness.py",
+  "old": "                and str(f.get(\"confidence\") or \"\") == \"proven\"\n                and str(f.get(\"failure_classification\") or \"\") == \"REAL_DEFECT\"\n                and str(f.get(\"severity\") or \"\") in _MINOR_OR_WORSE):\n",
+  "new": "                and str(f.get(\"confidence\") or \"\") != \"refuted\"\n                and str(f.get(\"failure_classification\") or \"\") == \"REAL_DEFECT\"\n                and str(f.get(\"severity\") or \"\") in _MINOR_OR_WORSE):\n"
+ },
+ {
+  "label": "scoped gate 5: verdict-facts drops the range",
+  "path": "src/verdict_mcp/harness.py",
+  "old": "                    sha_range=args.sha_range, hygiene_filing=filing)\n",
+  "new": "                    sha_range=None, hygiene_filing=filing)\n"
+ },
+ {
+  "label": "scoped gate 6: verdict-run never exports the range",
+  "path": "src/verdict_mcp/runner.py",
+  "old": "        env[\"VERDICT_RANGE\"] = args.sha_range\n",
+  "new": "        pass\n"
+ },
+ {
+  "label": "scoped gate 7: blame read backwards",
+  "path": "src/verdict_mcp/harness.py",
+  "old": "            return owners[key].get(int(line)) in commits\n",
+  "new": "            return owners[key].get(int(line)) not in commits\n"
+ },
+ {
+  "label": "scoped gate 8: a misspelt risk class takes as money",
+  "path": "src/verdict_mcp/profile.py",
+  "old": "    if value in RISK_CLASSES:\n        return value\n",
+  "new": "    if value:\n        return \"money\"\n"
  }
 ]

@@ -911,6 +911,10 @@ def main(argv=None) -> int:
                     help="project key or repo path (default: derived from --repo/cwd)")
     ap.add_argument("--repo", default=None, help="repository to run in (default: cwd)")
     ap.add_argument("--model", default=os.environ.get("VERDICT_MODEL", "opus"))
+    ap.add_argument("--range", dest="sha_range", default=None, metavar="BASE..HEAD",
+                    help="the change a gate reviews: exported as VERDICT_RANGE, so verdict-facts "
+                         "records it and verdict-finalize can tell a defect the change made from "
+                         "one it found")
     ap.add_argument("--prompt", default=None)
     ap.add_argument("--prompt-file", type=Path, default=None)
     ap.add_argument("--timeout-s", type=int, default=3600)
@@ -1103,6 +1107,9 @@ def main(argv=None) -> int:
         env.update(read_env_file(args.env_file))
     env, env_notes = session_env(env, repo)
     env_notes = env_notes + pin_model_aliases(env, args.model)
+    if args.sha_range:
+        env["VERDICT_RANGE"] = args.sha_range
+        env_notes.append(f"gate range: {args.sha_range} (VERDICT_RANGE)")
     for note in env_notes:
         print(f"verdict-run: {note}", file=sys.stderr)
     # A headless session may delegate the tester in the background and end its turn — "I'll
