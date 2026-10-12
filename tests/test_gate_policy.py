@@ -185,3 +185,22 @@ def test_finalize_without_a_range_keeps_the_judgment_and_says_so(repo, qa_root, 
     err = capsys.readouterr().err
     assert rc == 0, err
     assert state["verdict"] == "pass with risks" and "no gate range" in err
+
+
+# ── the profile field ──────────────────────────────────────────────────────────
+
+from verdict_mcp.profile import risk_class_from  # noqa: E402
+
+
+@pytest.mark.parametrize("value,expected", [
+    ("money", "money"), (" Security ", "security"), ("", None), (None, None)])
+def test_risk_class_is_read_in_any_case_and_absent_is_none(value, expected):
+    notes = []
+    assert risk_class_from({} if value is None else {"risk_class": value}, notes) == expected
+    assert notes == []
+
+
+def test_a_misspelt_risk_class_applies_none_and_says_so():
+    notes = []
+    assert risk_class_from({"risk_class": "monye"}, notes) is None
+    assert notes and "not understood" in notes[0]
