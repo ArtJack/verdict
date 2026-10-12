@@ -162,6 +162,11 @@ probe: the small model's expression and replacement line are never executed, and
 accounts should set it — a probe is a call to one of the project's own functions, in a
 scratch copy, with arguments a model chose.
 
+A run whose tester answered on more than one model (its own
+transcript, as the bill measures it) is `blocked`, `verdict_rule.reason` naming the models:
+after two safety-filter refusals the CLI once carried a security gate on to another model
+and said nothing.
+
 Explicit `--gate` still wins, and the override is recorded in the facts; a run that ends up
 with no gates at all records `no_gates` and says every count and duration gate is
 unmeasurable, because "nothing to measure" and "nobody said what to measure" are different

@@ -2059,5 +2059,17 @@
   "path": "hooks/report_open_findings.py",
   "old": "    if root is None or (root / \".qa\").exists() or not _has_tests(root):\n",
   "new": "    if root is None or (root / \".qa\").exists():\n"
+ },
+ {
+  "label": "one model: a run on two models is not blocked",
+  "path": "src/verdict_mcp/harness.py",
+  "old": "    if len(models) > 1:\n        reason = (\"the tester answered on more than one model (\"\n",
+  "new": "    if len(models) > 2:\n        reason = (\"the tester answered on more than one model (\"\n"
+ },
+ {
+  "label": "model pin: an id given as --model pins nothing",
+  "path": "src/verdict_mcp/runner.py",
+  "old": "    pinned = [name for name in _ALIAS_ENV if not env.get(name)]\n",
+  "new": "    pinned = []\n"
  }
 ]

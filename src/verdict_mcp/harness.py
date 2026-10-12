@@ -2874,6 +2874,26 @@ def _measure_bill(qa_root: Path, facts: dict) -> dict | None:
                      fingerprint=facts.get("measured_at"))
 
 
+def gate_policy(state: dict, bill: dict | None) -> list[str]:
+    """A verdict rule a judgment cannot talk its way past → what it did, for the run.
+
+    **One model.** A tester whose own transcript answers on more than one model did not run
+    on the model it was launched on, and its verdict is nobody's: `blocked`, with the models
+    named. On 2026-10-12 the provider's safety filter stopped two responses of a security
+    gate, the CLI carried on with another model and said nothing, and only the eval's
+    watcher noticed.
+    """
+    models = {str(m): int(n) for m, n in ((bill or {}).get("models") or {}).items() if m}
+    if len(models) > 1:
+        reason = ("the tester answered on more than one model ("
+                  + ", ".join(f"{m} ×{n}" for m, n in sorted(models.items())) + ")")
+        state["verdict_rule"] = {"rule": "one model", "was": state.get("verdict"),
+                                 "reason": reason}
+        state["verdict"] = "blocked"
+        return [f"verdict blocked: {reason} — no verdict is signed by a model nobody chose"]
+    return []
+
+
 def _record_bill(qa_root: Path, state: dict, bill: dict | None) -> None:
     """One line per run in `usage.jsonl`, beside the state and outside the signed row.
 
@@ -3021,6 +3041,9 @@ def finalize_main(argv=None) -> int:
 
     state = merge(facts, judgment, previous, ledger=load_outcomes(qa_root),
                   accepted=load_accepted(qa_root), qa_root=qa_root)
+    state.pop("verdict_rule", None)              # this run's rule or none, never the last one's
+    for note in gate_policy(state, bill):
+        print(f"verdict-finalize: {note}", file=sys.stderr)
     # Folded in memory; the ledger is saved only once the state is accepted (questions.fold).
     asked, qnotes, qledger = questions.fold(
         qa_root, questions.id_prefix(state["findings"], state["project"]),
@@ -3363,6 +3386,11 @@ def render_report(state: dict, prose: dict | None = None) -> str:
     if state.get("run_label"):
         out += [f"*{state['run_label']}*", ""]
     out += [f"**VERDICT: {state.get('verdict')}**", ""]
+    rule = state.get("verdict_rule") if isinstance(state.get("verdict_rule"), dict) else None
+    if rule:
+        detail = rule.get("reason") or ", ".join(rule.get("raised_by") or [])
+        out += [f"> Set by the harness ({rule.get('rule')}): the judgment said "
+                f"`{rule.get('was')}`; {detail}.", ""]
 
     out += ["## Scope", "",
             f"- Range: `{last.get('sha_range') or last.get('git_sha') or 'n/a'}`"

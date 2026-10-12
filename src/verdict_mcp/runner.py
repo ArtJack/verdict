@@ -387,6 +387,25 @@ def seed_config(config_dir, repo) -> None:
     doc_path.write_text(json.dumps(doc, indent=1) + "\n", encoding="utf-8")
 
 
+# The aliases a main session can hand the Agent tool. Named here so a run launched on one
+# model stays on it: twice (2026-10-04, 2026-10-11) the main session read "asked = Sonnet" in
+# an old packet and spawned the tester with `model: sonnet` under `--model opus`.
+_ALIAS_ENV = ("ANTHROPIC_DEFAULT_OPUS_MODEL", "ANTHROPIC_DEFAULT_SONNET_MODEL")
+
+
+def pin_model_aliases(env: dict, model: str) -> list:
+    """When `--model` names a model by its id (`claude-opus-5-5`), point the `opus` and
+    `sonnet` aliases at it too, so a subagent spawned with either alias runs on the model
+    the operator chose → notes. An alias given as `--model` cannot be pinned (the runner
+    does not know what it resolves to), and an alias the operator set is theirs."""
+    if not str(model).startswith("claude-"):
+        return []
+    pinned = [name for name in _ALIAS_ENV if not env.get(name)]
+    for name in pinned:
+        env[name] = model
+    return [f"model aliases pinned to {model}: {', '.join(pinned)}"] if pinned else []
+
+
 def session_env(env: dict, repo) -> tuple[dict, list]:
     """Apply the operator's account or endpoint choice → (env, notes).
 
@@ -1083,6 +1102,7 @@ def main(argv=None) -> int:
             return 2
         env.update(read_env_file(args.env_file))
     env, env_notes = session_env(env, repo)
+    env_notes = env_notes + pin_model_aliases(env, args.model)
     for note in env_notes:
         print(f"verdict-run: {note}", file=sys.stderr)
     # A headless session may delegate the tester in the background and end its turn — "I'll
