@@ -12,3 +12,7 @@ run-in-progress.json
 coverage.rc
 coverage.db
 coverage.json
+# The collected test ids, rewritten by every run. At 2,695 tests (run 16, 2026-10-15) the list
+# is 252 KB, past the 240 KiB line tests/test_directory_policy.py holds for the directory's
+# reader, so it stays on the machine that runs the harness; the record is state.json.
+test-ids.txt
