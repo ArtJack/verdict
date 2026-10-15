@@ -1,0 +1,921 @@
+#!/usr/bin/env python3
+"""verdict-validate — the state contract, enforced at the write boundary.
+
+Stdlib only, no model, no network: runnable as a bare script from a checkout.
+
+Every rule below exists because a real run broke it. A prompt rule reduces how
+often a model invents a value; it cannot stop a model from inventing a value it
+is capable of inventing. Two of four production timestamps landed on exactly
+:00 seconds months after `date -u` became a written rule. So the contract stops
+being prose the agent is asked to honour and becomes a gate the state must pass:
+
+  - the report field must name a file that exists (a run once wrote
+    "inline to caller (no report file written per caller instruction)" there,
+    three times, and every downstream consumer believed it);
+  - run_number must advance (a crashed headless session left yesterday's state
+    in place and the next reader could not tell);
+  - timestamps must be ISO-8601 Z and close to now (fabricated ones corrupt
+    every age, expiry, and re-baseline decision built on them);
+  - a `pass` verdict cannot stand over an open Critical or Blocker;
+  - findings need stable identity, valid enums, and cited evidence.
+
+Exit codes: 0 valid · 1 violations found · 2 usage/unreadable.
+
+As a PostToolUse hook it is called with the hook JSON on stdin and reports
+violations on stderr with exit 2, which shows the agent what it must fix while
+it can still fix it — in-session, rather than a lost run later.
+"""
+
+import argparse
+import json
+import os
+import re
+import sys
+from datetime import datetime, timedelta, timezone
+from pathlib import Path
+
+try:
+    from . import clock
+    from .anchors import refs_in
+    from .filed import FINDINGS_DIR, finding_file
+except ImportError:  # bare-script execution
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    import clock
+    from anchors import refs_in
+    from filed import FINDINGS_DIR, finding_file
+
+VERDICTS = {"pass", "pass with risks", "blocked", "fail"}
+# `sweep` is the model-free run: HEAD moved, nothing any finding cites
+# changed, the gates are green — `verdict-run --skip-unless-drift` carries the
+# previous verdict by id and signs the run with no model (0.86.0).
+RUN_TYPES = {"baseline", "delta", "re-baseline", "sweep"}
+# WITHDRAWN is the tester's own false-positive record: a finding that was
+# reported and turned out not to be real. It exists because a production run
+# needed the concept and invented the word — and a tester that quietly deletes
+# its wrong findings is hiding its own error rate.
+DELTAS = {"NEW", "STILL_OPEN", "RESOLVED", "REGRESSED", "WITHDRAWN"}
+# What a state may carry: the deltas above, which the prompt teaches and a
+# judgment may write, plus the one only `verdict-finalize` computes from the
+# maintainer's ledger.
+STATE_DELTAS = DELTAS | {"ACCEPTED"}
+SEVERITIES = {"Blocker", "Critical", "Major", "Minor", "Trivial"}
+PRIORITIES = {"P0", "P1", "P2", "P3"}
+CLASSIFICATIONS = {"REAL_DEFECT", "STALE_EXPECTATION", "BRITTLE_TEST", "ENVIRONMENT", "FLAKY"}
+# Optional, because five archived corpus runs predate them and must keep
+# scoring: a contract that retroactively invalidates its own history is not a
+# contract, it is a rewrite.
+CONFIDENCES = {"proven", "probable", "hypothesis"}
+OUTCOMES = {"confirmed", "refuted", "unknown"}
+# What a judgment may say. `accepted` is the maintainer's word, written by
+# `verdict-accept` into its own ledger and folded in by the harness — a finding
+# cannot accept its own risk, so a judgment carrying the status is refused.
+JUDGMENT_STATUSES = {"open", "resolved", "withdrawn"}
+STATUSES = {"open", "resolved", "withdrawn", "accepted"}
+REQUIRED_TOP = ("project", "schema_version", "run_type", "run_number", "last_run",
+                "isolation_check", "verdict", "release_blockers", "not_tested")
+_ISO_Z = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$")
+# A run that finished more than a day ago, or in the future, did not just write
+# this file. Generous either way: clock skew is real, a two-day-old "now" is not.
+FUTURE_TOLERANCE = timedelta(minutes=10)
+PAST_TOLERANCE = timedelta(days=1)
+
+
+def _status(finding) -> str:
+    """Status, case-normalized. Mirrors state.norm_status, duplicated because
+    this module is the PostToolUse hook and must import nothing."""
+    return str(finding.get("status") or "").strip().lower()
+
+
+def _is_open(finding) -> bool:
+    """Open unless the finding is explicitly closed — the safe direction.
+
+    Read the other way, a single mistyped word hides a finding: `"closed"` on
+    an open Critical satisfied `status != "open"` everywhere, so the blocker
+    check, the gate and the hotspot ranking all agreed it was dealt with, and a
+    `pass` verdict stood over it. An unrecognised status is not evidence that a
+    defect was fixed; it is evidence that nobody knows.
+    """
+    return _status(finding) not in ("resolved", "withdrawn", "accepted")
+
+
+def _parse_z(value: str):
+    if not isinstance(value, str) or not _ISO_Z.match(value):
+        return None
+    try:
+        return datetime.strptime(value, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc)
+    except ValueError:
+        return None
+
+
+# Fields `verdict-finalize` computes. A judgment that sets them is not wrong so
+# much as wasting its breath, and saying so teaches the contract.
+COMPUTED_BY_FINALIZE = ("hash", "first_seen", "age_days", "outcome", "outcome_reason",
+                        "carried_forward",
+                        # A measurement, not a claim: the harness re-ran the test.
+                        "verification", "resolution_refused",
+                        # Where the cited code lives, hashed; when it was last measured;
+                        # when it entered and when its fix was verified. All measured.
+                        "anchors", "anchored_at_run", "last_verified_at",
+                        "introduced_at", "introduced_sha", "fixed_at",
+                        # When the finding file was written, and which verb carried it.
+                        "filed_at", "re_reported",
+                        # The tests coverage says execute the cited lines and stay green.
+                        "exercised_by_tests")
+# The verbs a judgment may use instead of re-typing a finding it looked at and
+# found unchanged: ids only, carried from the previous state by finalize.
+VERBS = ("still_open", "resolved")
+MIN_QUESTION = 12
+
+
+def known_tests(qa_root):
+    """The collected test ids `verdict-facts` wrote, or None when there is no
+    ledger to check a citation against."""
+    path = Path(qa_root) / "test-ids.txt"
+    if not path.is_file():
+        return None
+    ids = {ln.strip().replace("\\", "/") for ln in path.read_text(encoding="utf-8").splitlines()
+           if ln.strip()}
+    return ids or None
+
+
+def _evidence_shape(finding, where, fid) -> list:
+    """Evidence entries must be strings — citations a human can follow.
+
+    Both validators checked that evidence was *present* and never what it
+    contained, so `[{"file": "qstats.py", "line": 4}]` counted as a cited
+    finding. It reaches the report renderer as a dict, and it satisfies the
+    check whose whole purpose is that somebody can go and look. A structured
+    citation is not obviously wrong as a design; it is wrong as an accident,
+    arriving from a model that guessed the shape.
+    """
+    evidence = finding.get("evidence")
+    if evidence is None:
+        return []
+    if not isinstance(evidence, list):
+        return [f"{where} ({fid}) evidence must be a list of citation strings, not "
+                f"{type(evidence).__name__}"]
+    return [f"{where} ({fid}) evidence[{i}] is {type(e).__name__}, not a string — cite it "
+            "as text a reader can follow, like 'qstats.py:4 returns queued - in_flight'"
+            for i, e in enumerate(evidence) if not isinstance(e, str)]
+
+
+_SHIPPING = ("pass", "pass with risks")
+
+
+def _not_tested_shape(carrier) -> list:
+    """`not_tested` must be a list, and on a shipping verdict a non-empty one.
+
+    Both validators carried this message — "an empty list is a claim of total
+    coverage" — while checking only that the value was a list. `[]` is a list,
+    so the rule was stated and never enforced, and a `pass` with `not_tested:
+    []` went through judgment, merge, state and gate untouched. A rule the
+    error text promises and the code does not apply is worse than no rule: it
+    reads as covered.
+
+    Enforced on `pass` and `pass with risks` only — the two verdicts that let
+    code ship, and the ones whose credibility rests on the boundary being
+    drawn. A `fail` or `blocked` run is stopping anyway and is not making a
+    coverage claim worth policing here.
+    """
+    value = carrier.get("not_tested")
+    if not isinstance(value, list):
+        return ["not_tested must be a list — a `pass` without a stated not-tested list "
+                "is incomplete, and an empty list is a claim of total coverage"]
+    if not value and carrier.get("verdict") in _SHIPPING:
+        return [f"not_tested is empty on a `{carrier.get('verdict')}` verdict, which "
+                "claims total coverage — name what you did not reach. Nothing was left "
+                "untested is a claim almost no run can make honestly"]
+    return []
+
+
+def validate_judgment(judgment, previous=None, known_tests=None):
+    """Check `judgment.json` at the boundary where its author still stands.
+
+    `validate()` checks the merged state, which is the right place to stop a bad
+    state reaching disk but the wrong place to *explain* one: the author's
+    mistake arrives translated into the vocabulary of a structure they did not
+    write. A reworded evidence line surfaced as `repeats id`, which says nothing
+    about what to change. These messages name the thing the agent actually did.
+
+    `previous` is the prior state when there is one; it is what makes "this
+    finding will be filed as NEW, and NEW findings state a confidence" knowable
+    before the merge rather than after it.
+    """
+    bad = []
+    if not isinstance(judgment, dict):
+        return ["judgment.json is not a JSON object"]
+
+    if judgment.get("verdict") not in VERDICTS:
+        bad.append(f"verdict {judgment.get('verdict')!r} is not one of {sorted(VERDICTS)}")
+    if "verified_intact" in judgment and not isinstance(judgment["verified_intact"], list):
+        bad.append("verified_intact must be a list of checked-and-held invariants, "
+                   "each carrying its evidence like any finding would")
+    bad.extend(_not_tested_shape(judgment))
+    # A hygiene finding is the scan's, filed and resolved by verdict-finalize alone: a
+    # judgment that marks one as its own is claiming a measurement it did not make. The
+    # refusal names it and invites no copy — a copy is the duplicate being refused.
+    listed = judgment.get("findings")
+    for i, f in enumerate(listed if isinstance(listed, list) else []):
+        if isinstance(f, dict) and (f.get("source") == "hygiene" or "hygiene" in f):
+            bad.append(f"findings[{i}] ({f.get('id')}) is a copy of the hygiene finding "
+                       f"{f.get('id')}, which belongs to the harness: filed by verdict-finalize "
+                       "from the hygiene scan and resolved by it when the scan stops seeing it. "
+                       "It must not be copied or re-filed — leave it out of the judgment")
+    if not isinstance(judgment.get("isolation_check"), dict):
+        bad.append("isolation_check must be an object recording the §0 check you ran")
+    if "full_sweep" in judgment and not isinstance(judgment["full_sweep"], bool):
+        bad.append("full_sweep must be true or false — it licenses silence to resolve "
+                   "findings wholesale, and a truthy string would grant that by accident")
+
+    prose = judgment.get("prose")
+    if prose is not None and not isinstance(prose, dict):
+        bad.append(
+            f"prose must be an object of named sections, not {type(prose).__name__} — "
+            "`{\"scope\": …, \"risks\": …, \"fix_order\": …, \"notes\": …, "
+            "\"findings\": {<id>: …}}`. A bare string here crashed the renderer with a "
+            "raw AttributeError, which told its author nothing about what to change")
+    elif isinstance(prose, dict) and not isinstance(prose.get("findings", {}), dict):
+        bad.append("prose.findings must map a finding id to its narrative, not "
+                   f"{type(prose.get('findings')).__name__}")
+
+    findings = judgment.get("findings")
+    if not isinstance(findings, list):
+        return bad + ["findings must be a list"]
+
+    prev_findings = [f for f in ((previous or {}).get("findings") or []) if isinstance(f, dict)]
+    known_ids = {str(f.get("id")) for f in prev_findings if f.get("id")}
+    hygiene_ids = {str(f.get("id")) for f in prev_findings
+                   if f.get("source") == "hygiene" and f.get("id")}
+    seen = {}
+    for i, f in enumerate(findings):
+        where = f"findings[{i}]"
+        if not isinstance(f, dict):
+            bad.append(f"{where} is not an object")
+            continue
+        fid = str(f.get("id") or "")
+        if fid and fid in seen:
+            bad.append(f"{where} and findings[{seen[fid]}] are both filed as {fid!r} — one "
+                       "id is one finding; if these are two problems, mint a second id")
+        elif fid:
+            seen[fid] = i
+        if fid in hygiene_ids and f.get("source") != "hygiene" and "hygiene" not in f:
+            bad.append(f"{where} ({fid}) is filed under the id of the hygiene finding {fid}, which "
+                       "belongs to the harness: the scan files and resolves it every run. It must "
+                       "not be copied or re-filed — leave it out of the judgment")
+        bad.extend(validate_finding(f, where, known_ids, known_tests))
+
+    bad.extend(_verbs_shape(judgment, prev_findings, set(seen)))
+    bad.extend(_questions_shape(judgment, set(seen) | known_ids))
+    prev_by_id = {str(f.get("id")): f for f in prev_findings if f.get("id")}
+    carried = [prev_by_id[x] for x in (judgment.get("still_open") or [])
+               if isinstance(x, str) and x in prev_by_id]
+    # A contradiction between two findings this run only CARRIED was already in the record;
+    # it is not this run's to settle, and refusing the run for it loses the run — every night,
+    # for an engine that cannot judge it (measured on Sales, 2026-09-18). Anything this run
+    # files is still held to the rule. `verdict-finalize` asks the inherited one as a question.
+    inherited = set(inherited_conflicts(judgment, prev_findings))
+    bad.extend(c for c in class_conflicts([f for f in findings if isinstance(f, dict)] + carried)
+               if c not in inherited)
+
+    blocking = [str(f.get("id")) for f in findings if isinstance(f, dict) and _is_open(f)
+                and f.get("severity") in ("Critical", "Blocker")]
+    if judgment.get("verdict") == "pass" and blocking:
+        bad.append("verdict is `pass` with open Critical/Blocker findings: "
+                   + ", ".join(blocking) + " — §10 caps that at `pass with risks`")
+    return bad
+
+
+def validate_finding(f: dict, where: str, known_ids, known_tests=None) -> list:
+    """One finding, checked the way the judgment loop always checked it — and
+    the way the PostToolUse hook checks a `findings/<ID>.json` the moment it
+    is written, while the evidence is still in front of its author."""
+    bad = []
+    fid = str(f.get("id") or "")
+    if not fid:
+        bad.append(f"{where} has no id — mint one as <PROJECT>-F-<n>, once, and reuse "
+                   "it verbatim on every later run that re-reports this finding")
+    if f.get("severity") not in SEVERITIES:
+        bad.append(f"{where} ({fid}) severity {f.get('severity')!r} not in {sorted(SEVERITIES)}")
+    if f.get("priority") not in PRIORITIES:
+        bad.append(f"{where} ({fid}) priority {f.get('priority')!r} not in {sorted(PRIORITIES)}")
+    status = _status(f)
+    if status == "accepted":
+        bad.append(f"{where} ({fid}) status 'accepted' is the maintainer's word, not the "
+                   "tester's — a finding cannot accept its own risk. Leave it open; the "
+                   "maintainer records the decision with `verdict-accept` and the "
+                   "harness folds it in")
+    elif status and status not in JUDGMENT_STATUSES:
+        bad.append(f"{where} ({fid}) status {f.get('status')!r} not in "
+                   f"{sorted(JUDGMENT_STATUSES)}")
+    if "accepted" in f:
+        bad.append(f"{where} ({fid}) carries an `accepted` block — that is the "
+                   "maintainer's record, written by `verdict-accept`; a judgment may not "
+                   "decorate a finding with an acceptance nobody made")
+    fc = f.get("failure_classification")
+    if fc is not None and fc not in CLASSIFICATIONS:
+        bad.append(f"{where} ({fid}) failure_classification {fc!r} not in "
+                   f"{sorted(CLASSIFICATIONS)} — use null for a finding that is not "
+                   "about a failing, erroring, skipped or nondeterministic test")
+    if _is_open(f) and not (f.get("evidence") or []):
+        bad.append(f"{where} ({fid}) is open with no evidence — an uncited finding is a "
+                   "HYPOTHESIS, not a finding")
+    bad.extend(_evidence_shape(f, where, fid))
+
+    conf = f.get("confidence")
+    if conf is not None and conf not in CONFIDENCES:
+        bad.append(f"{where} ({fid}) confidence {conf!r} not in {sorted(CONFIDENCES)}")
+    elif conf is None and fid and fid not in known_ids:
+        bad.append(
+            f"{where} ({fid}) is not in the previous state, so it will be filed as NEW "
+            f"— state its confidence now: {sorted(CONFIDENCES)}. It is scored against "
+            "what the finding turns out to do, so it cannot be added later")
+
+    fv = f.get("fix_verified")
+    if fv is not None and not isinstance(fv, bool):
+        bad.append(f"{where} ({fid}) fix_verified must be true or false, not {fv!r}")
+    elif fv is True and not (f.get("evidence") or []):
+        bad.append(f"{where} ({fid}) claims fix_verified with no evidence — cite the "
+                   "test that failed when you re-injected the defect")
+
+    computed = [k for k in COMPUTED_BY_FINALIZE if k in f]
+    if computed:
+        bad.append(f"{where} ({fid}) sets {', '.join(computed)}, which verdict-finalize "
+                   "computes and will overwrite — judgment.json carries judgment only")
+    if "narrative" in f and not isinstance(f["narrative"], str):
+        bad.append(f"{where} ({fid}) narrative must be a string — the per-finding prose "
+                   "that finalize renders under the finding")
+    # P-24: a run wrote "none — no test in tests/test_x.py::y covers this" into
+    # verification_test, and the harness read it as a citation it could not
+    # find. The field is a test id or absent; "no test guards this" is a
+    # sentence for the evidence, and a finding about the suite.
+    vt = f.get("verification_test")
+    if vt is not None and known_tests is not None:
+        if not isinstance(vt, str) or vt.strip().replace("\\", "/") not in known_tests:
+            bad.append(f"{where} ({fid}) verification_test {str(vt)[:70]!r} is not a "
+                       "collected test id — declare one from test-ids.txt, or omit the "
+                       "field and say in evidence that no test guards this")
+    return bad
+
+
+def _verbs_shape(judgment, prev_findings, filed_ids: set) -> list:
+    """`still_open` / `resolved`: ids only, each open in the previous state,
+    each in one place."""
+    bad = []
+    prev_by_id = {str(f.get("id")): f for f in prev_findings if f.get("id")}
+    listed: dict = {}
+    for verb in VERBS:
+        ids = judgment.get(verb)
+        if ids is None:
+            continue
+        if not isinstance(ids, list) or not all(isinstance(x, str) for x in ids):
+            bad.append(f"{verb} must be a list of finding ids — the ids you looked at and "
+                       f"found {'still there' if verb == 'still_open' else 'gone'}")
+            continue
+        for fid in ids:
+            prior = prev_by_id.get(fid)
+            if prior is None:
+                bad.append(f"{verb} names {fid!r}, which is not in the previous state — a "
+                           "finding seen for the first time is filed, with evidence")
+            elif _status(prior) == "accepted":
+                bad.append(f"{verb} names {fid!r}, an accepted risk — the maintainer's, not "
+                           "yours to carry or resolve; the harness folds it in")
+            elif not _is_open(prior):
+                bad.append(f"{verb} names {fid!r}, which the previous state already has as "
+                           f"{_status(prior)} — nothing to carry")
+            if fid in filed_ids:
+                bad.append(f"{fid} is in {verb} and filed as a finding — one or the other")
+            if fid in listed and listed[fid] != verb:
+                bad.append(f"{fid} is in both still_open and resolved — it is one or the other")
+            listed[fid] = verb
+    return bad
+
+
+def _questions_shape(judgment, ids: set) -> list:
+    qs = judgment.get("questions")
+    if qs is None:
+        return []
+    if not isinstance(qs, list):
+        return ["questions must be a list of {question, context?, finding?, options?} objects"]
+    bad = []
+    for i, q in enumerate(qs):
+        where = f"questions[{i}]"
+        if not isinstance(q, dict):
+            bad.append(f"{where} is not an object")
+            continue
+        text = q.get("question")
+        if not isinstance(text, str) or len(text.strip()) < MIN_QUESTION:
+            bad.append(f"{where} needs a `question` a person can answer, in a sentence")
+        if q.get("finding") is not None and str(q["finding"]) not in ids:
+            bad.append(f"{where} refers to finding {q['finding']!r}, which is neither filed "
+                       "this run nor in the previous state")
+        opts = q.get("options")
+        if opts is not None and not (isinstance(opts, list) and all(isinstance(o, str) for o in opts)):
+            bad.append(f"{where} options must be a list of strings")
+        if q.get("context") is not None and not isinstance(q["context"], str):
+            bad.append(f"{where} context must be a string")
+    return bad
+
+
+def inherited_conflicts(judgment, prev_findings) -> list:
+    """Class conflicts between findings the judgment carries by id from the previous state —
+    true of the record before this run started, and asked about rather than refused."""
+    prev_by_id = {str(f.get("id")): f for f in prev_findings or []
+                  if isinstance(f, dict) and f.get("id")}
+    carried = [prev_by_id[x] for x in (judgment.get("still_open") or [])
+               if isinstance(x, str) and x in prev_by_id]
+    return class_conflicts(carried)
+
+
+def class_conflicts(findings) -> list:
+    """Two findings, one class. A finding whose evidence cites a `path:line`
+    that another finding lists under `root_cause.class.sites` is an instance of
+    that class filed as a second finding — the thing §3.5's class link exists
+    to prevent, and the thing filing findings one at a time makes easy. Exact,
+    not heuristic: the same reference, in two places, with two owners."""
+    owners: dict = {}
+    bad = []
+    for f in findings:
+        fid = str(f.get("id") or "?")
+        rc = f.get("root_cause") if isinstance(f.get("root_cause"), dict) else {}
+        cls = rc.get("class") if isinstance(rc.get("class"), dict) else {}
+        sites = cls.get("sites") if isinstance(cls.get("sites"), list) else []
+        for ref in refs_in(sites):
+            prior = owners.get(ref)
+            if prior and prior != fid:
+                bad.append(f"{fid} and {prior} both name {ref[0]}:{ref[1]} as a site of their "
+                           "class — one class is one finding: fold them, or take the site out "
+                           "of the class it does not belong to")
+            owners.setdefault(ref, fid)
+    for f in findings:
+        fid = str(f.get("id") or "?")
+        for ref in refs_in(f.get("evidence") or []):
+            owner = owners.get(ref)
+            if owner and owner != fid:
+                bad.append(f"{fid} cites {ref[0]}:{ref[1]}, which {owner} names as a site of "
+                           f"its class — fold {fid} into {owner}'s sites, or remove the site "
+                           f"from {owner}'s class; say which")
+    return list(dict.fromkeys(bad))
+
+
+def _list_shape(state) -> list:
+    """The coverage-accounting fields must be lists, or their meaning flattens
+    into prose. Split out of validate() when verified_intact pushed it over
+    the complexity budget — extraction over a raised threshold, same as the
+    Bash guard's dispatcher and for the same reason."""
+    bad = []
+    if "verified_intact" in state and not isinstance(state["verified_intact"], list):
+        bad.append("verified_intact must be a list")
+    bad.extend(_not_tested_shape(state))
+    return bad
+
+
+def _unexercised_diff(state) -> list:
+    """A clean `pass` over a change no test executed is the same shape as one
+    over a suite nobody could read: nothing measured says the changed code
+    works. Fires only on the measured zero — a diff with *some* execution is
+    the agent's §6 delta call, not the validator's — and only on harness-
+    measured coverage (`status: measured`), never on a written block."""
+    if state.get("verdict") != "pass":
+        return []
+    cov = state.get("coverage")
+    if not isinstance(cov, dict) or cov.get("status") != "measured":
+        return []
+    changed, executed = cov.get("changed_lines") or 0, cov.get("changed_lines_executed") or 0
+    if changed > 0 and executed == 0:
+        return [f"verdict is `pass`, but none of the {changed} changed lines was executed "
+                "by any test — the change was never exercised by the suite. Add the test, "
+                "or say `pass with risks` and name the gap in not_tested"]
+    return []
+
+
+def _unmeasured_suite(state) -> list:
+    """A clean `pass` needs measured evidence that some test actually executed.
+
+    `executed_nothing()` is the defence against a suite that collects tests and
+    runs none of them — and it is arithmetic over parsed counts, so it can only
+    fire when the runner's summary was legible. A project whose test entrypoint
+    hides that summary (`pytest -q >/dev/null; echo ALL TESTS PASSED; exit 0`)
+    produces `counts_unparsed`, the defence never computes, and a `pass` used to
+    stand over a suite where every test was skipped. Measured on the liar
+    fixture: through its own entrypoint the state gated to exit 0; with the same
+    code behind a legible pytest gate the harness reported "all 3 collected
+    tests were skipped". The check was disabled by exactly what it guards
+    against.
+
+    So the rule is run-level, not per-gate, which is what keeps it quiet: a lint
+    gate legitimately parses to no counts, and singling gates out by name would
+    need semantics the harness does not have. What is being asserted here is
+    narrower and fully measured — *no gate in this run produced test counts*, so
+    nothing establishes that a test ran at all. `pass with risks` remains
+    available and is the honest verdict; this only refuses the unqualified one.
+    A run that ran no gates at all is the harder case, and the first version of
+    this rule got it backwards: `gates: {}` was left alone, so the weakest
+    possible run — nothing measured — earned the strongest verdict, while a run
+    that measured something unreadable was refused (VERDICT-F-17, filed by
+    Verdict on itself). `gates: {}` is overloaded: a design review that has no
+    suite and a profile missing its gates block look the same. `verdict-facts`
+    says which (`no_gates`), the state carries it now, and that is what is
+    refused — the agent contract already says a missing block is "report that
+    and fix the profile", so this aligns the validator with the prompt rather
+    than the other way round. A state with empty gates and no `no_gates`
+    predates the fact travelling, or was built by hand; it is left alone.
+    """
+    if state.get("verdict") != "pass":
+        return []
+    if state.get("no_gates"):
+        return ["verdict is `pass`, but this run ran no gates at all — neither --gate nor "
+                "a profile front-matter block supplied one, so nothing was measured. Fix "
+                "the profile so the suite is read through its runner, or say `pass with "
+                "risks` and name the gap in not_tested"]
+    gates = state.get("gates")
+    if not isinstance(gates, dict) or not gates:
+        return []
+    if any(isinstance(g, dict) and g.get("counts") for g in gates.values()):
+        return []
+    unreadable = sorted(name for name, g in gates.items()
+                        if isinstance(g, dict) and g.get("counts_unparsed"))
+    return ["verdict is `pass`, but no gate in this run produced test counts "
+            f"({', '.join(unreadable) or 'no gate reported a runner summary'}) — so "
+            "nothing measured says a test executed, and the skip-all check cannot fire. "
+            "Read the suite through its runner rather than a wrapper that hides the "
+            "summary, or say `pass with risks` and name the gap in not_tested"]
+
+
+def _accepted_shape(f, where: str, fid: str, status: str) -> list:
+    """An accepted finding carries the maintainer's record, and only an
+    accepted finding carries the delta that says so."""
+    bad = []
+    acc = f.get("accepted")
+    if status == "accepted":
+        if not isinstance(acc, dict) or not all(
+                isinstance(acc.get(k), str) and acc.get(k).strip()
+                for k in ("by", "on", "citation")):
+            bad.append(f"{where} ({fid}) is accepted without a citation — an accepted risk "
+                       "records who accepted it, when, and where the decision is written "
+                       "down (`accepted.by`, `.on`, `.citation`); `verdict-accept` writes "
+                       "all three")
+        if f.get("delta") not in (None, "ACCEPTED"):
+            bad.append(f"{where} ({fid}) is accepted but its delta is {f.get('delta')!r} — "
+                       "an accepted finding's delta is ACCEPTED")
+    elif f.get("delta") == "ACCEPTED":
+        bad.append(f"{where} ({fid}) has delta ACCEPTED but status {f.get('status')!r} — "
+                   "only an accepted finding carries that delta")
+    return bad
+
+
+def validate(state, root: Path, previous=None, now=None, at_rest=False):
+    """Return a list of violation strings. Empty means the state is admissible.
+
+    `root` is the QA root the state lives in — the report path is resolved
+    against it. `previous` is the prior state when one is available, which is
+    what makes the run_number rule checkable.
+
+    `at_rest` checks a state as a *file* rather than as a run that just
+    happened: it drops the "this timestamp is over a day old" rule and nothing
+    else. The two are genuinely different questions. Freshness belongs to a
+    run — a state written now must say it was written now — but a state
+    committed to git is stale by tomorrow morning by construction, and a CI job
+    that wants to know whether the team's checked-in baseline is *well-formed*
+    should not be told "no" for the crime of being a week old. A timestamp in
+    the *future* stays a violation either way: that is broken, not old.
+    """
+    now = now or clock.now()
+    bad = []
+
+    if not isinstance(state, dict):
+        return ["state.json is not a JSON object"]
+
+    for field in REQUIRED_TOP:
+        if field not in state:
+            bad.append(f"missing required field: {field}")
+
+    if state.get("verdict") not in VERDICTS:
+        bad.append(f"verdict {state.get('verdict')!r} is not one of {sorted(VERDICTS)}")
+    if state.get("run_type") not in RUN_TYPES:
+        bad.append(
+            f"run_type {state.get('run_type')!r} is not one of {sorted(RUN_TYPES)} — "
+            "machine consumers switch on this field; put the descriptive detail "
+            "('merge gate re-gate', 'claim verification') in run_label")
+    if "run_label" in state and not isinstance(state["run_label"], str):
+        bad.append("run_label must be a string when present")
+
+    run_number = state.get("run_number")
+    if not isinstance(run_number, int) or run_number < 1:
+        bad.append(f"run_number must be a positive integer, got {run_number!r}")
+    elif previous is not None:
+        prev_run = previous.get("run_number")
+        if isinstance(prev_run, int) and run_number <= prev_run:
+            bad.append(
+                f"run_number did not advance: {run_number} after {prev_run} — a run that "
+                "wrote no state must not leave the previous verdict standing as if fresh")
+
+    last = state.get("last_run")
+    if not isinstance(last, dict):
+        bad.append("last_run must be an object")
+    else:
+        ts = last.get("timestamp_utc")
+        # Not `str(ts)`: stringifying first made `_parse_z`'s own type guard
+        # unreachable, so no input could tell a working guard from a broken one
+        # — which is how a mutation campaign found it still alive. Both paths
+        # produce the same message; only one of them is testable.
+        parsed = _parse_z(ts)
+        if parsed is None:
+            bad.append(f"last_run.timestamp_utc {ts!r} is not ISO-8601 UTC (YYYY-MM-DDThh:mm:ssZ)")
+        elif parsed - now > FUTURE_TOLERANCE:
+            bad.append(f"last_run.timestamp_utc {ts} is in the future — measure it with `date -u`")
+        elif not at_rest and now - parsed > PAST_TOLERANCE:
+            bad.append(
+                f"last_run.timestamp_utc {ts} is over a day old — this run did not happen "
+                "then; measure the time with `date -u` rather than recalling it")
+
+        report = last.get("report")
+        if not isinstance(report, str) or not report.strip():
+            bad.append("last_run.report must name the report file this run wrote")
+        else:
+            candidate = Path(report)
+            outside = report_outside_reports(report)
+            if candidate.suffix != ".md":
+                bad.append(
+                    f"last_run.report {report!r} is not a path to a .md file — the report "
+                    "artifact is part of the contract and no caller may waive it")
+            elif outside:
+                bad.append(f"last_run.report {report!r} {outside}")
+            elif not (root / candidate).is_file():
+                bad.append(f"last_run.report points at a file that does not exist: "
+                           f"{root / candidate}")
+
+    findings = state.get("findings")
+    if findings is None:
+        bad.append("missing required field: findings")
+    elif not isinstance(findings, list):
+        bad.append("findings must be a list")
+    else:
+        seen_ids = set()
+        seen_hashes = {}
+        for i, f in enumerate(findings):
+            where = f"findings[{i}]"
+            if not isinstance(f, dict):
+                bad.append(f"{where} is not an object")
+                continue
+            fid = f.get("id")
+            if not fid:
+                bad.append(f"{where} has no id")
+            elif fid in seen_ids:
+                bad.append(f"{where} repeats id {fid!r} — ids are minted once and never reused")
+            else:
+                seen_ids.add(fid)
+            h = f.get("hash")
+            if not h:
+                bad.append(f"{where} ({fid}) has no hash — findings are aged by hash, not by id")
+            elif h in seen_hashes:
+                # Found live: two ids in one state shared a hash, the second
+                # filed as "F-003 confirmed in production". By the identity rule
+                # they are one finding, so ageing, deltas and the outcome ledger
+                # all collapse them — silently, and onto whichever came last.
+                bad.append(
+                    f"{where} ({fid}) shares hash {h} with {seen_hashes[h]} — by the identity "
+                    "rule those are the same finding, and every run-over-run comparison will "
+                    "treat them as one. Merge them, or cite the distinct evidence that makes "
+                    "them different findings")
+            else:
+                seen_hashes[h] = fid
+            if f.get("severity") not in SEVERITIES:
+                bad.append(f"{where} ({fid}) severity {f.get('severity')!r} not in {sorted(SEVERITIES)}")
+            if f.get("priority") not in PRIORITIES:
+                bad.append(f"{where} ({fid}) priority {f.get('priority')!r} not in {sorted(PRIORITIES)}")
+            if f.get("delta") is not None and f.get("delta") not in STATE_DELTAS:
+                bad.append(f"{where} ({fid}) delta {f.get('delta')!r} not in "
+                           f"{sorted(STATE_DELTAS)}")
+            status = _status(f)
+            if not status:
+                bad.append(f"{where} ({fid}) has no status — every finding is "
+                           f"{sorted(STATUSES)}; a missing one reads as closed to some "
+                           "consumers and open to others")
+            elif status not in STATUSES:
+                bad.append(
+                    f"{where} ({fid}) status {f.get('status')!r} not in {sorted(STATUSES)} "
+                    "— an unrecognised status hides the finding from the release blockers, "
+                    "the gate and the hotspot ranking")
+            bad.extend(_accepted_shape(f, where, fid, status))
+            conf = f.get("confidence")
+            if conf is not None and conf not in CONFIDENCES:
+                bad.append(f"{where} ({fid}) confidence {conf!r} not in {sorted(CONFIDENCES)}")
+            elif conf is None and f.get("delta") == "NEW":
+                # Required only where it can still be honestly given: a finding
+                # filed this run. Confidence is a *prediction*, and a prediction
+                # supplied after the outcome is known is worth nothing — so it
+                # is demanded at filing or not at all. Findings inherited from
+                # runs that predate this rule stay legal and score as `unstated`.
+                bad.append(
+                    f"{where} ({fid}) is NEW without `confidence` — state the claim as you "
+                    f"file it: {sorted(CONFIDENCES)}. It is scored against what the finding "
+                    "actually does, so it cannot be added later")
+            oc = f.get("outcome")
+            if oc is not None and oc not in OUTCOMES:
+                bad.append(f"{where} ({fid}) outcome {oc!r} not in {sorted(OUTCOMES)}")
+            if f.get("delta") == "WITHDRAWN" and _status(f) == "open":
+                bad.append(f"{where} ({fid}) is WITHDRAWN but still open — a finding "
+                           "retracted as never real cannot also count as a live defect")
+            fv = f.get("fix_verified")
+            if fv is not None and not isinstance(fv, bool):
+                bad.append(f"{where} ({fid}) fix_verified must be true or false, not {fv!r}")
+            elif fv is True and not (f.get("evidence") or []):
+                # `fix_verified` upgrades a resolution into evidence that the
+                # finding was real, so it has to cost something: name the guard
+                # that failed on re-injection, or do not make the claim.
+                bad.append(f"{where} ({fid}) claims fix_verified with no evidence — cite the "
+                           "test that failed when the defect was re-injected")
+            fc = f.get("failure_classification")
+            if fc is not None and fc not in CLASSIFICATIONS:
+                bad.append(f"{where} ({fid}) failure_classification {fc!r} not in {sorted(CLASSIFICATIONS)}")
+            if _is_open(f) and not (f.get("evidence") or []):
+                bad.append(
+                    f"{where} ({fid}) is open with no evidence — an uncited finding is a "
+                    "HYPOTHESIS, not a finding")
+            bad.extend(_evidence_shape(f, where, fid))
+
+        if state.get("verdict") == "pass":
+            blocking = [f.get("id") for f in findings
+                        if isinstance(f, dict) and _is_open(f)
+                        and f.get("severity") in {"Critical", "Blocker"}]
+            if blocking:
+                bad.append(
+                    "verdict is `pass` with open Critical/Blocker findings: "
+                    + ", ".join(str(b) for b in blocking))
+
+    bad.extend(_list_shape(state))
+    bad.extend(_unmeasured_suite(state))
+    bad.extend(_unexercised_diff(state))
+
+    quarantine = state.get("flaky_quarantine")
+    if quarantine is not None and not isinstance(quarantine, list):
+        bad.append("flaky_quarantine must be a list")
+    elif isinstance(quarantine, list):
+        for i, q in enumerate(quarantine):
+            if isinstance(q, dict) and not q.get("quarantined_until"):
+                bad.append(f"flaky_quarantine[{i}] ({q.get('test_id')}) has no expiry — "
+                           "quarantine without an expiry is a graveyard")
+    return bad
+
+
+def _load(path: Path):
+    try:
+        return json.loads(path.read_text(encoding="utf-8")), None
+    except FileNotFoundError:
+        return None, f"no such file: {path}"
+    except (OSError, json.JSONDecodeError) as exc:
+        return None, f"unreadable: {exc}"
+
+
+def report_outside_reports(report: str):
+    """Why `report` is not one file directly under the QA root's `reports/`, or None.
+
+    The field was honoured as written — an absolute path, or one carrying
+    `..` — and finalize rendered the report there, which on a team-mode
+    checkout is any `*.md` in the code under test (README.md, proven; audit
+    2026-10-02, H-D-1). Every real record names `reports/<file>.md`: a survey
+    of 16 QA roots and 132 history rows found no other shape, so the rule
+    refuses nothing a run has ever legitimately written. Windows spellings
+    are read with their backslashes turned, so `C:\\x\\y.md` is absolute here too.
+    """
+    text = str(report).replace("\\", "/")
+    if text.startswith("/") or Path(report).is_absolute() or re.match(r"^[A-Za-z]:", text):
+        return "is an absolute path — the report lives under the QA root's reports/"
+    parts = text.split("/")
+    if any(part in ("", ".", "..") for part in parts):
+        return "climbs out of the QA root — no `..`, `.` or empty segments"
+    if len(parts) != 2 or parts[0] != "reports":
+        return "must be `reports/<name>.md`, one file directly under reports/"
+    if parts[1].lower() == "index.md":
+        return "names the run index: a report written there replaces the record of every run"
+    return None
+
+
+def _in_qa_root(path: str) -> bool:
+    """Is `path` inside a QA root — the solo home, or a `.qa/` beside a `.git`?
+
+    The hook validated every file named `state.json` anywhere: a React app's
+    settings file got "15 problems" and exit 2 in a session that never ran
+    Verdict (audit 2026-10-02, T3-1). The same rule as hooks/qa_paths.py, kept
+    here in stdlib because this module imports nothing.
+    """
+    if not path:
+        return False
+    p = os.path.realpath(os.path.expanduser(path))
+    home = os.path.realpath(os.path.expanduser(
+        os.environ.get("VERDICT_HOME") or "~/.claude/verdict"))
+    if p == home or p.startswith(home + os.sep):
+        return True
+    parts = p.split(os.sep)
+    for i, part in enumerate(parts):
+        if part == ".qa":
+            repo = os.sep.join(parts[:i]) or os.sep
+            return os.path.exists(os.path.join(repo, ".git"))
+    return False
+
+
+def _hook_mode() -> int:
+    """PostToolUse: validate a state.json, or a findings/<ID>.json, the agent just wrote."""
+    # UTF-8 on the way out, whatever the console codepage: every message here
+    # carries an em-dash, and on Windows the default stream writes cp1252's
+    # 0x97, which the reader (a parent decoding UTF-8 on a thread) drops as a
+    # whole — a refusal that arrives as None. The guards do the same.
+    for stream in (sys.stdout, sys.stderr):
+        try:
+            stream.reconfigure(encoding="utf-8", errors="replace")
+        except (AttributeError, ValueError, OSError):
+            pass
+    try:
+        data = json.load(sys.stdin)
+    except Exception:
+        return 0  # fail open: a broken hook must never brick a session
+    target = ((data.get("tool_input") or {}).get("file_path") or "")
+    if not target or not _in_qa_root(target):
+        return 0        # somebody else's state.json; none of this hook's business
+    filed = finding_file(target)
+    if filed is not None:
+        return _hook_finding(Path(target), *filed)
+    if os.path.basename(target) != "state.json":
+        return 0
+    path = Path(target)
+    state, err = _load(path)
+    if err:
+        sys.stderr.write(f"verdict-validate: {path} {err}\n")
+        return 2
+    prev_path = path.with_suffix(".json.prev")
+    previous, _ = _load(prev_path) if prev_path.is_file() else (None, None)
+    bad = validate(state, path.parent, previous)
+    if not bad:
+        return 0
+    sys.stderr.write(
+        "verdict-validate: the state you just wrote violates the contract "
+        f"({len(bad)} problem(s)) — fix it now, in this run:\n  " + "\n  ".join(bad) + "\n")
+    return 2
+
+
+def _hook_finding(path: Path, qa_root: Path, fid: str) -> int:
+    """PostToolUse: a `findings/<ID>.json` the agent just wrote, checked while
+    the evidence is still in front of its author. One file, one rejection."""
+    data, err = _load(path)
+    if err:
+        sys.stderr.write(f"verdict-validate: {path} {err}\n")
+        return 2
+    if not isinstance(data, dict):
+        sys.stderr.write(f"verdict-validate: {path} is not a JSON object — one finding, the "
+                         "shape of one entry of the template's findings[]\n")
+        return 2
+    previous, _ = _load(qa_root / "state.json") if (qa_root / "state.json").is_file() \
+        else (None, None)
+    known_ids = {str(f.get("id")) for f in ((previous or {}).get("findings") or [])
+                 if isinstance(f, dict) and f.get("id")}
+    where = f"{FINDINGS_DIR}/{path.name}"
+    bad = validate_finding(data, where, known_ids, known_tests(qa_root))
+    if str(data.get("id") or "") != fid:
+        bad.append(f"{where} carries id {data.get('id')!r}, but the filename says {fid!r} — "
+                   "one finding, one file, one id")
+    if not bad:
+        return 0
+    sys.stderr.write(
+        "verdict-validate: the finding you just wrote violates the contract "
+        f"({len(bad)} problem(s)) — fix this file now, while the evidence is in front of "
+        "you:\n  " + "\n  ".join(bad) + "\n")
+    return 2
+
+
+def main(argv=None) -> int:
+    if not sys.stdin.isatty() and not argv and len(sys.argv) == 1:
+        return _hook_mode()
+    ap = argparse.ArgumentParser(
+        prog="verdict-validate",
+        description="Validate a Verdict state.json against the state contract.")
+    ap.add_argument("state", type=Path, help="path to state.json")
+    ap.add_argument("--previous", type=Path, default=None,
+                    help="prior state.json, enabling the run_number-advanced check")
+    ap.add_argument("--at-rest", action="store_true",
+                    help="check the file's well-formedness, not a run's freshness — for a "
+                         "committed or archived state, which is stale by design")
+    ap.add_argument("--quiet", action="store_true")
+    args = ap.parse_args(argv)
+
+    state, err = _load(args.state)
+    if err:
+        print(f"verdict-validate: {args.state} {err}", file=sys.stderr)
+        return 2
+    previous = None
+    if args.previous:
+        previous, perr = _load(args.previous)
+        if perr:
+            print(f"verdict-validate: --previous {args.previous} {perr}", file=sys.stderr)
+            return 2
+    bad = validate(state, args.state.parent, previous, at_rest=args.at_rest)
+    if bad:
+        print(f"verdict-validate: {len(bad)} violation(s):\n  " + "\n  ".join(bad),
+              file=sys.stderr)
+        return 1
+    if not args.quiet:
+        print(f"verdict-validate: OK — {args.state} satisfies the state contract")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

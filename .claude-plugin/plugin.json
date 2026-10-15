@@ -1,0 +1,21 @@
+{
+  "name": "verdict",
+  "version": "0.90.6",
+  "description": "A skeptical QA agent with memory: baseline → delta runs (NEW/REGRESSED/RESOLVED), flaky quarantine with expiry, and evidence-cited release verdicts you can defend.",
+  "author": {
+    "name": "ArtJack",
+    "url": "https://github.com/ArtJack"
+  },
+  "homepage": "https://github.com/ArtJack/verdict",
+  "icon": ".claude-plugin/icon.png",
+  "repository": "https://github.com/ArtJack/verdict",
+  "license": "MIT",
+  "keywords": [
+    "qa",
+    "testing",
+    "release-gate",
+    "regression",
+    "flaky-tests",
+    "claude-code"
+  ]
+}

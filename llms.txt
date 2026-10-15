@@ -1,0 +1,33 @@
+# Verdict
+
+> A skeptical QA agent with memory for Claude Code — baseline → delta runs, evidence-cited findings, a machine-checked state contract, fix verification by re-injection, and a published track record of its own misses. Python harness (`verdict-qa-mcp` on PyPI), one agent contract, scope-guard hooks, an MCP server over the tester's memory.
+
+## Start here
+
+- [README](https://raw.githubusercontent.com/ArtJack/verdict/main/README.md): what it is, install, quickstart, the read-only guarantee, the maintainer's pens
+- [The agent contract](https://raw.githubusercontent.com/ArtJack/verdict/main/agents/verdict.md): the full prompt — safety gate, failure classification, root cause, run-over-run continuity, evidence rules, the handoff
+- [AGENTS.md](https://raw.githubusercontent.com/ArtJack/verdict/main/AGENTS.md): for agents that use Verdict and agents that change it
+
+## Reference
+
+- [State schema](https://raw.githubusercontent.com/ArtJack/verdict/main/docs/state-schema.md): `state.json`, findings as files, the verbs, anchors and drift, fix verification, the ledgers (outcomes, accepted, questions, answers)
+- [Project key](https://raw.githubusercontent.com/ArtJack/verdict/main/docs/project-key.md): how the QA root is derived
+- [Nightly runs](https://raw.githubusercontent.com/ArtJack/verdict/main/docs/nightly.md): `verdict-run` headless, the gate in CI
+- [Test design](https://raw.githubusercontent.com/ArtJack/verdict/main/docs/test-design.md): the techniques the tester names
+- [AI-authored code](https://raw.githubusercontent.com/ArtJack/verdict/main/docs/ai-authored-code.md): the species the tester reviews
+- [Severity and priority](https://raw.githubusercontent.com/ArtJack/verdict/main/standards/severity-priority.md)
+- [Release gate](https://raw.githubusercontent.com/ArtJack/verdict/main/standards/release-gate.md)
+- [Changelog](https://raw.githubusercontent.com/ArtJack/verdict/main/CHANGELOG.md): every release, with what was measured
+
+## Evidence
+
+- [Evals and the published ledger](https://raw.githubusercontent.com/ArtJack/verdict/main/eval/README.md): fixtures with answer keys, paired A/B runs, mutation testing on the harness, stranger runs on public repositories with the misses
+- [Pinned mutants](https://raw.githubusercontent.com/ArtJack/verdict/main/eval/pinned_mutants.json): every fixed harness rule as a fault the suite must kill
+
+## Skills for other coding agents
+
+- [Release risk](https://raw.githubusercontent.com/ArtJack/verdict/main/skills/verdict-release-risk/SKILL.md)
+- [Verify a fix](https://raw.githubusercontent.com/ArtJack/verdict/main/skills/verdict-verify-fix/SKILL.md)
+- [Flaky triage](https://raw.githubusercontent.com/ArtJack/verdict/main/skills/verdict-flaky-triage/SKILL.md)
+- [Root cause](https://raw.githubusercontent.com/ArtJack/verdict/main/skills/verdict-root-cause/SKILL.md)
+- [Spec review](https://raw.githubusercontent.com/ArtJack/verdict/main/skills/verdict-spec-review/SKILL.md)

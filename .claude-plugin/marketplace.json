@@ -1,0 +1,15 @@
+{
+  "name": "verdict",
+  "description": "Verdict — a skeptical QA agent with memory. Baseline → delta QA runs, flaky quarantine with expiry, evidence-cited release verdicts.",
+  "owner": {
+    "name": "ArtJack",
+    "url": "https://github.com/ArtJack"
+  },
+  "plugins": [
+    {
+      "name": "verdict",
+      "source": "./",
+      "description": "A skeptical QA agent with memory: baseline → delta runs (NEW/REGRESSED/RESOLVED), flaky quarantine with expiry, and evidence-cited release verdicts you can defend."
+    }
+  ]
+}

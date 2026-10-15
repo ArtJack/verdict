@@ -1,0 +1,692 @@
+# Verdict
+
+[CI](https://github.com/ArtJack/verdict/actions/workflows/ci.yml) ·
+[verdict on itself](.qa/reports/INDEX.md) ·
+[eval: 8/8 seeded defects](eval/README.md#published-results) ·
+[pinned rules: 353/353 killed](eval/README.md#suite-fault-detection-power--mutation-testing-on-ourselves) ·
+[PyPI: verdict-qa-mcp](https://pypi.org/project/verdict-qa-mcp/) ·
+[MIT license](LICENSE)
+
+**Your test suite is green. Verdict found a defect that had lived 4,595 days.**
+
+Verdict is a QA agent that does not fix, does not flatter, and does not forget. It measures
+before it judges — the harness runs your gates, hashes every line a finding cites, re-runs
+the guarding test at the old commit and the new one — and it keeps a memory: every run is a
+delta against the last, findings age, regressions rank first, and the tester's own misses
+are published beside its hits. The contract it runs under is immutable and hashed into every
+verdict; what it learns lives beside the contract, dated and auditable, and never edits it.
+The number above is real: `FilePerms` in a 7k★ Python library could not revoke a permission
+bit since 2014-02-07, and every one of its 625 tests was green the day Verdict filed it —
+[the run, and the misses, are in the ledger](eval/README.md#runs-on-strangers-repositories).
+
+```
+/plugin marketplace add ArtJack/verdict     # Claude Code
+/plugin install verdict@verdict
+/verdict:run
+```
+```
+npx skills add ArtJack/verdict              # every other coding agent
+```
+
+Most AI "QA agents" are a paragraph of enthusiasm with a checklist. They audit your repo
+from scratch every time, re-report the same 20 findings until you stop reading, call flaky
+tests "failures", call stale tests "failures", and end with "LGTM! 🎉".
+
+Verdict is a Claude Code plugin built the way QA is actually practiced:
+
+- **It remembers.** A state file carries the baseline. Every finding gets a stable ID and
+  an age; every run reports `NEW / STILL_OPEN / RESOLVED / REGRESSED` — regressions ranked
+  first, always.
+- **A red test means something.** Every failure is classified — `REAL_DEFECT`,
+  `STALE_EXPECTATION` (which needs a citation proving the change was intended),
+  `BRITTLE_TEST`, `ENVIRONMENT`, or `FLAKY` (confirmed by re-runs, quarantined **with an
+  expiry**). The classification most likely to excuse a regression carries the highest
+  evidence bar.
+- **A verdict you can defend.** Every run ends in exactly one of
+  `pass | pass with risks | blocked | fail` — an open Blocker forces `fail`, `blocked` is a
+  legitimate outcome, and a `pass` always names what was *not* tested.
+- **It never fixes your code.** There is no `Edit` tool, a hook confines its writes to the
+  QA root, and a strict-mode Bash guard closes the shell's write channels — a tester that
+  patches what it judges isn't independent. The guard is a heuristic, not a sandbox, and
+  [the README says so](#the-read-only-guarantee-honestly-stated).
+- **It is tested, and it tests itself.** A scored eval suite with the misses published, a
+  signed run history the model cannot forge, a track record the tester cannot edit — and an
+  audit of its own releases: 78 findings filed against itself in its first 15 runs — 59
+  fixed with the fix verified, one an accepted risk on the record, two still open, and 16
+  closed without proof, which its own ledger counts as unknown, not as wins. Every fixed
+  harness rule is pinned as a mutant the suite must kill.
+
+**What a run looks like:** [a real delta report — Verdict on its own code, run 14](.qa/reports/2026-09-05-delta-run14.md).
+
+**Who pays for the model?** You do, with the Claude subscription you already have: the
+plugin runs inside your own session, nothing routes through anyone else, and everything
+below the model — the state, the gate, the harness, the eval scorer — is stdlib Python
+(the optional MCP server adds the `mcp` SDK)
+that runs for free. Works on Python, TypeScript, Go, or anything with a test runner; the
+[eval fixtures](eval/) cover Python and TypeScript.
+
+**Read next:** [Install](#install) · [What installs, and when it runs](#what-installs-and-when-it-runs) ·
+[Quickstart](#quickstart) · [Why another QA agent](#why-another-qa-agent) ·
+[The tested tester](#the-tested-tester) · [CI gate](#ci-gate-prs-on-the-testers-memory) ·
+[Accepting a risk](#accepting-a-risk--the-maintainers-pen) · [FAQ](#faq)
+
+## Install
+
+```
+/plugin marketplace add ArtJack/verdict
+/plugin install verdict@verdict
+```
+
+Any other coding agent — Cursor, Codex, OpenCode and the rest of the
+[agent skills](https://skills.sh) ecosystem — gets the same doctrine as five skills, and the
+same harness as a pip package:
+
+```
+npx skills add ArtJack/verdict        # release risk · verify a fix · flaky triage · root cause · spec review
+pip install verdict-qa-mcp            # verdict-facts, verdict-finalize, verdict-gate, verdict-accept, verdict-answer
+```
+
+Listed on [skills.sh](https://skills.sh/ArtJack/verdict).
+
+The skills restate the contract for an agent that cannot run the `verdict` agent; the
+hooks that enforce the read-only guarantee exist only in Claude Code, so there the
+guarantee is the agent's own discipline plus the harness's refusals. `AGENTS.md` and
+`llms.txt` at the repository root are for agents that read before they act.
+
+**Python 3.9 or newer**, whatever your `python3` resolves to — the hooks and the
+fact harness are stdlib-only and are invoked by that name, which on a stock Mac is
+`/usr/bin/python3` (3.9). The optional MCP server is a pip install and needs 3.10+,
+which is what `requires-python` in `pyproject.toml` refers to. The floor is tested:
+a module that would fail to import on 3.9 fails CI instead
+([tests/test_interpreter_floor.py](tests/test_interpreter_floor.py)) — because the
+failure it prevents was silent. The Bash guard once raised on import there while the
+write guard beside it kept working, so a strict session looked armed with half its
+controls missing.
+
+## What installs, and when it runs
+
+Installing a plugin means letting its code run in your sessions, so here is exactly
+what this one does — measured from `hooks/hooks.json`, not summarised from memory.
+Six hook registrations; each starts a `python3` (tens of milliseconds) when its
+event fires:
+
+| Event | Fires on | Script | Silent when |
+|---|---|---|---|
+| `PreToolUse` | `Write`/`Edit`/`MultiEdit`/`NotebookEdit` | write-scope guard | always, unless `VERDICT_STRICT=1` or the caller is the verdict agent itself — and for one path in any session: a QA root's `accepted.json` / `answers.json`, which only `verdict-accept` / `verdict-answer` write |
+| `PreToolUse` | `Bash` | bash-scope guard | always, unless `VERDICT_STRICT=1` or the caller is the verdict agent itself |
+| `PostToolUse` | `Write`/`Edit`/`MultiEdit` | state validator | unless the written file is a QA root's `state.json` or `findings/<ID>.json` |
+| `Stop` / `SubagentStop` | end of turn | run-contract check | unless a QA run *in this session* left hand-written state, or a Verdict agent *of this session* measured the facts and is stopping without `verdict-finalize` (the run marker names the session; another session's marker, or another agent stopping beside a run in progress, says nothing) — each blocks **at most once**, never loops |
+| `SessionStart` | session open | findings banner, or a one-time first-run hint | unless the repository has QA state — or, for the hint, unless it is a fresh interactive start in a git repository with a test suite Verdict has never seen (once per repository, three repositories per person, never with `VERDICT_STRICT`, `VERDICT_NO_HINT=1` or a headless `claude -p`) |
+
+Every hook **fails open**: malformed input, missing files, or an exception mean
+exit 0 and silence — a broken hook must never brick a session. `VERDICT_STRICT=1`
+is what arms the scope guards, and you set it only for dedicated QA sessions
+(headless, CI, the nightly); in ordinary interactive work the guards are no-ops.
+
+**Prefer not to install globally?** Everything works per-repository: copy
+[agents/verdict.md](agents/verdict.md) into `<repo>/.claude/agents/` and the
+[hooks/hooks.json](hooks/hooks.json) entries into `<repo>/.claude/settings.json`,
+with `${CLAUDE_PLUGIN_ROOT}` replaced by a checkout path. That is exactly how the
+eval harness provisions its scratch projects — [eval/run_eval.py](eval/run_eval.py)
+is the reference implementation.
+
+## Quickstart
+
+```
+/verdict:run                          # first run: profile + isolation rules + baseline
+/verdict:run the payment retry change   # every later run: a delta against the stored state
+```
+
+Every later run is a delta against the stored state. A repeat run returns something like:
+
+```text
+VERDICT: fail
+
+Scope: 2c67f47..b4e2943 (4 commits, 16 files) · run 4 (delta)
+Isolation check: pass (no .env present; no live service touched)
+
+Findings — REGRESSED first:
+REGRESSED  PRICER-F-002  Critical/P0  round_cents uses banker's rounding again (pricer.py:17)
+                         resolved 08-19, reintroduced by b4e2943 — this forces the verdict
+NEW        PRICER-F-007  Major/P1     quarantine graveyard: test_listable_at_floor_exactly
+                         skipped 114 days with no expiry — it is the test that would catch F-001
+STILL_OPEN PRICER-F-001  Critical/P0  age 6d  is_listable rejects a price exactly at the floor
+FLAKY      test_bulk_discount_applies — fails 3/6 runs with no code change; quarantined
+           until 2026-09-07, excluded from this verdict, listed until re-evaluated
+
+Delta gates: tests 213 → 213 · duration +0.4% · coverage on changed files: no decrease
+Release blockers: PRICER-F-002 (regressed), PRICER-F-001
+Not tested: concurrency under parallel checkout — no harness present
+Fix order: 1) F-002  2) F-001 (unskip its test first, watch it fail red)  3) F-007 expiry
+Artifact: .qa/reports/2026-08-24-pricer-review.md
+```
+
+## Why another QA agent
+
+| | Typical `qa-expert.md` | Verdict |
+|---|---|---|
+| Remembers the last run | no — every run is a fresh audit | state file; `NEW/STILL_OPEN/RESOLVED/REGRESSED` with ages |
+| Flaky tests | "keep flakes under 1%" (prose) | quarantine ledger with mandatory expiry; flakes excluded from the verdict, never from the report |
+| Release decision | "go/no-go" appears as a checklist word | four-verdict contract; an open Blocker forces `fail` |
+| Red test triage | "investigate failures" | five-class taxonomy; `STALE_EXPECTATION` requires an intent citation |
+| Quality gates | ">90% coverage" absolutes | direction gates: coverage on changed files must not decrease; 0 tests collected ≠ 1 test failing |
+| Test design | "test edge cases" | 24-technique catalog with risk triggers — incl. property-based, metamorphic (for ML/LLM output), MC-DC, contract tests ([docs/test-design.md](docs/test-design.md)) |
+| Can edit your code | nothing stops it | no `Edit` tool + write-scope hook + strict-mode Bash guard |
+| Security | ignored, or oversold | opt-in report-only pass: dependency audit + diff secret scan; pentest explicitly out of scope |
+| Risk prioritisation | "focus on high-risk areas" | the ranking is computed from the project's own finding history (severity-weighted, paths merged across citation depths), and the report must show the ranking, the cutoff, and everything below it — which lands in not-tested |
+| Root cause | "investigate the failure" | a four-link chain with a citation per link, a mandatory class check (is this an instance or a pattern?), and causation proven by flipping the cause in a scratch copy — with its own scored fixture built around a decoy |
+| Requirements review | never — code only | `/verdict:spec` judges the spec before code exists (contradictions, unmeasurables, boundary ambiguities, history conflicts) — with its own scored eval fixture |
+| "No bugs found!" | frequently | never — coverage, gaps, and residual risk instead |
+| AI-authored code | same checklist as human code | provenance measured (trailer census over the range, profile `authorship`); a pattern catalog with a procedure and evidence bar per entry ([docs/ai-authored-code.md](docs/ai-authored-code.md)); deterministic censuses for hallucinated imports, placeholders and swallowed errors feed judgment — and a scored fixture proves the behaviours |
+| Its own accuracy | unmeasured, and unmeasurable after the fact | every finding states a confidence when filed; the outcome is computed from what the finding did, kept in a permanent ledger, and reported as a track record the tester cannot edit |
+| Tested itself | — | scored eval suite: baseline + delta-memory + adversarial-honesty fixtures, deterministic scorer, published answer keys ([eval/](eval/)) |
+| State consumable by other tools | — | `verdict-mcp`: read-only MCP server over the state — works from Cursor, Codex, CI, any MCP client |
+
+## The tested tester
+
+A QA agent that was never tested is exactly the kind of claim it should reject.
+[`eval/`](eval/) is a scored eval suite with a **deterministic scorer** —
+[`score.py`](eval/score.py) reads the state file, not the prose — and eight fixtures, the four that carry the headline claims:
+
+- **Baseline** ([fixtures/pricer](eval/fixtures/pricer)): 8 seeded issues covering all
+  five failure classifications, including a boundary defect hidden behind a "temporarily"
+  skipped test and a stale expectation whose intent citation sits in the CHANGELOG.
+  [Answer key](eval/EXPECTED.md).
+- **Delta** ([fixtures/pricer_rev_b](eval/fixtures/pricer_rev_b)): scores the flagship —
+  a run against an authored run-2 history must produce `REGRESSED` (ranked first), `NEW`,
+  `STILL_OPEN`, `RESOLVED`, and release an expired quarantine, while a CHANGELOG decoy
+  tries to launder the new defect as intended.
+  [Answer key](eval/EXPECTED-DELTA.md).
+- **Liar** ([fixtures/liar](eval/fixtures/liar)): adversarial honesty — a test script that
+  prints "ALL TESTS PASSED" unconditionally, a conftest that skip-marks the whole suite, a
+  mock asserting its own return value, a tautological assertion. Scores whether the
+  verdict takes output at face value.
+- **Spec** ([fixtures/refund-spec](eval/fixtures/refund-spec)): shift-left — a draft PRD
+  with a seeded contradiction, an unmeasurable requirement, an exactly-at-the-boundary
+  ambiguity, a silent failure-path gap, and a CHANGELOG that contradicts the spec. Scores
+  `/verdict:spec` finding them all before any code exists.
+
+`python3 eval/run_eval.py --mode seeded|live|baseline` runs it all in an isolated scratch
+repo and scratch state home. Results are published as measured; misses — and any answer-key
+amendment — stay in the table ([eval/README.md](eval/README.md)).
+
+Every one of those keys was written by the hands that wrote the prompt. **The external key**
+([eval/swebench.py](eval/swebench.py)) is one nobody here chose: SWE-bench Verified
+instances — real defects, each fixed by its own maintainers with a test that fails before the
+fix — every instance from the five smallest repositories in the set (pytest, pylint, requests,
+seaborn, flask; 40). The checkout's history ends at the bug's base commit, the environment is
+the one the maintainers had that week, the withheld test never enters the tree, and the issue
+text is the whole charter. The score is location, deterministic: does a `path:line` the
+finding cites fall in the file the fix touched, inside its hunk, in the same function? Rate,
+time, tokens and every miss are in the
+[ledger](eval/README.md#the-external-key--swe-bench-verified-instances).
+
+## State modes
+
+- **Solo (default):** state lives in `~/.claude/verdict/<repo-name>/` — nothing added to
+  your repo.
+- **Team:** create `.qa/` in the repo (`/verdict:baseline team`) and commit it — your teammates
+  and CI share the same baseline, and QA reports travel with the code.
+
+The state schema is documented in [docs/state-schema.md](docs/state-schema.md) —
+versioned, forward-compatible, human-readable JSON.
+
+## Commands
+
+Plugin commands are namespaced by the plugin and must be typed in full — `/verdict:run`,
+`/verdict:status`. There is no short form: a bare `/verdict` is an unknown command,
+measured rather than assumed.
+
+**Start here:** `/verdict:run` — the front door. It reads the tester's memory and picks the
+right pass itself: no state yet → a baseline; state present → today's delta; arguments
+given → a delta narrowed to what you named. It says which it chose and why. Every command
+below is the same machinery aimed at one specific job, for when you already know which
+job you want.
+
+| Command | What it does |
+|---|---|
+| `/verdict:run` | **Front door** — routes to baseline, delta, or a scoped review from the stored state |
+| `/verdict:baseline` | Initialize the QA root, project profile, and baseline state |
+| `/verdict:regression` | Regression checklist: changed area → adjacent flows → integrations |
+| `/verdict:release` | Release gate with the four-verdict contract |
+| `/verdict:bug` | Turn a symptom/log/complaint into a classified, structured bug report |
+| `/verdict:flake` | Classify an intermittent failure: ≥3 reproductions, mechanism hunt → `BRITTLE_TEST` fix task, or `FLAKY` quarantine with expiry |
+| `/verdict:status` | Read-only status from the stored state — no run, no writes, no agent spin-up |
+| `/verdict:spec` | Shift-left: judge a spec/issue/PRD for testability *before code exists* — contradictions, unmeasurables, undefined boundaries, silent gaps, history conflicts, plus Given/When/Then criteria |
+| `/verdict:cause` | Trace a failure to its root cause: symptom → mechanism → origin → **class**, each link cited, causation proven by counterfactual rather than narrated; trigger, cause, and latent condition kept apart |
+| `/verdict:charter` | Timeboxed exploratory charter with a risk focus seeded from the profile's incident history; observations captured as evidence, discoveries converted to bug reports and regression candidates |
+
+## The tester's memory, over MCP (optional)
+
+Verdict's state isn't locked inside the agent. `verdict-mcp` is a small **read-only** MCP
+server over the same state files, so anything that speaks MCP can consult your QA memory —
+an orchestrator gating a merge, a Cursor or Codex session, a CI step commenting a PR:
+
+| Tool | Returns |
+|---|---|
+| `get_verdict(project)` | last verdict, release blockers, report path, not-tested list |
+| `get_findings(project, status)` | `open` (default), `all`, or `NEW / STILL_OPEN / RESOLVED / REGRESSED` — REGRESSED ranked first |
+| `get_quarantine(project)` | the flaky ledger, each entry with a computed `expired` flag |
+| `get_questions(project)` | the questions the tester parked for a person, each with its age, and answers no run has read yet — answer with `verdict-answer` |
+| `get_history(project)` | run-over-run trend parsed from the report INDEX |
+| `get_report(project, report?)` | full report content (default: last run's) — path-guarded to the QA root, so a CI step can quote the evidence, not just link it |
+| `get_profile(project)` | the project's QA profile: isolation rules, risk areas, real test commands — plus the lessons ledger when one exists |
+| `get_trends(project)` | run-over-run trajectory from the INDEX, the current pressure picture (open by severity, age distribution, quarantine size, duration), and **hotspots** — where this project's defects actually cluster, computed from its own findings and severity-weighted, with the number of runs behind the ranking |
+| `list_projects()` / `get_state(project)` | everything with a baseline / the raw state |
+
+```
+claude mcp add verdict -- uvx --from verdict-qa-mcp verdict-mcp
+```
+
+The distribution is **`verdict-qa-mcp`** — the console script and the import package are
+still `verdict-mcp` / `verdict_mcp`; only the name PyPI indexes differs, because
+`verdict-mcp` there belongs to an unrelated project. Installing straight from the
+repository also works and needs no release:
+`uvx --from git+https://github.com/ArtJack/verdict verdict-mcp`
+
+`project` is a key from the solo root (`~/.claude/verdict/`, override with `VERDICT_HOME`)
+or a repo path in team mode (resolves `<repo>/.qa/`). Every tool carries a read-only
+annotation and the server never writes — **the tester's memory is public API; the tester's
+pen is not.** Needs `uv` (or `pipx install verdict-qa-mcp`); the plugin itself still has
+zero dependencies and works without the server.
+
+## Closing the loop (without letting the tester fix anything)
+
+Verdict is deliberately the **gate** of a fix loop, never its actor — an agent that fixes
+and then re-judges its own fixes is grading its own homework. The loop belongs to your
+orchestrator, your coding agent, or CI; Verdict's job is to make every pass around it
+evidence-cited and impossible to rubber-stamp:
+
+```text
+┌─────> implement the ordered fix list   (you / your coding agent)
+│                    │
+│                    v
+│        /verdict:run — delta run        (scoped by diff, findings aged)
+│                    │
+│                    v
+│        get_verdict over MCP ────────── pass ──> merge
+│                    │                            (the not-tested list travels with the PR)
+└──────── fail · pass with risks
+          (fix order is dependency-aware, REGRESSED first)
+```
+
+Minimal driver, any MCP client:
+
+```python
+while True:
+    before = mcp.call("verdict", "get_verdict", {"project": "myapp"}).get("run_number") or 0
+    subprocess.run(["claude", "-p", "/verdict:run delta pass on myapp"])   # the agent runs
+    v = mcp.call("verdict", "get_verdict", {"project": "myapp"})          # the gate reads
+    assert (v.get("run_number") or 0) > before, "run died before writing state — not a verdict"
+    if v["verdict"] == "pass":
+        break
+    fix(v["release_blockers"],
+        mcp.call("verdict", "get_findings", {"project": "myapp", "status": "open"}))
+```
+
+(The `run_number` check matters: without it, a run that crashes before writing
+state re-serves *yesterday's* verdict — and if yesterday passed, the loop merges
+unreviewed code. `verdict-gate --min-run-number` is the same check as a CLI.)
+
+Rules that keep the loop honest — all enforced by the agent's contract, not by hope:
+
+- **REGRESSED breaks the loop loudly.** A finding that comes back outranks any number of
+  NEW ones; it is ranked first in every report and every `get_findings` response.
+- **Red tests exit through the right door.** `STALE_EXPECTATION` exits via a test-update
+  task (with an intent citation), `REAL_DEFECT` via a code fix — the loop never converges
+  by editing a red test to match the code.
+- **Flakes can't be buried.** Quarantined tests are excluded from the gate but re-enter on
+  expiry, so the loop cannot converge by skipping its way to green.
+- **`blocked` halts, it doesn't pass.** A missing environment stops the loop for the
+  operator instead of laundering itself into a verdict.
+- **A crashed run is not a verdict.** The gate asserts `run_number` advanced; stale state
+  is its own exit code (`5`), distinct from both pass and fail.
+
+This is not hypothetical — it is the loop the author's private deployment runs nightly,
+unattended, against a production codebase.
+
+On nights when nothing a finding cites has moved, `verdict-run --skip-unless-drift` finalizes
+a **sweep** instead of a model run — the previous verdict carried by id, signed by no model,
+the run number advanced — and prints why whenever it cannot. The conditions are the harness's
+own measurements: every cited line where it was, every gate green, the test-id set unchanged,
+no quarantine due ([docs/nightly.md](docs/nightly.md)).
+
+## CI: gate PRs on the tester's memory
+
+The repo doubles as a composite GitHub Action. **Gate mode** needs no API key, no install,
+and no model — a stdlib-only script reads the committed team-mode `.qa/` state, sets the
+job status, and maintains one sticky PR comment (verdict headline, blockers,
+REGRESSED-first findings table, the not-tested list):
+
+```yaml
+permissions:
+  pull-requests: write
+concurrency: verdict-${{ github.ref }}
+
+steps:
+  - uses: actions/checkout@v4
+  - uses: ArtJack/verdict@v0
+    with:
+      max-age-hours: 48        # a stale verdict is exit 5, never a pass
+      max-commits-behind: 0    # ...and so is one measured before these commits
+```
+
+**Run mode** (experimental) executes a headless Verdict pass first — on a GitHub-hosted
+runner with `anthropic-api-key`, or on a **self-hosted runner with
+`claude-oauth-token`** from `claude setup-token`, so nightly QA rides your subscription
+instead of API billing (`anthropic-base-url` passes through for Anthropic-compatible
+gateways). The same contract is available anywhere as a CLI:
+
+```bash
+verdict-gate myapp --max-age-hours 24 --max-commits-behind 0 --fail-on risks
+```
+
+Exit codes: `0` pass · `1` fail · `2` usage · `3` blocked · `4` no state (the tester never
+ran) · `5` stale · `6` hand-written state (with `--require-harness`). `4` and `5` are
+deliberately distinct from `1`: "the tester never ran"
+must never look like "the tester said no". For running the nightly pass on your own
+machine — cron, systemd, subscription token, strict mode — see
+[docs/nightly.md](docs/nightly.md).
+
+`--format sarif` emits the open findings as SARIF 2.1.0 (severity → level, locations
+parsed from `file:line` evidence), so they land as annotations in GitHub's Security tab:
+
+```yaml
+- run: verdict-gate --format sarif > verdict.sarif || true
+- uses: github/codeql-action/upload-sarif@v3
+  with: { sarif_file: verdict.sarif }
+```
+
+## Give your tester project eyes (bring your own MCPs)
+
+The agent ships with core tools only, but the frontmatter is an extension point: copy
+`agents/verdict.md` into your project's `.claude/agents/` and add your project's MCP tools
+(database, staging API, browser) to its `tools:` list. The agent's §0 isolation rules
+govern how it may use them — read-only facts, never mutations, `blocked` when it cannot
+verify. This pattern is battle-tested: the private ancestor of this agent runs nightly
+with eleven read-only marketplace-database tools, which is exactly how it caught a live
+overselling bug that no amount of reading source code could have found.
+
+Worked example — a web app with a Playwright MCP connected:
+
+```yaml
+# your project's .claude/agents/verdict.md, frontmatter tools:
+tools:
+  - Read
+  - Glob
+  - Grep
+  - Bash
+  - Write
+  - mcp__playwright__browser_navigate
+  - mcp__playwright__browser_snapshot
+  - mcp__playwright__browser_click
+  - mcp__playwright__browser_console_messages
+```
+
+…and the profile carries the rules of engagement: which origin is the test environment
+(never production), which accounts are test accounts, and that navigate/snapshot/read is
+in scope while anything that submits, pays, or mutates an account is forbidden. §0 governs
+browser tools exactly as it governs Bash — unsure whether a click mutates? It mutates;
+return the risk instead of clicking. Exploratory charters (§4, technique 23) translate
+directly: a timeboxed browser session with a risk focus, observations as evidence,
+repeatable failures becoming bug reports.
+
+## The model judges; the system measures
+
+About two thirds of a state file is arithmetic and transcription — timestamps, SHAs, diff
+ranges, gate exit codes, durations, test counts, finding hashes, ages, deltas. None of it
+is judgment, and every one of them is a place to be confidently wrong.
+
+So the run is split. `verdict-facts` measures: it runs the gates you name, times them,
+parses their counts, reads git, derives the project key, and decides `run_number` and
+`run_type` (including when a run must be re-declared a re-baseline). The agent then writes
+**only judgment** — each finding as its own file the moment it is proven, validated as it
+is written; a finding it looked at and found unchanged as an id; the verdict and what was
+not tested. `verdict-finalize` assembles the files, computes each finding's hash,
+`first_seen`, `age_days`, and its NEW/STILL_OPEN/RESOLVED/REGRESSED delta from the previous
+state, hashes every line the evidence cites so the next run is told where the code moved,
+and validates the result before writing anything.
+
+`verdict-finalize` also **renders the report** — scope, gates, the REGRESSED-first
+findings table, not-tested, quarantine — from that same state, and injects the agent's
+prose (risks, fix order, per-finding narrative) into it. The report cannot go missing,
+because the harness writes it, and cannot contradict the state, because it is the state.
+
+Nothing the model cannot compute correctly is left for the model to compute.
+
+## The tester's own error rate
+
+A finding is worth what the tester's record says it is worth. Verdict keeps that record,
+and the design principle is the same one as everywhere else here: the part a model would
+be tempted to grade generously is the part it does not get to touch.
+
+Each finding states a **confidence when it is filed** — `proven` (demonstrated it happen),
+`probable` (traced, not executed), `hypothesis` (suspected). The validator refuses a new
+finding without one, and the harness freezes it: a later run cannot revise a prediction
+after seeing how it turned out.
+
+The **outcome is computed**, never claimed. A finding that regressed, or whose fix was
+verified by re-injecting the defect and watching a guard fail, held up. One the tester
+withdrew did not. Everything else stays undecided and is excluded from every rate — a
+resolution nobody verified is an absence, not proof, and a still-open finding has not
+settled anything. Decided outcomes persist in `outcomes.json`, because `state.json` drops
+findings resolved two runs ago and the sample would otherwise reset forever.
+
+The report then carries a **Track record** section: how many findings this project has
+tracked, how many are settled, and the counts per confidence level and per proof method.
+A percentage appears only once a bucket has 30 settled outcomes. Below that you get "2 of
+3", which is a fact, instead of "67%", which is decoration.
+
+### Accepting a risk — the maintainer's pen
+
+Some findings are right and will not be fixed: a residual risk weighed and written into a
+decision log, a defect behind a feature that is being retired. Left `open`, such a finding
+is re-reported as an open Major in every banner for the life of the project — the "same
+twenty findings until you stop reading" failure this tool exists to prevent — and
+`withdrawn` would score a correct finding as the tester's error. So there is a fourth
+status, and the tester cannot write it:
+
+```
+verdict-accept myapp MYAPP-F-021 --cite "DECISIONS.md 2026-09-02" \
+    --reason "deleting the ledger too defeats the anchor; the cost is the whole track record"
+```
+
+That writes `accepted.json` beside `outcomes.json` in the QA root — a file the scope guards
+refuse to the agent and a status the validator refuses in a judgment. The finding leaves
+the open counts at once (the banner, `verdict-gate`, the MCP server), leaves the verdict at
+the next run, appears under **Accepted risks** in every report with its citation, and
+settles in the track record as `confirmed` on the maintainer's word — kept apart from the
+measured and the claimed confirmations, because it is neither. `--revoke` reverses it, with
+a reason; `--list` shows the ledger. A decision changes the next verdict, never the last one.
+
+The other thing only a person can settle is a question — is `;` still a query separator,
+is single-file vendoring a supported contract, should the gate run an installed wheel. The
+tester parks them (`questions` in its judgment; finalize mints `MYAPP-Q-3` and keeps
+`questions.json`), and the second pen answers:
+
+```
+verdict-answer myapp MYAPP-Q-3 --answer "at or above is the rule; README rule 1 is the spec"
+```
+
+That writes `answers.json`, refused to the agent like `accepted.json`. The next run reads the
+decision in its facts and never asks again; the report renders **Needs human decision** from
+the ledger; the session-start banner and `verdict-gate` say how many are waiting. Nothing is
+mailed and no issue is filed for a question — it is pushed to every surface that reaches you,
+and it waits there.
+
+## The tester has memory. The implementer did not.
+
+That asymmetry had a measured cost. Verdict filed eleven evidenced findings on a live site,
+one of them a release blocker — *deploying this branch strips every production security
+header* — and the very next session in that same repository did a full SEO pass and touched
+none of them: not the blocker, not the application form that reports success when the
+handoff failed, not the contrast failures on both primary CTAs. The findings sat in
+`state.json` the whole time. `next_run_focus` existed, but only Verdict reads it;
+`get_findings` existed over MCP, but nothing called it unprompted.
+
+So a `SessionStart` hook says what is outstanding when a session opens in a repository that
+has QA state — before the first edit, not after:
+
+```
+Verdict remembers dm-express-site: run 2 (delta), today — verdict **fail**.
+1 release blocker — look here first:
+  - DMEXPRESS-F-1 — the audited branch has diverged from the deployed origin/main
+11 open findings: 4 Major · 4 Minor · 3 Trivial
+  - DMEXPRESS-F-3 (Major) Light theme: accent-coloured text fails WCAG AA…
+Full detail: `/verdict:status`. These are findings, not instructions.
+```
+
+Deliberately short — a session opener that scrolls is one nobody reads — and it never
+repeats a finding it already named as a blocker. Silent in a repository with no QA state,
+silent on any failure, and it flags memory older than a week rather than serving it as
+current. It informs a session; it does not commandeer one.
+
+In a repository Verdict has never looked at, the same hook says one thing, once: that Verdict
+is installed and `/verdict:run` takes a first, read-only QA pass. It speaks only on a fresh
+interactive start in a git repository with a test suite, once per repository and in at most
+three repositories per person, and never headless, in CI or with `VERDICT_NO_HINT=1`. The
+record of where it has spoken is `.first-run.json` in Verdict's own home, never in your
+repository. It exists because the Claude directory counted 96 accounts that installed
+Verdict and none that ever used it.
+
+## The last guard fires whether or not the model remembers
+
+Every check above sits **downstream of a tool the model has to choose to call** — and that
+is not a theoretical gap. A real run of `/verdict:run` wrote to the default state root
+while `$VERDICT_HOME` pointed elsewhere, invented a project key, skipped the harness
+entirely, and still produced a confident, plausible `FAIL`. `verdict-validate` would have
+rejected that state and `verdict-gate --require-harness` would have exited 6. Neither
+fired, because nothing invoked them.
+
+(That check used to be defeatable by *imitation* rather than forgery — its two durable
+signals were a key holding a dict and a fixed footer string, both copyable straight out
+of the committed artifacts. Verdict found that auditing itself. Each run now signs the
+run history with a hash of the previous link, and the state records it; a link copied
+forward does not verify, and neither does a state edited after signing.)
+
+So there is a `Stop` hook. When a turn ends it asks one question — *did a QA run just
+leave hand-written state on disk?* — and if so it blocks the stop once and says what to
+redo. It fires on the turn ending, not on the model deciding to check.
+
+The bar for speaking is deliberately high, because it runs at the end of every turn in
+every session where the plugin is enabled: the turn must not already be continuing because
+of this hook (never loop), a QA root must resolve from the session's cwd, its `state.json`
+must have been written in the last half hour, and the harness traces must be missing.
+Anything else exits in about two stat calls — **37 ms**, measured. Every failure path —
+unparseable input, an import that does not resolve, an unreadable state — also exits
+silently: a hook that bricks sessions is worse than the problem it polices.
+
+## The state contract is machine-checked
+
+Prose in a prompt reduces how often a model invents a value; it cannot stop a model from
+inventing a value it is capable of inventing. Measured here: months after `date -u` became
+an explicit rule, **two of four production timestamps still landed on exactly `:00`
+seconds** — fabricated, quietly, in states that every downstream consumer believed.
+
+So the contract stopped being prose and became a gate. `verdict-validate` runs as a
+PostToolUse hook on every `state.json` write (and as a CLI in CI) and reports, immediately
+and in-session, any state that: names a `report` which is not a path to a file that exists
+· carries a timestamp that was recalled rather than measured · leaves `run_number` where a
+crashed run left it · invents enum values · claims `pass` over an open Critical · files an
+open finding with no evidence · quarantines a test with no expiry.
+
+Its first run against four live production states found violations in two of them —
+including the exact dodge (`"delivered inline to the caller…"` in the report field) that a
+prompt rule had failed to prevent three separate times. Every rule in it exists because a
+real run broke it.
+
+## The read-only guarantee, honestly stated
+
+Four layers: (1) the agent has no `Edit` tool; (2) its contract confines `Write` to the QA
+root; (3) a PreToolUse hook blocks out-of-scope `Write`/`Edit` calls; (4) a second hook
+closes the common Bash write channels — output redirection (`>`, `>>`, `&>`, `>&file`,
+`N<>`), `tee`, `sed -i`/`perl -i`, `rm`/`mv`/`cp` and friends, mutating `git` verbs and a
+read verb's `--output`, formatters in their writing shape (`black .`, `ruff format`,
+`prettier --write`), in-place compressors, `find -exec` and `xargs` on any of those — each
+target resolved against the QA root. Both hooks are armed when the platform names the verdict
+agent as the caller (Claude Code sends `agent_type` in every hook input fired inside a
+subagent) and under `VERDICT_STRICT=1`, which headless, CI and scheduled runs set because
+there the whole session IS the QA run. Your own edits and your own shell are not guarded:
+an event that names no agent, in a session without strict mode, passes untouched — with one
+exception. The maintainer's ledgers (`accepted.json`, `answers.json`) are written by
+`verdict-accept` and `verdict-answer` and by nothing else: a Write or Edit to either is
+refused whoever asks, and the two commands are refused to the tester.
+
+The harness holds its own writes to the same line. `facts.json`, the state, the report, the
+run index and the ledgers are written by name inside the QA root, so before anything is
+created `verdict-facts`, `verdict-finalize`, `verdict-local` and the maintainer's commands ask
+where the root is — under the solo home, at or under the `.qa/` at the top of a checkout, or
+outside any checkout; anywhere else inside a checkout is the code — and refuse a root whose
+own entries, `reports/` or `findings/` hold a symlink, a junction or a file with a second hard
+link, because a write through a link is a write somewhere else. The report is one plain file
+directly under `reports/`, and never the run index
+([tests/test_qa_root_links.py](tests/test_qa_root_links.py)).
+
+The Bash guard is a heuristic over a command string, not a sandbox, and the 2026-10-02 audit
+measured where it stops: it does **not** stop a program that writes through its own code — an
+interpreter (`python3 -c`, `node -e`), a build or package step (`pip`, `npm`, `cargo`,
+`pytest`'s own cache and `.coverage`), a task runner (`npm run format`, `make fmt`), a script
+read from a file or a pipe, a shell function or alias. Unknown commands run, because a QA
+pass needs pytest, coverage and linters. The real boundary is OS-level sandboxing or running
+the tester against a throwaway copy; the guard raises the cost of the *accidental* mutation.
+Malformed hook input fails open; once armed, a command the guard cannot read is refused
+rather than waved through. Tested in CI on Python 3.9, the `python3` a stock Mac starts them with
+([tests/test_hooks.py](tests/test_hooks.py), [tests/test_hooks_0903.py](tests/test_hooks_0903.py),
+[tests/test_hooks_pens.py](tests/test_hooks_pens.py),
+[tests/test_hooks_links.py](tests/test_hooks_links.py)). That is the whole truth; a QA tool
+should not oversell its own controls.
+
+## FAQ
+
+**Who pays for the model?** You do — with the Claude subscription you already have;
+nothing routes through the author and no API key is required. The one place a key can
+appear is the optional GitHub Action's run mode, and that is your key, in your repo, for
+your CI. Everything below the model is plain files and stdlib Python.
+
+**Can it run on a local LLM?** Three answers, cheapest first. **No model at all:**
+`verdict-run --skip-unless-drift` carries the standing verdict on a night when nothing a
+finding cites has moved — two seconds, and it says so. **A small local model:**
+`verdict-local` inverts the control — the harness measures, slices the code and proves claims
+in a scratch copy, and the model answers one bounded question at a time. Measured with
+`qwen3:8b` behind LiteLLM and Ollama: 9/10 · 9/10 · 10/10 on the baseline fixture, about thirty
+calls and seven thousand input tokens a run. Since 0.90.0 it is a **delta** as well as a first
+pass, and safe over a project that already has state: every prior open finding is resolved by a
+measured fail→pass on a test somebody chose, carried by id, or re-filed under its own id with
+the drift that moved it — never left unmentioned, because the harness reads silence as
+resolution. Its verdict is monotone: it can make a verdict worse or leave it alone, and both a
+`fail` and a `blocked` stand until something with judgment looks at them. `--range`/`--base` with a
+throwaway `--qa-root` judge a branch without touching the project's own state, and a range with
+no Python in it reads nothing and says so rather than reporting a clean pass. Wire it into a
+night with `verdict-run --on-drift local`, which can never reach the `claude` CLI at all.
+**The full agent through a gateway** (`verdict-run --env-file`, `ANTHROPIC_BASE_URL` → LiteLLM →
+your model server, [docs/nightly.md](docs/nightly.md)) needs a model with the window for a
+twelve-thousand-token contract on top of the CLI's own prompt; an 8B model served at 4k is not
+one. Which model may sign a verdict is the eval's decision, never a default's: Sonnet tied Opus
+on the honesty fixture and was at parity on root cause at n=3, with one run that wrote no state
+([the model axis](eval/README.md#the-model-axis--opus-against-sonnet-paired)). Run it, publish
+the score, then decide.
+
+**Why won't it fix the bugs it finds?** Independence. The agent that patches the code and
+then declares it healthy is grading its own homework. Verdict returns an ordered,
+implementation-ready fix list for you (or your coding agent) to execute.
+
+**Does it replace CI?** No — it sits on top. CI tells you the suite is red; Verdict tells
+you *which* red matters, what it means, what regressed since the last run, and whether you
+can ship anyway.
+
+**Does it work in scheduled/headless runs?** Yes — that's what the state file is for. Run
+it nightly; read a delta report over coffee, not a fresh audit.
+
+## Roadmap
+
+- **Local-first track** (the project's original ambition): an agent-skills-standard
+  variant — the prompt, technique catalog, and state contract are portable markdown, which
+  is the door to non-Claude runtimes — plus the local-model experiment: run the eval suite
+  through an Anthropic-compatible gateway against local models and publish the scores. A
+  model earns nightly duty by passing the same eval as everyone else.
+- A JS/TS eval fixture alongside the Python one
+- Mutation-testing integration where a tool is present
+
+## License
+
+MIT

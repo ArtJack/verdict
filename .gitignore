@@ -1,0 +1,16 @@
+__pycache__/
+.pytest_cache/
+.DS_Store
+.venv/
+dist/
+*.egg-info/
+uv.lock
+node_modules/
+.env
+
+# mutmut writes its result database beside the tree it mutates; it is a
+# campaign byproduct, re-derived by re-running the campaign.
+.mutmut-cache
+
+# pin_check holds this while it is mutating the working tree.
+.pin_check.lock
