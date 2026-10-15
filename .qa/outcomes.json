@@ -1,9 +1,18 @@
 {
   "chain": {
-    "last_link": "726222512fa9dcfb914945fbb736670113f65fff81e1e9d5e496595a1a48f6c8",
+    "last_link": "8e9ebef6c7700b3ae16781d5673ee9f6c388c89f4424695d8065a8ad63da2b72",
     "since_run": 8
   },
   "findings": {
+    "01176523": {
+      "confidence": "proven",
+      "first_seen": "2026-10-15",
+      "hash": "01176523",
+      "id": "VERDICT-F-88",
+      "outcome": "unknown",
+      "outcome_reason": "still open; nothing has settled it",
+      "severity": "Minor"
+    },
     "02d33fe8": {
       "confidence": "proven",
       "decided_on": "2026-09-13",
@@ -56,9 +65,18 @@
       "outcome_reason": "resolved but not fix-verified \u2014 absence is not proof",
       "severity": "Trivial"
     },
+    "0ead4dd8": {
+      "confidence": "proven",
+      "first_seen": "2026-10-15",
+      "hash": "0ead4dd8",
+      "id": "VERDICT-F-83",
+      "outcome": "unknown",
+      "outcome_reason": "still open; nothing has settled it",
+      "severity": "Minor"
+    },
     "1009c259": {
       "confidence": "proven",
-      "decided_on": "2026-09-13",
+      "decided_on": "2026-10-15",
       "first_seen": "2026-09-01",
       "hash": "1009c259",
       "id": "VERDICT-F-21",
@@ -344,6 +362,15 @@
       "outcome_reason": "fix-verified: claimed by the tester, and no harness measurement contradicts it",
       "severity": "Minor"
     },
+    "76642dcd": {
+      "confidence": "proven",
+      "first_seen": "2026-10-15",
+      "hash": "76642dcd",
+      "id": "VERDICT-F-87",
+      "outcome": "unknown",
+      "outcome_reason": "still open; nothing has settled it",
+      "severity": "Minor"
+    },
     "794fbc73": {
       "confidence": "proven",
       "decided_on": "2026-09-03",
@@ -477,6 +504,15 @@
       "proof_method": "reading",
       "severity": "Major"
     },
+    "960c0897": {
+      "confidence": "proven",
+      "first_seen": "2026-10-15",
+      "hash": "960c0897",
+      "id": "VERDICT-F-86",
+      "outcome": "unknown",
+      "outcome_reason": "still open; nothing has settled it",
+      "severity": "Minor"
+    },
     "9dbe59d5": {
       "confidence": "proven",
       "first_seen": "2026-09-03",
@@ -564,6 +600,15 @@
       "first_seen": "2026-09-05",
       "hash": "af135905",
       "id": "VERDICT-F-74",
+      "outcome": "unknown",
+      "outcome_reason": "still open; nothing has settled it",
+      "severity": "Minor"
+    },
+    "b0bafd7b": {
+      "confidence": "proven",
+      "first_seen": "2026-10-15",
+      "hash": "b0bafd7b",
+      "id": "VERDICT-F-81",
       "outcome": "unknown",
       "outcome_reason": "still open; nothing has settled it",
       "severity": "Minor"
@@ -682,6 +727,15 @@
       "outcome_reason": "fix-verified: claimed by the tester, and no harness measurement contradicts it",
       "severity": "Major"
     },
+    "cbfe1481": {
+      "confidence": "proven",
+      "first_seen": "2026-10-15",
+      "hash": "cbfe1481",
+      "id": "VERDICT-F-84",
+      "outcome": "unknown",
+      "outcome_reason": "still open; nothing has settled it",
+      "severity": "Minor"
+    },
     "cfca172e": {
       "confidence": "proven",
       "first_seen": "2026-08-30",
@@ -690,6 +744,15 @@
       "outcome": "unknown",
       "outcome_reason": "resolved but not fix-verified \u2014 absence is not proof",
       "severity": "Major"
+    },
+    "d08cec10": {
+      "confidence": "proven",
+      "first_seen": "2026-10-15",
+      "hash": "d08cec10",
+      "id": "VERDICT-F-85",
+      "outcome": "unknown",
+      "outcome_reason": "still open; nothing has settled it",
+      "severity": "Minor"
     },
     "d0f59be9": {
       "confidence": "proven",
@@ -722,6 +785,15 @@
       "outcome": "unknown",
       "outcome_reason": "resolved but not fix-verified \u2014 absence is not proof",
       "severity": "Trivial"
+    },
+    "d73f1257": {
+      "confidence": "proven",
+      "first_seen": "2026-10-15",
+      "hash": "d73f1257",
+      "id": "VERDICT-F-80",
+      "outcome": "unknown",
+      "outcome_reason": "still open; nothing has settled it",
+      "severity": "Minor"
     },
     "d9a52f70": {
       "first_seen": "2026-08-28T20:33:24Z",
@@ -847,6 +919,15 @@
         "candidates": 1,
         "selected_by": "unselectable"
       }
+    },
+    "f99ce8b7": {
+      "confidence": "proven",
+      "first_seen": "2026-10-15",
+      "hash": "f99ce8b7",
+      "id": "VERDICT-F-82",
+      "outcome": "unknown",
+      "outcome_reason": "still open; nothing has settled it",
+      "severity": "Minor"
     },
     "fe1f07b3": {
       "confidence": "proven",

@@ -1,0 +1,18 @@
+{
+ "id": "VERDICT-F-82",
+ "title": "A test is skipped with no expiry: \"not a git checkout: the directory reads the repository, so this needs one\"",
+ "severity": "Minor",
+ "priority": "P2",
+ "status": "open",
+ "failure_classification": "BRITTLE_TEST",
+ "confidence": "proven",
+ "evidence": [
+  "tests/test_directory_policy.py:68 \u2014 skip marker with reason '\"not a git checkout: the directory reads the repository, so this needs one\"'; no date or expiry in the reason",
+  "found by a regular expression over the test files, not by a model"
+ ],
+ "root_cause": {
+  "mechanism": "A skip with no expiry is a deleted test that nobody decided to delete: it never runs again and no one is told.",
+  "origin": "not investigated in local mode"
+ },
+ "narrative": "A skipped test with no expiry silently removes coverage. Either give the skip an expiry date or delete the test deliberately."
+}
