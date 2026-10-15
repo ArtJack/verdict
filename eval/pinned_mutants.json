@@ -2131,5 +2131,29 @@
   "path": "src/verdict_mcp/harness.py",
   "old": "    if _judged_locally(facts):\n        return None\n    marker = _read_json(qa_root / \"run-in-progress.json\") or {}\n",
   "new": "    marker = _read_json(qa_root / \"run-in-progress.json\") or {}\n"
+ },
+ {
+  "label": "directory branch 1: the tests ship to the directory",
+  "path": ".github/directory_branch.py",
+  "old": "EXCLUDED = (\"tests/\", \"eval/\", ",
+  "new": "EXCLUDED = (\"eval/\", "
+ },
+ {
+  "label": "directory branch 2: a release already on the branch is written again",
+  "path": ".github/directory_branch.py",
+  "old": "    if parent and _text(repo, \"rev-parse\", f\"{parent}^{{tree}}\") == tree:\n        return None\n",
+  "new": ""
+ },
+ {
+  "label": "directory branch 3: each release starts the branch over",
+  "path": ".github/directory_branch.py",
+  "old": "    new = _text(repo, \"commit-tree\", tree, *([\"-p\", parent] if parent else []), \"-m\", message)\n",
+  "new": "    new = _text(repo, \"commit-tree\", tree, \"-m\", message)\n"
+ },
+ {
+  "label": "directory branch 4: the push forces past a branch that moved",
+  "path": ".github/directory_branch.py",
+  "old": "        _git(repo, \"push\", \"--quiet\", remote, f\"{new}:refs/heads/{branch}\")\n",
+  "new": "        _git(repo, \"push\", \"--quiet\", remote, f\"+{new}:refs/heads/{branch}\")\n"
  }
 ]
