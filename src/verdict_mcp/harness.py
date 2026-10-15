@@ -2864,6 +2864,14 @@ def _session_identity() -> dict:
     return out
 
 
+def _judged_locally(facts: dict) -> bool:
+    """Whether `verdict-local` judged this run — a model behind a gateway, not a Claude
+    session. The engine signs `last_run.engine` before it finalizes and exports
+    `VERDICT_MODEL=local:<alias>`; either is enough."""
+    engine = str(((facts or {}).get("last_run") or {}).get("engine") or "")
+    return engine == "verdict-local" or str(os.environ.get("VERDICT_MODEL") or "").startswith("local:")
+
+
 def _measure_bill(qa_root: Path, facts: dict) -> dict | None:
     """What this run has spent, read from the session's own transcript → a record, or
     None when it cannot be known. Read before the state is composed, because the one
@@ -2871,6 +2879,14 @@ def _measure_bill(qa_root: Path, facts: dict) -> dict | None:
     a subagent inherits its session's model, no operator exported `VERDICT_MODEL`, and
     for three weeks the author's own history recorded no model on most rows while the
     most expensive one on the account did the work."""
+    # A local run's judge is not a Claude session. The session that launched it — an
+    # orchestrator's desktop session, an eval — is somebody else's bill, and its models are
+    # not the tester's: found 2026-10-14, when the suite was run from a desktop session that
+    # had answered on two models, the one-model rule read that session's transcript and
+    # blocked the finalize tests. A local gate launched from such a session would have been
+    # blocked the same way. The engine's own calls and tokens are in `last_run.local`.
+    if _judged_locally(facts):
+        return None
     marker = _read_json(qa_root / "run-in-progress.json") or {}
     session = marker.get("session_id") or os.environ.get(SESSION_ENV)
     if not session:

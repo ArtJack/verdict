@@ -68,7 +68,6 @@ def test_finalize_on_one_model_signs_the_judgment_as_written(repo, qa_root, caps
 
 import subprocess  # noqa: E402
 
-from conftest import git  # noqa: E402
 from test_filed import write_finding  # noqa: E402
 from verdict_mcp.harness import change_lines  # noqa: E402
 
@@ -204,3 +203,38 @@ def test_a_misspelt_risk_class_applies_none_and_says_so():
     notes = []
     assert risk_class_from({"risk_class": "monye"}, notes) is None
     assert notes and "not understood" in notes[0]
+
+
+def _two_model_session(tmp_path, monkeypatch, session="sess-local-1"):
+    """A Claude session that has answered on two models, as a desktop session can."""
+    config = tmp_path / "claude-config"
+    project = config / "projects" / "-desk"
+    project.mkdir(parents=True)
+    rows = [json.dumps({"type": "assistant", "requestId": f"r{i}",
+                        "timestamp": "2026-10-14T20:00:0%dZ" % i,
+                        "message": {"model": model, "usage": {"input_tokens": 10,
+                                                              "output_tokens": 5}}})
+            for i, model in enumerate(["claude-model-a", "claude-model-b"])]
+    (project / f"{session}.jsonl").write_text("\n".join(rows) + "\n", encoding="utf-8")
+    monkeypatch.setenv("CLAUDE_CONFIG_DIR", str(config))
+    monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", session)
+
+
+def test_a_local_run_does_not_bill_the_session_that_launched_it(tmp_path, monkeypatch):
+    """Found 2026-10-14: run from inside a desktop session that had answered on two models,
+    the one-model rule read *that* session's transcript and blocked the finalize tests. A
+    `verdict-local` run launched from such a session is judged by a model behind a gateway,
+    not by the session, and must not inherit its bill — or its block."""
+    _two_model_session(tmp_path, monkeypatch)
+    qa = tmp_path / "qa"
+    qa.mkdir()
+    local = {"measured_at": "2026-10-14T20:00:00Z", "last_run": {"engine": "verdict-local"}}
+    assert harness._measure_bill(qa, local) is None
+    assert gate_policy({"verdict": "pass with risks", "findings": []},
+                       harness._measure_bill(qa, local)) == []
+    # Control: the same transcript is still a tester's bill when a Claude session judged.
+    tester = harness._measure_bill(qa, {"measured_at": "2026-10-14T20:00:00Z"})
+    assert tester is not None and len(tester.get("models") or {}) == 2
+    # And the engine's export alone is enough to tell a local run.
+    monkeypatch.setenv("VERDICT_MODEL", "local:chat-120b")
+    assert harness._measure_bill(qa, {"measured_at": "2026-10-14T20:00:00Z"}) is None

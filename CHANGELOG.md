@@ -9,6 +9,43 @@ They moved there on 2026-10-03, when this file outgrew what the Claude directory
 will read: at 250 KB it was read, at 267 KB it held 0.90.3 for "Files or downloads the
 validator couldn't inspect". The limit is most likely 256 KiB.
 
+## 0.90.6 — 2026-10-15 · "the gate holds on money"
+
+**A tester that found the defect could still let it through, and nothing in the harness said
+no.** Gated at the commit that introduced each of 19 real, already-fixed defects in public
+money and security code (`eval/external.py`), the tester located the right defect and returned
+`pass with risks` five times, two of them on proven Majors.
+
+- **`risk_class: money` or `security` in the profile** (`docs/state-schema.md`). In a gate over
+  a change (`verdict-run --range BASE..HEAD`), an open, tester-filed, `proven` `REAL_DEFECT`,
+  Minor or worse, that cites a line `git blame` attributes to the range makes the verdict `fail`
+  and joins the release blockers; `verdict_rule` records what the judgment said. Measured on 8
+  fresh positives and 8 changes picked as clean: 6 of 8 positives blocked, 3 of them only through
+  the rule, and one false block of 8. A plain Claude session asked the same question blocked 7 of
+  8 with the same one false block, at about a fifth of the cost; the rule fixes Verdict's call,
+  it does not out-call that baseline. Scoped to the change because, unscoped, it blocked 3 of 8
+  clean changes for defects that were already there. Opt-in; the recommended setting for money
+  and security code.
+- **A tester on two models signs nothing.** A run whose own transcript answered on more than one
+  model is `blocked`, the models named. After two safety-filter refusals the CLI once carried a
+  security gate on to another model and said nothing; only an eval's watcher noticed.
+- **A local run is not billed to the session that launched it.** Run from inside a desktop
+  session that had answered on two models, the rule above read *that* session's transcript, and
+  the suite's own finalize tests came back `blocked`; a `verdict-local` gate launched from such a
+  session would have been blocked the same way. A local run's judge is the model behind the
+  gateway, and its calls and tokens are in `last_run.local`. The suite now runs as CI does,
+  outside any ambient session (`tests/conftest.py`).
+- **A failing test the model calls a Blocker is held at Major.** The local tier capped severity
+  from reading at Minor but took the model's word for a failing test: on the pricer baseline with
+  a 120B model, one run in three filed a stale test expectation as a `Blocker`, and every filed
+  Blocker joins `release_blockers`. Unproven, a classified failure now sits at Major — above a
+  reading nobody executed, below anything that would block a release on a guess.
+- Pinned rules 341 → 353, each killed by the suite.
+
+**Not in this release:** the local tier still files one failing test twice, once from the failure
+and once from reading the function it calls; the served model is not yet recorded beside
+`local:<alias>`; `run_eval.py` records the session's default endpoint for a local-engine run.
+
 ## 0.90.5 — 2026-10-05 · "the page reads clean"
 
 **Verdict's own pages in the Claude app looked broken.** The plugin page there renders the README

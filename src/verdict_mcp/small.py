@@ -497,6 +497,24 @@ def capped(severity: str, proven: bool) -> str:
     return severity if proven else UNPROVEN_CEILING
 
 
+# A failing test is measured; what the model says it means is not. Its severity is held at
+# Major until a counterfactual proves the line — above a reading nobody executed, below
+# anything that would block a release on a guess. Measured 2026-10-14, the local tier on a
+# 120B model over the pricer baseline fixture: one run in three filed the stale 12 % fee
+# expectation as a `Blocker` from the failure text alone, and every filed `Blocker` joins
+# `release_blockers`, where it stays until something resolves it.
+FAILURE_CEILING = "Major"
+_SEVERITY_RANK = {"Trivial": 0, "Minor": 1, "Major": 2, "Critical": 3, "Blocker": 4}
+
+
+def capped_failure(severity: str) -> str:
+    """The model's severity for a failing test, never above `FAILURE_CEILING`."""
+    rank = _SEVERITY_RANK.get(str(severity))
+    if rank is None or rank > _SEVERITY_RANK[FAILURE_CEILING]:
+        return FAILURE_CEILING
+    return str(severity)
+
+
 def finding_of(claim: dict, ident: str, chunk_source: str, proof: dict | None = None) -> dict:
     """A claim becomes a finding file — with `confidence: hypothesis`, because nothing
     here was proven by execution. The harness refuses to call it anything else, and a
@@ -1292,16 +1310,19 @@ def failure_finding(claim: dict, ident: str) -> dict:
         evidence.append("intent citation — " + claim["excerpt"].replace("\n", " · ")[:400])
     evidence.append(f"classified by {claim.get('settled_by', 'a small model')} from the "
                     "failure text and the test source; no counterfactual was applied")
+    severity = capped_failure(claim["severity"])
+    held = (f" The model said {claim['severity']}; unproven, it is held at {severity}."
+            if severity != claim["severity"] else "")
     return {
-        "id": ident, "title": claim["title"], "severity": claim["severity"],
-        "priority": "P1" if claim["severity"] in ("Blocker", "Critical", "Major") else "P2",
+        "id": ident, "title": claim["title"], "severity": severity,
+        "priority": "P1" if severity in ("Blocker", "Critical", "Major") else "P2",
         "status": "open", "failure_classification": claim["classification"],
         "confidence": "hypothesis", "evidence": evidence,
         "root_cause": {"mechanism": claim["mechanism"] or claim["title"],
                        "origin": "not investigated in local mode"},
         "narrative": (f"{claim['mechanism']} Filed by `verdict-local` from the failing test "
                       "and its error text. Nothing was executed to confirm it beyond the "
-                      "suite run itself."),
+                      f"suite run itself.{held}"),
     }
 
 
@@ -2566,10 +2587,12 @@ def not_tested_lines(model: Model, files: list, examined: int, prior_open: list,
         f"{len(files)} file(s) and {examined} function(s) were read; nothing else in the "
         "repository was",
         ("claims the counterfactual could not reach — a probe that would not run leaves its "
-         f"finding a hypothesis, and an unproven severity is held at {UNPROVEN_CEILING}"
+         f"finding a hypothesis, and an unproven severity is held at {UNPROVEN_CEILING} for a "
+         f"reading and at {FAILURE_CEILING} for a failing test the model classified"
          if prove else
          f"everything a counterfactual would show: {disabled or 'proving was disabled this run'}"
-         ", so every finding from reading is a hypothesis"),
+         ", so every finding from reading is a hypothesis, and a failing test the model "
+         f"classified is held at {FAILURE_CEILING}"),
         "nothing outside the checkout was read — no database, no MCP tools, no production "
         "numbers — so a standing blocker that quotes one was NOT re-read",
         f"{model.unanswered} question(s) the model did not answer"

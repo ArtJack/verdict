@@ -10,6 +10,17 @@ import subprocess
 import pytest
 
 
+@pytest.fixture(autouse=True)
+def _no_ambient_session(monkeypatch):
+    """The suite runs as CI runs it: outside any Claude Code session. Run from inside one,
+    `CLAUDE_CODE_SESSION_ID` led the bill to the developer's own transcript, and a session
+    that had answered on two models made the one-model rule block the finalize tests
+    (2026-10-14). A test that needs a session sets its own."""
+    for name in ("CLAUDE_CODE_SESSION_ID", "CLAUDE_CONFIG_DIR", "VERDICT_MODEL",
+                 "VERDICT_LOCAL_MODEL"):
+        monkeypatch.delenv(name, raising=False)
+
+
 def git(args, cwd):
     subprocess.run(["git", "-c", "user.email=t@t", "-c", "user.name=t", *args],
                    cwd=cwd, check=True, capture_output=True)

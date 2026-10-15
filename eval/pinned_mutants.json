@@ -2119,5 +2119,17 @@
   "path": "src/verdict_mcp/profile.py",
   "old": "    if value in RISK_CLASSES:\n        return value\n",
   "new": "    if value:\n        return \"money\"\n"
+ },
+ {
+  "label": "local severity 1: a failing test the model calls a Blocker files as a Blocker",
+  "path": "src/verdict_mcp/small.py",
+  "old": "    severity = capped_failure(claim[\"severity\"])\n",
+  "new": "    severity = claim[\"severity\"]\n"
+ },
+ {
+  "label": "local bill 1: a local run reads the launching session's bill",
+  "path": "src/verdict_mcp/harness.py",
+  "old": "    if _judged_locally(facts):\n        return None\n    marker = _read_json(qa_root / \"run-in-progress.json\") or {}\n",
+  "new": "    marker = _read_json(qa_root / \"run-in-progress.json\") or {}\n"
  }
 ]
