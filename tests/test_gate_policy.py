@@ -151,6 +151,40 @@ def test_verdict_facts_records_the_range_given_or_inherited(repo, qa_root):
     assert facts["last_run"]["sha_range"] == "HEAD~1..HEAD"
 
 
+def test_a_gate_in_a_root_of_its_own_says_it_was_a_gate_not_a_baseline(repo, qa_root, capsys):
+    """Every branch gate runs in a throwaway root, so every one was recorded and reported as
+    "run 1 (baseline)" — as if the whole repository had been read (trace 2026-10-15). The type
+    stays the enum consumers switch on; the label says what the run was."""
+    from verdict_mcp.harness import facts_main
+    three_lines(repo)
+    assert facts_main(["--repo", str(repo), "--qa-root", str(qa_root), "--range", "HEAD~1..HEAD"]) == 0
+    facts = json.loads((qa_root / "facts.json").read_text(encoding="utf-8"))
+    assert facts["run_type"] == "baseline" and "a gate over HEAD~1..HEAD" in facts["run_type_reason"]
+    assert facts["run_label"].startswith("Gate over HEAD~1..HEAD")
+    rc, state = run_finalize(qa_root, judgment(findings=[]))
+    assert rc == 0, capsys.readouterr().err
+    assert state["run_label"] == facts["run_label"]
+    report = (qa_root / state["last_run"]["report"]).read_text(encoding="utf-8")
+    assert "*Gate over HEAD~1..HEAD, in a root of its own" in report
+
+
+def test_a_baseline_without_a_range_and_a_judgments_own_label_are_left_alone(repo, qa_root, capsys):
+    from verdict_mcp.harness import facts_main
+    three_lines(repo)
+    assert facts_main(["--repo", str(repo), "--qa-root", str(qa_root)]) == 0
+    assert "run_label" not in json.loads((qa_root / "facts.json").read_text(encoding="utf-8"))
+    rc, state = run_finalize(qa_root, judgment(findings=[]))
+    assert rc == 0 and "run_label" not in state, capsys.readouterr().err
+    assert facts_main(["--repo", str(repo), "--qa-root", str(qa_root), "--range", "HEAD~1..HEAD"]) == 0
+    assert "run_label" not in json.loads((qa_root / "facts.json").read_text(encoding="utf-8")), \
+        "a range over a root with a previous state is a delta, not a gate on its own"
+    (qa_root / "facts.json").unlink()
+    (qa_root / "state.json").unlink()
+    assert facts_main(["--repo", str(repo), "--qa-root", str(qa_root), "--range", "HEAD~1..HEAD"]) == 0
+    rc, state = run_finalize(qa_root, judgment(findings=[], run_label="merge gate, asked"))
+    assert rc == 0 and state["run_label"] == "merge gate, asked", "the judgment's own label wins"
+
+
 def _profile(qa_root, front):
     (qa_root / "profile.md").write_text(f"---\n{front}\n---\n\n# QA Profile — widget\n",
                                         encoding="utf-8")

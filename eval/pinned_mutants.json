@@ -2245,5 +2245,29 @@
   "path": "hooks/enforce_run_contract.py",
   "old": "not in (\"SubagentStop\", \"Stop\"):",
   "new": "not in (\"SubagentStop\",):"
+ },
+ {
+  "label": "0.90.8 gate label 1: a gate in a root of its own is recorded as a baseline",
+  "path": "src/verdict_mcp/harness.py",
+  "old": "        **({\"run_label\": gate_label} if gate_label else {}),\n",
+  "new": ""
+ },
+ {
+  "label": "0.90.8 gate label 2: finalize drops the gate label facts measured",
+  "path": "src/verdict_mcp/harness.py",
+  "old": "    if \"run_label\" not in state and facts.get(\"run_label\"):",
+  "new": "    if False:"
+ },
+ {
+  "label": "0.90.8 gate label 3: a delta over a range is labelled a gate on its own",
+  "path": "src/verdict_mcp/harness.py",
+  "old": "    if not previous and range_override and sha_range == str(range_override):",
+  "new": "    if range_override and sha_range == str(range_override):"
+ },
+ {
+  "label": "0.90.8 gate label 4: the measured label overrides the judgment's own",
+  "path": "src/verdict_mcp/harness.py",
+  "old": "    if \"run_label\" not in state and facts.get(\"run_label\"):",
+  "new": "    if facts.get(\"run_label\"):"
  }
 ]

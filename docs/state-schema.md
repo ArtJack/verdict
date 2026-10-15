@@ -90,7 +90,7 @@ here.
 | `project` | yes | Project key: repo directory name, lowercase, exactly |
 | `schema_version` | yes | Integer; this document describes v1 |
 | `run_type` | yes | `baseline` · `delta` · `re-baseline` — a strict enum, because consumers switch on it |
-| `run_label` | no | Free text describing *this* run when the type alone is too coarse ("merge gate re-gate", "claim verification"). Introduced when a production run smuggled the description into `run_type` and broke every consumer that read it |
+| `run_label` | no | Free text describing *this* run when the type alone is too coarse ("merge gate re-gate", "claim verification"). Introduced when a production run smuggled the description into `run_type` and broke every consumer that read it. A run's own: never carried into the next run (0.90.7). A gate in a root of its own (a range given, no previous state) is labelled by `verdict-facts` — "Gate over BASE..HEAD, in a root of its own: …" — so it does not read as a baseline of the repository; a judgment's own label wins (0.90.8) |
 | `run_number` | yes | Monotonic counter |
 | `last_run` | yes | `timestamp_utc`, `git_sha`, `sha_range`, `report` at minimum. `model` appears when the launcher exported `VERDICT_MODEL` (verdict-run does): the model that signed the verdict, measured rather than remembered. `engine` and `local` appear when a second engine answered — see "A second engine" below |
 | `isolation_check` | yes | Result of the profile's isolation check (§0) |

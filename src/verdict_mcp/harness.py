@@ -1312,6 +1312,15 @@ def collect(repo: Path, qa_root: Path, gates: list[tuple[str, str]],
 
     run_number = int((previous or {}).get("run_number") or 0) + 1
     run_type, why = "baseline", "no previous state"
+    gate_label = None
+    if not previous and range_override and sha_range == str(range_override):
+        # A gate in a root of its own — the throwaway root a branch gate runs in. Its scope is
+        # the change, not the repository: `run_type` stays the enum consumers switch on, and
+        # the label says what the run was (trace 2026-10-15: every branch gate read "run 1,
+        # baseline", as if the whole repository had been read).
+        why = f"no previous state; a gate over {sha_range}"
+        gate_label = (f"Gate over {sha_range}, in a root of its own: the change is the scope, "
+                      "not a baseline of the repository")
     if previous:
         run_type, why = "delta", "previous state present"
         prev_ts = ((previous or {}).get("last_run") or {}).get("timestamp_utc")
@@ -1415,6 +1424,7 @@ def collect(repo: Path, qa_root: Path, gates: list[tuple[str, str]],
         "run_number": run_number,
         "run_type": run_type,
         "run_type_reason": why,
+        **({"run_label": gate_label} if gate_label else {}),
         # Start the judgment from this file; do not learn its shape by reading.
         "judgment_template": str(judgment_template()),
         # One finding, one file: this is its shape, written to `findings_dir`.
@@ -2131,6 +2141,8 @@ def merge(facts: dict, judgment: dict, previous: dict | None, today: date | None
     for optional in ("run_label", "next_run_focus", "flaky_quarantine", "coverage"):
         if judgment.get(optional) is not None:
             state[optional] = judgment[optional]
+    if "run_label" not in state and facts.get("run_label"):
+        state["run_label"] = facts["run_label"]     # a gate in a root of its own says so
     # Always assigned, so the end-of-merge carry of unknown keys cannot resurrect a
     # stale ledger.
     prev_ledger = hygiene_previous((previous or {}).get("hygiene"), root,
