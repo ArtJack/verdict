@@ -65,8 +65,10 @@ def test_everything_the_plugin_runs_or_reads_is_on_the_branch():
 # ── building the branch, in a scratch repository with a bare remote ─────────
 
 def git(repo, *args):
+    # UTF-8 explicitly: git writes UTF-8, and Windows would decode it in the ANSI
+    # code page, which turned the commit message's "·" into "Â·" on CI.
     return subprocess.run(["git", "-C", str(repo), *args], capture_output=True, check=True,
-                          text=True).stdout.strip()
+                          encoding="utf-8").stdout.strip()
 
 
 FILES = {".claude-plugin/plugin.json": '{"name": "p", "version": "1.0.0"}\n',
@@ -149,11 +151,11 @@ def test_the_release_workflow_can_run_it(plugin_repo):
     repo, remote = plugin_repo
     sha = git(repo, "rev-parse", "HEAD")
     run = subprocess.run([sys.executable, str(SCRIPT), sha, "--label", "v1.0.0", "--push",
-                          "--repo", str(repo)], capture_output=True, text=True)
+                          "--repo", str(repo)], capture_output=True, encoding="utf-8")
     assert run.returncode == 0, run.stderr
     tip = git(remote, "rev-parse", "refs/heads/directory")
     assert run.stdout.strip() == f"directory: {tip}"
     assert " from v1.0.0 · " in git(remote, "log", "-1", "--format=%s", tip)
     again = subprocess.run([sys.executable, str(SCRIPT), sha, "--push", "--repo", str(repo)],
-                           capture_output=True, text=True)
+                           capture_output=True, encoding="utf-8")
     assert again.returncode == 0 and "nothing written" in again.stdout
