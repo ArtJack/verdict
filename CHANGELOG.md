@@ -9,6 +9,43 @@ They moved there on 2026-10-03, when this file outgrew what the Claude directory
 will read: at 250 KB it was read, at 267 KB it held 0.90.3 for "Files or downloads the
 validator couldn't inspect". The limit is most likely 256 KiB.
 
+## 0.90.7 — 2026-10-15 · "the record says what ran"
+
+**Traced on four projects' local nights, the record was telling its reader things that had not
+happened.** A test delta of `+36` was reported as `+0 / −0`, a proven and fixed Critical came back
+as REGRESSED, every report said "Isolation check: pass" from a literal, and a month-old run's label
+headed every nightly report.
+
+- **One measurement a night.** `verdict-run` tries the model-free sweep first, and the sweep's
+  `verdict-facts` rewrites the test-id ledger; the local engine then measured again over the ledger
+  the first pass had just written. The tests collected for the first time — one of the two ways a
+  finding is resolved by measurement — came back empty every drift night, and the largest project
+  ran its suite and coverage twice (about ten minutes). `verdict-local --reuse-facts`, which
+  `verdict-run` passes, takes `facts.json` measured for the same HEAD within 90 minutes.
+- **A closed finding reopens only on a proof.** A finding is re-anchored when it is resolved, so its
+  anchors often cite the fix. On a tax project the fixed function's own signature matched, and a
+  proven Critical was re-filed REGRESSED on a small model's unproven — and wrong — reading of the
+  fixed code. An unproven match is now a lead that names the finding.
+- **A gate that cannot start is `unavailable`, not `fail`** (exit 126, 127 or 9009, or cmd.exe's
+  not-found message). A missing interpreter is the environment, not a failing test; the sweep says
+  "could not start", and the test-id message no longer blames `-q`.
+- **Reports say what ran.** A plaintext `.env` at the checkout root now stops a local run before
+  any gate (exit 5, nothing written), and the isolation statement says what was measured. A run's
+  label is not carried into later runs, and a finding a local or sweep night carried by id reads
+  "carried by id, not re-read", not "looked at, still there".
+- **The Claude directory reads a branch of its own.** Each release also lands on `directory`
+  without `tests/`, `eval/`, `.qa/` and CI (`.github/directory_branch.py`, run by `release.yml`).
+  Tracking `main`, the directory failed every version after 0.90.2 on the secret scan's own test
+  data; the listing now tracks `directory`. Verdict's own test-id ledger is tracked again — ignored
+  to stay under the directory reader's size limit, it left every fresh checkout reading every test
+  as added.
+- Pinned rules 353 → 365, each killed by the suite.
+
+**Not in this release:** a first run with no profile whose guessed interpreter lacks the project's
+dependencies still reads the collection errors as a red suite; an asked headless run can still
+start without the Verdict agent's prompt when its packet does not ask for the agent; the local tier
+still never lifts a standing `fail`.
+
 ## 0.90.6 — 2026-10-15 · "the gate holds on money"
 
 **A tester that found the defect could still let it through, and nothing in the harness said

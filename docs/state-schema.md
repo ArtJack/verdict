@@ -94,7 +94,7 @@ here.
 | `run_number` | yes | Monotonic counter |
 | `last_run` | yes | `timestamp_utc`, `git_sha`, `sha_range`, `report` at minimum. `model` appears when the launcher exported `VERDICT_MODEL` (verdict-run does): the model that signed the verdict, measured rather than remembered. `engine` and `local` appear when a second engine answered — see "A second engine" below |
 | `isolation_check` | yes | Result of the profile's isolation check (§0) |
-| `gates` | yes | One entry per gate actually run: command, summary line, exit code, and `duration_s` (optional but required to make the week-over-week duration gate measurable) |
+| `gates` | yes | One entry per gate actually run: command, summary line, exit code, and `duration_s` (optional but required to make the week-over-week duration gate measurable). `result` is `pass` (exit 0), `fail`, or `unavailable` when the command could not start (exit 126, 127 or 9009): the environment lacked something, nothing the gate checks was measured, and an `unavailable` field says so. It is never read as a failing test |
 | `tests` | yes | Collected/passed/skipped/failed counts (plus optional `duration_s`) — a silent drop in `collected` is a finding |
 | `flaky_quarantine[]` | yes | `{test_id, first_seen, fail_count, run_count, quarantined_until}` — expiry is mandatory |
 | `findings[]` | yes | `{id, hash, first_seen, status, delta, age_days, title, severity, priority, failure_classification, confidence, evidence[]}` — `failure_classification` holds the §3 value for any finding about a failing/erroring/skipped/nondeterministic test, `null` for pure design findings; machine consumers (the eval scorer, the gate) read the field, not the prose |

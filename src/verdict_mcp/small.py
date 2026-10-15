@@ -1945,6 +1945,22 @@ def file_findings(model: Model, repo: Path, targets: list, mint, findings_dir: P
                 mint(entry, findings_dir, filed)
             elif any(str(f.get("id")) == str(prior["id"]) for f in filed):
                 continue            # this run already filed that finding once
+            elif status == "resolved" and entry.get("confidence") != "proven":
+                # A resolved finding is re-anchored when it is resolved, so its anchors often
+                # cite the fix: a line match says the fix is still there as often as it says
+                # the defect is back. Measured on ifta-agent (2026-10-15): the fixed function's
+                # own signature matched, and a proven Critical was re-filed as REGRESSED on a
+                # small model's unproven — and wrong — reading of the fixed code. Reopening a
+                # closed finding takes what filing a new one takes: a proof. Without one it is
+                # a lead for a run that can judge it.
+                print(f"verdict-local: not re-opened — `{chunk.name}` may be {prior['id']} "
+                      f"again ({how}), but the reading is unproven", file=sys.stderr)
+                if leads is not None:
+                    leads.append({"path": chunk.path, "line": claim["line"],
+                                  "function": chunk.name, "title": claim["title"],
+                                  "severity": claim["severity"],
+                                  "why": f"may be {prior['id']} (resolved) again — {how}; "
+                                         "unproven, so the resolved finding was not re-opened"})
             elif status == "resolved":
                 print(f"verdict-local: {prior['id']} is back — {how}", file=sys.stderr)
                 mint(regressed_finding(prior, entry, how), findings_dir, filed, keep_id=True)
@@ -2114,8 +2130,58 @@ def read_json(path) -> dict | None:
     return doc if isinstance(doc, dict) else None
 
 
+# The one isolation fact this engine can measure for any project before it runs a gate: a
+# plaintext `.env` at the checkout root. With one there, a test run may reach live services
+# with real keys — ifta-agent's profile makes it "every stateful task is blocked". Until
+# 2026-10-15 every local report said "Isolation check: pass" from a literal in this file.
+_ENV_NOT_SECRET = (".example", ".sample", ".template", ".dist", ".tmpl", ".sops", ".enc",
+                   ".age", ".gpg")
+
+
+def plaintext_env_files(repo: Path) -> list:
+    """`.env*` files at the checkout root that are neither examples nor encrypted."""
+    try:
+        names = sorted(p.name for p in repo.iterdir() if p.name.startswith(".env") and p.is_file())
+    except OSError:
+        return []
+    return [n for n in names
+            if "example" not in n.lower() and not n.lower().endswith(_ENV_NOT_SECRET)]
+
+
+# How old a facts.json may be and still describe "this run". verdict-run's sweep attempt
+# measures minutes before this engine starts; the window is facts_main's own
+# `--reuse-max-age-min` default.
+REUSE_MAX_AGE_MIN = 90.0
+
+
+def reusable_facts(repo: Path, qa_root: Path) -> dict | None:
+    """facts.json, when it was measured for this same HEAD within the reuse window — else None.
+
+    verdict-run tries the model-free sweep first, and the sweep's `verdict-facts` has
+    already run the gates, the coverage suite and the fix re-runs, written the id
+    ledger and staked the run marker for this commit. Measuring again cost a Sales
+    night a second full suite and a second coverage suite (about ten minutes, measured
+    2026-10-15), and it read the ledger the first measurement had just rewritten: 36
+    tests added on ifta-agent were reported as "+0 / −0", and the tests collected for
+    the first time — the one selection that lets a fix's own new regression test
+    resolve a finding by measurement — came back empty every drift night.
+    """
+    facts = read_json(qa_root / "facts.json")
+    if not isinstance(facts, dict):
+        return None
+    if (facts.get("last_run") or {}).get("git_sha") != _git(["rev-parse", "HEAD"], repo):
+        return None
+    measured = _parse_marker_time(facts.get("measured_at"))
+    if measured is None:
+        return None
+    age_min = (clock.now() - measured).total_seconds() / 60
+    if age_min < 0 or age_min > REUSE_MAX_AGE_MIN:
+        return None
+    return facts
+
+
 def measure(repo: Path, qa_root: Path, gates: list, config: dict, sha_range,
-            profile_notes: list) -> dict:
+            profile_notes: list, reuse: bool = False) -> dict:
     """The deterministic half, with the whole profile behind it.
 
     0.88.0 called `collect` with the gate command and nothing else, so
@@ -2134,6 +2200,25 @@ def measure(repo: Path, qa_root: Path, gates: list, config: dict, sha_range,
     """
     filing = hygiene_filing_from(config, profile_notes)
     marker_path = qa_root / "run-in-progress.json"
+    reused = reusable_facts(repo, qa_root) if reuse else None
+    if reused is not None:
+        # The measurement is this run's own, taken by the sweep attempt a moment ago:
+        # its marker, its archived findings, its ledger and its hygiene split all
+        # stand. Only the engine's name is this one's to add.
+        marker_path.write_text(json.dumps({
+            "started_utc": clock.stamp(), "repo": str(repo),
+            "git_sha": (reused.get("last_run") or {}).get("git_sha"),
+            "engine": ENGINE}, indent=2) + "\n", encoding="utf-8")
+        if profile_notes:
+            reused["profile_notes"] = list(dict.fromkeys(
+                list(reused.get("profile_notes") or []) + list(profile_notes)))
+        reused["reused"] = {"measured_at": reused.get("measured_at"),
+                            "why": "measured for this same HEAD by verdict-run's sweep "
+                                   "attempt; the gates, coverage and fix re-runs were not "
+                                   "run a second time, and the test-id delta is that "
+                                   "measurement's"}
+        reused.setdefault("last_run", {})["engine"] = ENGINE
+        return reused
     abandoned = read_json(marker_path)
     head = _git(["rev-parse", "HEAD"], repo)
     started = _parse_marker_time((abandoned or {}).get("started_utc")) if abandoned else None
@@ -2163,7 +2248,7 @@ def measure(repo: Path, qa_root: Path, gates: list, config: dict, sha_range,
 def run(repo: Path, qa_root: Path, model: Model, limit: int, gate: str | None,
         reruns: int, prove: bool = True, delta: bool = False,
         sha_range: str | None = None, reference_state=None,
-        budget: Budget | None = None) -> int:
+        budget: Budget | None = None, reuse_facts: bool = False) -> int:
     refusal = root_refusal(qa_root, "verdict-local", repo)
     if refusal:
         print(refusal, file=sys.stderr)
@@ -2203,8 +2288,16 @@ def run(repo: Path, qa_root: Path, model: Model, limit: int, gate: str | None,
         disabled = f"proving disabled: no Python interpreter in the gate (`{command}`)"
     prove = disabled is None
 
+    exposed = plaintext_env_files(repo)
+    if exposed:
+        print(f"verdict-local: not running the gates — plaintext {', '.join(exposed)} at the "
+              f"checkout root: a test run could reach live services with real keys. Remove "
+              "it from the checkout under test and run again. Nothing was measured or written.",
+              file=sys.stderr)
+        return 5
     print(f"verdict-local: measuring {repo} · gate {name}", file=sys.stderr)
-    facts = measure(repo, qa_root, gates, config, sha_range, profile_notes)
+    facts = measure(repo, qa_root, gates, config, sha_range, profile_notes,
+                    reuse=reuse_facts)
     (qa_root / "facts.json").write_text(json.dumps(facts, indent=1), encoding="utf-8")
 
     measured_range = (facts.get("last_run") or {}).get("sha_range")
@@ -2502,9 +2595,11 @@ def run(repo: Path, qa_root: Path, model: Model, limit: int, gate: str | None,
                          if carried_blocked else "")
                       + leads_text(leads)),
         },
-        "isolation_check": {"result": "pass", "note": "local mode reads the checkout and "
-                                                      "runs the suite gate; it writes nothing "
-                                                      "outside the QA root"},
+        "isolation_check": {"result": "pass",
+                            "method": ("measured before the gates: no plaintext .env file at "
+                                       "the checkout root. The profile's own isolation steps "
+                                       "were not executed: this engine runs the profile's gates "
+                                       "and reads code, and writes nothing outside the QA root")},
         "verified_intact": list((previous or {}).get("verified_intact") or []),
         "flaky_quarantine": quarantine_out,
         "release_blockers": blockers,
@@ -2717,6 +2812,10 @@ def main(argv=None) -> int:
                     help="judge this commit range instead of the one since the last run")
     ap.add_argument("--base", default=None, metavar="REF",
                     help="judge the range since the merge base with REF")
+    ap.add_argument("--reuse-facts", action="store_true",
+                    help="use facts.json when it was measured for this same HEAD within "
+                         f"{REUSE_MAX_AGE_MIN:.0f} minutes (verdict-run's sweep attempt) "
+                         "instead of running the gates again")
     ap.add_argument("--reference-state", type=Path, default=None, metavar="PATH",
                     help="the project's real state.json, read-only, to say which of its open "
                          "findings this range touches")
@@ -2800,7 +2899,8 @@ def main(argv=None) -> int:
           file=sys.stderr)
     return run(repo, qa_root, model, limit, args.gate, reruns, args.prove,
                delta=args.delta or (qa_root / "state.json").is_file(),
-               sha_range=sha_range, reference_state=args.reference_state, budget=budget)
+               sha_range=sha_range, reference_state=args.reference_state, budget=budget,
+               reuse_facts=args.reuse_facts)
 
 
 if __name__ == "__main__":
