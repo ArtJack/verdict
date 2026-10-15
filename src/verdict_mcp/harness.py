@@ -115,6 +115,18 @@ RE_BASELINE_AFTER_DAYS = 7
 # one measured the environment, not the code (second-brain in a fresh worktree, 2026-10-15:
 # `.venv/bin/python` and `vitest` missing, both read as red gates).
 CANNOT_START_EXITS = (126, 127, 9009)
+# cmd.exe /c exits 1, not 9009, when the command is not found, so on Windows its own message
+# is the signal (CI's Windows runners, 2026-10-15).
+_WINDOWS_NOT_FOUND = ("is not recognized as an internal or external command",
+                      "The system cannot find the path specified")
+
+
+def cannot_start(returncode, output: str) -> bool:
+    """Did the command never run? Exit 126/127/9009, or cmd.exe's not-found message."""
+    if returncode in CANNOT_START_EXITS:
+        return True
+    return os.name == "nt" and returncode == 1 and any(m in (output or "")
+                                                       for m in _WINDOWS_NOT_FOUND)
 # State keys that describe one run and must not be carried into the next one.
 RUN_SCOPED_KEYS = ("run_label",)
 # A run marker at the same commit, this recent, is a retry rather than a night
@@ -1341,16 +1353,16 @@ def collect(repo: Path, qa_root: Path, gates: list[tuple[str, str]],
                 counts, dialect = dict(report["counts"]), f"report/{report['format']}"
                 if ids and not report_ids:
                     report_ids = ids
-        cannot_start = proc.returncode in CANNOT_START_EXITS
+        not_run = cannot_start(proc.returncode, output)
         gate_results[name] = {
             "command": command,
             "exit_code": proc.returncode,
             "result": ("pass" if proc.returncode == 0
-                       else "unavailable" if cannot_start else "fail"),
+                       else "unavailable" if not_run else "fail"),
             **({"unavailable": (f"the command could not start (exit {proc.returncode}) — "
                                 "the environment is missing something it needs, so nothing "
                                 "this gate checks was measured; it is not a test failure")}
-               if cannot_start else {}),
+               if not_run else {}),
             "duration_s": duration,
             "summary": _summary_line(output),
             **({"counts": counts, "counts_dialect": dialect} if counts else
@@ -1493,7 +1505,7 @@ def collect(repo: Path, qa_root: Path, gates: list[tuple[str, str]],
                 "status": "unavailable",
                 "reason": (f"the id command could not start (exit {proc.returncode}): "
                            f"{_summary_line(proc.stdout + proc.stderr)}"
-                           if proc.returncode in CANNOT_START_EXITS else
+                           if cannot_start(proc.returncode, proc.stdout + proc.stderr) else
                            "the id command produced no `::` lines "
                            f"(exit {proc.returncode}) — if the project's addopts already "
                            "set -q, drop the -q from --collect-only, which otherwise "

@@ -703,7 +703,10 @@ def test_an_unproven_reading_never_reopens_a_resolved_finding(tmp_path):
         "evidence": ["cited.py:1 — `def rate(weight):` now triples, as the spec says"]}])
     (repo / "cited.py").write_text(CITED.replace("weight * 2", "weight * 3") + "\n# touched\n",
                                    encoding="utf-8")
-    (repo / "test_cited.py").write_text(TEST.replace("== 4", "== 6"), encoding="utf-8")
+    # A different size, not just different bytes: a same-size rewrite inside one second keeps
+    # pytest's cached copy of the old test valid (Ubuntu CI, 2026-10-15).
+    (repo / "test_cited.py").write_text(TEST.replace("== 4", "== 6  # triples, as the spec says"),
+                                        encoding="utf-8")
     git(repo, "commit", "-qam", "the fix stays; the file is touched")
 
     delta(repo, qa, ScriptedModel([CLAIM, REAL]), prove=False)

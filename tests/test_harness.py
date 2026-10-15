@@ -1160,8 +1160,9 @@ def test_a_gate_that_cannot_start_is_unavailable_not_a_failing_test(repo, qa_roo
         ("lint", f'"{py}" -c "import sys; sys.exit(1)"'),
     ], test_ids_cmd="verdict-no-such-command-for-this-test --collect-only")
     suite = facts["gates"]["suite"]
-    assert suite["result"] == "unavailable" and suite["exit_code"] == 127
+    # POSIX shells exit 127; cmd.exe /c exits 1 and says the command is not recognized.
+    assert suite["result"] == "unavailable" and suite["exit_code"] == (1 if os.name == "nt" else 127)
     assert "could not start" in suite["unavailable"]
     assert facts["gates"]["lint"]["result"] == "fail", "a command that ran and failed is still red"
     reason = facts["test_ids"]["reason"]
-    assert reason.startswith("the id command could not start (exit 127)") and "-q" not in reason
+    assert reason.startswith("the id command could not start") and "-q" not in reason

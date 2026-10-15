@@ -2183,7 +2183,7 @@
  {
   "label": "0.90.7 gate start 1: a command that cannot start reads as a failing gate",
   "path": "src/verdict_mcp/harness.py",
-  "old": "                       else \"unavailable\" if cannot_start else \"fail\"),\n",
+  "old": "                       else \"unavailable\" if not_run else \"fail\"),\n",
   "new": "                       else \"fail\"),\n"
  },
  {
