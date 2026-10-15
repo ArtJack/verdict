@@ -587,3 +587,18 @@ def test_an_alias_cannot_be_pinned_and_the_operators_own_pin_is_kept():
     pin_model_aliases(env, "claude-opus-5-5")
     assert env["ANTHROPIC_DEFAULT_SONNET_MODEL"] == "claude-sonnet-5-5"
     assert env["ANTHROPIC_DEFAULT_OPUS_MODEL"] == "claude-opus-5-5"
+
+
+def test_a_gate_range_reaches_the_facts_through_the_environment(tmp_path, repo):
+    """`verdict-run --range` exports VERDICT_RANGE; the tester's own verdict-facts call,
+    which names no range, records it — the one thing a money gate's block rule needs."""
+    (repo / "b.py").write_text("y = 2\n", encoding="utf-8")
+    git(["add", "-A"], repo)
+    git(["commit", "-qm", "second"], repo)
+    home = tmp_path / "home"
+    stub = write_stub(tmp_path, GOOD_RUN, name="ranged")
+    proc = run_runner(repo, home, stub, "--range", "HEAD~1..HEAD")
+    assert proc.returncode == 0, proc.stderr + proc.stdout
+    assert "gate range: HEAD~1..HEAD" in proc.stderr
+    state = json.loads((home / "widget" / "state.json").read_text(encoding="utf-8"))
+    assert state["last_run"]["sha_range"] == "HEAD~1..HEAD"

@@ -7,12 +7,12 @@
     "url": "https://github.com/ArtJack/verdict",
     "source": "github"
   },
-  "version": "0.90.5",
+  "version": "0.90.6",
   "packages": [
     {
       "registryType": "pypi",
       "identifier": "verdict-qa-mcp",
-      "version": "0.90.5",
+      "version": "0.90.6",
       "transport": {
         "type": "stdio"
       }

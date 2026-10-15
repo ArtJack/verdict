@@ -162,10 +162,31 @@ probe: the small model's expression and replacement line are never executed, and
 accounts should set it — a probe is a call to one of the project's own functions, in a
 scratch copy, with arguments a model chose.
 
+`risk_class: money` or `risk_class: security` (0.90.6) is for code that moves money or
+guards access, and it is the recommended setting there. In a gate over a change
+(`verdict-run --range BASE..HEAD`), an open finding the tester filed that is `proven`, a
+`REAL_DEFECT`, Minor or worse, *and* cites a line `git blame` attributes to the range makes the
+verdict `fail` and joins the release blockers, whatever the judgment said; `verdict_rule`
+records what the judgment said and why the harness overruled it. Without a range there is no
+rule, because a defect the change made cannot be told from one the tester found. Any other
+value is reported in the profile notes and applies nothing.
+
+Measured on an external key of real, already-fixed defects in public money and security code,
+each gated at the commit that introduced it (`eval/external.py`). Without the rule the tester
+located the defect and still returned `pass with risks` 5 times in 19. With the rule scoped to
+the change, on 8 fresh positives it blocked 6 (3 of them only through the rule), and on 8
+changes picked as clean it blocked 2, one of them falsely for a defect that was already there
+(the other was a real defect the change introduced). A plain Claude session asked the same
+question blocked 7 of the 8 positives, with the same one false block, at about a fifth of the
+cost: the rule fixes Verdict's call, it does not out-call that baseline. Unscoped, the rule
+blocked 3 of 8 clean changes, which is why it is scoped to the change.
+
 A run whose tester answered on more than one model (its own
 transcript, as the bill measures it) is `blocked`, `verdict_rule.reason` naming the models:
 after two safety-filter refusals the CLI once carried a security gate on to another model
-and said nothing.
+and said nothing. A `verdict-local` run has no such transcript — its judge is the model
+behind the gateway — so the session that launched it is not billed, and its models are not
+read as the tester's (0.90.6).
 
 Explicit `--gate` still wins, and the override is recorded in the facts; a run that ends up
 with no gates at all records `no_gates` and says every count and duration gate is

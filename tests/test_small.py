@@ -434,6 +434,25 @@ def test_severity_from_reading_is_capped_until_something_is_executed():
     assert small.capped("Trivial", False) == "Minor" and small.capped("Trivial", True) == "Trivial"
 
 
+def test_a_failing_test_the_model_calls_a_blocker_is_held_at_major():
+    """Measured 2026-10-14 on the pricer baseline with a 120B model: one run in three filed a
+    stale test expectation as a Blocker from the failure text alone, and every filed Blocker
+    joins `release_blockers`. The failure is measured; the model's reading of it is not."""
+    claim = {"id": "tests/test_p.py::test_fee", "path": "tests/test_p.py",
+             "classification": "REAL_DEFECT", "title": "fee is wrong",
+             "mechanism": "the fee is applied twice", "message": "assert 88.0 == 90.0",
+             "excerpt": ""}
+    for said in ("Blocker", "Critical"):
+        f = small.failure_finding(dict(claim, severity=said), "P-F-1")
+        assert f["severity"] == "Major" and f["priority"] == "P1"
+        assert f["confidence"] == "hypothesis"
+        assert f"The model said {said}; unproven, it is held at Major." in f["narrative"]
+    for said in ("Major", "Minor", "Trivial"):
+        f = small.failure_finding(dict(claim, severity=said), "P-F-2")
+        assert f["severity"] == said and "held at" not in f["narrative"]
+    assert small.capped_failure("nonsense") == "Major"
+
+
 def test_the_probe_asks_for_only_what_the_harness_cannot_measure():
     """A small model's JSON parses about half the time, and every field is a chance to
     fail. The values before and after are measured here, so they are not asked for."""

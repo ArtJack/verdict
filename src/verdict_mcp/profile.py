@@ -53,7 +53,10 @@ _NESTED = re.compile(r"^[ \t]{2,}([A-Za-z_][A-Za-z0-9_-]*):[ \t]*(.*)$")
 # What `verdict-facts` actually reads. Anything else is carried through and
 # reported as unread rather than dropped in silence.
 KNOWN = ("gates", "test_ids_cmd", "test_one_cmd", "coverage_suite_cmd", "coverage_cmd",
-         "authorship", "hygiene", "probes")
+         "authorship", "hygiene", "probes", "risk_class")
+# The production an owner runs this gate for, when it is one where a proven defect must
+# not ship: money moves through the code, or access is decided by it.
+RISK_CLASSES = ("money", "security")
 
 
 class ProfileError(ValueError):
@@ -151,6 +154,24 @@ def hygiene_filing_from(config: dict, notes: list) -> str:
         return "off"
     notes.append(f"hygiene: '{value}' is not understood — filing stays on")
     return "on"
+
+
+def risk_class_from(config: dict, notes: list) -> str | None:
+    """The profile's `risk_class:` — "money" or "security", or None for neither.
+
+    It is the one switch that makes a defect the tester proved block the gate, whatever
+    severity it was filed at (`harness.gate_policy`). A value it cannot read applies no
+    class and says so: a misspelt `monye` must not pass for a class that took, and must
+    not pass in silence for none."""
+    value = config.get("risk_class")
+    if isinstance(value, str):
+        value = value.strip().lower()
+    if not value:
+        return None
+    if value in RISK_CLASSES:
+        return value
+    notes.append(f"risk_class: '{value}' is not understood (money, security) — no class applied")
+    return None
 
 
 def main(argv=None) -> int:
