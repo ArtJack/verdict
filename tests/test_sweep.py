@@ -211,6 +211,10 @@ def test_every_blocker_is_a_measurement():
     assert "changed files a finding cites: a.py" in sweep_blockers(facts, previous, ["a.py", "b.py"], today)
     red = json.loads(json.dumps(facts)); red["gates"]["suite"]["result"] = "fail"
     assert "gate suite failed" in sweep_blockers(red, previous, ["b.py"], today)
+    gone = json.loads(json.dumps(facts))
+    gone["gates"]["suite"].update({"result": "unavailable", "exit_code": 127})
+    why = sweep_blockers(gone, previous, ["b.py"], today)
+    assert "gate suite could not start (exit 127)" in why and "gate suite failed" not in why
     unparsed = json.loads(json.dumps(facts)); unparsed["gates"]["suite"] = {"result": "pass", "counts_unparsed": "x"}
     why = sweep_blockers(unparsed, previous, ["b.py"], today)
     assert "gate suite: counts unparsed" in why and "no gate produced test counts" in why

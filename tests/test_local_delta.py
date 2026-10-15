@@ -663,6 +663,11 @@ REAL = {"is_real": True, "severity": "Major", "title": "rate doubles instead of 
         "impact": "every quote is a third too low"}
 
 
+# The counterfactual that proves CLAIM: rate(2) is 4 before the flip and 6 after it.
+PROOF = {"expression": "m.rate(2)", "actual": 4, "expected": 6,
+         "fix_line": 3, "fix_replacement": "    return weight * 3"}
+
+
 def test_a_resolved_finding_that_comes_back_is_regressed_not_new(tmp_path):
     """Measured on the seeded delta: the rounding defect the last run had resolved came
     back, the engine described it correctly and filed it as NEW — a regression reported
@@ -676,13 +681,38 @@ def test_a_resolved_finding_that_comes_back_is_regressed_not_new(tmp_path):
     (repo / "cited.py").write_text(CITED + "\n# touched\n", encoding="utf-8")
     git(repo, "commit", "-qam", "the fix is reverted along with a touch")
 
-    delta(repo, qa, ScriptedModel([CLAIM, REAL]))
+    delta(repo, qa, ScriptedModel([CLAIM, REAL, PROOF]), prove=True)
     state = state_of(qa)
     back = [f for f in state["findings"] if f["id"] == "PROJ-F-1"]
     assert len(back) == 1 and back[0]["delta"] == "REGRESSED" and back[0]["status"] == "open"
     assert back[0]["title"] == "rate doubles where the spec says triples", "the id names that finding"
     assert any(e.startswith("REGRESSED — PROJ-F-1 was resolved") for e in back[0]["evidence"])
     assert not [f for f in state["findings"] if f.get("delta") == "NEW"], "and no NEW twin"
+
+
+def test_an_unproven_reading_never_reopens_a_resolved_finding(tmp_path):
+    """ifta-agent, 2026-10-15: IFTA-F-2 had been proven and fixed, and its anchors, re-written
+    when it was resolved, cited the fix. The fixed function's own signature matched, a small
+    model misread the fixed code, and the night re-filed a proven Critical as REGRESSED under
+    its old title. Reopening a closed finding takes what filing a new one takes: a proof.
+    Without one the link is a lead for a run that can judge it."""
+    repo, qa = project(tmp_path, findings=[{
+        "id": "PROJ-F-1", "title": "rate doubles where the spec says triples",
+        "severity": "Critical", "priority": "P1", "status": "resolved",
+        "failure_classification": "REAL_DEFECT", "confidence": "proven",
+        "evidence": ["cited.py:1 — `def rate(weight):` now triples, as the spec says"]}])
+    (repo / "cited.py").write_text(CITED.replace("weight * 2", "weight * 3") + "\n# touched\n",
+                                   encoding="utf-8")
+    (repo / "test_cited.py").write_text(TEST.replace("== 4", "== 6"), encoding="utf-8")
+    git(repo, "commit", "-qam", "the fix stays; the file is touched")
+
+    delta(repo, qa, ScriptedModel([CLAIM, REAL]), prove=False)
+    state = state_of(qa)
+    assert not [f for f in state["findings"] if f["id"] == "PROJ-F-1"
+                and f.get("status") == "open"], "a closed finding stays closed without a proof"
+    assert not [f for f in state["findings"] if f.get("delta") == "REGRESSED"]
+    report = (qa / state["last_run"]["report"]).read_text(encoding="utf-8")
+    assert "may be PROJ-F-1 (resolved) again" in report, "the link is said, as a lead"
 
 
 def test_a_claim_about_an_open_findings_function_is_not_filed_twice(tmp_path):
@@ -1077,3 +1107,84 @@ def test_a_project_whose_ids_carry_no_prefix_files_and_finalizes(tmp_path):
     from verdict_mcp.filed import finding_file
     assert finding_file(qa / "findings" / "F-2.json") == (qa, "F-2"), \
         "and the write-time check recognises the file as a finding"
+
+# ── one measurement per run (2026-10-15) ──────────────────────────────────────
+
+def _sweep_attempt_then_new_test(tmp_path):
+    """A project at run 1, a commit that adds a test and touches the cited file, and the
+    measurement verdict-run's sweep attempt takes before it hands the night over."""
+    repo, qa = project(tmp_path)
+    (repo / "test_more.py").write_text("from cited import rate\n\n\ndef test_rate_zero():\n"
+                                       "    assert rate(0) == 0\n", encoding="utf-8")
+    (repo / "cited.py").write_text(CITED + "\n# touched\n", encoding="utf-8")
+    git(repo, "add", "-A")
+    git(repo, "commit", "-qm", "a new test, and the cited file touched")
+    from verdict_mcp.harness import facts_main
+    assert facts_main(["--repo", str(repo), "--qa-root", str(qa)]) == 0
+    first = json.loads((qa / "facts.json").read_text(encoding="utf-8"))
+    assert first["test_ids"]["added_count"] == 1, "the sweep attempt saw the new test"
+    return repo, qa
+
+
+def test_the_engine_keeps_the_sweep_attempts_measurement_and_its_test_delta(tmp_path):
+    """ifta-agent, 2026-10-15: the sweep attempt measured "+36", then the engine measured
+    again against the ledger the first pass had just rewritten and reported "+0 / −0" —
+    and lost the tests collected for the first time, the selection that lets a fix's own
+    regression test resolve a finding. It also ran the suite and coverage twice."""
+    repo, qa = _sweep_attempt_then_new_test(tmp_path)
+    delta(repo, qa, ScriptedModel(), reuse_facts=True)
+    facts = json.loads((qa / "facts.json").read_text(encoding="utf-8"))
+    assert facts["test_ids"]["added_count"] == 1, "the delta is the first measurement's"
+    assert "reused" in facts and facts["last_run"]["engine"] == "verdict-local"
+    report = (qa / state_of(qa)["last_run"]["report"]).read_text(encoding="utf-8")
+    assert "+1 / −0" in report
+
+
+def test_facts_for_another_commit_are_measured_again(tmp_path):
+    repo, qa = _sweep_attempt_then_new_test(tmp_path)
+    (repo / "other.py").write_text("def other(x):\n    return x + 1\n", encoding="utf-8")
+    git(repo, "commit", "-qam", "HEAD moves after the measurement")
+    delta(repo, qa, ScriptedModel(), reuse_facts=True)
+    facts = json.loads((qa / "facts.json").read_text(encoding="utf-8"))
+    assert "reused" not in facts, "a measurement of another commit is not this run's"
+    assert facts["last_run"]["git_sha"] == git(repo, "rev-parse", "HEAD")
+
+
+# ── what the report claims (2026-10-15) ───────────────────────────────────────
+
+def test_a_plaintext_env_in_the_checkout_stops_the_run_before_any_gate(tmp_path, capsys):
+    """Every local report said "Isolation check: pass" from a literal. ifta-agent's profile:
+    a real .env in the checkout → every stateful task is blocked, because a test run may
+    reach live services with real keys. Measured before the gates, and nothing is written."""
+    repo, qa = project(tmp_path)
+    (repo / ".env").write_text("STRIPE_SECRET_KEY=not-a-real-one\n", encoding="utf-8")
+    assert delta(repo, qa) == 5
+    assert state_of(qa)["run_number"] == 1, "nothing was measured or written"
+    assert "plaintext .env at the checkout root" in capsys.readouterr().err
+
+
+def test_example_and_encrypted_env_files_are_not_secrets():
+    root = Path(__file__).resolve().parent
+    import tempfile
+    with tempfile.TemporaryDirectory() as d:
+        for name in (".env.example", ".env.gateway.example", ".env.sops", ".envrc.sample"):
+            (Path(d) / name).write_text("x\n", encoding="utf-8")
+        assert small.plaintext_env_files(Path(d)) == []
+        (Path(d) / ".env.local").write_text("x\n", encoding="utf-8")
+        assert small.plaintext_env_files(Path(d)) == [".env.local"]
+    assert root.is_dir()
+
+
+def test_the_report_says_what_this_run_did_not_what_an_old_one_did(tmp_path):
+    """Sales, every night since 2026-09-27: the header was run 32's label, and 73 findings
+    carried by id unread were each printed as "looked at, still there"."""
+    repo, qa = project(tmp_path, judgment_extra={"run_label": "run 1 — words of its own"})
+    assert state_of(qa)["run_label"] == "run 1 — words of its own"
+    delta(repo, qa)
+    state = state_of(qa)
+    assert "run_label" not in state, "a run's label is that run's"
+    assert "measured before the gates" in state["isolation_check"]["method"]
+    report = (qa / state["last_run"]["report"]).read_text(encoding="utf-8")
+    assert "words of its own" not in report
+    assert "Carried by id, not re-read this run" in report
+    assert "looked at, still there" not in report

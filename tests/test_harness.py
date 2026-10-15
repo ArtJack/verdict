@@ -1149,3 +1149,19 @@ def test_out_is_a_second_copy_never_the_only_one(repo, qa_root, tmp_path):
     state = json.loads((qa_root / "state.json").read_text(encoding="utf-8"))
     assert harness_signals(state, qa_root)["facts_measured"], \
         "the facts a run was finalized from are the facts its root holds"
+
+def test_a_gate_that_cannot_start_is_unavailable_not_a_failing_test(repo, qa_root):
+    """second-brain in a fresh worktree (2026-10-15): `.venv/bin/python` and `vitest` were
+    missing, and both gates read as red. A command that never ran measured the environment,
+    not the code — and the id command's error blamed `-q` for a missing interpreter."""
+    py = sys.executable
+    facts = collect(repo, qa_root, [
+        ("suite", "verdict-no-such-command-for-this-test --run"),
+        ("lint", f'"{py}" -c "import sys; sys.exit(1)"'),
+    ], test_ids_cmd="verdict-no-such-command-for-this-test --collect-only")
+    suite = facts["gates"]["suite"]
+    assert suite["result"] == "unavailable" and suite["exit_code"] == 127
+    assert "could not start" in suite["unavailable"]
+    assert facts["gates"]["lint"]["result"] == "fail", "a command that ran and failed is still red"
+    reason = facts["test_ids"]["reason"]
+    assert reason.startswith("the id command could not start (exit 127)") and "-q" not in reason

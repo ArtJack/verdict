@@ -558,6 +558,9 @@ def test_the_local_command_line_carries_the_delta_and_the_caps(monkeypatch):
                           "local_env_file": Path("/etc/verdict-gateway.env")})()
     assert runner.run_local(Path("/repo"), Path("/qa"), args, "http://gw:4000", "t") == 0
     assert "--delta" in seen["argv"] and "--reruns" in seen["argv"]
+    # The sweep attempt has measured this HEAD already: one suite per night, and the
+    # test-id delta it recorded is the one the engine reports (2026-10-15).
+    assert "--reuse-facts" in seen["argv"]
     assert seen["argv"][seen["argv"].index("--limit") + 1] == "6"
     # The endpoint travels as --env-file, which verdict-local reads into a local
     # copy; it is never written into this process's environment, from where every

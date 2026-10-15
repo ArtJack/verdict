@@ -110,6 +110,13 @@ except ImportError:  # bare-script execution
                           validate_judgment)
 
 RE_BASELINE_AFTER_DAYS = 7
+# Exit codes that mean the command never ran: 126 "found, not executable" and 127 "not
+# found" in every POSIX shell, 9009 "is not recognized" in cmd.exe. A gate that ends with
+# one measured the environment, not the code (second-brain in a fresh worktree, 2026-10-15:
+# `.venv/bin/python` and `vitest` missing, both read as red gates).
+CANNOT_START_EXITS = (126, 127, 9009)
+# State keys that describe one run and must not be carried into the next one.
+RUN_SCOPED_KEYS = ("run_label",)
 # A run marker at the same commit, this recent, is a retry rather than a night
 # that was lost. Generous: a mistyped gate command and a re-run can straddle a
 # long investigation.
@@ -1334,10 +1341,16 @@ def collect(repo: Path, qa_root: Path, gates: list[tuple[str, str]],
                 counts, dialect = dict(report["counts"]), f"report/{report['format']}"
                 if ids and not report_ids:
                     report_ids = ids
+        cannot_start = proc.returncode in CANNOT_START_EXITS
         gate_results[name] = {
             "command": command,
             "exit_code": proc.returncode,
-            "result": "pass" if proc.returncode == 0 else "fail",
+            "result": ("pass" if proc.returncode == 0
+                       else "unavailable" if cannot_start else "fail"),
+            **({"unavailable": (f"the command could not start (exit {proc.returncode}) — "
+                                "the environment is missing something it needs, so nothing "
+                                "this gate checks was measured; it is not a test failure")}
+               if cannot_start else {}),
             "duration_s": duration,
             "summary": _summary_line(output),
             **({"counts": counts, "counts_dialect": dialect} if counts else
@@ -1478,7 +1491,10 @@ def collect(repo: Path, qa_root: Path, gates: list[tuple[str, str]],
             # the ledger is left untouched and the gap is named.
             facts["test_ids"] = {
                 "status": "unavailable",
-                "reason": ("the id command produced no `::` lines "
+                "reason": (f"the id command could not start (exit {proc.returncode}): "
+                           f"{_summary_line(proc.stdout + proc.stderr)}"
+                           if proc.returncode in CANNOT_START_EXITS else
+                           "the id command produced no `::` lines "
                            f"(exit {proc.returncode}) — if the project's addopts already "
                            "set -q, drop the -q from --collect-only, which otherwise "
                            "becomes -qq and prints counts instead of ids"),
@@ -2163,8 +2179,12 @@ def merge(facts: dict, judgment: dict, previous: dict | None, today: date | None
     state["calibration"] = calibration(state, ledger=state["_ledger"])
     if facts.get("test_ids"):
         state["test_ids"] = facts["test_ids"]
-    # Unknown keys from the previous state survive (schema rule).
+    # Unknown keys from the previous state survive (schema rule) — except a run's own label.
+    # Nothing a local or sweep night writes replaces it, so run 32's "EMPTY main-line range …
+    # HEAD == 93fb6a82" headed every Sales report for a month (found 2026-10-15).
     for key, value in (previous or {}).items():
+        if key in RUN_SCOPED_KEYS:
+            continue
         state.setdefault(key, value)
     state.pop("_qa_root", None)
     return state
@@ -3377,7 +3397,7 @@ def _render_questions(state: dict) -> list[str]:
     return out
 
 
-def _measured_lines(f: dict, drift: dict) -> list[str]:
+def _measured_lines(f: dict, drift: dict, carried_unread: bool = False) -> list[str]:
     """Measured, not remembered: when the harness last ran this finding's
     test, whether the code it cites is still where the evidence says, and
     whether the tester re-reported it by id."""
@@ -3399,7 +3419,13 @@ def _measured_lines(f: dict, drift: dict) -> list[str]:
     if moved_refs:
         out.append(f"- Cited code {moved_refs[0]} since the evidence was written: "
                    + ", ".join(moved_refs[1]))
-    if f.get("re_reported"):
+    if f.get("re_reported") == "still_open" and carried_unread:
+        # A local or sweep night carries an unmoved finding by id without reading it. Its
+        # report said "looked at, still there" 73 times a night while its own not_tested
+        # said "carried unread" (Sales, every night since 2026-09-27).
+        out.append("- _Carried by id, not re-read this run: the cited code did not move; "
+                   "the evidence is as last filed_")
+    elif f.get("re_reported"):
         out.append(f"- _Re-reported by id (`{f['re_reported']}`): looked at, "
                    f"{'still there' if f['re_reported'] == 'still_open' else 'gone'}; "
                    "the evidence is as last filed_")
@@ -3629,6 +3655,10 @@ def render_report(state: dict, prose: dict | None = None) -> str:
             + (f" · {len(accepted_f)} accepted" if accepted_f else "") + ")", ""]
     if not findings:
         out.append("_None recorded this run._")
+    # Who carried the findings: a local engine or a sweep carries an unmoved one by id
+    # without reading it; only a judging tester "looked at" it.
+    carried_unread = ((state.get("last_run") or {}).get("engine") == "verdict-local"
+                      or state.get("run_type") == "sweep")
     for f in findings:
         cls = f.get("failure_classification")
         dwell = _days_between(f.get("introduced_at"), f.get("first_seen"))
@@ -3643,7 +3673,7 @@ def render_report(state: dict, prose: dict | None = None) -> str:
         out.append(str(f.get("title", "")))
         for e in (f.get("evidence") or []):
             out.append(f"- {e}")
-        out += _measured_lines(f, drift)
+        out += _measured_lines(f, drift, carried_unread)
         rc = f.get("root_cause") or {}
         if rc:
             chain = " → ".join(str(rc[k]) for k in ("mechanism", "origin") if rc.get(k))

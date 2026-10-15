@@ -687,7 +687,9 @@ def sweep_blockers(facts: dict, previous: dict, changed, today) -> list[str]:
     if not gates:
         why.append("no gate ran")
     for name, g in gates.items():
-        if g.get("result") != "pass":
+        if g.get("result") == "unavailable":
+            why.append(f"gate {name} could not start (exit {g.get('exit_code')})")
+        elif g.get("result") != "pass":
             why.append(f"gate {name} failed")
         if "counts_unparsed" in g:
             why.append(f"gate {name}: counts unparsed")
@@ -882,7 +884,9 @@ def run_local(repo, qa_root, args, base_url, token) -> int:
         from .small import main as local_main
     except ImportError:  # bare-script execution
         from small import main as local_main
-    argv = ["--repo", str(repo), "--qa-root", str(qa_root), "--delta",
+    # The sweep attempt has just measured this HEAD; measuring again ran the suite twice
+    # and lost the test-id delta the first measurement had recorded (2026-10-15).
+    argv = ["--repo", str(repo), "--qa-root", str(qa_root), "--delta", "--reuse-facts",
             "--model", args.local_model, "--limit", str(args.local_limit), "--reruns", "0"]
     if args.local_env_file:
         argv += ["--env-file", str(args.local_env_file)]
