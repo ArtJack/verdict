@@ -185,6 +185,63 @@ DEFAULT_PROMPT = (
     "— an offer to fix under Verdict's name is the one sentence its position cannot "
     "afford.")
 
+# The prompt when the session IS the tester (`--agent verdict`): there is no outer
+# session left to relay, delegate or offer anything.
+AGENT_PROMPT = (
+    "Run today's QA pass on this repository — a delta run against the stored baseline, or "
+    "a baseline if none exists. This is a run: start with verdict-facts and end with "
+    "verdict-finalize, in this session and in the foreground; an answer without state is "
+    "not accepted, and there is no 'later' in a headless run.")
+
+# The tester is the session itself, not a subagent the session may or may not spawn. On
+# 2026-10-06 four asked money gates ran from a packet that never asked for the agent: a
+# generic session at effort `medium`, without Verdict's prompt, and two of the four ended
+# their turn with no state. `--agent` makes the provisioned agent file the main thread —
+# its prompt, its tools, and the scope guards that know it by name — and `--effort` pins
+# the effort its frontmatter pins.
+AGENT_NAME = "verdict"
+AGENT_EFFORT_DEFAULT = "xhigh"
+
+
+def agent_effort(repo) -> str:
+    """The effort the provisioned agent file pins (`effort:` in its frontmatter)."""
+    try:
+        text = (Path(repo) / ".claude" / "agents" / f"{AGENT_NAME}.md").read_text(encoding="utf-8")
+    except OSError:
+        return AGENT_EFFORT_DEFAULT
+    head = text.split("\n---", 1)[0] if text.startswith("---") else ""
+    for line in head.splitlines():
+        if line.strip().startswith("effort:"):
+            value = line.split(":", 1)[1].strip().strip("'\"")
+            return value or AGENT_EFFORT_DEFAULT
+    return AGENT_EFFORT_DEFAULT
+
+
+def agent_flags(repo, passthrough) -> list:
+    """`--agent verdict --effort <pinned>`, when the agent file is there to load. Without
+    it (`--no-provision` on a repository that has none) the session is told in words, as
+    before. An operator's own `--agent` or `--effort` after `--` is theirs to keep."""
+    if not (Path(repo) / ".claude" / "agents" / f"{AGENT_NAME}.md").is_file():
+        return []
+    def given(flag):
+        return any(p == flag or p.startswith(flag + "=") for p in passthrough)
+
+    flags = []
+    if not given("--agent"):
+        flags += ["--agent", AGENT_NAME]
+    if not given("--effort"):
+        flags += ["--effort", agent_effort(repo)]
+    return flags
+
+
+_FLAG_REFUSED = re.compile(r"error: unknown option '--(?:agent|effort)'")
+
+
+def flag_refused(output) -> bool:
+    """An older claude CLI refuses an option it does not know before it calls any model
+    (`error: unknown option '--agent'`, exit 1): nothing was spent, and it is no attempt."""
+    return bool(_FLAG_REFUSED.search(output or ""))
+
 
 def limit_kind(output: str) -> str | None:
     """Which allowance the CLI says is spent: `session` (a window that reopens
@@ -1144,11 +1201,27 @@ def main(argv=None) -> int:
     # O-S-3). Only the servers the operator names with --mcp-config load.
     mcp = [arg for path in args.mcp_config for arg in ("--mcp-config", str(path))]
     strict = [] if "--strict-mcp-config" in passthrough else ["--strict-mcp-config"]
-    cmd = [args.claude_cmd, "-p", prompt, "--model", args.model,
-           "--setting-sources", "project,local", *strict, *mcp, *budget, *passthrough]
+    tester = agent_flags(repo, passthrough)
+    told = bool(args.prompt_file or args.prompt)    # the operator's words, in either mode
 
-    for attempt in (1, 2):
+    def launch(tester):
+        text = prompt if told else (AGENT_PROMPT if tester else DEFAULT_PROMPT)
+        return [args.claude_cmd, "-p", text, "--model", args.model, *tester,
+                "--setting-sources", "project,local", *strict, *mcp, *budget, *passthrough]
+
+    cmd = launch(tester)
+    attempt = 0
+    while attempt < 2:
+        attempt += 1
         rc, output = _run_streaming(cmd, repo, env, args.timeout_s)
+        if rc and tester and flag_refused(output):
+            print("verdict-run: this claude CLI does not know --agent/--effort — the tester is "
+                  "asked for in the prompt instead (update Claude Code to run it as the session)",
+                  file=sys.stderr)
+            tester = []
+            cmd = launch(tester)
+            attempt -= 1
+            continue
         if rc is None:
             print(f"verdict-run: attempt {attempt} timed out after {args.timeout_s}s",
                   file=sys.stderr)

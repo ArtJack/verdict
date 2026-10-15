@@ -1469,8 +1469,8 @@
  {
   "label": "0.89.0 Q6 stop hook: the main session's own stop is blocked while a background tester is still working",
   "path": "hooks/enforce_run_contract.py",
-  "old": "    if event.get(\"hook_event_name\") != \"SubagentStop\":\n        return None",
-  "new": "    if event.get(\"hook_event_name\") not in (\"SubagentStop\", \"Stop\"):\n        return None"
+  "old": "    if not caller_is_verdict(event):\n        return None         # somebody else's agent finishing beside a run still in progress",
+  "new": "    if not (caller_is_verdict(event) or event.get(\"hook_event_name\") == \"Stop\"):\n        return None         # somebody else's agent finishing beside a run still in progress"
  },
  {
   "label": "0.89.0 Q7 harness: the run marker no longer names the session that staked it",
@@ -2203,5 +2203,47 @@
   "path": "src/verdict_mcp/small.py",
   "old": "    exposed = plaintext_env_files(repo)\n",
   "new": "    exposed = []\n"
+ },
+ {
+  "label": "0.90.8 agent launch 1: the tester is asked for in words though its agent file is there",
+  "path": "src/verdict_mcp/runner.py",
+  "old": "    tester = agent_flags(repo, passthrough)\n",
+  "new": "    tester = []\n"
+ },
+ {
+  "label": "0.90.8 agent launch 2: a flag the CLI refused spends an attempt",
+  "path": "src/verdict_mcp/runner.py",
+  "old": "            attempt -= 1\n",
+  "new": ""
+ },
+ {
+  "label": "0.90.8 agent launch 3: the effort is not the one the agent file pins",
+  "path": "src/verdict_mcp/runner.py",
+  "old": "        flags += [\"--effort\", agent_effort(repo)]",
+  "new": "        flags += [\"--effort\", AGENT_EFFORT_DEFAULT]"
+ },
+ {
+  "label": "0.90.8 agent launch 4: an operator's own --agent is overridden",
+  "path": "src/verdict_mcp/runner.py",
+  "old": "    if not given(\"--agent\"):",
+  "new": "    if True:"
+ },
+ {
+  "label": "0.90.8 agent launch 5: any unknown option reads as the agent flag refused",
+  "path": "src/verdict_mcp/runner.py",
+  "old": "r\"error: unknown option '--(?:agent|effort)'\"",
+  "new": "r\"error: unknown option '\""
+ },
+ {
+  "label": "0.90.8 agent launch 6: the session that is the tester is told to go and find one",
+  "path": "src/verdict_mcp/runner.py",
+  "old": "        text = prompt if told else (AGENT_PROMPT if tester else DEFAULT_PROMPT)",
+  "new": "        text = prompt if told else DEFAULT_PROMPT"
+ },
+ {
+  "label": "0.90.8 stop rule 1: the tester's own Stop is not seen",
+  "path": "hooks/enforce_run_contract.py",
+  "old": "not in (\"SubagentStop\", \"Stop\"):",
+  "new": "not in (\"SubagentStop\",):"
  }
 ]

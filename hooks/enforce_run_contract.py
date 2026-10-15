@@ -40,7 +40,8 @@ eval score by protocol), and until now this hook went silent on exactly that cas
 the first `is_file()`. `verdict-facts` leaves `run-in-progress.json` and only
 `verdict-finalize` removes it, so a marker still there when the tester stops is a run
 that did not finish. The bar for speaking is identity, not a time window: the event
-is a `SubagentStop`, the agent that is stopping is a Verdict agent, and the marker
+is a `SubagentStop` — or a `Stop` of a session started as the tester (`claude --agent
+verdict`, 0.90.8) — the agent that is stopping is a Verdict agent, and the marker
 was written by *this* session (`verdict-facts` records `CLAUDE_CODE_SESSION_ID`; the
 event carries `session_id`). A marker some other night left behind, or a parallel
 agent finishing while the tester is still at work, matches none of that. Said once
@@ -75,7 +76,10 @@ def _silent(code: int = 0) -> int:
 def _unfinished_run(event: dict, root: Path):
     """The message for a tester stopping on a run it started and never finalized, or
     None. Every doubt is a None: this runs at the end of every subagent's turn."""
-    if event.get("hook_event_name") != "SubagentStop":
+    # A Stop is the tester's own when the session itself is the Verdict agent (`claude
+    # --agent verdict`, which verdict-run launches since 0.90.8): the 2026-10-06 money gates
+    # that ended with no state were top-level sessions, which this rule never saw.
+    if event.get("hook_event_name") not in ("SubagentStop", "Stop"):
         return None
     # The same question the two scope guards ask, answered by the same function. This
     # one used to ask whether the name CONTAINED "verdict", which also made a tester of

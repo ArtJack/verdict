@@ -251,8 +251,10 @@ def test_a_first_run_that_never_finalized_has_no_state_at_all(tmp_path, repo):
     ("a parallel agent finishing while the tester is still at work",
      {}, {"agent_type": "Explore"}),
     ("an agent the CLI did not name", {}, {"agent_type": None}),
+    # A plain session's Stop names no agent (measured 2026-10-15, CLI 2.1.281): only a
+    # session started as an agent carries `agent_type` on its own events.
     ("the main session ending its turn while a background tester runs",
-     {}, {"hook_event_name": "Stop"}),
+     {}, {"hook_event_name": "Stop", "agent_type": None}),
     ("a marker written by a harness that recorded no session", {"session": None}, {}),
     ("a marker too old to be the run that is ending now", {"minutes_ago": 7 * 60}, {}),
     ("a marker from the future — a clock, not a run", {"minutes_ago": -30}, {}),
@@ -265,6 +267,20 @@ def test_everything_short_of_identity_says_nothing(tmp_path, repo, why, marker_k
     event.update(event_kw)
     proc = fire({k: v for k, v in event.items() if v is not None}, home=root.parent)
     assert proc.returncode == 0 and proc.stderr == "", why
+
+
+def test_a_session_started_as_the_tester_is_told_too(tmp_path, repo):
+    """`verdict-run` launches `claude --agent verdict` (0.90.8): the tester is the session
+    itself, and its turn ends in a Stop, not a SubagentStop. The CLI names the agent on that
+    Stop (`agent_type`, measured 2026-10-15) — and the money gates of 2026-10-06 that ended
+    with no state were top-level sessions, which a SubagentStop-only rule never saw."""
+    root = qa_root(tmp_path, harnessed=True, fresh=False)
+    marker = _marker(root)
+    stop = _tester_stops(repo, agent_type="verdict", hook_event_name="Stop", background_tasks=[])
+    proc = fire(stop, home=root.parent)
+    assert proc.returncode == 2 and "never did" in proc.stderr, proc.stderr
+    assert json.loads(marker.read_text(encoding="utf-8")).get("stop_told")
+    assert fire(stop, home=root.parent).returncode == 0, "told once per marker, never a loop"
 
 
 def test_an_unreadable_marker_fails_open(tmp_path, repo):
