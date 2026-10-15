@@ -1361,8 +1361,8 @@
  {
   "label": "0.86.0 N12 sweep: a red gate does not block the sweep",
   "path": "src/verdict_mcp/runner.py",
-  "old": "        if g.get(\"result\") != \"pass\":\n            why.append(f\"gate {name} failed\")\n",
-  "new": "        if False:\n            why.append(f\"gate {name} failed\")\n"
+  "old": "        elif g.get(\"result\") != \"pass\":\n            why.append(f\"gate {name} failed\")\n",
+  "new": "        elif False:\n            why.append(f\"gate {name} failed\")\n"
  },
  {
   "label": "0.86.0 N13 sweep: a quarantine that is due does not block the sweep",
@@ -2155,5 +2155,53 @@
   "path": ".github/directory_branch.py",
   "old": "        _git(repo, \"push\", \"--quiet\", remote, f\"{new}:refs/heads/{branch}\")\n",
   "new": "        _git(repo, \"push\", \"--quiet\", remote, f\"+{new}:refs/heads/{branch}\")\n"
+ },
+ {
+  "label": "0.90.7 local facts 1: the engine measures again after the sweep attempt",
+  "path": "src/verdict_mcp/runner.py",
+  "old": "\"--delta\", \"--reuse-facts\",",
+  "new": "\"--delta\","
+ },
+ {
+  "label": "0.90.7 local facts 2: a measurement of another commit is reused",
+  "path": "src/verdict_mcp/small.py",
+  "old": "    if (facts.get(\"last_run\") or {}).get(\"git_sha\") != _git([\"rev-parse\", \"HEAD\"], repo):\n        return None\n",
+  "new": ""
+ },
+ {
+  "label": "0.90.7 local facts 3: the engine ignores the sweep attempt's measurement",
+  "path": "src/verdict_mcp/small.py",
+  "old": "    reused = reusable_facts(repo, qa_root) if reuse else None\n",
+  "new": "    reused = None\n"
+ },
+ {
+  "label": "0.90.7 local regression 2: an unproven reading re-opens a resolved finding",
+  "path": "src/verdict_mcp/small.py",
+  "old": "            elif status == \"resolved\" and entry.get(\"confidence\") != \"proven\":\n",
+  "new": "            elif status == \"resolved\" and False:\n"
+ },
+ {
+  "label": "0.90.7 gate start 1: a command that cannot start reads as a failing gate",
+  "path": "src/verdict_mcp/harness.py",
+  "old": "                       else \"unavailable\" if not_run else \"fail\"),\n",
+  "new": "                       else \"fail\"),\n"
+ },
+ {
+  "label": "0.90.7 report 1: an old run's label heads a new run's report",
+  "path": "src/verdict_mcp/harness.py",
+  "old": "        if key in RUN_SCOPED_KEYS:\n            continue\n",
+  "new": ""
+ },
+ {
+  "label": "0.90.7 report 2: a finding carried unread is reported as looked at",
+  "path": "src/verdict_mcp/harness.py",
+  "old": "    if f.get(\"re_reported\") == \"still_open\" and carried_unread:\n",
+  "new": "    if False:\n"
+ },
+ {
+  "label": "0.90.7 isolation 1: a plaintext .env does not stop the gates",
+  "path": "src/verdict_mcp/small.py",
+  "old": "    exposed = plaintext_env_files(repo)\n",
+  "new": "    exposed = []\n"
  }
 ]

@@ -12,7 +12,7 @@ run-in-progress.json
 coverage.rc
 coverage.db
 coverage.json
-# The collected test ids, rewritten by every run. At 2,695 tests (run 16, 2026-10-15) the list
-# is 252 KB, past the 240 KiB line tests/test_directory_policy.py holds for the directory's
-# reader, so it stays on the machine that runs the harness; the record is state.json.
-test-ids.txt
+# test-ids.txt is tracked again (2026-10-15): it is the baseline the next run's id set-diff
+# reads, and without it every fresh checkout saw all 2,731 tests as "added", so the sweep
+# could never fire in team mode. The Claude directory reads the `directory` branch, which
+# leaves .qa/ out, so its 256 KiB reader no longer sees this file.
