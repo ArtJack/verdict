@@ -31,6 +31,7 @@ tests/test_agent_contract.py::test_every_plugin_root_reference_resolves[/templat
 tests/test_agent_contract.py::test_every_section_reference_points_at_something_that_exists
 tests/test_agent_contract.py::test_every_shouty_token_the_prompt_teaches_is_a_real_enum_value
 tests/test_agent_contract.py::test_plugin_manifest_points_at_this_agent
+tests/test_agent_contract.py::test_the_agent_pins_its_effort_instead_of_inheriting_the_session
 tests/test_agent_contract.py::test_the_prompt_does_not_promise_a_gate_exit_code_the_gate_cannot_emit
 tests/test_agent_contract.py::test_the_prompt_is_where_the_plugin_says_it_is
 tests/test_agent_contract.py::test_the_prompt_names_plugin_root_paths_at_all
@@ -122,6 +123,8 @@ tests/test_calibration.py::test_the_report_stays_silent_until_something_has_been
 tests/test_calibration.py::test_the_tally_separates_what_was_measured_from_what_was_asserted
 tests/test_calibration.py::test_the_unrecorded_footnote_counts_every_confirmation_not_the_biggest_row
 tests/test_calibration.py::test_undecided_findings_are_excluded_from_the_denominator_not_guessed_at
+tests/test_census.py::test_a_lone_carriage_return_stays_inside_its_line_in_the_tree_and_in_the_diff
+tests/test_census.py::test_a_name_git_still_quotes_is_read_back
 tests/test_census.py::test_ai_trailers_are_counted_over_the_range
 tests/test_census.py::test_an_undeclared_import_is_flagged_with_its_location
 tests/test_census.py::test_code_census_on_a_baseline_scans_the_tree_and_says_so
@@ -132,8 +135,11 @@ tests/test_census.py::test_markers_are_counted_with_samples
 tests/test_census.py::test_no_range_falls_back_to_recent_history
 tests/test_census.py::test_prose_that_looks_like_an_import_is_not_a_dependency
 tests/test_census.py::test_the_caveat_travels_with_the_data
+tests/test_census.py::test_the_diff_is_read_by_position_so_content_never_passes_for_a_header
 tests/test_census.py::test_the_famous_name_mismatches_do_not_false_positive
+tests/test_census.py::test_the_tree_and_the_diff_number_a_line_alike
 tests/test_census.py::test_the_two_line_swallow_is_caught_only_when_the_lines_are_adjacent
+tests/test_census.py::test_tree_lines_are_numbered_like_an_editor_even_with_u2028
 tests/test_chain.py::test_a_copied_link_does_not_verify
 tests/test_chain.py::test_a_correction_is_signed_and_the_signal_still_holds
 tests/test_chain.py::test_a_project_from_before_the_chain_still_passes
@@ -153,6 +159,10 @@ tests/test_chain.py::test_no_history_file_at_all_is_not_a_failure
 tests/test_chain.py::test_state_must_describe_the_run_the_history_ends_on
 tests/test_chain.py::test_stripping_every_link_but_keeping_the_ledger_is_a_break
 tests/test_chain.py::test_the_chain_extends_over_a_correction_not_around_it
+tests/test_ci_surfaces.py::test_ci_runs_the_hook_tests_on_the_interpreter_a_stock_mac_starts_them_with
+tests/test_ci_surfaces.py::test_the_actions_run_mode_loads_the_whole_plugin_and_runs_the_tester_directly
+tests/test_ci_surfaces.py::test_the_eval_job_cannot_report_green_without_a_key
+tests/test_ci_surfaces.py::test_the_readme_ci_snippet_names_a_ref_the_release_maintains
 tests/test_clock.py::test_a_frozen_offset_stamp_is_normalised_to_utc
 tests/test_clock.py::test_an_unparseable_freeze_refuses_loudly
 tests/test_clock.py::test_local_now_is_naive_local_and_only_for_the_runner
@@ -227,6 +237,36 @@ tests/test_diff_coverage.py::test_the_repository_is_not_written_to_either
 tests/test_diff_coverage.py::test_the_subprocess_context_is_never_read_as_a_test
 tests/test_diff_coverage.py::test_what_counts_as_a_test_file
 tests/test_diff_coverage.py::test_without_a_command_it_is_unmeasurable_and_says_how
+tests/test_directory_policy.py::test_no_shipped_file_carries_a_key_shaped_value
+tests/test_directory_policy.py::test_no_shipped_file_is_too_large_for_the_directory_to_read
+tests/test_directory_policy.py::test_the_check_sees_a_key_split_the_way_python_joins_it
+tests/test_external.py::test_a_gate_blocks_only_on_fail_or_do_not_ship
+tests/test_external.py::test_a_stopped_run_still_has_its_refusals_counted
+tests/test_external.py::test_build_byproducts_are_excluded_and_restore_keeps_them
+tests/test_external.py::test_colour_codes_never_hide_an_outcome
+tests/test_external.py::test_lanes_split_by_repository_and_cover_every_instance
+tests/test_external.py::test_models_efforts_and_refusals_are_counted_once_per_response
+tests/test_external.py::test_test_paths_are_told_from_source[conftest.py-True]
+tests/test_external.py::test_test_paths_are_told_from_source[docs/testing.rst-False]
+tests/test_external.py::test_test_paths_are_told_from_source[pkg/contest.py-False]
+tests/test_external.py::test_test_paths_are_told_from_source[pkg/money.py-False]
+tests/test_external.py::test_test_paths_are_told_from_source[pkg/money_test.py-True]
+tests/test_external.py::test_test_paths_are_told_from_source[src/pkg/tests/helpers.py-True]
+tests/test_external.py::test_test_paths_are_told_from_source[testing/x.py-True]
+tests/test_external.py::test_test_paths_are_told_from_source[tests/test_money.py-True]
+tests/test_external.py::test_the_checkout_ends_at_base_on_main_with_the_future_absent
+tests/test_external.py::test_the_checkout_is_named_for_the_project_not_the_instance
+tests/test_external.py::test_the_control_prompt_asks_for_a_verdict_line_and_one_json_block
+tests/test_external.py::test_the_control_verdict_is_read_from_its_own_line[**VERDICT: ship**\nNothing found.-ship]
+tests/test_external.py::test_the_control_verdict_is_read_from_its_own_line[-None]
+tests/test_external.py::test_the_control_verdict_is_read_from_its_own_line[I would not ship this.-None]
+tests/test_external.py::test_the_control_verdict_is_read_from_its_own_line[Some preamble\nverdict: Do Not Ship\n-do not ship]
+tests/test_external.py::test_the_control_verdict_is_read_from_its_own_line[VERDICT: do not ship\n\nThe change truncates.-do not ship]
+tests/test_external.py::test_the_fix_splits_into_its_tests_and_its_source
+tests/test_external.py::test_the_ledger_resumes_by_instance_and_arm
+tests/test_external.py::test_the_packet_gates_the_introducing_change_and_names_nothing_of_the_fix
+tests/test_external.py::test_the_profile_runs_every_gate_inside_the_container_and_names_the_risk
+tests/test_external.py::test_the_table_scores_only_instances_both_arms_ran
 tests/test_filed.py::test_a_finding_carried_by_silence_drops_last_runs_verb
 tests/test_filed.py::test_a_finding_file_is_validated_the_moment_it_is_written
 tests/test_filed.py::test_a_finding_filed_inside_another_findings_class_is_refused
@@ -246,6 +286,13 @@ tests/test_fixture_freshness.py::test_a_mode_change_is_no_longer_invisible
 tests/test_fixture_freshness.py::test_a_symlink_swapped_for_a_regular_file_is_no_longer_invisible
 tests/test_fixture_freshness.py::test_a_tracked_file_missing_from_the_tree_reports_rather_than_crashes
 tests/test_fixture_freshness.py::test_an_untracked_file_planted_in_the_fixture_is_reported
+tests/test_fixture_hygiene.py::test_a_fixture_is_copied_as_git_sees_it
+tests/test_fixture_hygiene.py::test_every_allowlist_entry_is_still_needed
+tests/test_fixture_hygiene.py::test_no_byproduct_of_the_maintainers_own_tree_reaches_the_tester
+tests/test_fixture_hygiene.py::test_nothing_the_tester_is_handed_names_the_eval
+tests/test_fixture_hygiene.py::test_the_checkout_is_named_for_the_project_not_its_role
+tests/test_fixture_hygiene.py::test_the_patterns_catch_what_they_were_written_for
+tests/test_fixture_hygiene.py::test_the_scratch_directory_is_named_by_the_platform_not_the_harness
 tests/test_gate.py::test_a_current_verdict_carries_no_stale_note
 tests/test_gate.py::test_a_diverged_verdict_says_so_in_the_pr_comment
 tests/test_gate.py::test_a_path_argument_in_solo_mode_resolves_to_the_derived_key
@@ -370,6 +417,7 @@ tests/test_harness.py::test_merge_assigns_deltas_the_model_used_to_guess
 tests/test_harness.py::test_merge_carries_forward_a_finding_this_run_did_not_mention
 tests/test_harness.py::test_merge_preserves_unknown_keys_from_the_previous_state
 tests/test_harness.py::test_one_minute_is_a_minute_not_seconds
+tests/test_harness.py::test_out_is_a_second_copy_never_the_only_one
 tests/test_harness.py::test_overlapping_vocabularies_do_not_steal_each_others_output
 tests/test_harness.py::test_parametrised_ids_with_spaces_survive_the_ledger_round_trip
 tests/test_harness.py::test_plain_go_test_is_counted_from_its_per_test_lines
@@ -693,6 +741,1175 @@ tests/test_hooks.py::test_write_blocks_qa_traversal_escape
 tests/test_hooks.py::test_write_blocks_symlink_escape_from_inside_qa
 tests/test_hooks.py::test_write_fails_open_on_malformed_input
 tests/test_hooks.py::test_write_honors_verdict_home
+tests/test_hooks_0903.py::test_a_command_is_found_behind_whatever_the_shell_lets_stand_in_front[! rm src/app.py]
+tests/test_hooks_0903.py::test_a_command_is_found_behind_whatever_the_shell_lets_stand_in_front["rm" "src/app.py"]
+tests/test_hooks_0903.py::test_a_command_is_found_behind_whatever_the_shell_lets_stand_in_front[( rm src/app.py )]
+tests/test_hooks_0903.py::test_a_command_is_found_behind_whatever_the_shell_lets_stand_in_front[((true)) && (rm src/app.py)]
+tests/test_hooks_0903.py::test_a_command_is_found_behind_whatever_the_shell_lets_stand_in_front[(rm src/app.py)]
+tests/test_hooks_0903.py::test_a_command_is_found_behind_whatever_the_shell_lets_stand_in_front[bash --norc -c 'rm src/app.py']
+tests/test_hooks_0903.py::test_a_command_is_found_behind_whatever_the_shell_lets_stand_in_front[bash --rcfile /dev/null -c 'rm src/app.py']
+tests/test_hooks_0903.py::test_a_command_is_found_behind_whatever_the_shell_lets_stand_in_front[bash -c "sh -c \\"bash -c \\\\\\"sh -c 'rm src/app.py'\\\\\\"\\""]
+tests/test_hooks_0903.py::test_a_command_is_found_behind_whatever_the_shell_lets_stand_in_front[bash -ec 'rm src/app.py']
+tests/test_hooks_0903.py::test_a_command_is_found_behind_whatever_the_shell_lets_stand_in_front[bash -euxc 'echo x > src/app.py']
+tests/test_hooks_0903.py::test_a_command_is_found_behind_whatever_the_shell_lets_stand_in_front[bash -lc 'rm src/app.py']
+tests/test_hooks_0903.py::test_a_command_is_found_behind_whatever_the_shell_lets_stand_in_front[bash -o pipefail -c 'rm src/app.py']
+tests/test_hooks_0903.py::test_a_command_is_found_behind_whatever_the_shell_lets_stand_in_front[bash -s <<'EOF'\necho x > src/app.py\nEOF]
+tests/test_hooks_0903.py::test_a_command_is_found_behind_whatever_the_shell_lets_stand_in_front[bash <<<'rm src/app.py']
+tests/test_hooks_0903.py::test_a_command_is_found_behind_whatever_the_shell_lets_stand_in_front[bash <<EOF\nrm src/app.py\nEOF]
+tests/test_hooks_0903.py::test_a_command_is_found_behind_whatever_the_shell_lets_stand_in_front[eval 'bash -c "rm src/app.py"']
+tests/test_hooks_0903.py::test_a_command_is_found_behind_whatever_the_shell_lets_stand_in_front[for f in a b; do rm src/app.py; done]
+tests/test_hooks_0903.py::test_a_command_is_found_behind_whatever_the_shell_lets_stand_in_front[if false; then :; elif rm src/app.py; then :; fi]
+tests/test_hooks_0903.py::test_a_command_is_found_behind_whatever_the_shell_lets_stand_in_front[if false; then :; else rm src/app.py; fi]
+tests/test_hooks_0903.py::test_a_command_is_found_behind_whatever_the_shell_lets_stand_in_front[if rm src/app.py; then echo gone; fi]
+tests/test_hooks_0903.py::test_a_command_is_found_behind_whatever_the_shell_lets_stand_in_front[if true; then rm src/app.py; fi]
+tests/test_hooks_0903.py::test_a_command_is_found_behind_whatever_the_shell_lets_stand_in_front[pytest -q |& tee src/app.py]
+tests/test_hooks_0903.py::test_a_command_is_found_behind_whatever_the_shell_lets_stand_in_front[sh -xc 'rm src/app.py']
+tests/test_hooks_0903.py::test_a_command_is_found_behind_whatever_the_shell_lets_stand_in_front[sudo bash <<EOF\nrm src/app.py\nEOF]
+tests/test_hooks_0903.py::test_a_command_is_found_behind_whatever_the_shell_lets_stand_in_front[true & rm src/app.py]
+tests/test_hooks_0903.py::test_a_command_is_found_behind_whatever_the_shell_lets_stand_in_front[while true; do rm src/app.py; break; done]
+tests/test_hooks_0903.py::test_a_command_is_found_behind_whatever_the_shell_lets_stand_in_front[{ rm src/app.py; }]
+tests/test_hooks_0903.py::test_a_command_nested_past_reading_is_refused_not_crashed_on
+tests/test_hooks_0903.py::test_a_command_that_writes_the_file_it_is_handed_is_refused[7z a src/x.7z src]
+tests/test_hooks_0903.py::test_a_command_that_writes_the_file_it_is_handed_is_refused[7z x x.7z -osrc]
+tests/test_hooks_0903.py::test_a_command_that_writes_the_file_it_is_handed_is_refused[7z x x.7z]
+tests/test_hooks_0903.py::test_a_command_that_writes_the_file_it_is_handed_is_refused[bunzip2 src/app.py.bz2]
+tests/test_hooks_0903.py::test_a_command_that_writes_the_file_it_is_handed_is_refused[bzip2 src/app.py]
+tests/test_hooks_0903.py::test_a_command_that_writes_the_file_it_is_handed_is_refused[cat x | sponge src/app.py]
+tests/test_hooks_0903.py::test_a_command_that_writes_the_file_it_is_handed_is_refused[cpio -id < x.cpio]
+tests/test_hooks_0903.py::test_a_command_that_writes_the_file_it_is_handed_is_refused[cpio -idmv < x.cpio]
+tests/test_hooks_0903.py::test_a_command_that_writes_the_file_it_is_handed_is_refused[csplit -f src/xx src/app.py 1]
+tests/test_hooks_0903.py::test_a_command_that_writes_the_file_it_is_handed_is_refused[csplit src/app.py 1]
+tests/test_hooks_0903.py::test_a_command_that_writes_the_file_it_is_handed_is_refused[curl --output src/app.py http://127.0.0.1/x]
+tests/test_hooks_0903.py::test_a_command_that_writes_the_file_it_is_handed_is_refused[curl -O http://127.0.0.1/app.py]
+tests/test_hooks_0903.py::test_a_command_that_writes_the_file_it_is_handed_is_refused[curl -o src/app.py http://127.0.0.1/x]
+tests/test_hooks_0903.py::test_a_command_that_writes_the_file_it_is_handed_is_refused[curl -s -D src/headers.txt http://127.0.0.1/x]
+tests/test_hooks_0903.py::test_a_command_that_writes_the_file_it_is_handed_is_refused[curl -sSLo src/app.py http://127.0.0.1/x]
+tests/test_hooks_0903.py::test_a_command_that_writes_the_file_it_is_handed_is_refused[ditto src/app.py src/b.py]
+tests/test_hooks_0903.py::test_a_command_that_writes_the_file_it_is_handed_is_refused[dos2unix -n @SCRATCH/in.txt src/app.py]
+tests/test_hooks_0903.py::test_a_command_that_writes_the_file_it_is_handed_is_refused[dos2unix src/app.py]
+tests/test_hooks_0903.py::test_a_command_that_writes_the_file_it_is_handed_is_refused[gunzip src/app.py.gz]
+tests/test_hooks_0903.py::test_a_command_that_writes_the_file_it_is_handed_is_refused[gzip -9v src/app.py]
+tests/test_hooks_0903.py::test_a_command_that_writes_the_file_it_is_handed_is_refused[gzip -k src/app.py]
+tests/test_hooks_0903.py::test_a_command_that_writes_the_file_it_is_handed_is_refused[gzip src/app.py]
+tests/test_hooks_0903.py::test_a_command_that_writes_the_file_it_is_handed_is_refused[iconv -f utf8 -t ascii -o src/app.py src/app.py]
+tests/test_hooks_0903.py::test_a_command_that_writes_the_file_it_is_handed_is_refused[mkfifo -m 600 src/fifo]
+tests/test_hooks_0903.py::test_a_command_that_writes_the_file_it_is_handed_is_refused[mkfifo src/fifo]
+tests/test_hooks_0903.py::test_a_command_that_writes_the_file_it_is_handed_is_refused[mknod src/dev c 1 3]
+tests/test_hooks_0903.py::test_a_command_that_writes_the_file_it_is_handed_is_refused[patch -p1 -i fix.diff]
+tests/test_hooks_0903.py::test_a_command_that_writes_the_file_it_is_handed_is_refused[patch -p1 < fix.diff]
+tests/test_hooks_0903.py::test_a_command_that_writes_the_file_it_is_handed_is_refused[patch src/app.py fix.diff]
+tests/test_hooks_0903.py::test_a_command_that_writes_the_file_it_is_handed_is_refused[pax -r -f x.tar]
+tests/test_hooks_0903.py::test_a_command_that_writes_the_file_it_is_handed_is_refused[rename 's/a/b/' src/app.py]
+tests/test_hooks_0903.py::test_a_command_that_writes_the_file_it_is_handed_is_refused[rename .py .txt src/app.py]
+tests/test_hooks_0903.py::test_a_command_that_writes_the_file_it_is_handed_is_refused[sort --output=src/app.py x]
+tests/test_hooks_0903.py::test_a_command_that_writes_the_file_it_is_handed_is_refused[sort -o src/app.py src/app.py]
+tests/test_hooks_0903.py::test_a_command_that_writes_the_file_it_is_handed_is_refused[sort -uo src/app.py x]
+tests/test_hooks_0903.py::test_a_command_that_writes_the_file_it_is_handed_is_refused[sort src/app.py -o src/app.py]
+tests/test_hooks_0903.py::test_a_command_that_writes_the_file_it_is_handed_is_refused[split -l 1 src/app.py src/part]
+tests/test_hooks_0903.py::test_a_command_that_writes_the_file_it_is_handed_is_refused[split -l 1 src/app.py]
+tests/test_hooks_0903.py::test_a_command_that_writes_the_file_it_is_handed_is_refused[truncate --size=0 src/app.py]
+tests/test_hooks_0903.py::test_a_command_that_writes_the_file_it_is_handed_is_refused[truncate -s 0 src/app.py]
+tests/test_hooks_0903.py::test_a_command_that_writes_the_file_it_is_handed_is_refused[truncate -s0 src/app.py]
+tests/test_hooks_0903.py::test_a_command_that_writes_the_file_it_is_handed_is_refused[unix2dos src/app.py]
+tests/test_hooks_0903.py::test_a_command_that_writes_the_file_it_is_handed_is_refused[unrar x x.rar src]
+tests/test_hooks_0903.py::test_a_command_that_writes_the_file_it_is_handed_is_refused[unxz src/app.py.xz]
+tests/test_hooks_0903.py::test_a_command_that_writes_the_file_it_is_handed_is_refused[unzip -o z.zip -d src]
+tests/test_hooks_0903.py::test_a_command_that_writes_the_file_it_is_handed_is_refused[unzip -o z.zip]
+tests/test_hooks_0903.py::test_a_command_that_writes_the_file_it_is_handed_is_refused[unzip z.zip -d src]
+tests/test_hooks_0903.py::test_a_command_that_writes_the_file_it_is_handed_is_refused[unzstd src/app.py.zst]
+tests/test_hooks_0903.py::test_a_command_that_writes_the_file_it_is_handed_is_refused[wget --output-document=src/app.py http://127.0.0.1/x]
+tests/test_hooks_0903.py::test_a_command_that_writes_the_file_it_is_handed_is_refused[wget -O src/app.py http://127.0.0.1/x]
+tests/test_hooks_0903.py::test_a_command_that_writes_the_file_it_is_handed_is_refused[wget -P src http://127.0.0.1/x]
+tests/test_hooks_0903.py::test_a_command_that_writes_the_file_it_is_handed_is_refused[wget http://127.0.0.1/x]
+tests/test_hooks_0903.py::test_a_command_that_writes_the_file_it_is_handed_is_refused[xz src/app.py]
+tests/test_hooks_0903.py::test_a_command_that_writes_the_file_it_is_handed_is_refused[zip -m @SCRATCH/x.zip src/app.py]
+tests/test_hooks_0903.py::test_a_command_that_writes_the_file_it_is_handed_is_refused[zip -r src/x.zip src]
+tests/test_hooks_0903.py::test_a_command_that_writes_the_file_it_is_handed_is_refused[zstd src/app.py -o src/app.zst]
+tests/test_hooks_0903.py::test_a_command_that_writes_the_file_it_is_handed_is_refused[zstd src/app.py]
+tests/test_hooks_0903.py::test_a_descriptor_is_not_a_file_and_a_redirection_is_not_an_operand[chmod +x .qa/run.sh 2>&1]
+tests/test_hooks_0903.py::test_a_descriptor_is_not_a_file_and_a_redirection_is_not_an_operand[cmd 1>&2]
+tests/test_hooks_0903.py::test_a_descriptor_is_not_a_file_and_a_redirection_is_not_an_operand[cmd 2>&1]
+tests/test_hooks_0903.py::test_a_descriptor_is_not_a_file_and_a_redirection_is_not_an_operand[cmd 3>&1 1>&2 2>&3]
+tests/test_hooks_0903.py::test_a_descriptor_is_not_a_file_and_a_redirection_is_not_an_operand[cmd >&-]
+tests/test_hooks_0903.py::test_a_descriptor_is_not_a_file_and_a_redirection_is_not_an_operand[cmd >&2]
+tests/test_hooks_0903.py::test_a_descriptor_is_not_a_file_and_a_redirection_is_not_an_operand[cp src/app.py .qa/app.py 2>/dev/null]
+tests/test_hooks_0903.py::test_a_descriptor_is_not_a_file_and_a_redirection_is_not_an_operand[echo '<>' 'a >& b' "1<> c"]
+tests/test_hooks_0903.py::test_a_descriptor_is_not_a_file_and_a_redirection_is_not_an_operand[echo x 1<> .qa/out.log]
+tests/test_hooks_0903.py::test_a_descriptor_is_not_a_file_and_a_redirection_is_not_an_operand[echo x >& .qa/out.log]
+tests/test_hooks_0903.py::test_a_descriptor_is_not_a_file_and_a_redirection_is_not_an_operand[exec 3<&0]
+tests/test_hooks_0903.py::test_a_descriptor_is_not_a_file_and_a_redirection_is_not_an_operand[exec 3>&-]
+tests/test_hooks_0903.py::test_a_descriptor_is_not_a_file_and_a_redirection_is_not_an_operand[exec 3>&1]
+tests/test_hooks_0903.py::test_a_descriptor_is_not_a_file_and_a_redirection_is_not_an_operand[mkdir -p .qa/reports 2>&1]
+tests/test_hooks_0903.py::test_a_descriptor_is_not_a_file_and_a_redirection_is_not_an_operand[pytest -q 2>&1 | tee .qa/pytest.log]
+tests/test_hooks_0903.py::test_a_descriptor_is_not_a_file_and_a_redirection_is_not_an_operand[pytest -q > /dev/null 2>&1]
+tests/test_hooks_0903.py::test_a_descriptor_is_not_a_file_and_a_redirection_is_not_an_operand[pytest -q >& /dev/null]
+tests/test_hooks_0903.py::test_a_descriptor_is_not_a_file_and_a_redirection_is_not_an_operand[rm -f .qa/tmp.txt 2>/dev/null]
+tests/test_hooks_0903.py::test_a_descriptor_is_not_a_file_and_a_redirection_is_not_an_operand[rm -f .qa/x < /dev/null]
+tests/test_hooks_0903.py::test_a_descriptor_is_not_a_file_and_a_redirection_is_not_an_operand[touch .qa/marker >/dev/null 2>&1]
+tests/test_hooks_0903.py::test_a_formatter_run_over_the_code_under_test_is_refused[./node_modules/.bin/prettier --write src]
+tests/test_hooks_0903.py::test_a_formatter_run_over_the_code_under_test_is_refused[.venv/bin/black src]
+tests/test_hooks_0903.py::test_a_formatter_run_over_the_code_under_test_is_refused[autopep8 --in-place -r .]
+tests/test_hooks_0903.py::test_a_formatter_run_over_the_code_under_test_is_refused[autopep8 -i src/app.py]
+tests/test_hooks_0903.py::test_a_formatter_run_over_the_code_under_test_is_refused[bash -c 'ruff format src']
+tests/test_hooks_0903.py::test_a_formatter_run_over_the_code_under_test_is_refused[biome check --apply src]
+tests/test_hooks_0903.py::test_a_formatter_run_over_the_code_under_test_is_refused[biome check --write src]
+tests/test_hooks_0903.py::test_a_formatter_run_over_the_code_under_test_is_refused[biome format --write src]
+tests/test_hooks_0903.py::test_a_formatter_run_over_the_code_under_test_is_refused[black -q -l 100 src]
+tests/test_hooks_0903.py::test_a_formatter_run_over_the_code_under_test_is_refused[black .]
+tests/test_hooks_0903.py::test_a_formatter_run_over_the_code_under_test_is_refused[black src]
+tests/test_hooks_0903.py::test_a_formatter_run_over_the_code_under_test_is_refused[cargo +nightly fmt]
+tests/test_hooks_0903.py::test_a_formatter_run_over_the_code_under_test_is_refused[cargo fmt --all]
+tests/test_hooks_0903.py::test_a_formatter_run_over_the_code_under_test_is_refused[cargo fmt]
+tests/test_hooks_0903.py::test_a_formatter_run_over_the_code_under_test_is_refused[cd .qa && pre-commit run --all-files]
+tests/test_hooks_0903.py::test_a_formatter_run_over_the_code_under_test_is_refused[cd @SCRATCH && terraform -chdir=@REPO/src fmt]
+tests/test_hooks_0903.py::test_a_formatter_run_over_the_code_under_test_is_refused[cd src && black .]
+tests/test_hooks_0903.py::test_a_formatter_run_over_the_code_under_test_is_refused[clang-format -i src/a.c]
+tests/test_hooks_0903.py::test_a_formatter_run_over_the_code_under_test_is_refused[clang-format -style=file -i src/a.c]
+tests/test_hooks_0903.py::test_a_formatter_run_over_the_code_under_test_is_refused[dart format .]
+tests/test_hooks_0903.py::test_a_formatter_run_over_the_code_under_test_is_refused[dart format lib test]
+tests/test_hooks_0903.py::test_a_formatter_run_over_the_code_under_test_is_refused[eslint --fix src]
+tests/test_hooks_0903.py::test_a_formatter_run_over_the_code_under_test_is_refused[eslint src --ext .ts --fix]
+tests/test_hooks_0903.py::test_a_formatter_run_over_the_code_under_test_is_refused[gofmt -w src]
+tests/test_hooks_0903.py::test_a_formatter_run_over_the_code_under_test_is_refused[goimports -w src]
+tests/test_hooks_0903.py::test_a_formatter_run_over_the_code_under_test_is_refused[hatch run ruff format]
+tests/test_hooks_0903.py::test_a_formatter_run_over_the_code_under_test_is_refused[isort --profile black src]
+tests/test_hooks_0903.py::test_a_formatter_run_over_the_code_under_test_is_refused[isort .]
+tests/test_hooks_0903.py::test_a_formatter_run_over_the_code_under_test_is_refused[npm exec -- eslint --fix src]
+tests/test_hooks_0903.py::test_a_formatter_run_over_the_code_under_test_is_refused[npx -y eslint --fix src]
+tests/test_hooks_0903.py::test_a_formatter_run_over_the_code_under_test_is_refused[npx @biomejs/biome format --write src]
+tests/test_hooks_0903.py::test_a_formatter_run_over_the_code_under_test_is_refused[npx prettier --write .]
+tests/test_hooks_0903.py::test_a_formatter_run_over_the_code_under_test_is_refused[pipenv run isort .]
+tests/test_hooks_0903.py::test_a_formatter_run_over_the_code_under_test_is_refused[pipx run black .]
+tests/test_hooks_0903.py::test_a_formatter_run_over_the_code_under_test_is_refused[pnpm exec prettier --write .]
+tests/test_hooks_0903.py::test_a_formatter_run_over_the_code_under_test_is_refused[poetry run black .]
+tests/test_hooks_0903.py::test_a_formatter_run_over_the_code_under_test_is_refused[pre-commit run --all-files --show-diff-on-failure]
+tests/test_hooks_0903.py::test_a_formatter_run_over_the_code_under_test_is_refused[pre-commit run --all-files]
+tests/test_hooks_0903.py::test_a_formatter_run_over_the_code_under_test_is_refused[pre-commit run]
+tests/test_hooks_0903.py::test_a_formatter_run_over_the_code_under_test_is_refused[prettier --write src]
+tests/test_hooks_0903.py::test_a_formatter_run_over_the_code_under_test_is_refused[prettier -w src]
+tests/test_hooks_0903.py::test_a_formatter_run_over_the_code_under_test_is_refused[python -m isort .]
+tests/test_hooks_0903.py::test_a_formatter_run_over_the_code_under_test_is_refused[python3 -m black src]
+tests/test_hooks_0903.py::test_a_formatter_run_over_the_code_under_test_is_refused[python3 -m pre_commit run -a]
+tests/test_hooks_0903.py::test_a_formatter_run_over_the_code_under_test_is_refused[ruff check --add-noqa src]
+tests/test_hooks_0903.py::test_a_formatter_run_over_the_code_under_test_is_refused[ruff check --fix src]
+tests/test_hooks_0903.py::test_a_formatter_run_over_the_code_under_test_is_refused[ruff check --fix-only .]
+tests/test_hooks_0903.py::test_a_formatter_run_over_the_code_under_test_is_refused[ruff check . --select I --fix]
+tests/test_hooks_0903.py::test_a_formatter_run_over_the_code_under_test_is_refused[ruff format src]
+tests/test_hooks_0903.py::test_a_formatter_run_over_the_code_under_test_is_refused[ruff format]
+tests/test_hooks_0903.py::test_a_formatter_run_over_the_code_under_test_is_refused[rustfmt src/main.rs]
+tests/test_hooks_0903.py::test_a_formatter_run_over_the_code_under_test_is_refused[shfmt -l -w scripts]
+tests/test_hooks_0903.py::test_a_formatter_run_over_the_code_under_test_is_refused[shfmt -w .]
+tests/test_hooks_0903.py::test_a_formatter_run_over_the_code_under_test_is_refused[swiftformat .]
+tests/test_hooks_0903.py::test_a_formatter_run_over_the_code_under_test_is_refused[terraform -chdir=src fmt]
+tests/test_hooks_0903.py::test_a_formatter_run_over_the_code_under_test_is_refused[terraform fmt -diff]
+tests/test_hooks_0903.py::test_a_formatter_run_over_the_code_under_test_is_refused[terraform fmt -recursive]
+tests/test_hooks_0903.py::test_a_formatter_run_over_the_code_under_test_is_refused[terraform fmt]
+tests/test_hooks_0903.py::test_a_formatter_run_over_the_code_under_test_is_refused[timeout 60 ruff format]
+tests/test_hooks_0903.py::test_a_formatter_run_over_the_code_under_test_is_refused[uv run --with black black .]
+tests/test_hooks_0903.py::test_a_formatter_run_over_the_code_under_test_is_refused[uv run ruff check --fix .]
+tests/test_hooks_0903.py::test_a_formatter_run_over_the_code_under_test_is_refused[uvx ruff format]
+tests/test_hooks_0903.py::test_a_formatter_run_over_the_code_under_test_is_refused[uvx ruff@0.6.9 format src]
+tests/test_hooks_0903.py::test_a_formatter_run_over_the_code_under_test_is_refused[yapf -i src/app.py]
+tests/test_hooks_0903.py::test_a_formatter_run_over_the_code_under_test_is_refused[yapf -ir .]
+tests/test_hooks_0903.py::test_a_formatter_run_over_the_code_under_test_is_refused[yarn dlx prettier --write src]
+tests/test_hooks_0903.py::test_a_git_command_that_only_reads_is_allowed_whatever_it_resembles[git -C .qa add -A]
+tests/test_hooks_0903.py::test_a_git_command_that_only_reads_is_allowed_whatever_it_resembles[git -C .qa init]
+tests/test_hooks_0903.py::test_a_git_command_that_only_reads_is_allowed_whatever_it_resembles[git add --dry-run .]
+tests/test_hooks_0903.py::test_a_git_command_that_only_reads_is_allowed_whatever_it_resembles[git add -n .]
+tests/test_hooks_0903.py::test_a_git_command_that_only_reads_is_allowed_whatever_it_resembles[git archive HEAD -o @SCRATCH/x.tar]
+tests/test_hooks_0903.py::test_a_git_command_that_only_reads_is_allowed_whatever_it_resembles[git archive HEAD]
+tests/test_hooks_0903.py::test_a_git_command_that_only_reads_is_allowed_whatever_it_resembles[git bisect visualize]
+tests/test_hooks_0903.py::test_a_git_command_that_only_reads_is_allowed_whatever_it_resembles[git bundle create .qa/x.bundle HEAD]
+tests/test_hooks_0903.py::test_a_git_command_that_only_reads_is_allowed_whatever_it_resembles[git bundle verify x.bundle]
+tests/test_hooks_0903.py::test_a_git_command_that_only_reads_is_allowed_whatever_it_resembles[git clean -fdn]
+tests/test_hooks_0903.py::test_a_git_command_that_only_reads_is_allowed_whatever_it_resembles[git clean -n -fdx]
+tests/test_hooks_0903.py::test_a_git_command_that_only_reads_is_allowed_whatever_it_resembles[git clean -n]
+tests/test_hooks_0903.py::test_a_git_command_that_only_reads_is_allowed_whatever_it_resembles[git clone . @SCRATCH/copy]
+tests/test_hooks_0903.py::test_a_git_command_that_only_reads_is_allowed_whatever_it_resembles[git commit --help]
+tests/test_hooks_0903.py::test_a_git_command_that_only_reads_is_allowed_whatever_it_resembles[git config get user.name]
+tests/test_hooks_0903.py::test_a_git_command_that_only_reads_is_allowed_whatever_it_resembles[git config list]
+tests/test_hooks_0903.py::test_a_git_command_that_only_reads_is_allowed_whatever_it_resembles[git diff --output=@SCRATCH/d.patch]
+tests/test_hooks_0903.py::test_a_git_command_that_only_reads_is_allowed_whatever_it_resembles[git diff --stat HEAD~1]
+tests/test_hooks_0903.py::test_a_git_command_that_only_reads_is_allowed_whatever_it_resembles[git fetch --dry-run]
+tests/test_hooks_0903.py::test_a_git_command_that_only_reads_is_allowed_whatever_it_resembles[git format-patch -1 --stdout]
+tests/test_hooks_0903.py::test_a_git_command_that_only_reads_is_allowed_whatever_it_resembles[git format-patch -1 -o .qa/p]
+tests/test_hooks_0903.py::test_a_git_command_that_only_reads_is_allowed_whatever_it_resembles[git log --format=%H]
+tests/test_hooks_0903.py::test_a_git_command_that_only_reads_is_allowed_whatever_it_resembles[git log --oneline -5 -- src/app.py]
+tests/test_hooks_0903.py::test_a_git_command_that_only_reads_is_allowed_whatever_it_resembles[git log --output=.qa/log.txt]
+tests/test_hooks_0903.py::test_a_git_command_that_only_reads_is_allowed_whatever_it_resembles[git log -n 5]
+tests/test_hooks_0903.py::test_a_git_command_that_only_reads_is_allowed_whatever_it_resembles[git mergetool --tool-help]
+tests/test_hooks_0903.py::test_a_git_command_that_only_reads_is_allowed_whatever_it_resembles[git notes --ref x list]
+tests/test_hooks_0903.py::test_a_git_command_that_only_reads_is_allowed_whatever_it_resembles[git prune -n]
+tests/test_hooks_0903.py::test_a_git_command_that_only_reads_is_allowed_whatever_it_resembles[git push --help]
+tests/test_hooks_0903.py::test_a_git_command_that_only_reads_is_allowed_whatever_it_resembles[git push -n origin main]
+tests/test_hooks_0903.py::test_a_git_command_that_only_reads_is_allowed_whatever_it_resembles[git read-tree -n -m HEAD]
+tests/test_hooks_0903.py::test_a_git_command_that_only_reads_is_allowed_whatever_it_resembles[git reflog -n 5]
+tests/test_hooks_0903.py::test_a_git_command_that_only_reads_is_allowed_whatever_it_resembles[git reflog HEAD]
+tests/test_hooks_0903.py::test_a_git_command_that_only_reads_is_allowed_whatever_it_resembles[git reflog exists refs/heads/main]
+tests/test_hooks_0903.py::test_a_git_command_that_only_reads_is_allowed_whatever_it_resembles[git reflog show --all]
+tests/test_hooks_0903.py::test_a_git_command_that_only_reads_is_allowed_whatever_it_resembles[git remote -v]
+tests/test_hooks_0903.py::test_a_git_command_that_only_reads_is_allowed_whatever_it_resembles[git remote get-url origin]
+tests/test_hooks_0903.py::test_a_git_command_that_only_reads_is_allowed_whatever_it_resembles[git remote show origin]
+tests/test_hooks_0903.py::test_a_git_command_that_only_reads_is_allowed_whatever_it_resembles[git remote]
+tests/test_hooks_0903.py::test_a_git_command_that_only_reads_is_allowed_whatever_it_resembles[git rm -n src/app.py]
+tests/test_hooks_0903.py::test_a_git_command_that_only_reads_is_allowed_whatever_it_resembles[git show HEAD:src/app.py]
+tests/test_hooks_0903.py::test_a_git_command_that_only_reads_is_allowed_whatever_it_resembles[git sparse-checkout check-rules]
+tests/test_hooks_0903.py::test_a_git_command_that_only_reads_is_allowed_whatever_it_resembles[git stash list]
+tests/test_hooks_0903.py::test_a_git_command_that_only_reads_is_allowed_whatever_it_resembles[git stash show -p]
+tests/test_hooks_0903.py::test_a_git_command_that_only_reads_is_allowed_whatever_it_resembles[git submodule foreach --recursive -q git status]
+tests/test_hooks_0903.py::test_a_git_command_that_only_reads_is_allowed_whatever_it_resembles[git submodule foreach git status]
+tests/test_hooks_0903.py::test_a_git_command_that_only_reads_is_allowed_whatever_it_resembles[git symbolic-ref --short HEAD]
+tests/test_hooks_0903.py::test_a_git_command_that_only_reads_is_allowed_whatever_it_resembles[git symbolic-ref HEAD]
+tests/test_hooks_0903.py::test_a_git_command_that_writes_is_refused_whatever_its_verb_is_called[git -C src log --output=app.py]
+tests/test_hooks_0903.py::test_a_git_command_that_writes_is_refused_whatever_its_verb_is_called[git add -A]
+tests/test_hooks_0903.py::test_a_git_command_that_writes_is_refused_whatever_its_verb_is_called[git add src/app.py]
+tests/test_hooks_0903.py::test_a_git_command_that_writes_is_refused_whatever_its_verb_is_called[git archive --output=src/x.tar HEAD]
+tests/test_hooks_0903.py::test_a_git_command_that_writes_is_refused_whatever_its_verb_is_called[git archive HEAD -o src/x.tar]
+tests/test_hooks_0903.py::test_a_git_command_that_writes_is_refused_whatever_its_verb_is_called[git bundle create src/x.bundle HEAD]
+tests/test_hooks_0903.py::test_a_git_command_that_writes_is_refused_whatever_its_verb_is_called[git checkout-index -a -f]
+tests/test_hooks_0903.py::test_a_git_command_that_writes_is_refused_whatever_its_verb_is_called[git clean --dry-run --no-dry-run -f]
+tests/test_hooks_0903.py::test_a_git_command_that_writes_is_refused_whatever_its_verb_is_called[git clean -n --no-dry -f]
+tests/test_hooks_0903.py::test_a_git_command_that_writes_is_refused_whatever_its_verb_is_called[git clean -n --no-dry-run -f]
+tests/test_hooks_0903.py::test_a_git_command_that_writes_is_refused_whatever_its_verb_is_called[git clone /x y]
+tests/test_hooks_0903.py::test_a_git_command_that_writes_is_refused_whatever_its_verb_is_called[git clone /x]
+tests/test_hooks_0903.py::test_a_git_command_that_writes_is_refused_whatever_its_verb_is_called[git commit -m "--help" -a]
+tests/test_hooks_0903.py::test_a_git_command_that_writes_is_refused_whatever_its_verb_is_called[git commit -n -m x]
+tests/test_hooks_0903.py::test_a_git_command_that_writes_is_refused_whatever_its_verb_is_called[git config set user.name x]
+tests/test_hooks_0903.py::test_a_git_command_that_writes_is_refused_whatever_its_verb_is_called[git config unset user.name]
+tests/test_hooks_0903.py::test_a_git_command_that_writes_is_refused_whatever_its_verb_is_called[git diff --output=src/app.py]
+tests/test_hooks_0903.py::test_a_git_command_that_writes_is_refused_whatever_its_verb_is_called[git fetch -n origin]
+tests/test_hooks_0903.py::test_a_git_command_that_writes_is_refused_whatever_its_verb_is_called[git fetch origin]
+tests/test_hooks_0903.py::test_a_git_command_that_writes_is_refused_whatever_its_verb_is_called[git fetch]
+tests/test_hooks_0903.py::test_a_git_command_that_writes_is_refused_whatever_its_verb_is_called[git format-patch -1 --output-directory src]
+tests/test_hooks_0903.py::test_a_git_command_that_writes_is_refused_whatever_its_verb_is_called[git format-patch -1 -o src]
+tests/test_hooks_0903.py::test_a_git_command_that_writes_is_refused_whatever_its_verb_is_called[git format-patch -1 -osrc]
+tests/test_hooks_0903.py::test_a_git_command_that_writes_is_refused_whatever_its_verb_is_called[git format-patch -1]
+tests/test_hooks_0903.py::test_a_git_command_that_writes_is_refused_whatever_its_verb_is_called[git init src/nested]
+tests/test_hooks_0903.py::test_a_git_command_that_writes_is_refused_whatever_its_verb_is_called[git init]
+tests/test_hooks_0903.py::test_a_git_command_that_writes_is_refused_whatever_its_verb_is_called[git log --output src/app.py]
+tests/test_hooks_0903.py::test_a_git_command_that_writes_is_refused_whatever_its_verb_is_called[git log --output=src/app.py]
+tests/test_hooks_0903.py::test_a_git_command_that_writes_is_refused_whatever_its_verb_is_called[git merge -n feature]
+tests/test_hooks_0903.py::test_a_git_command_that_writes_is_refused_whatever_its_verb_is_called[git mergetool]
+tests/test_hooks_0903.py::test_a_git_command_that_writes_is_refused_whatever_its_verb_is_called[git push -n --no-dry-run origin main]
+tests/test_hooks_0903.py::test_a_git_command_that_writes_is_refused_whatever_its_verb_is_called[git read-tree --empty]
+tests/test_hooks_0903.py::test_a_git_command_that_writes_is_refused_whatever_its_verb_is_called[git read-tree -m -u HEAD]
+tests/test_hooks_0903.py::test_a_git_command_that_writes_is_refused_whatever_its_verb_is_called[git reflog delete HEAD@{0}]
+tests/test_hooks_0903.py::test_a_git_command_that_writes_is_refused_whatever_its_verb_is_called[git reflog expire --expire=now --all]
+tests/test_hooks_0903.py::test_a_git_command_that_writes_is_refused_whatever_its_verb_is_called[git reflog show --output=src/app.py]
+tests/test_hooks_0903.py::test_a_git_command_that_writes_is_refused_whatever_its_verb_is_called[git remote -v add up /x]
+tests/test_hooks_0903.py::test_a_git_command_that_writes_is_refused_whatever_its_verb_is_called[git remote add up /x]
+tests/test_hooks_0903.py::test_a_git_command_that_writes_is_refused_whatever_its_verb_is_called[git remote remove origin]
+tests/test_hooks_0903.py::test_a_git_command_that_writes_is_refused_whatever_its_verb_is_called[git remote set-url origin /x]
+tests/test_hooks_0903.py::test_a_git_command_that_writes_is_refused_whatever_its_verb_is_called[git shortlog --output=src/app.py HEAD]
+tests/test_hooks_0903.py::test_a_git_command_that_writes_is_refused_whatever_its_verb_is_called[git show --output=src/app.py HEAD]
+tests/test_hooks_0903.py::test_a_git_command_that_writes_is_refused_whatever_its_verb_is_called[git stash show -p --output=src/app.py]
+tests/test_hooks_0903.py::test_a_git_command_that_writes_is_refused_whatever_its_verb_is_called[git submodule foreach 'git checkout -- .']
+tests/test_hooks_0903.py::test_a_git_command_that_writes_is_refused_whatever_its_verb_is_called[git submodule foreach --recursive git clean -q -fd]
+tests/test_hooks_0903.py::test_a_git_command_that_writes_is_refused_whatever_its_verb_is_called[git submodule foreach git clean -fd]
+tests/test_hooks_0903.py::test_a_git_command_that_writes_is_refused_whatever_its_verb_is_called[git symbolic-ref -d refs/x]
+tests/test_hooks_0903.py::test_a_git_command_that_writes_is_refused_whatever_its_verb_is_called[git symbolic-ref HEAD refs/heads/other]
+tests/test_hooks_0903.py::test_a_guard_fails_open_on_json_that_is_not_an_event["a string"-enforce_bash_scope.py]
+tests/test_hooks_0903.py::test_a_guard_fails_open_on_json_that_is_not_an_event["a string"-enforce_write_scope.py]
+tests/test_hooks_0903.py::test_a_guard_fails_open_on_json_that_is_not_an_event[7-enforce_bash_scope.py]
+tests/test_hooks_0903.py::test_a_guard_fails_open_on_json_that_is_not_an_event[7-enforce_write_scope.py]
+tests/test_hooks_0903.py::test_a_guard_fails_open_on_json_that_is_not_an_event[[]-enforce_bash_scope.py]
+tests/test_hooks_0903.py::test_a_guard_fails_open_on_json_that_is_not_an_event[[]-enforce_write_scope.py]
+tests/test_hooks_0903.py::test_a_guard_fails_open_on_json_that_is_not_an_event[null-enforce_bash_scope.py]
+tests/test_hooks_0903.py::test_a_guard_fails_open_on_json_that_is_not_an_event[null-enforce_write_scope.py]
+tests/test_hooks_0903.py::test_a_guard_fails_open_on_json_that_is_not_an_event[{"agent_type": ["verdict"], "tool_input": {}}-enforce_bash_scope.py]
+tests/test_hooks_0903.py::test_a_guard_fails_open_on_json_that_is_not_an_event[{"agent_type": ["verdict"], "tool_input": {}}-enforce_write_scope.py]
+tests/test_hooks_0903.py::test_a_guard_fails_open_on_json_that_is_not_an_event[{"tool_input": "not an object"}-enforce_bash_scope.py]
+tests/test_hooks_0903.py::test_a_guard_fails_open_on_json_that_is_not_an_event[{"tool_input": "not an object"}-enforce_write_scope.py]
+tests/test_hooks_0903.py::test_a_guard_fails_open_on_json_that_is_not_an_event[{"tool_input": {"command": "rm -rf src"}, "cwd": 7}-enforce_bash_scope.py]
+tests/test_hooks_0903.py::test_a_guard_fails_open_on_json_that_is_not_an_event[{"tool_input": {"command": "rm -rf src"}, "cwd": 7}-enforce_write_scope.py]
+tests/test_hooks_0903.py::test_a_guard_fails_open_on_json_that_is_not_an_event[{"tool_input": {"command": 7, "file_path": 7}}-enforce_bash_scope.py]
+tests/test_hooks_0903.py::test_a_guard_fails_open_on_json_that_is_not_an_event[{"tool_input": {"command": 7, "file_path": 7}}-enforce_write_scope.py]
+tests/test_hooks_0903.py::test_a_relative_write_into_the_qa_root_is_not_refused_for_where_it_started[(cd @SCRATCH && echo x > out.txt)]
+tests/test_hooks_0903.py::test_a_relative_write_into_the_qa_root_is_not_refused_for_where_it_started[bash -c 'cd @SCRATCH && echo x > out.txt']
+tests/test_hooks_0903.py::test_a_relative_write_into_the_qa_root_is_not_refused_for_where_it_started[cd "$(dirname "$0")" && pytest -q]
+tests/test_hooks_0903.py::test_a_relative_write_into_the_qa_root_is_not_refused_for_where_it_started[cd "$(git rev-parse --show-toplevel)" && echo x > .qa/out]
+tests/test_hooks_0903.py::test_a_relative_write_into_the_qa_root_is_not_refused_for_where_it_started[cd $(git rev-parse --show-toplevel) && pytest -q > .qa/out.txt]
+tests/test_hooks_0903.py::test_a_relative_write_into_the_qa_root_is_not_refused_for_where_it_started[cd .qa && (cd .. && pytest -q) && echo x > notes.md]
+tests/test_hooks_0903.py::test_a_relative_write_into_the_qa_root_is_not_refused_for_where_it_started[cd .qa && bash -c 'cd .. && echo x > .qa/out']
+tests/test_hooks_0903.py::test_a_relative_write_into_the_qa_root_is_not_refused_for_where_it_started[cd .qa && cd reports && echo x > r.md]
+tests/test_hooks_0903.py::test_a_relative_write_into_the_qa_root_is_not_refused_for_where_it_started[cd .qa && echo x > "$(pwd)/out"]
+tests/test_hooks_0903.py::test_a_relative_write_into_the_qa_root_is_not_refused_for_where_it_started[cd .qa && echo x > $PWD/out]
+tests/test_hooks_0903.py::test_a_relative_write_into_the_qa_root_is_not_refused_for_where_it_started[cd .qa && echo x > `pwd`/out]
+tests/test_hooks_0903.py::test_a_relative_write_into_the_qa_root_is_not_refused_for_where_it_started[cd .qa && echo x > notes.md]
+tests/test_hooks_0903.py::test_a_relative_write_into_the_qa_root_is_not_refused_for_where_it_started[cd .qa && echo x | tee out]
+tests/test_hooks_0903.py::test_a_relative_write_into_the_qa_root_is_not_refused_for_where_it_started[cd .qa && pytest 2>&1 | tee report.log]
+tests/test_hooks_0903.py::test_a_relative_write_into_the_qa_root_is_not_refused_for_where_it_started[cd @SCRATCH && echo x > out.txt]
+tests/test_hooks_0903.py::test_a_relative_write_into_the_qa_root_is_not_refused_for_where_it_started[cd @SCRATCH && pytest -q 2>&1 | tee out.log]
+tests/test_hooks_0903.py::test_a_relative_write_into_the_qa_root_is_not_refused_for_where_it_started[cd src && cd - && echo x > .qa/out]
+tests/test_hooks_0903.py::test_a_relative_write_into_the_qa_root_is_not_refused_for_where_it_started[command cd .qa && echo x > notes.md]
+tests/test_hooks_0903.py::test_a_relative_write_into_the_qa_root_is_not_refused_for_where_it_started[pushd .qa && echo x > a.md && popd && echo y > .qa/b.md]
+tests/test_hooks_0903.py::test_a_relative_write_into_the_qa_root_is_not_refused_for_where_it_started[pushd .qa && pushd reports && popd && echo x > notes.md]
+tests/test_hooks_0903.py::test_a_relative_write_is_judged_where_it_really_lands[(cd @SCRATCH && true); echo x > out.txt]
+tests/test_hooks_0903.py::test_a_relative_write_is_judged_where_it_really_lands[cd "$(git rev-parse --show-toplevel)" && echo x > src/app.py]
+tests/test_hooks_0903.py::test_a_relative_write_is_judged_where_it_really_lands[cd && echo x > notes.md]
+tests/test_hooks_0903.py::test_a_relative_write_is_judged_where_it_really_lands[cd .qa && (cd .. && echo x > notes.md)]
+tests/test_hooks_0903.py::test_a_relative_write_is_judged_where_it_really_lands[cd .qa && bash -c 'cd .. && echo x > src/app.py']
+tests/test_hooks_0903.py::test_a_relative_write_is_judged_where_it_really_lands[cd .qa && cd "$OLDPWD" && echo x > src/app.py]
+tests/test_hooks_0903.py::test_a_relative_write_is_judged_where_it_really_lands[cd .qa && cd $NOPE_UNSET_VAR && echo x > notes.md]
+tests/test_hooks_0903.py::test_a_relative_write_is_judged_where_it_really_lands[cd .qa && cd - && echo x > src/app.py]
+tests/test_hooks_0903.py::test_a_relative_write_is_judged_where_it_really_lands[cd .qa && cd .. && echo x > src/app.py]
+tests/test_hooks_0903.py::test_a_relative_write_is_judged_where_it_really_lands[cd .qa && cd `dirname x` && echo x > notes.md]
+tests/test_hooks_0903.py::test_a_relative_write_is_judged_where_it_really_lands[cd .qa | true; echo x > notes.md]
+tests/test_hooks_0903.py::test_a_relative_write_is_judged_where_it_really_lands[cd .qa; cd -; rm src/app.py]
+tests/test_hooks_0903.py::test_a_relative_write_is_judged_where_it_really_lands[echo x > "$(pwd)/src/app.py"]
+tests/test_hooks_0903.py::test_a_relative_write_is_judged_where_it_really_lands[echo x > $PWD/src/app.py]
+tests/test_hooks_0903.py::test_a_relative_write_is_judged_where_it_really_lands[env cd @SCRATCH; echo x > pwned.py]
+tests/test_hooks_0903.py::test_a_relative_write_is_judged_where_it_really_lands[pushd .qa && echo x > ../src/app.py]
+tests/test_hooks_0903.py::test_a_relative_write_is_judged_where_it_really_lands[pushd .qa && popd && echo x > notes.md]
+tests/test_hooks_0903.py::test_a_relative_write_is_judged_where_it_really_lands[sudo cd @SCRATCH; echo x > pwned.py]
+tests/test_hooks_0903.py::test_a_relative_write_is_judged_where_it_really_lands[true | cd @SCRATCH; echo x > pwned.py]
+tests/test_hooks_0903.py::test_a_relative_write_is_read_against_the_events_directory
+tests/test_hooks_0903.py::test_a_wrapper_around_a_read_or_an_in_scope_write_is_allowed[caffeinate -i pytest -q]
+tests/test_hooks_0903.py::test_a_wrapper_around_a_read_or_an_in_scope_write_is_allowed[chrt -i 0 pytest -q]
+tests/test_hooks_0903.py::test_a_wrapper_around_a_read_or_an_in_scope_write_is_allowed[command -p pytest -q]
+tests/test_hooks_0903.py::test_a_wrapper_around_a_read_or_an_in_scope_write_is_allowed[command -v pytest]
+tests/test_hooks_0903.py::test_a_wrapper_around_a_read_or_an_in_scope_write_is_allowed[command -v rm]
+tests/test_hooks_0903.py::test_a_wrapper_around_a_read_or_an_in_scope_write_is_allowed[env -C .qa rm notes.md]
+tests/test_hooks_0903.py::test_a_wrapper_around_a_read_or_an_in_scope_write_is_allowed[env -u PYTHONPATH pytest -q]
+tests/test_hooks_0903.py::test_a_wrapper_around_a_read_or_an_in_scope_write_is_allowed[env PYTHONPATH=src python -c 'import app']
+tests/test_hooks_0903.py::test_a_wrapper_around_a_read_or_an_in_scope_write_is_allowed[env | sort]
+tests/test_hooks_0903.py::test_a_wrapper_around_a_read_or_an_in_scope_write_is_allowed[exec -a x pytest -q]
+tests/test_hooks_0903.py::test_a_wrapper_around_a_read_or_an_in_scope_write_is_allowed[flock @SCRATCH/l pytest -q]
+tests/test_hooks_0903.py::test_a_wrapper_around_a_read_or_an_in_scope_write_is_allowed[nice -n 10 pytest -q]
+tests/test_hooks_0903.py::test_a_wrapper_around_a_read_or_an_in_scope_write_is_allowed[script -q .qa/typescript pytest -q]
+tests/test_hooks_0903.py::test_a_wrapper_around_a_read_or_an_in_scope_write_is_allowed[script -q /dev/null pytest -q]
+tests/test_hooks_0903.py::test_a_wrapper_around_a_read_or_an_in_scope_write_is_allowed[stdbuf -o L pytest -q]
+tests/test_hooks_0903.py::test_a_wrapper_around_a_read_or_an_in_scope_write_is_allowed[sudo -n pytest -q]
+tests/test_hooks_0903.py::test_a_wrapper_around_a_read_or_an_in_scope_write_is_allowed[sudo -n rm .qa/tmp.txt]
+tests/test_hooks_0903.py::test_a_wrapper_around_a_read_or_an_in_scope_write_is_allowed[taskset -c 0 pytest -q]
+tests/test_hooks_0903.py::test_a_wrapper_around_a_read_or_an_in_scope_write_is_allowed[time -o .qa/timing.txt pytest]
+tests/test_hooks_0903.py::test_a_wrapper_around_a_read_or_an_in_scope_write_is_allowed[time -p pytest -q]
+tests/test_hooks_0903.py::test_a_wrapper_around_a_read_or_an_in_scope_write_is_allowed[timeout -k 5 600 pytest -q]
+tests/test_hooks_0903.py::test_a_wrapper_around_a_read_or_an_in_scope_write_is_allowed[timeout -s INT 600 pytest -q]
+tests/test_hooks_0903.py::test_a_wrapper_around_a_read_or_an_in_scope_write_is_allowed[timeout 5 rm -rf .qa/tmp]
+tests/test_hooks_0903.py::test_and_none_of_that_was_bought_with_a_bypass[cat <<'EOF' > src/app.py\nx\nEOF]
+tests/test_hooks_0903.py::test_and_none_of_that_was_bought_with_a_bypass[cat > .qa/notes.md <<'EOF'\nfine\nEOF\nrm src/app.py]
+tests/test_hooks_0903.py::test_and_none_of_that_was_bought_with_a_bypass[cat > src/app.py <<'EOF'\nx\nEOF]
+tests/test_hooks_0903.py::test_and_none_of_that_was_bought_with_a_bypass[gsed -i s/a/b/ src/app.py]
+tests/test_hooks_0903.py::test_and_none_of_that_was_bought_with_a_bypass[perl -i -pe s/a/b/ src/app.py]
+tests/test_hooks_0903.py::test_and_none_of_that_was_bought_with_a_bypass[perl -i fix.pl src/app.py]
+tests/test_hooks_0903.py::test_and_none_of_that_was_bought_with_a_bypass[perl -pi -e s/a/b/ src/app.py]
+tests/test_hooks_0903.py::test_and_none_of_that_was_bought_with_a_bypass[perl -pie s/a/b/ src/app.py]
+tests/test_hooks_0903.py::test_and_none_of_that_was_bought_with_a_bypass[sed --in-place=.bak s/a/b/ .qa/notes.md src/app.py]
+tests/test_hooks_0903.py::test_and_none_of_that_was_bought_with_a_bypass[sed -I .bak s/a/b/ src/app.py]
+tests/test_hooks_0903.py::test_and_none_of_that_was_bought_with_a_bypass[sed -e s/a/b/ -i .env .qa/notes.md]
+tests/test_hooks_0903.py::test_and_none_of_that_was_bought_with_a_bypass[sed -e s/a/b/ -i .env]
+tests/test_hooks_0903.py::test_and_none_of_that_was_bought_with_a_bypass[sed -i '' 's/a/b/' src/app.py]
+tests/test_hooks_0903.py::test_and_none_of_that_was_bought_with_a_bypass[sed -i -e s/a/b/ src/app.py]
+tests/test_hooks_0903.py::test_and_none_of_that_was_bought_with_a_bypass[sed -i .bak s/a/b/ src/app.py]
+tests/test_hooks_0903.py::test_and_none_of_that_was_bought_with_a_bypass[sed -i s/a/b/ src/app.py]
+tests/test_hooks_0903.py::test_and_none_of_that_was_bought_with_a_bypass[sed -i.bak s/a/b/ src/app.py]
+tests/test_hooks_0903.py::test_and_none_of_that_was_bought_with_a_bypass[sed -ie s/a/b/ src/app.py]
+tests/test_hooks_0903.py::test_and_none_of_that_was_bought_with_a_bypass[sed -n -i p src/app.py]
+tests/test_hooks_0903.py::test_and_none_of_that_was_bought_with_a_bypass[sed s/a/b/ -i src/app.py]
+tests/test_hooks_0903.py::test_every_hook_this_release_touched_still_starts_under_the_system_python[enforce_bash_scope.py]
+tests/test_hooks_0903.py::test_every_hook_this_release_touched_still_starts_under_the_system_python[enforce_run_contract.py]
+tests/test_hooks_0903.py::test_every_hook_this_release_touched_still_starts_under_the_system_python[enforce_write_scope.py]
+tests/test_hooks_0903.py::test_every_spelling_of_a_redirect_into_the_checkout_is_refused[(echo x > src/app.py)]
+tests/test_hooks_0903.py::test_every_spelling_of_a_redirect_into_the_checkout_is_refused[echo x 1<> src/app.py]
+tests/test_hooks_0903.py::test_every_spelling_of_a_redirect_into_the_checkout_is_refused[echo x 3<>src/app.py]
+tests/test_hooks_0903.py::test_every_spelling_of_a_redirect_into_the_checkout_is_refused[echo x <> src/new.py]
+tests/test_hooks_0903.py::test_every_spelling_of_a_redirect_into_the_checkout_is_refused[echo x >& src/app.py]
+tests/test_hooks_0903.py::test_every_spelling_of_a_redirect_into_the_checkout_is_refused[echo x >&src/app.py]
+tests/test_hooks_0903.py::test_every_spelling_of_a_redirect_into_the_checkout_is_refused[pytest -q >& out.log]
+tests/test_hooks_0903.py::test_every_spelling_of_a_redirect_into_the_checkout_is_refused[rm -f src/app.py 2>/dev/null]
+tests/test_hooks_0903.py::test_every_spelling_of_a_redirect_into_the_checkout_is_refused[rm src/app.py 2>&1]
+tests/test_hooks_0903.py::test_every_spelling_of_a_redirect_into_the_checkout_is_refused[touch marker >/dev/null 2>&1]
+tests/test_hooks_0903.py::test_every_spelling_of_a_redirect_into_the_checkout_is_refused[{ echo x; } > src/app.py]
+tests/test_hooks_0903.py::test_find_and_xargs_are_judged_by_the_command_they_run[cat list | parallel sed -i s/a/b/ {}]
+tests/test_hooks_0903.py::test_find_and_xargs_are_judged_by_the_command_they_run[cat list | xargs -I% mv % src/]
+tests/test_hooks_0903.py::test_find_and_xargs_are_judged_by_the_command_they_run[cat list | xargs -I{} cp {} src/]
+tests/test_hooks_0903.py::test_find_and_xargs_are_judged_by_the_command_they_run[cat list | xargs git add]
+tests/test_hooks_0903.py::test_find_and_xargs_are_judged_by_the_command_they_run[cat list | xargs sed -i s/a/b/]
+tests/test_hooks_0903.py::test_find_and_xargs_are_judged_by_the_command_they_run[cat list | xargs touch]
+tests/test_hooks_0903.py::test_find_and_xargs_are_judged_by_the_command_they_run[echo f | xargs rm]
+tests/test_hooks_0903.py::test_find_and_xargs_are_judged_by_the_command_they_run[find -L src -name '*.pyc' -delete]
+tests/test_hooks_0903.py::test_find_and_xargs_are_judged_by_the_command_they_run[find . -name '*.pyc' -delete]
+tests/test_hooks_0903.py::test_find_and_xargs_are_judged_by_the_command_they_run[find src -exec git add {} \\;]
+tests/test_hooks_0903.py::test_find_and_xargs_are_judged_by_the_command_they_run[find src -exec mv {} {}.bak \\;]
+tests/test_hooks_0903.py::test_find_and_xargs_are_judged_by_the_command_they_run[find src -exec sed -i s/a/b/ {} \\;]
+tests/test_hooks_0903.py::test_find_and_xargs_are_judged_by_the_command_they_run[find src -exec sh -c 'rm $1' _ {} \\;]
+tests/test_hooks_0903.py::test_find_and_xargs_are_judged_by_the_command_they_run[find src -execdir rm {} \\;]
+tests/test_hooks_0903.py::test_find_and_xargs_are_judged_by_the_command_they_run[find src -fls listing]
+tests/test_hooks_0903.py::test_find_and_xargs_are_judged_by_the_command_they_run[find src -fprint src/app.py]
+tests/test_hooks_0903.py::test_find_and_xargs_are_judged_by_the_command_they_run[find src -fprintf src/app.py '%p']
+tests/test_hooks_0903.py::test_find_and_xargs_are_judged_by_the_command_they_run[find src -name '*.py' -exec sed -i.bak s/a/b/ {} +]
+tests/test_hooks_0903.py::test_find_and_xargs_are_judged_by_the_command_they_run[find src -name '*.py' -ok rm {} \\;]
+tests/test_hooks_0903.py::test_find_and_xargs_are_judged_by_the_command_they_run[find src -type d -execdir touch marker \\;]
+tests/test_hooks_0903.py::test_find_and_xargs_are_judged_by_the_command_they_run[parallel rm ::: src/app.py]
+tests/test_hooks_0903.py::test_find_and_xargs_are_judged_by_the_command_they_run[xargs -0 rm]
+tests/test_hooks_0903.py::test_find_and_xargs_are_judged_by_the_command_they_run[xargs -n1 -P4 rm]
+tests/test_hooks_0903.py::test_find_and_xargs_are_judged_by_the_command_they_run[xargs bash -c 'rm $0']
+tests/test_hooks_0903.py::test_find_and_xargs_are_judged_by_the_command_they_run[xargs rm < list]
+tests/test_hooks_0903.py::test_find_and_xargs_running_a_read_are_reads[cd .qa && find . -name '*.tmp' -delete]
+tests/test_hooks_0903.py::test_find_and_xargs_running_a_read_are_reads[echo x | parallel git log -1 --]
+tests/test_hooks_0903.py::test_find_and_xargs_running_a_read_are_reads[echo x | parallel sed -n p]
+tests/test_hooks_0903.py::test_find_and_xargs_running_a_read_are_reads[echo x | xargs -I{} cp {} .qa/]
+tests/test_hooks_0903.py::test_find_and_xargs_running_a_read_are_reads[echo x | xargs -I{} cp {} @SCRATCH/]
+tests/test_hooks_0903.py::test_find_and_xargs_running_a_read_are_reads[echo x | xargs -I{} git log -1 -- {}]
+tests/test_hooks_0903.py::test_find_and_xargs_running_a_read_are_reads[echo x | xargs grep -l needle]
+tests/test_hooks_0903.py::test_find_and_xargs_running_a_read_are_reads[echo x | xargs perl -ne print]
+tests/test_hooks_0903.py::test_find_and_xargs_running_a_read_are_reads[echo x | xargs sed -n p]
+tests/test_hooks_0903.py::test_find_and_xargs_running_a_read_are_reads[find . -name '*.py' -exec wc -l {} +]
+tests/test_hooks_0903.py::test_find_and_xargs_running_a_read_are_reads[find . -name '*.py' -newer x -print]
+tests/test_hooks_0903.py::test_find_and_xargs_running_a_read_are_reads[find . -name '*.py' -print0 | xargs -0 wc -l]
+tests/test_hooks_0903.py::test_find_and_xargs_running_a_read_are_reads[find .qa -name '*.tmp' -delete]
+tests/test_hooks_0903.py::test_find_and_xargs_running_a_read_are_reads[find .qa -name '*.tmp' -exec rm {} \\;]
+tests/test_hooks_0903.py::test_find_and_xargs_running_a_read_are_reads[find src -exec git log -1 -- {} \\;]
+tests/test_hooks_0903.py::test_find_and_xargs_running_a_read_are_reads[find src -fprint .qa/list.txt]
+tests/test_hooks_0903.py::test_find_and_xargs_running_a_read_are_reads[find src -fprint @SCRATCH/list.txt]
+tests/test_hooks_0903.py::test_find_and_xargs_running_a_read_are_reads[find src -name '*.py' -exec grep -l x {} \\;]
+tests/test_hooks_0903.py::test_find_and_xargs_running_a_read_are_reads[find src -name '*.py' -exec python3 -m py_compile {} \\;]
+tests/test_hooks_0903.py::test_find_and_xargs_running_a_read_are_reads[find src -name '*.py' -exec sed -n 1p {} \\;]
+tests/test_hooks_0903.py::test_find_and_xargs_running_a_read_are_reads[git ls-files | xargs git blame]
+tests/test_hooks_0903.py::test_find_and_xargs_running_a_read_are_reads[git ls-files | xargs git log --]
+tests/test_hooks_0903.py::test_nobody_elses_shell_command_is_judged[{"agent_id": "a1b2"}]
+tests/test_hooks_0903.py::test_nobody_elses_shell_command_is_judged[{"agent_type": "Explore"}]
+tests/test_hooks_0903.py::test_nobody_elses_shell_command_is_judged[{"agent_type": "general-purpose"}]
+tests/test_hooks_0903.py::test_nobody_elses_shell_command_is_judged[{"agent_type": "myverdict"}]
+tests/test_hooks_0903.py::test_nobody_elses_shell_command_is_judged[{"agent_type": "verdict-opus-check"}]
+tests/test_hooks_0903.py::test_nobody_elses_shell_command_is_judged[{"agent_type": "verdict-root-cause"}]
+tests/test_hooks_0903.py::test_nobody_elses_shell_command_is_judged[{"agent_type": "verdict:helper"}]
+tests/test_hooks_0903.py::test_nobody_elses_shell_command_is_judged[{"agent_type": 7}]
+tests/test_hooks_0903.py::test_nobody_elses_shell_command_is_judged[{"agent_type": null}]
+tests/test_hooks_0903.py::test_nobody_elses_shell_command_is_judged[{}]
+tests/test_hooks_0903.py::test_one_rule_names_the_tester_for_all_three_hooks
+tests/test_hooks_0903.py::test_real_bash_does_what_that_table_claims[! rm src/app.py]
+tests/test_hooks_0903.py::test_real_bash_does_what_that_table_claims["rm" "src/app.py"]
+tests/test_hooks_0903.py::test_real_bash_does_what_that_table_claims[(cd .qa && true); echo x > probe.txt]
+tests/test_hooks_0903.py::test_real_bash_does_what_that_table_claims[(exec -a x rm src/app.py)]
+tests/test_hooks_0903.py::test_real_bash_does_what_that_table_claims[(rm src/app.py)]
+tests/test_hooks_0903.py::test_real_bash_does_what_that_table_claims[(true)]
+tests/test_hooks_0903.py::test_real_bash_does_what_that_table_claims[bash -c "sh -c \\"bash -c \\\\\\"sh -c 'rm src/app.py'\\\\\\"\\""]
+tests/test_hooks_0903.py::test_real_bash_does_what_that_table_claims[bash -ec 'echo x > .qa/out']
+tests/test_hooks_0903.py::test_real_bash_does_what_that_table_claims[bash -ec 'rm src/app.py']
+tests/test_hooks_0903.py::test_real_bash_does_what_that_table_claims[bash <<<'rm src/app.py']
+tests/test_hooks_0903.py::test_real_bash_does_what_that_table_claims[bash <<EOF\nrm src/app.py\nEOF]
+tests/test_hooks_0903.py::test_real_bash_does_what_that_table_claims[cat <<'EOF' > /dev/null\nrm -rf src\nEOF]
+tests/test_hooks_0903.py::test_real_bash_does_what_that_table_claims[cat > .qa/notes.md <<'EOF'\nrm -rf src\nEOF]
+tests/test_hooks_0903.py::test_real_bash_does_what_that_table_claims[cat > src/app.py <<'EOF'\nx\nEOF]
+tests/test_hooks_0903.py::test_real_bash_does_what_that_table_claims[cd "$(git rev-parse --show-toplevel)" && echo x > .qa/probe.txt]
+tests/test_hooks_0903.py::test_real_bash_does_what_that_table_claims[cd "$(git rev-parse --show-toplevel)" && echo x > probe.txt]
+tests/test_hooks_0903.py::test_real_bash_does_what_that_table_claims[cd .qa && (cd .. && echo x > probe.txt)]
+tests/test_hooks_0903.py::test_real_bash_does_what_that_table_claims[cd .qa && (cd .. && true) && echo x > probe.txt]
+tests/test_hooks_0903.py::test_real_bash_does_what_that_table_claims[cd .qa && bash -c 'cd .. && echo x > .qa/probe.txt']
+tests/test_hooks_0903.py::test_real_bash_does_what_that_table_claims[cd .qa && bash -c 'cd .. && echo x > probe.txt']
+tests/test_hooks_0903.py::test_real_bash_does_what_that_table_claims[cd .qa && cd "$OLDPWD" && echo x > probe.txt]
+tests/test_hooks_0903.py::test_real_bash_does_what_that_table_claims[cd .qa && cd - > /dev/null && echo x > probe.txt]
+tests/test_hooks_0903.py::test_real_bash_does_what_that_table_claims[cd .qa && echo x > "$(pwd)/probe.txt"]
+tests/test_hooks_0903.py::test_real_bash_does_what_that_table_claims[cd .qa && echo x > "$PWD/probe.txt"]
+tests/test_hooks_0903.py::test_real_bash_does_what_that_table_claims[cd .qa && echo x > probe.txt]
+tests/test_hooks_0903.py::test_real_bash_does_what_that_table_claims[cd .qa && echo x | tee probe.txt > /dev/null]
+tests/test_hooks_0903.py::test_real_bash_does_what_that_table_claims[cd .qa | true; echo x > probe.txt]
+tests/test_hooks_0903.py::test_real_bash_does_what_that_table_claims[cd src && cd - > /dev/null && echo x > .qa/probe.txt]
+tests/test_hooks_0903.py::test_real_bash_does_what_that_table_claims[command -p rm src/app.py]
+tests/test_hooks_0903.py::test_real_bash_does_what_that_table_claims[command -v rm > /dev/null]
+tests/test_hooks_0903.py::test_real_bash_does_what_that_table_claims[command cd .qa && echo x > probe.txt]
+tests/test_hooks_0903.py::test_real_bash_does_what_that_table_claims[echo src/app.py | xargs bash -c 'rm $0']
+tests/test_hooks_0903.py::test_real_bash_does_what_that_table_claims[echo src/app.py | xargs cat > /dev/null]
+tests/test_hooks_0903.py::test_real_bash_does_what_that_table_claims[echo src/app.py | xargs rm]
+tests/test_hooks_0903.py::test_real_bash_does_what_that_table_claims[echo src/app.py | xargs sed -n p > /dev/null]
+tests/test_hooks_0903.py::test_real_bash_does_what_that_table_claims[echo x 1<> src/app.py]
+tests/test_hooks_0903.py::test_real_bash_does_what_that_table_claims[echo x 2>&1 >/dev/null]
+tests/test_hooks_0903.py::test_real_bash_does_what_that_table_claims[echo x <> src/new.py]
+tests/test_hooks_0903.py::test_real_bash_does_what_that_table_claims[echo x > "$PWD/probe.txt"]
+tests/test_hooks_0903.py::test_real_bash_does_what_that_table_claims[echo x >& .qa/out.log]
+tests/test_hooks_0903.py::test_real_bash_does_what_that_table_claims[echo x >& src/app.py]
+tests/test_hooks_0903.py::test_real_bash_does_what_that_table_claims[echo x >&2]
+tests/test_hooks_0903.py::test_real_bash_does_what_that_table_claims[echo x >&src/app.py]
+tests/test_hooks_0903.py::test_real_bash_does_what_that_table_claims[env -S 'rm src/app.py']
+tests/test_hooks_0903.py::test_real_bash_does_what_that_table_claims[env FOO=1 rm src/app.py]
+tests/test_hooks_0903.py::test_real_bash_does_what_that_table_claims[find .qa -name '*.md' -exec rm {} \\;]
+tests/test_hooks_0903.py::test_real_bash_does_what_that_table_claims[find src -name '*.py' -exec cat {} \\; > /dev/null]
+tests/test_hooks_0903.py::test_real_bash_does_what_that_table_claims[find src -name '*.py' -exec rm {} \\;]
+tests/test_hooks_0903.py::test_real_bash_does_what_that_table_claims[find src -name '*.py' -exec sed -i.bak s/a/z/ {} \\;]
+tests/test_hooks_0903.py::test_real_bash_does_what_that_table_claims[find src -name '*.py' -exec sh -c 'rm "$1"' _ {} \\;]
+tests/test_hooks_0903.py::test_real_bash_does_what_that_table_claims[git ls-files | xargs git log --oneline -- > /dev/null]
+tests/test_hooks_0903.py::test_real_bash_does_what_that_table_claims[gzip -c src/app.py > .qa/app.gz]
+tests/test_hooks_0903.py::test_real_bash_does_what_that_table_claims[gzip -k src/app.py]
+tests/test_hooks_0903.py::test_real_bash_does_what_that_table_claims[gzip src/app.py]
+tests/test_hooks_0903.py::test_real_bash_does_what_that_table_claims[if false; then :; else rm src/app.py; fi]
+tests/test_hooks_0903.py::test_real_bash_does_what_that_table_claims[if rm src/app.py; then :; fi]
+tests/test_hooks_0903.py::test_real_bash_does_what_that_table_claims[if true; then rm src/app.py; fi]
+tests/test_hooks_0903.py::test_real_bash_does_what_that_table_claims[mkdir -p .qa/reports 2>&1]
+tests/test_hooks_0903.py::test_real_bash_does_what_that_table_claims[mkfifo .qa/fifo]
+tests/test_hooks_0903.py::test_real_bash_does_what_that_table_claims[mkfifo src/fifo]
+tests/test_hooks_0903.py::test_real_bash_does_what_that_table_claims[nice -n 5 rm src/app.py]
+tests/test_hooks_0903.py::test_real_bash_does_what_that_table_claims[nice -n 5 true]
+tests/test_hooks_0903.py::test_real_bash_does_what_that_table_claims[perl -i -pe s/a/z/ .qa/notes.md]
+tests/test_hooks_0903.py::test_real_bash_does_what_that_table_claims[perl -i -pe s/a/z/ src/app.py]
+tests/test_hooks_0903.py::test_real_bash_does_what_that_table_claims[perl -ne 'print' src/app.py > /dev/null]
+tests/test_hooks_0903.py::test_real_bash_does_what_that_table_claims[pushd .qa > /dev/null && echo x > ../src/probe.txt]
+tests/test_hooks_0903.py::test_real_bash_does_what_that_table_claims[pushd .qa > /dev/null && popd > /dev/null && echo x > probe.txt]
+tests/test_hooks_0903.py::test_real_bash_does_what_that_table_claims[pushd .qa > /dev/null && pushd reports > /dev/null && popd > /dev/null && echo x > probe.txt]
+tests/test_hooks_0903.py::test_real_bash_does_what_that_table_claims[rm -f .qa/tmp.txt 2>/dev/null]
+tests/test_hooks_0903.py::test_real_bash_does_what_that_table_claims[rm src/app.py 2>&1]
+tests/test_hooks_0903.py::test_real_bash_does_what_that_table_claims[sed -i.bak s/a/z/ .qa/notes.md]
+tests/test_hooks_0903.py::test_real_bash_does_what_that_table_claims[sed -i.bak s/a/z/ src/app.py]
+tests/test_hooks_0903.py::test_real_bash_does_what_that_table_claims[sed -n 1p src/app.py > /dev/null]
+tests/test_hooks_0903.py::test_real_bash_does_what_that_table_claims[sort -o src/app.py src/app.py]
+tests/test_hooks_0903.py::test_real_bash_does_what_that_table_claims[sort src/app.py -o .qa/sorted]
+tests/test_hooks_0903.py::test_real_bash_does_what_that_table_claims[split -l 1 src/app.py .qa/part]
+tests/test_hooks_0903.py::test_real_bash_does_what_that_table_claims[split -l 1 src/app.py src/part]
+tests/test_hooks_0903.py::test_real_bash_does_what_that_table_claims[tee src/app.py < /dev/null]
+tests/test_hooks_0903.py::test_real_bash_does_what_that_table_claims[time -p rm src/app.py]
+tests/test_hooks_0903.py::test_real_bash_does_what_that_table_claims[true & rm src/app.py]
+tests/test_hooks_0903.py::test_real_bash_does_what_that_table_claims[while true; do rm src/app.py; break; done]
+tests/test_hooks_0903.py::test_real_bash_does_what_that_table_claims[{ ls > /dev/null; }]
+tests/test_hooks_0903.py::test_real_bash_does_what_that_table_claims[{ rm src/app.py; }]
+tests/test_hooks_0903.py::test_real_git_does_what_that_matrix_claims[add --dry-run .]
+tests/test_hooks_0903.py::test_real_git_does_what_that_matrix_claims[add -A]
+tests/test_hooks_0903.py::test_real_git_does_what_that_matrix_claims[add -n .]
+tests/test_hooks_0903.py::test_real_git_does_what_that_matrix_claims[archive HEAD -o leak.tar]
+tests/test_hooks_0903.py::test_real_git_does_what_that_matrix_claims[archive HEAD]
+tests/test_hooks_0903.py::test_real_git_does_what_that_matrix_claims[bundle create leak.bundle HEAD]
+tests/test_hooks_0903.py::test_real_git_does_what_that_matrix_claims[checkout-index -a -f]
+tests/test_hooks_0903.py::test_real_git_does_what_that_matrix_claims[clean --dry-run --no-dry-run -f]
+tests/test_hooks_0903.py::test_real_git_does_what_that_matrix_claims[clean -fdn]
+tests/test_hooks_0903.py::test_real_git_does_what_that_matrix_claims[clean -n --no-dry -f]
+tests/test_hooks_0903.py::test_real_git_does_what_that_matrix_claims[clean -n --no-dry-run -f]
+tests/test_hooks_0903.py::test_real_git_does_what_that_matrix_claims[clean -n]
+tests/test_hooks_0903.py::test_real_git_does_what_that_matrix_claims[clone -q . copy]
+tests/test_hooks_0903.py::test_real_git_does_what_that_matrix_claims[commit -m --help -a]
+tests/test_hooks_0903.py::test_real_git_does_what_that_matrix_claims[config get user.name]
+tests/test_hooks_0903.py::test_real_git_does_what_that_matrix_claims[diff --output=leak.txt]
+tests/test_hooks_0903.py::test_real_git_does_what_that_matrix_claims[format-patch -1 --stdout]
+tests/test_hooks_0903.py::test_real_git_does_what_that_matrix_claims[format-patch -1 -o patches]
+tests/test_hooks_0903.py::test_real_git_does_what_that_matrix_claims[format-patch -1]
+tests/test_hooks_0903.py::test_real_git_does_what_that_matrix_claims[init nested]
+tests/test_hooks_0903.py::test_real_git_does_what_that_matrix_claims[log --output leak.txt]
+tests/test_hooks_0903.py::test_real_git_does_what_that_matrix_claims[log --output=leak.txt]
+tests/test_hooks_0903.py::test_real_git_does_what_that_matrix_claims[read-tree --empty]
+tests/test_hooks_0903.py::test_real_git_does_what_that_matrix_claims[reflog -n 5]
+tests/test_hooks_0903.py::test_real_git_does_what_that_matrix_claims[reflog HEAD]
+tests/test_hooks_0903.py::test_real_git_does_what_that_matrix_claims[reflog expire --expire=now --all]
+tests/test_hooks_0903.py::test_real_git_does_what_that_matrix_claims[reflog show --output=leak.txt]
+tests/test_hooks_0903.py::test_real_git_does_what_that_matrix_claims[remote -v add up /nowhere]
+tests/test_hooks_0903.py::test_real_git_does_what_that_matrix_claims[remote -v]
+tests/test_hooks_0903.py::test_real_git_does_what_that_matrix_claims[remote add up /nowhere]
+tests/test_hooks_0903.py::test_real_git_does_what_that_matrix_claims[remote]
+tests/test_hooks_0903.py::test_real_git_does_what_that_matrix_claims[rm -n a.txt]
+tests/test_hooks_0903.py::test_real_git_does_what_that_matrix_claims[shortlog --output=leak.txt HEAD]
+tests/test_hooks_0903.py::test_real_git_does_what_that_matrix_claims[stash show -p --output=leak.txt]
+tests/test_hooks_0903.py::test_real_git_does_what_that_matrix_claims[submodule foreach git status]
+tests/test_hooks_0903.py::test_real_git_does_what_that_matrix_claims[symbolic-ref HEAD refs/heads/keepme]
+tests/test_hooks_0903.py::test_real_git_does_what_that_matrix_claims[symbolic-ref HEAD]
+tests/test_hooks_0903.py::test_refusing_the_ledgers_to_everyone_takes_nothing_else_away
+tests/test_hooks_0903.py::test_strict_still_arms_it_for_everyone_and_zero_does_not_disarm_the_tester
+tests/test_hooks_0903.py::test_the_bash_guard_is_armed_by_the_agent_the_event_names[{"agent_name": "verdict"}]
+tests/test_hooks_0903.py::test_the_bash_guard_is_armed_by_the_agent_the_event_names[{"agent_type": "acme:verdict"}]
+tests/test_hooks_0903.py::test_the_bash_guard_is_armed_by_the_agent_the_event_names[{"agent_type": "verdict"}]
+tests/test_hooks_0903.py::test_the_bash_guard_is_armed_by_the_agent_the_event_names[{"agent_type": "verdict-rc"}]
+tests/test_hooks_0903.py::test_the_bash_guard_is_armed_by_the_agent_the_event_names[{"agent_type": "verdict:verdict"}]
+tests/test_hooks_0903.py::test_the_bash_guard_is_armed_by_the_agent_the_event_names[{"subagent_type": "verdict:verdict"}]
+tests/test_hooks_0903.py::test_the_bash_guard_keeps_refusing_the_ledgers[(cd .qa && cp /etc/hosts answers.json)]
+tests/test_hooks_0903.py::test_the_bash_guard_keeps_refusing_the_ledgers[(rm .qa/accepted.json)]
+tests/test_hooks_0903.py::test_the_bash_guard_keeps_refusing_the_ledgers[cd .qa && echo '{}' > accepted.json]
+tests/test_hooks_0903.py::test_the_bash_guard_keeps_refusing_the_ledgers[cp /etc/hosts .qa/answers.json]
+tests/test_hooks_0903.py::test_the_bash_guard_keeps_refusing_the_ledgers[echo '{}' > .qa/accepted.json]
+tests/test_hooks_0903.py::test_the_bash_guard_keeps_refusing_the_ledgers[rm .qa/answers.json]
+tests/test_hooks_0903.py::test_the_bash_guard_keeps_refusing_the_ledgers[tee .qa/accepted.json]
+tests/test_hooks_0903.py::test_the_command_behind_a_wrapper_is_read_whatever_the_wrapper_is_given[builtin eval 'rm src/app.py']
+tests/test_hooks_0903.py::test_the_command_behind_a_wrapper_is_read_whatever_the_wrapper_is_given[caffeinate -i rm src/app.py]
+tests/test_hooks_0903.py::test_the_command_behind_a_wrapper_is_read_whatever_the_wrapper_is_given[chrt -r 10 rm src/app.py]
+tests/test_hooks_0903.py::test_the_command_behind_a_wrapper_is_read_whatever_the_wrapper_is_given[command -p rm src/app.py]
+tests/test_hooks_0903.py::test_the_command_behind_a_wrapper_is_read_whatever_the_wrapper_is_given[env -C .qa rm ../src/app.py]
+tests/test_hooks_0903.py::test_the_command_behind_a_wrapper_is_read_whatever_the_wrapper_is_given[env -C src rm app.py]
+tests/test_hooks_0903.py::test_the_command_behind_a_wrapper_is_read_whatever_the_wrapper_is_given[env -S 'rm src/app.py']
+tests/test_hooks_0903.py::test_the_command_behind_a_wrapper_is_read_whatever_the_wrapper_is_given[env -i rm src/app.py]
+tests/test_hooks_0903.py::test_the_command_behind_a_wrapper_is_read_whatever_the_wrapper_is_given[env -u X FOO=1 rm src/app.py]
+tests/test_hooks_0903.py::test_the_command_behind_a_wrapper_is_read_whatever_the_wrapper_is_given[exec -a x rm src/app.py]
+tests/test_hooks_0903.py::test_the_command_behind_a_wrapper_is_read_whatever_the_wrapper_is_given[flock /tmp/l rm src/app.py]
+tests/test_hooks_0903.py::test_the_command_behind_a_wrapper_is_read_whatever_the_wrapper_is_given[flock src/.lock pytest]
+tests/test_hooks_0903.py::test_the_command_behind_a_wrapper_is_read_whatever_the_wrapper_is_given[gtimeout 5 rm src/app.py]
+tests/test_hooks_0903.py::test_the_command_behind_a_wrapper_is_read_whatever_the_wrapper_is_given[ionice -c 3 rm src/app.py]
+tests/test_hooks_0903.py::test_the_command_behind_a_wrapper_is_read_whatever_the_wrapper_is_given[nice --adjustment=5 rm src/app.py]
+tests/test_hooks_0903.py::test_the_command_behind_a_wrapper_is_read_whatever_the_wrapper_is_given[nice -n 5 rm src/app.py]
+tests/test_hooks_0903.py::test_the_command_behind_a_wrapper_is_read_whatever_the_wrapper_is_given[nice -n5 rm src/app.py]
+tests/test_hooks_0903.py::test_the_command_behind_a_wrapper_is_read_whatever_the_wrapper_is_given[script -q -c 'rm src/app.py' /dev/null]
+tests/test_hooks_0903.py::test_the_command_behind_a_wrapper_is_read_whatever_the_wrapper_is_given[script -q /dev/null rm src/app.py]
+tests/test_hooks_0903.py::test_the_command_behind_a_wrapper_is_read_whatever_the_wrapper_is_given[script -q src/app.py pytest]
+tests/test_hooks_0903.py::test_the_command_behind_a_wrapper_is_read_whatever_the_wrapper_is_given[script src/typescript]
+tests/test_hooks_0903.py::test_the_command_behind_a_wrapper_is_read_whatever_the_wrapper_is_given[script]
+tests/test_hooks_0903.py::test_the_command_behind_a_wrapper_is_read_whatever_the_wrapper_is_given[stdbuf -o L rm src/app.py]
+tests/test_hooks_0903.py::test_the_command_behind_a_wrapper_is_read_whatever_the_wrapper_is_given[stdbuf -oL rm src/app.py]
+tests/test_hooks_0903.py::test_the_command_behind_a_wrapper_is_read_whatever_the_wrapper_is_given[sudo -- rm src/app.py]
+tests/test_hooks_0903.py::test_the_command_behind_a_wrapper_is_read_whatever_the_wrapper_is_given[sudo -n -u nobody rm src/app.py]
+tests/test_hooks_0903.py::test_the_command_behind_a_wrapper_is_read_whatever_the_wrapper_is_given[sudo -n rm src/app.py]
+tests/test_hooks_0903.py::test_the_command_behind_a_wrapper_is_read_whatever_the_wrapper_is_given[sudo env nice -n 1 timeout 5 rm src/app.py]
+tests/test_hooks_0903.py::test_the_command_behind_a_wrapper_is_read_whatever_the_wrapper_is_given[taskset -c 0 rm src/app.py]
+tests/test_hooks_0903.py::test_the_command_behind_a_wrapper_is_read_whatever_the_wrapper_is_given[taskset 0x1 rm src/app.py]
+tests/test_hooks_0903.py::test_the_command_behind_a_wrapper_is_read_whatever_the_wrapper_is_given[time -o src/timing.txt pytest]
+tests/test_hooks_0903.py::test_the_command_behind_a_wrapper_is_read_whatever_the_wrapper_is_given[time -p rm src/app.py]
+tests/test_hooks_0903.py::test_the_command_behind_a_wrapper_is_read_whatever_the_wrapper_is_given[timeout --signal=KILL -k 1 5 rm src/app.py]
+tests/test_hooks_0903.py::test_the_command_behind_a_wrapper_is_read_whatever_the_wrapper_is_given[timeout -s KILL 5 rm src/app.py]
+tests/test_hooks_0903.py::test_the_guard_agrees_with_git_about_the_verbs_it_did_not_model[add --dry-run .]
+tests/test_hooks_0903.py::test_the_guard_agrees_with_git_about_the_verbs_it_did_not_model[add -A]
+tests/test_hooks_0903.py::test_the_guard_agrees_with_git_about_the_verbs_it_did_not_model[add -n .]
+tests/test_hooks_0903.py::test_the_guard_agrees_with_git_about_the_verbs_it_did_not_model[archive HEAD -o leak.tar]
+tests/test_hooks_0903.py::test_the_guard_agrees_with_git_about_the_verbs_it_did_not_model[archive HEAD]
+tests/test_hooks_0903.py::test_the_guard_agrees_with_git_about_the_verbs_it_did_not_model[bundle create leak.bundle HEAD]
+tests/test_hooks_0903.py::test_the_guard_agrees_with_git_about_the_verbs_it_did_not_model[checkout-index -a -f]
+tests/test_hooks_0903.py::test_the_guard_agrees_with_git_about_the_verbs_it_did_not_model[clean --dry-run --no-dry-run -f]
+tests/test_hooks_0903.py::test_the_guard_agrees_with_git_about_the_verbs_it_did_not_model[clean -fdn]
+tests/test_hooks_0903.py::test_the_guard_agrees_with_git_about_the_verbs_it_did_not_model[clean -n --no-dry -f]
+tests/test_hooks_0903.py::test_the_guard_agrees_with_git_about_the_verbs_it_did_not_model[clean -n --no-dry-run -f]
+tests/test_hooks_0903.py::test_the_guard_agrees_with_git_about_the_verbs_it_did_not_model[clean -n]
+tests/test_hooks_0903.py::test_the_guard_agrees_with_git_about_the_verbs_it_did_not_model[clone -q . copy]
+tests/test_hooks_0903.py::test_the_guard_agrees_with_git_about_the_verbs_it_did_not_model[commit -m --help -a]
+tests/test_hooks_0903.py::test_the_guard_agrees_with_git_about_the_verbs_it_did_not_model[config get user.name]
+tests/test_hooks_0903.py::test_the_guard_agrees_with_git_about_the_verbs_it_did_not_model[diff --output=leak.txt]
+tests/test_hooks_0903.py::test_the_guard_agrees_with_git_about_the_verbs_it_did_not_model[format-patch -1 --stdout]
+tests/test_hooks_0903.py::test_the_guard_agrees_with_git_about_the_verbs_it_did_not_model[format-patch -1 -o patches]
+tests/test_hooks_0903.py::test_the_guard_agrees_with_git_about_the_verbs_it_did_not_model[format-patch -1]
+tests/test_hooks_0903.py::test_the_guard_agrees_with_git_about_the_verbs_it_did_not_model[init nested]
+tests/test_hooks_0903.py::test_the_guard_agrees_with_git_about_the_verbs_it_did_not_model[log --output leak.txt]
+tests/test_hooks_0903.py::test_the_guard_agrees_with_git_about_the_verbs_it_did_not_model[log --output=leak.txt]
+tests/test_hooks_0903.py::test_the_guard_agrees_with_git_about_the_verbs_it_did_not_model[read-tree --empty]
+tests/test_hooks_0903.py::test_the_guard_agrees_with_git_about_the_verbs_it_did_not_model[reflog -n 5]
+tests/test_hooks_0903.py::test_the_guard_agrees_with_git_about_the_verbs_it_did_not_model[reflog HEAD]
+tests/test_hooks_0903.py::test_the_guard_agrees_with_git_about_the_verbs_it_did_not_model[reflog expire --expire=now --all]
+tests/test_hooks_0903.py::test_the_guard_agrees_with_git_about_the_verbs_it_did_not_model[reflog show --output=leak.txt]
+tests/test_hooks_0903.py::test_the_guard_agrees_with_git_about_the_verbs_it_did_not_model[remote -v add up /nowhere]
+tests/test_hooks_0903.py::test_the_guard_agrees_with_git_about_the_verbs_it_did_not_model[remote -v]
+tests/test_hooks_0903.py::test_the_guard_agrees_with_git_about_the_verbs_it_did_not_model[remote add up /nowhere]
+tests/test_hooks_0903.py::test_the_guard_agrees_with_git_about_the_verbs_it_did_not_model[remote]
+tests/test_hooks_0903.py::test_the_guard_agrees_with_git_about_the_verbs_it_did_not_model[rm -n a.txt]
+tests/test_hooks_0903.py::test_the_guard_agrees_with_git_about_the_verbs_it_did_not_model[shortlog --output=leak.txt HEAD]
+tests/test_hooks_0903.py::test_the_guard_agrees_with_git_about_the_verbs_it_did_not_model[stash show -p --output=leak.txt]
+tests/test_hooks_0903.py::test_the_guard_agrees_with_git_about_the_verbs_it_did_not_model[submodule foreach git status]
+tests/test_hooks_0903.py::test_the_guard_agrees_with_git_about_the_verbs_it_did_not_model[symbolic-ref HEAD refs/heads/keepme]
+tests/test_hooks_0903.py::test_the_guard_agrees_with_git_about_the_verbs_it_did_not_model[symbolic-ref HEAD]
+tests/test_hooks_0903.py::test_the_guard_agrees_with_the_shell_that_would_run[! rm src/app.py]
+tests/test_hooks_0903.py::test_the_guard_agrees_with_the_shell_that_would_run["rm" "src/app.py"]
+tests/test_hooks_0903.py::test_the_guard_agrees_with_the_shell_that_would_run[(cd .qa && true); echo x > probe.txt]
+tests/test_hooks_0903.py::test_the_guard_agrees_with_the_shell_that_would_run[(exec -a x rm src/app.py)]
+tests/test_hooks_0903.py::test_the_guard_agrees_with_the_shell_that_would_run[(rm src/app.py)]
+tests/test_hooks_0903.py::test_the_guard_agrees_with_the_shell_that_would_run[(true)]
+tests/test_hooks_0903.py::test_the_guard_agrees_with_the_shell_that_would_run[bash -c "sh -c \\"bash -c \\\\\\"sh -c 'rm src/app.py'\\\\\\"\\""]
+tests/test_hooks_0903.py::test_the_guard_agrees_with_the_shell_that_would_run[bash -ec 'echo x > .qa/out']
+tests/test_hooks_0903.py::test_the_guard_agrees_with_the_shell_that_would_run[bash -ec 'rm src/app.py']
+tests/test_hooks_0903.py::test_the_guard_agrees_with_the_shell_that_would_run[bash <<<'rm src/app.py']
+tests/test_hooks_0903.py::test_the_guard_agrees_with_the_shell_that_would_run[bash <<EOF\nrm src/app.py\nEOF]
+tests/test_hooks_0903.py::test_the_guard_agrees_with_the_shell_that_would_run[cat <<'EOF' > /dev/null\nrm -rf src\nEOF]
+tests/test_hooks_0903.py::test_the_guard_agrees_with_the_shell_that_would_run[cat > .qa/notes.md <<'EOF'\nrm -rf src\nEOF]
+tests/test_hooks_0903.py::test_the_guard_agrees_with_the_shell_that_would_run[cat > src/app.py <<'EOF'\nx\nEOF]
+tests/test_hooks_0903.py::test_the_guard_agrees_with_the_shell_that_would_run[cd "$(git rev-parse --show-toplevel)" && echo x > .qa/probe.txt]
+tests/test_hooks_0903.py::test_the_guard_agrees_with_the_shell_that_would_run[cd "$(git rev-parse --show-toplevel)" && echo x > probe.txt]
+tests/test_hooks_0903.py::test_the_guard_agrees_with_the_shell_that_would_run[cd .qa && (cd .. && echo x > probe.txt)]
+tests/test_hooks_0903.py::test_the_guard_agrees_with_the_shell_that_would_run[cd .qa && (cd .. && true) && echo x > probe.txt]
+tests/test_hooks_0903.py::test_the_guard_agrees_with_the_shell_that_would_run[cd .qa && bash -c 'cd .. && echo x > .qa/probe.txt']
+tests/test_hooks_0903.py::test_the_guard_agrees_with_the_shell_that_would_run[cd .qa && bash -c 'cd .. && echo x > probe.txt']
+tests/test_hooks_0903.py::test_the_guard_agrees_with_the_shell_that_would_run[cd .qa && cd "$OLDPWD" && echo x > probe.txt]
+tests/test_hooks_0903.py::test_the_guard_agrees_with_the_shell_that_would_run[cd .qa && cd - > /dev/null && echo x > probe.txt]
+tests/test_hooks_0903.py::test_the_guard_agrees_with_the_shell_that_would_run[cd .qa && echo x > "$(pwd)/probe.txt"]
+tests/test_hooks_0903.py::test_the_guard_agrees_with_the_shell_that_would_run[cd .qa && echo x > "$PWD/probe.txt"]
+tests/test_hooks_0903.py::test_the_guard_agrees_with_the_shell_that_would_run[cd .qa && echo x > probe.txt]
+tests/test_hooks_0903.py::test_the_guard_agrees_with_the_shell_that_would_run[cd .qa && echo x | tee probe.txt > /dev/null]
+tests/test_hooks_0903.py::test_the_guard_agrees_with_the_shell_that_would_run[cd .qa | true; echo x > probe.txt]
+tests/test_hooks_0903.py::test_the_guard_agrees_with_the_shell_that_would_run[cd src && cd - > /dev/null && echo x > .qa/probe.txt]
+tests/test_hooks_0903.py::test_the_guard_agrees_with_the_shell_that_would_run[command -p rm src/app.py]
+tests/test_hooks_0903.py::test_the_guard_agrees_with_the_shell_that_would_run[command -v rm > /dev/null]
+tests/test_hooks_0903.py::test_the_guard_agrees_with_the_shell_that_would_run[command cd .qa && echo x > probe.txt]
+tests/test_hooks_0903.py::test_the_guard_agrees_with_the_shell_that_would_run[echo src/app.py | xargs bash -c 'rm $0']
+tests/test_hooks_0903.py::test_the_guard_agrees_with_the_shell_that_would_run[echo src/app.py | xargs cat > /dev/null]
+tests/test_hooks_0903.py::test_the_guard_agrees_with_the_shell_that_would_run[echo src/app.py | xargs rm]
+tests/test_hooks_0903.py::test_the_guard_agrees_with_the_shell_that_would_run[echo src/app.py | xargs sed -n p > /dev/null]
+tests/test_hooks_0903.py::test_the_guard_agrees_with_the_shell_that_would_run[echo x 1<> src/app.py]
+tests/test_hooks_0903.py::test_the_guard_agrees_with_the_shell_that_would_run[echo x 2>&1 >/dev/null]
+tests/test_hooks_0903.py::test_the_guard_agrees_with_the_shell_that_would_run[echo x <> src/new.py]
+tests/test_hooks_0903.py::test_the_guard_agrees_with_the_shell_that_would_run[echo x > "$PWD/probe.txt"]
+tests/test_hooks_0903.py::test_the_guard_agrees_with_the_shell_that_would_run[echo x >& .qa/out.log]
+tests/test_hooks_0903.py::test_the_guard_agrees_with_the_shell_that_would_run[echo x >& src/app.py]
+tests/test_hooks_0903.py::test_the_guard_agrees_with_the_shell_that_would_run[echo x >&2]
+tests/test_hooks_0903.py::test_the_guard_agrees_with_the_shell_that_would_run[echo x >&src/app.py]
+tests/test_hooks_0903.py::test_the_guard_agrees_with_the_shell_that_would_run[env -S 'rm src/app.py']
+tests/test_hooks_0903.py::test_the_guard_agrees_with_the_shell_that_would_run[env FOO=1 rm src/app.py]
+tests/test_hooks_0903.py::test_the_guard_agrees_with_the_shell_that_would_run[find .qa -name '*.md' -exec rm {} \\;]
+tests/test_hooks_0903.py::test_the_guard_agrees_with_the_shell_that_would_run[find src -name '*.py' -exec cat {} \\; > /dev/null]
+tests/test_hooks_0903.py::test_the_guard_agrees_with_the_shell_that_would_run[find src -name '*.py' -exec rm {} \\;]
+tests/test_hooks_0903.py::test_the_guard_agrees_with_the_shell_that_would_run[find src -name '*.py' -exec sed -i.bak s/a/z/ {} \\;]
+tests/test_hooks_0903.py::test_the_guard_agrees_with_the_shell_that_would_run[find src -name '*.py' -exec sh -c 'rm "$1"' _ {} \\;]
+tests/test_hooks_0903.py::test_the_guard_agrees_with_the_shell_that_would_run[git ls-files | xargs git log --oneline -- > /dev/null]
+tests/test_hooks_0903.py::test_the_guard_agrees_with_the_shell_that_would_run[gzip -c src/app.py > .qa/app.gz]
+tests/test_hooks_0903.py::test_the_guard_agrees_with_the_shell_that_would_run[gzip -k src/app.py]
+tests/test_hooks_0903.py::test_the_guard_agrees_with_the_shell_that_would_run[gzip src/app.py]
+tests/test_hooks_0903.py::test_the_guard_agrees_with_the_shell_that_would_run[if false; then :; else rm src/app.py; fi]
+tests/test_hooks_0903.py::test_the_guard_agrees_with_the_shell_that_would_run[if rm src/app.py; then :; fi]
+tests/test_hooks_0903.py::test_the_guard_agrees_with_the_shell_that_would_run[if true; then rm src/app.py; fi]
+tests/test_hooks_0903.py::test_the_guard_agrees_with_the_shell_that_would_run[mkdir -p .qa/reports 2>&1]
+tests/test_hooks_0903.py::test_the_guard_agrees_with_the_shell_that_would_run[mkfifo .qa/fifo]
+tests/test_hooks_0903.py::test_the_guard_agrees_with_the_shell_that_would_run[mkfifo src/fifo]
+tests/test_hooks_0903.py::test_the_guard_agrees_with_the_shell_that_would_run[nice -n 5 rm src/app.py]
+tests/test_hooks_0903.py::test_the_guard_agrees_with_the_shell_that_would_run[nice -n 5 true]
+tests/test_hooks_0903.py::test_the_guard_agrees_with_the_shell_that_would_run[perl -i -pe s/a/z/ .qa/notes.md]
+tests/test_hooks_0903.py::test_the_guard_agrees_with_the_shell_that_would_run[perl -i -pe s/a/z/ src/app.py]
+tests/test_hooks_0903.py::test_the_guard_agrees_with_the_shell_that_would_run[perl -ne 'print' src/app.py > /dev/null]
+tests/test_hooks_0903.py::test_the_guard_agrees_with_the_shell_that_would_run[pushd .qa > /dev/null && echo x > ../src/probe.txt]
+tests/test_hooks_0903.py::test_the_guard_agrees_with_the_shell_that_would_run[pushd .qa > /dev/null && popd > /dev/null && echo x > probe.txt]
+tests/test_hooks_0903.py::test_the_guard_agrees_with_the_shell_that_would_run[pushd .qa > /dev/null && pushd reports > /dev/null && popd > /dev/null && echo x > probe.txt]
+tests/test_hooks_0903.py::test_the_guard_agrees_with_the_shell_that_would_run[rm -f .qa/tmp.txt 2>/dev/null]
+tests/test_hooks_0903.py::test_the_guard_agrees_with_the_shell_that_would_run[rm src/app.py 2>&1]
+tests/test_hooks_0903.py::test_the_guard_agrees_with_the_shell_that_would_run[sed -i.bak s/a/z/ .qa/notes.md]
+tests/test_hooks_0903.py::test_the_guard_agrees_with_the_shell_that_would_run[sed -i.bak s/a/z/ src/app.py]
+tests/test_hooks_0903.py::test_the_guard_agrees_with_the_shell_that_would_run[sed -n 1p src/app.py > /dev/null]
+tests/test_hooks_0903.py::test_the_guard_agrees_with_the_shell_that_would_run[sort -o src/app.py src/app.py]
+tests/test_hooks_0903.py::test_the_guard_agrees_with_the_shell_that_would_run[sort src/app.py -o .qa/sorted]
+tests/test_hooks_0903.py::test_the_guard_agrees_with_the_shell_that_would_run[split -l 1 src/app.py .qa/part]
+tests/test_hooks_0903.py::test_the_guard_agrees_with_the_shell_that_would_run[split -l 1 src/app.py src/part]
+tests/test_hooks_0903.py::test_the_guard_agrees_with_the_shell_that_would_run[tee src/app.py < /dev/null]
+tests/test_hooks_0903.py::test_the_guard_agrees_with_the_shell_that_would_run[time -p rm src/app.py]
+tests/test_hooks_0903.py::test_the_guard_agrees_with_the_shell_that_would_run[true & rm src/app.py]
+tests/test_hooks_0903.py::test_the_guard_agrees_with_the_shell_that_would_run[while true; do rm src/app.py; break; done]
+tests/test_hooks_0903.py::test_the_guard_agrees_with_the_shell_that_would_run[{ ls > /dev/null; }]
+tests/test_hooks_0903.py::test_the_guard_agrees_with_the_shell_that_would_run[{ rm src/app.py; }]
+tests/test_hooks_0903.py::test_the_guard_says_the_same_thing_under_the_system_python[(pytest -q)]
+tests/test_hooks_0903.py::test_the_guard_says_the_same_thing_under_the_system_python[(rm src/app.py)]
+tests/test_hooks_0903.py::test_the_guard_says_the_same_thing_under_the_system_python[bash -c "sh -c \\"bash -c \\\\\\"sh -c 'rm src/app.py'\\\\\\"\\""]
+tests/test_hooks_0903.py::test_the_guard_says_the_same_thing_under_the_system_python[bash -lc 'rm src/app.py']
+tests/test_hooks_0903.py::test_the_guard_says_the_same_thing_under_the_system_python[bash <<EOF\nrm src/app.py\nEOF]
+tests/test_hooks_0903.py::test_the_guard_says_the_same_thing_under_the_system_python[black --check src]
+tests/test_hooks_0903.py::test_the_guard_says_the_same_thing_under_the_system_python[black .]
+tests/test_hooks_0903.py::test_the_guard_says_the_same_thing_under_the_system_python[cat > .qa/notes.md <<'EOF'\nrm -rf src\nEOF]
+tests/test_hooks_0903.py::test_the_guard_says_the_same_thing_under_the_system_python[cd .qa && cd - && echo x > src/app.py]
+tests/test_hooks_0903.py::test_the_guard_says_the_same_thing_under_the_system_python[cd .qa && echo x > notes.md]
+tests/test_hooks_0903.py::test_the_guard_says_the_same_thing_under_the_system_python[cd .qa && pytest 2>&1 | tee report.log]
+tests/test_hooks_0903.py::test_the_guard_says_the_same_thing_under_the_system_python[cmd 2>&1]
+tests/test_hooks_0903.py::test_the_guard_says_the_same_thing_under_the_system_python[curl -o src/app.py http://127.0.0.1/x]
+tests/test_hooks_0903.py::test_the_guard_says_the_same_thing_under_the_system_python[curl -sI http://127.0.0.1/x]
+tests/test_hooks_0903.py::test_the_guard_says_the_same_thing_under_the_system_python[echo '{}' > .qa/accepted.json]
+tests/test_hooks_0903.py::test_the_guard_says_the_same_thing_under_the_system_python[echo x 1<> src/app.py]
+tests/test_hooks_0903.py::test_the_guard_says_the_same_thing_under_the_system_python[echo x > /var/tmp/verdict-probe.txt]
+tests/test_hooks_0903.py::test_the_guard_says_the_same_thing_under_the_system_python[echo x > src/app.py]
+tests/test_hooks_0903.py::test_the_guard_says_the_same_thing_under_the_system_python[echo x >& src/app.py]
+tests/test_hooks_0903.py::test_the_guard_says_the_same_thing_under_the_system_python[echo x | xargs sed -n p]
+tests/test_hooks_0903.py::test_the_guard_says_the_same_thing_under_the_system_python[exec 3>&-]
+tests/test_hooks_0903.py::test_the_guard_says_the_same_thing_under_the_system_python[find src -exec sed -i s/a/b/ {} \\;]
+tests/test_hooks_0903.py::test_the_guard_says_the_same_thing_under_the_system_python[git checkout-index -a -f]
+tests/test_hooks_0903.py::test_the_guard_says_the_same_thing_under_the_system_python[git clean -n]
+tests/test_hooks_0903.py::test_the_guard_says_the_same_thing_under_the_system_python[git log --output=src/app.py]
+tests/test_hooks_0903.py::test_the_guard_says_the_same_thing_under_the_system_python[git log -n 5]
+tests/test_hooks_0903.py::test_the_guard_says_the_same_thing_under_the_system_python[git ls-files | xargs git log --]
+tests/test_hooks_0903.py::test_the_guard_says_the_same_thing_under_the_system_python[git reflog -n 5]
+tests/test_hooks_0903.py::test_the_guard_says_the_same_thing_under_the_system_python[git remote -v]
+tests/test_hooks_0903.py::test_the_guard_says_the_same_thing_under_the_system_python[gzip -c src/app.py > /tmp/x.gz]
+tests/test_hooks_0903.py::test_the_guard_says_the_same_thing_under_the_system_python[gzip src/app.py]
+tests/test_hooks_0903.py::test_the_guard_says_the_same_thing_under_the_system_python[if true; then rm src/app.py; fi]
+tests/test_hooks_0903.py::test_the_guard_says_the_same_thing_under_the_system_python[pushd .qa && echo x > ../src/app.py]
+tests/test_hooks_0903.py::test_the_guard_says_the_same_thing_under_the_system_python[script -q src/app.py pytest]
+tests/test_hooks_0903.py::test_the_guard_says_the_same_thing_under_the_system_python[sed -i '' 's/a/b/' .qa/notes.md]
+tests/test_hooks_0903.py::test_the_guard_says_the_same_thing_under_the_system_python[sort -o src/app.py src/app.py]
+tests/test_hooks_0903.py::test_the_guard_says_the_same_thing_under_the_system_python[sudo -n rm src/app.py]
+tests/test_hooks_0903.py::test_the_guard_says_the_same_thing_under_the_system_python[truncate -s 0 .qa/log]
+tests/test_hooks_0903.py::test_the_guard_says_the_same_thing_under_the_system_python[unzip -o z -d src]
+tests/test_hooks_0903.py::test_the_guard_says_the_same_thing_under_the_system_python[uvx ruff format]
+tests/test_hooks_0903.py::test_the_guard_says_the_same_thing_under_the_system_python[xargs bash -c 'rm $0']
+tests/test_hooks_0903.py::test_the_ledgers_are_refused_whoever_asks_and_in_whatever_mode[another agent-accepted.json-verdict-accept]
+tests/test_hooks_0903.py::test_the_ledgers_are_refused_whoever_asks_and_in_whatever_mode[another agent-answers.json-verdict-answer]
+tests/test_hooks_0903.py::test_the_ledgers_are_refused_whoever_asks_and_in_whatever_mode[nobody named-accepted.json-verdict-accept]
+tests/test_hooks_0903.py::test_the_ledgers_are_refused_whoever_asks_and_in_whatever_mode[nobody named-answers.json-verdict-answer]
+tests/test_hooks_0903.py::test_the_ledgers_are_refused_whoever_asks_and_in_whatever_mode[the tester-accepted.json-verdict-accept]
+tests/test_hooks_0903.py::test_the_ledgers_are_refused_whoever_asks_and_in_whatever_mode[the tester-answers.json-verdict-answer]
+tests/test_hooks_0903.py::test_the_reason_names_the_file_and_not_the_script
+tests/test_hooks_0903.py::test_the_same_commands_reading_or_writing_in_scope_are_allowed[7z l x.7z]
+tests/test_hooks_0903.py::test_the_same_commands_reading_or_writing_in_scope_are_allowed[7z x x.7z -o@SCRATCH]
+tests/test_hooks_0903.py::test_the_same_commands_reading_or_writing_in_scope_are_allowed[cd .qa && cpio -id < ../x.cpio]
+tests/test_hooks_0903.py::test_the_same_commands_reading_or_writing_in_scope_are_allowed[cd .qa && patch a fix.diff]
+tests/test_hooks_0903.py::test_the_same_commands_reading_or_writing_in_scope_are_allowed[cd .qa && split -l 100 ../src/app.py]
+tests/test_hooks_0903.py::test_the_same_commands_reading_or_writing_in_scope_are_allowed[cd @SCRATCH && wget http://127.0.0.1/x]
+tests/test_hooks_0903.py::test_the_same_commands_reading_or_writing_in_scope_are_allowed[cpio -it < x.cpio]
+tests/test_hooks_0903.py::test_the_same_commands_reading_or_writing_in_scope_are_allowed[curl -s -o .qa/resp.html http://127.0.0.1:8000]
+tests/test_hooks_0903.py::test_the_same_commands_reading_or_writing_in_scope_are_allowed[curl -s http://127.0.0.1/x > .qa/resp.html]
+tests/test_hooks_0903.py::test_the_same_commands_reading_or_writing_in_scope_are_allowed[curl -s http://127.0.0.1:8000/health]
+tests/test_hooks_0903.py::test_the_same_commands_reading_or_writing_in_scope_are_allowed[curl -sD - http://127.0.0.1/x]
+tests/test_hooks_0903.py::test_the_same_commands_reading_or_writing_in_scope_are_allowed[curl -sI http://127.0.0.1/x]
+tests/test_hooks_0903.py::test_the_same_commands_reading_or_writing_in_scope_are_allowed[curl -sS -o /dev/null -w '%{http_code}' http://127.0.0.1:8000]
+tests/test_hooks_0903.py::test_the_same_commands_reading_or_writing_in_scope_are_allowed[dos2unix -i src/app.py]
+tests/test_hooks_0903.py::test_the_same_commands_reading_or_writing_in_scope_are_allowed[dos2unix -n src/app.py .qa/app.py]
+tests/test_hooks_0903.py::test_the_same_commands_reading_or_writing_in_scope_are_allowed[gunzip -c src/app.py.gz | head]
+tests/test_hooks_0903.py::test_the_same_commands_reading_or_writing_in_scope_are_allowed[gzip -c src/app.py > /tmp/x.gz]
+tests/test_hooks_0903.py::test_the_same_commands_reading_or_writing_in_scope_are_allowed[gzip -dc .qa/log.gz]
+tests/test_hooks_0903.py::test_the_same_commands_reading_or_writing_in_scope_are_allowed[gzip -l src/app.py.gz]
+tests/test_hooks_0903.py::test_the_same_commands_reading_or_writing_in_scope_are_allowed[gzip -t src/app.py.gz]
+tests/test_hooks_0903.py::test_the_same_commands_reading_or_writing_in_scope_are_allowed[gzip .qa/big.log]
+tests/test_hooks_0903.py::test_the_same_commands_reading_or_writing_in_scope_are_allowed[iconv -f utf8 -t ascii -o .qa/app.txt src/app.py]
+tests/test_hooks_0903.py::test_the_same_commands_reading_or_writing_in_scope_are_allowed[iconv -f utf8 -t ascii src/app.py]
+tests/test_hooks_0903.py::test_the_same_commands_reading_or_writing_in_scope_are_allowed[mkfifo -m 600 .qa/fifo]
+tests/test_hooks_0903.py::test_the_same_commands_reading_or_writing_in_scope_are_allowed[mkfifo .qa/fifo]
+tests/test_hooks_0903.py::test_the_same_commands_reading_or_writing_in_scope_are_allowed[patch --dry-run -p1 < fix.diff]
+tests/test_hooks_0903.py::test_the_same_commands_reading_or_writing_in_scope_are_allowed[patch -o .qa/out src/app.py d]
+tests/test_hooks_0903.py::test_the_same_commands_reading_or_writing_in_scope_are_allowed[patch .qa/a .qa/fix.diff]
+tests/test_hooks_0903.py::test_the_same_commands_reading_or_writing_in_scope_are_allowed[pax -f x.tar]
+tests/test_hooks_0903.py::test_the_same_commands_reading_or_writing_in_scope_are_allowed[rename -n 's/a/b/' src/app.py]
+tests/test_hooks_0903.py::test_the_same_commands_reading_or_writing_in_scope_are_allowed[sort -o @SCRATCH/sorted src/app.py]
+tests/test_hooks_0903.py::test_the_same_commands_reading_or_writing_in_scope_are_allowed[sort -u -k2 -t, src/app.py]
+tests/test_hooks_0903.py::test_the_same_commands_reading_or_writing_in_scope_are_allowed[sort src/app.py -o .qa/sorted]
+tests/test_hooks_0903.py::test_the_same_commands_reading_or_writing_in_scope_are_allowed[sort src/app.py]
+tests/test_hooks_0903.py::test_the_same_commands_reading_or_writing_in_scope_are_allowed[split -l 100 src/app.py .qa/part-]
+tests/test_hooks_0903.py::test_the_same_commands_reading_or_writing_in_scope_are_allowed[truncate -r src/app.py .qa/log]
+tests/test_hooks_0903.py::test_the_same_commands_reading_or_writing_in_scope_are_allowed[truncate -s 0 .qa/log]
+tests/test_hooks_0903.py::test_the_same_commands_reading_or_writing_in_scope_are_allowed[truncate -s0 .qa/log]
+tests/test_hooks_0903.py::test_the_same_commands_reading_or_writing_in_scope_are_allowed[unrar l x.rar]
+tests/test_hooks_0903.py::test_the_same_commands_reading_or_writing_in_scope_are_allowed[unzip -l z.zip]
+tests/test_hooks_0903.py::test_the_same_commands_reading_or_writing_in_scope_are_allowed[unzip -o z.zip -d .qa/unpacked]
+tests/test_hooks_0903.py::test_the_same_commands_reading_or_writing_in_scope_are_allowed[unzip -o z.zip -d @SCRATCH]
+tests/test_hooks_0903.py::test_the_same_commands_reading_or_writing_in_scope_are_allowed[unzip -p z.zip member]
+tests/test_hooks_0903.py::test_the_same_commands_reading_or_writing_in_scope_are_allowed[wget --spider http://127.0.0.1:8000]
+tests/test_hooks_0903.py::test_the_same_commands_reading_or_writing_in_scope_are_allowed[wget -q -O - http://127.0.0.1:8000]
+tests/test_hooks_0903.py::test_the_same_commands_reading_or_writing_in_scope_are_allowed[wget -q -O .qa/resp.html http://127.0.0.1:8000]
+tests/test_hooks_0903.py::test_the_same_commands_reading_or_writing_in_scope_are_allowed[wget -q -P .qa http://127.0.0.1:8000]
+tests/test_hooks_0903.py::test_the_same_commands_reading_or_writing_in_scope_are_allowed[xz -kc src/app.py > @SCRATCH/app.xz]
+tests/test_hooks_0903.py::test_the_same_commands_reading_or_writing_in_scope_are_allowed[zip -r @SCRATCH/x.zip src]
+tests/test_hooks_0903.py::test_the_same_commands_reading_or_writing_in_scope_are_allowed[zip -sf x.zip]
+tests/test_hooks_0903.py::test_the_same_commands_reading_or_writing_in_scope_are_allowed[zstd -c src/app.py]
+tests/test_hooks_0903.py::test_the_same_commands_reading_or_writing_in_scope_are_allowed[zstd src/app.py -o @SCRATCH/app.zst]
+tests/test_hooks_0903.py::test_the_same_syntax_around_a_read_is_still_a_read[! grep -q x src/app.py]
+tests/test_hooks_0903.py::test_the_same_syntax_around_a_read_is_still_a_read[( cd src && ls )]
+tests/test_hooks_0903.py::test_the_same_syntax_around_a_read_is_still_a_read[((git stash list))]
+tests/test_hooks_0903.py::test_the_same_syntax_around_a_read_is_still_a_read[(cd .qa && git worktree list)]
+tests/test_hooks_0903.py::test_the_same_syntax_around_a_read_is_still_a_read[(git stash list)]
+tests/test_hooks_0903.py::test_the_same_syntax_around_a_read_is_still_a_read[(pytest -q)]
+tests/test_hooks_0903.py::test_the_same_syntax_around_a_read_is_still_a_read[bash --norc script.sh]
+tests/test_hooks_0903.py::test_the_same_syntax_around_a_read_is_still_a_read[bash -ec 'echo x > .qa/out']
+tests/test_hooks_0903.py::test_the_same_syntax_around_a_read_is_still_a_read[bash -lc 'git status']
+tests/test_hooks_0903.py::test_the_same_syntax_around_a_read_is_still_a_read[bash -lc 'pytest -q']
+tests/test_hooks_0903.py::test_the_same_syntax_around_a_read_is_still_a_read[bash <<EOF\npytest -q\nEOF]
+tests/test_hooks_0903.py::test_the_same_syntax_around_a_read_is_still_a_read[bash run.sh <<EOF\nrm src/app.py\nEOF]
+tests/test_hooks_0903.py::test_the_same_syntax_around_a_read_is_still_a_read[bash script.sh -c 'rm src/app.py']
+tests/test_hooks_0903.py::test_the_same_syntax_around_a_read_is_still_a_read[for f in a b; do echo $f; done]
+tests/test_hooks_0903.py::test_the_same_syntax_around_a_read_is_still_a_read[if true; then pytest -q; fi]
+tests/test_hooks_0903.py::test_the_same_syntax_around_a_read_is_still_a_read[pytest -q & wait]
+tests/test_hooks_0903.py::test_the_same_syntax_around_a_read_is_still_a_read[pytest -q |& tee .qa/out.log]
+tests/test_hooks_0903.py::test_the_same_syntax_around_a_read_is_still_a_read[python3 - <<'EOF'\nprint('rm src/app.py')\nEOF]
+tests/test_hooks_0903.py::test_the_same_syntax_around_a_read_is_still_a_read[sh -c 'cd .qa && echo x > notes.md']
+tests/test_hooks_0903.py::test_the_same_syntax_around_a_read_is_still_a_read[while read f; do cat "$f"; done < .qa/list]
+tests/test_hooks_0903.py::test_the_same_syntax_around_a_read_is_still_a_read[{ pytest -q; }]
+tests/test_hooks_0903.py::test_the_same_tools_asked_only_to_report_are_the_lint_gate[autopep8 --diff src/app.py]
+tests/test_hooks_0903.py::test_the_same_tools_asked_only_to_report_are_the_lint_gate[autopep8 src/app.py]
+tests/test_hooks_0903.py::test_the_same_tools_asked_only_to_report_are_the_lint_gate[biome check src]
+tests/test_hooks_0903.py::test_the_same_tools_asked_only_to_report_are_the_lint_gate[biome ci src]
+tests/test_hooks_0903.py::test_the_same_tools_asked_only_to_report_are_the_lint_gate[biome format src]
+tests/test_hooks_0903.py::test_the_same_tools_asked_only_to_report_are_the_lint_gate[black --check --diff .]
+tests/test_hooks_0903.py::test_the_same_tools_asked_only_to_report_are_the_lint_gate[black --check src]
+tests/test_hooks_0903.py::test_the_same_tools_asked_only_to_report_are_the_lint_gate[black --diff src]
+tests/test_hooks_0903.py::test_the_same_tools_asked_only_to_report_are_the_lint_gate[black --version]
+tests/test_hooks_0903.py::test_the_same_tools_asked_only_to_report_are_the_lint_gate[black -c 'x=1']
+tests/test_hooks_0903.py::test_the_same_tools_asked_only_to_report_are_the_lint_gate[black .qa/notes.py]
+tests/test_hooks_0903.py::test_the_same_tools_asked_only_to_report_are_the_lint_gate[cargo clippy]
+tests/test_hooks_0903.py::test_the_same_tools_asked_only_to_report_are_the_lint_gate[cargo fmt -- --check]
+tests/test_hooks_0903.py::test_the_same_tools_asked_only_to_report_are_the_lint_gate[cargo fmt --check]
+tests/test_hooks_0903.py::test_the_same_tools_asked_only_to_report_are_the_lint_gate[cargo test]
+tests/test_hooks_0903.py::test_the_same_tools_asked_only_to_report_are_the_lint_gate[cd .qa && isort .]
+tests/test_hooks_0903.py::test_the_same_tools_asked_only_to_report_are_the_lint_gate[cd @SCRATCH && black .]
+tests/test_hooks_0903.py::test_the_same_tools_asked_only_to_report_are_the_lint_gate[cd @SCRATCH && ruff format .]
+tests/test_hooks_0903.py::test_the_same_tools_asked_only_to_report_are_the_lint_gate[clang-format --dry-run -i src/a.c]
+tests/test_hooks_0903.py::test_the_same_tools_asked_only_to_report_are_the_lint_gate[clang-format -n src/a.c]
+tests/test_hooks_0903.py::test_the_same_tools_asked_only_to_report_are_the_lint_gate[clang-format src/a.c]
+tests/test_hooks_0903.py::test_the_same_tools_asked_only_to_report_are_the_lint_gate[dart analyze]
+tests/test_hooks_0903.py::test_the_same_tools_asked_only_to_report_are_the_lint_gate[dart format --output=show lib]
+tests/test_hooks_0903.py::test_the_same_tools_asked_only_to_report_are_the_lint_gate[dart format -o none .]
+tests/test_hooks_0903.py::test_the_same_tools_asked_only_to_report_are_the_lint_gate[eslint --fix-dry-run src]
+tests/test_hooks_0903.py::test_the_same_tools_asked_only_to_report_are_the_lint_gate[eslint src]
+tests/test_hooks_0903.py::test_the_same_tools_asked_only_to_report_are_the_lint_gate[gofmt -d .]
+tests/test_hooks_0903.py::test_the_same_tools_asked_only_to_report_are_the_lint_gate[gofmt -l .]
+tests/test_hooks_0903.py::test_the_same_tools_asked_only_to_report_are_the_lint_gate[goimports -l src]
+tests/test_hooks_0903.py::test_the_same_tools_asked_only_to_report_are_the_lint_gate[isort --check-only src]
+tests/test_hooks_0903.py::test_the_same_tools_asked_only_to_report_are_the_lint_gate[isort --diff src]
+tests/test_hooks_0903.py::test_the_same_tools_asked_only_to_report_are_the_lint_gate[isort -c src]
+tests/test_hooks_0903.py::test_the_same_tools_asked_only_to_report_are_the_lint_gate[npm run lint]
+tests/test_hooks_0903.py::test_the_same_tools_asked_only_to_report_are_the_lint_gate[npm test]
+tests/test_hooks_0903.py::test_the_same_tools_asked_only_to_report_are_the_lint_gate[npx eslint src]
+tests/test_hooks_0903.py::test_the_same_tools_asked_only_to_report_are_the_lint_gate[npx prettier --check src]
+tests/test_hooks_0903.py::test_the_same_tools_asked_only_to_report_are_the_lint_gate[poetry run black --check .]
+tests/test_hooks_0903.py::test_the_same_tools_asked_only_to_report_are_the_lint_gate[pre-commit --version]
+tests/test_hooks_0903.py::test_the_same_tools_asked_only_to_report_are_the_lint_gate[pre-commit run --help]
+tests/test_hooks_0903.py::test_the_same_tools_asked_only_to_report_are_the_lint_gate[pre-commit validate-config]
+tests/test_hooks_0903.py::test_the_same_tools_asked_only_to_report_are_the_lint_gate[prettier --check src]
+tests/test_hooks_0903.py::test_the_same_tools_asked_only_to_report_are_the_lint_gate[prettier --write .qa/report.md]
+tests/test_hooks_0903.py::test_the_same_tools_asked_only_to_report_are_the_lint_gate[prettier -c src]
+tests/test_hooks_0903.py::test_the_same_tools_asked_only_to_report_are_the_lint_gate[prettier -l src]
+tests/test_hooks_0903.py::test_the_same_tools_asked_only_to_report_are_the_lint_gate[prettier src/app.js]
+tests/test_hooks_0903.py::test_the_same_tools_asked_only_to_report_are_the_lint_gate[python -m isort --check-only src]
+tests/test_hooks_0903.py::test_the_same_tools_asked_only_to_report_are_the_lint_gate[python3 -m black --check src]
+tests/test_hooks_0903.py::test_the_same_tools_asked_only_to_report_are_the_lint_gate[python3 -m json.tool .qa/state.json]
+tests/test_hooks_0903.py::test_the_same_tools_asked_only_to_report_are_the_lint_gate[python3 -m pytest -q]
+tests/test_hooks_0903.py::test_the_same_tools_asked_only_to_report_are_the_lint_gate[ruff --version]
+tests/test_hooks_0903.py::test_the_same_tools_asked_only_to_report_are_the_lint_gate[ruff check --diff src]
+tests/test_hooks_0903.py::test_the_same_tools_asked_only_to_report_are_the_lint_gate[ruff check --fix --diff src]
+tests/test_hooks_0903.py::test_the_same_tools_asked_only_to_report_are_the_lint_gate[ruff check . --output-format=github]
+tests/test_hooks_0903.py::test_the_same_tools_asked_only_to_report_are_the_lint_gate[ruff check src]
+tests/test_hooks_0903.py::test_the_same_tools_asked_only_to_report_are_the_lint_gate[ruff format --check src]
+tests/test_hooks_0903.py::test_the_same_tools_asked_only_to_report_are_the_lint_gate[ruff format --diff src]
+tests/test_hooks_0903.py::test_the_same_tools_asked_only_to_report_are_the_lint_gate[ruff format @SCRATCH]
+tests/test_hooks_0903.py::test_the_same_tools_asked_only_to_report_are_the_lint_gate[rustfmt --check src/main.rs]
+tests/test_hooks_0903.py::test_the_same_tools_asked_only_to_report_are_the_lint_gate[rustfmt --emit stdout src/main.rs]
+tests/test_hooks_0903.py::test_the_same_tools_asked_only_to_report_are_the_lint_gate[shfmt -d .]
+tests/test_hooks_0903.py::test_the_same_tools_asked_only_to_report_are_the_lint_gate[shfmt -l .]
+tests/test_hooks_0903.py::test_the_same_tools_asked_only_to_report_are_the_lint_gate[swiftformat --lint .]
+tests/test_hooks_0903.py::test_the_same_tools_asked_only_to_report_are_the_lint_gate[terraform -chdir=@SCRATCH fmt]
+tests/test_hooks_0903.py::test_the_same_tools_asked_only_to_report_are_the_lint_gate[terraform fmt -check -recursive]
+tests/test_hooks_0903.py::test_the_same_tools_asked_only_to_report_are_the_lint_gate[terraform fmt -check]
+tests/test_hooks_0903.py::test_the_same_tools_asked_only_to_report_are_the_lint_gate[terraform fmt -write=false -diff]
+tests/test_hooks_0903.py::test_the_same_tools_asked_only_to_report_are_the_lint_gate[terraform validate]
+tests/test_hooks_0903.py::test_the_same_tools_asked_only_to_report_are_the_lint_gate[uv run --no-sync pytest -q]
+tests/test_hooks_0903.py::test_the_same_tools_asked_only_to_report_are_the_lint_gate[uv run pytest -q]
+tests/test_hooks_0903.py::test_the_same_tools_asked_only_to_report_are_the_lint_gate[uv run ruff format --check]
+tests/test_hooks_0903.py::test_the_same_tools_asked_only_to_report_are_the_lint_gate[uvx ruff check hooks tests]
+tests/test_hooks_0903.py::test_the_same_tools_asked_only_to_report_are_the_lint_gate[yapf -d src/app.py]
+tests/test_hooks_0903.py::test_the_same_tools_asked_only_to_report_are_the_lint_gate[yapf src/app.py]
+tests/test_hooks_0903.py::test_the_same_tools_asked_only_to_report_are_the_lint_gate[yarn test]
+tests/test_hooks_0903.py::test_the_stop_hook_reads_the_same_name_the_guards_do[verdict-opus-check-False]
+tests/test_hooks_0903.py::test_the_stop_hook_reads_the_same_name_the_guards_do[verdict-rc-True]
+tests/test_hooks_0903.py::test_the_stop_hook_reads_the_same_name_the_guards_do[verdict-root-cause-False]
+tests/test_hooks_0903.py::test_the_stop_hook_reads_the_same_name_the_guards_do[verdict:verdict-True]
+tests/test_hooks_0903.py::test_what_a_qa_run_needs_is_no_longer_refused[cat <<'EOF'\nrm -rf src\nEOF]
+tests/test_hooks_0903.py::test_what_a_qa_run_needs_is_no_longer_refused[cat <<-'EOF' > .qa/x\n\tsed -i s/a/b/ src/app.py\n\tEOF]
+tests/test_hooks_0903.py::test_what_a_qa_run_needs_is_no_longer_refused[cat > .qa/judgment.json <<'EOF'\n{"cmd": "rm src/app.py"}\nEOF\necho done]
+tests/test_hooks_0903.py::test_what_a_qa_run_needs_is_no_longer_refused[cat > .qa/notes.md <<'EOF'\nrm -rf src\ncp a b\ngit commit -am x\nEOF]
+tests/test_hooks_0903.py::test_what_a_qa_run_needs_is_no_longer_refused[cd .qa && cat > j.json <<EOF\nrm src\nEOF]
+tests/test_hooks_0903.py::test_what_a_qa_run_needs_is_no_longer_refused[cd .qa && sed -i '' s/a/b/ notes.md]
+tests/test_hooks_0903.py::test_what_a_qa_run_needs_is_no_longer_refused[cd @SCRATCH && sed -i '' s/a/b/ src/app.py]
+tests/test_hooks_0903.py::test_what_a_qa_run_needs_is_no_longer_refused[cp src/app.py /var/tmp/]
+tests/test_hooks_0903.py::test_what_a_qa_run_needs_is_no_longer_refused[echo x > /var/tmp/verdict-probe.txt]
+tests/test_hooks_0903.py::test_what_a_qa_run_needs_is_no_longer_refused[perl -Ilib -MList::Util -e 1 src/app.py]
+tests/test_hooks_0903.py::test_what_a_qa_run_needs_is_no_longer_refused[perl -Mstrict -ne 'print' src/app.py]
+tests/test_hooks_0903.py::test_what_a_qa_run_needs_is_no_longer_refused[perl -i -pe s/a/b/ .qa/notes.md]
+tests/test_hooks_0903.py::test_what_a_qa_run_needs_is_no_longer_refused[perl -i.bak -pe s/a/b/ .qa/notes.md]
+tests/test_hooks_0903.py::test_what_a_qa_run_needs_is_no_longer_refused[perl -pi -e 's/a.*/b/' .qa/notes.md]
+tests/test_hooks_0903.py::test_what_a_qa_run_needs_is_no_longer_refused[python3 - <<'EOF'\nimport os\nprint(os.getcwd())  # rm src/app.py\nEOF]
+tests/test_hooks_0903.py::test_what_a_qa_run_needs_is_no_longer_refused[sed --in-place 's/[a-z]*/x/' .qa/notes.md]
+tests/test_hooks_0903.py::test_what_a_qa_run_needs_is_no_longer_refused[sed -E -i 's/(a)/\\1/' .qa/notes.md]
+tests/test_hooks_0903.py::test_what_a_qa_run_needs_is_no_longer_refused[sed -i '' 's/a/b/' .qa/notes.md]
+tests/test_hooks_0903.py::test_what_a_qa_run_needs_is_no_longer_refused[sed -i '' -e s/a/b/ -e s/c/d/ .qa/notes.md]
+tests/test_hooks_0903.py::test_what_a_qa_run_needs_is_no_longer_refused[sed -i .bak s/a/b/ .qa/notes.md]
+tests/test_hooks_0903.py::test_what_a_qa_run_needs_is_no_longer_refused[sed -i s/a/b/ .qa/notes.md]
+tests/test_hooks_0903.py::test_what_a_qa_run_needs_is_no_longer_refused[sed -i.bak s/a/b/ .qa/notes.md]
+tests/test_hooks_0903.py::test_what_a_qa_run_needs_is_no_longer_refused[sed -l 80 -n p src/app.py]
+tests/test_hooks_0903.py::test_what_a_qa_run_needs_is_no_longer_refused[sed -n -e '/import/p' src/app.py]
+tests/test_hooks_0903.py::test_what_a_qa_run_needs_is_no_longer_refused[sed -n -i '' p .qa/notes.md]
+tests/test_hooks_0903.py::test_what_a_qa_run_needs_is_no_longer_refused[tee /private/var/tmp/x]
+tests/test_hooks_0903.py::test_what_arrives_on_stdin_is_still_refused_by_name
+tests/test_hooks_links.py::test_a_write_through_a_scratch_symlink_is_still_read_where_it_lands
+tests/test_hooks_links.py::test_the_guard_refuses_a_link_out_of_the_qa_root[cd .qa && ln -s ../src/app.py facts.json-2-False]
+tests/test_hooks_links.py::test_the_guard_refuses_a_link_out_of_the_qa_root[ln -f src/app.py /tmp/verdict-scratch-x/alias-2-False]
+tests/test_hooks_links.py::test_the_guard_refuses_a_link_out_of_the_qa_root[ln -s $PWD/src /tmp/verdict-scratch-x/src-0-False]
+tests/test_hooks_links.py::test_the_guard_refuses_a_link_out_of_the_qa_root[ln -s .. .qa/reports-2-False]
+tests/test_hooks_links.py::test_the_guard_refuses_a_link_out_of_the_qa_root[ln -s ../../README.md .qa/reports-2-True]
+tests/test_hooks_links.py::test_the_guard_refuses_a_link_out_of_the_qa_root[ln -s ../src .qa/reports-2-False]
+tests/test_hooks_links.py::test_the_guard_refuses_a_link_out_of_the_qa_root[ln -s ../src/app.py .qa/facts.json-2-False]
+tests/test_hooks_links.py::test_the_guard_refuses_a_link_out_of_the_qa_root[ln -s /etc/hosts .qa/facts.json-2-False]
+tests/test_hooks_links.py::test_the_guard_refuses_a_link_out_of_the_qa_root[ln -s /tmp/verdict-scratch-x/py /tmp/verdict-scratch-x/python-0-False]
+tests/test_hooks_links.py::test_the_guard_refuses_a_link_out_of_the_qa_root[ln -s state.json .qa/latest.json-0-False]
+tests/test_hooks_links.py::test_the_guard_refuses_a_link_out_of_the_qa_root[ln -sf ../../README.md .qa/reports/x.md-2-True]
+tests/test_hooks_links.py::test_the_guard_refuses_a_link_out_of_the_qa_root[ln /tmp/verdict-scratch-x/a /tmp/verdict-scratch-x/b-0-False]
+tests/test_hooks_links.py::test_the_guard_refuses_a_link_out_of_the_qa_root[ln src/app.py .qa/facts.json-2-False]
+tests/test_hooks_links.py::test_the_guard_refuses_a_link_out_of_the_qa_root[ln src/app.py /tmp/verdict-scratch-x/alias-2-False]
+tests/test_hooks_links.py::test_the_guard_refuses_a_link_out_of_the_qa_root[verdict-issues myapp --create-2-False]
+tests/test_hooks_links.py::test_the_guard_refuses_a_link_out_of_the_qa_root[verdict-issues myapp-0-False]
+tests/test_hooks_links.py::test_the_stop_hook_does_not_write_its_note_through_a_link
+tests/test_hooks_pens.py::test_a_nul_byte_in_the_command_is_refused_not_a_crash
+tests/test_hooks_pens.py::test_a_parser_failure_while_armed_is_a_refusal
+tests/test_hooks_pens.py::test_reading_a_ledger_and_running_the_harness_are_not_the_pen[python3 /plugin/src/verdict_mcp/accept.py myapp --list]
+tests/test_hooks_pens.py::test_reading_a_ledger_and_running_the_harness_are_not_the_pen[python3 /plugin/src/verdict_mcp/gate.py myapp --require-harness --min-run-number 4]
+tests/test_hooks_pens.py::test_reading_a_ledger_and_running_the_harness_are_not_the_pen[python3 /plugin/src/verdict_mcp/harness.py facts --repo . --qa-root .qa]
+tests/test_hooks_pens.py::test_reading_a_ledger_and_running_the_harness_are_not_the_pen[verdict-accept --help]
+tests/test_hooks_pens.py::test_reading_a_ledger_and_running_the_harness_are_not_the_pen[verdict-accept myapp --list]
+tests/test_hooks_pens.py::test_reading_a_ledger_and_running_the_harness_are_not_the_pen[verdict-answer -h]
+tests/test_hooks_pens.py::test_reading_a_ledger_and_running_the_harness_are_not_the_pen[verdict-answer myapp --list]
+tests/test_hooks_pens.py::test_reading_a_ledger_and_running_the_harness_are_not_the_pen[verdict-facts --repo . --qa-root .qa]
+tests/test_hooks_pens.py::test_reading_a_ledger_and_running_the_harness_are_not_the_pen[verdict-finalize --qa-root .qa --judgment .qa/judgment.json]
+tests/test_hooks_pens.py::test_reading_a_ledger_and_running_the_harness_are_not_the_pen[verdict-gate myapp --require-harness --format text]
+tests/test_hooks_pens.py::test_reading_a_ledger_and_running_the_harness_are_not_the_pen[verdict-validate .qa/state.json]
+tests/test_hooks_pens.py::test_the_pen_is_refused_to_the_agent_and_left_to_the_maintainers_own_shell
+tests/test_hooks_pens.py::test_the_rule_holds_on_the_interpreter_hooks_json_starts
+tests/test_hooks_pens.py::test_the_tester_cannot_run_the_maintainers_pen[/opt/venv/bin/verdict-accept myapp MYAPP-F-21 --cite x --reason y]
+tests/test_hooks_pens.py::test_the_tester_cannot_run_the_maintainers_pen[bash -c 'verdict-accept myapp MYAPP-F-21 --cite x --reason y']
+tests/test_hooks_pens.py::test_the_tester_cannot_run_the_maintainers_pen[env X=1 verdict-accept myapp MYAPP-F-21 --cite x --reason y]
+tests/test_hooks_pens.py::test_the_tester_cannot_run_the_maintainers_pen[git status && verdict-answer myapp MYAPP-Q-3 --answer yes]
+tests/test_hooks_pens.py::test_the_tester_cannot_run_the_maintainers_pen[python -m verdict_mcp.accept myapp MYAPP-F-21 --cite x --reason y]
+tests/test_hooks_pens.py::test_the_tester_cannot_run_the_maintainers_pen[python3 /plugin/src/verdict_mcp/accept.py myapp MYAPP-F-21 --cite x --reason y]
+tests/test_hooks_pens.py::test_the_tester_cannot_run_the_maintainers_pen[python3 /plugin/src/verdict_mcp/questions.py myapp MYAPP-Q-3 --answer yes]
+tests/test_hooks_pens.py::test_the_tester_cannot_run_the_maintainers_pen[verdict-accept myapp MYAPP-F-21 --cite DECISIONS.md --reason 'accepted']
+tests/test_hooks_pens.py::test_the_tester_cannot_run_the_maintainers_pen[verdict-accept myapp MYAPP-F-21 --revoke]
+tests/test_hooks_pens.py::test_the_tester_cannot_run_the_maintainers_pen[verdict-answer myapp MYAPP-Q-3 --answer 'half-up is the rule']
+tests/test_hooks_pens.py::test_the_tester_cannot_run_the_maintainers_pen[verdict-answer myapp MYAPP-Q-3 --dismiss]
+tests/test_hygiene.py::test_a_byte_order_mark_does_not_hide_a_python_file
+tests/test_hygiene.py::test_a_client_secret_is_reported_where_the_app_reads_it
+tests/test_hygiene.py::test_a_client_secret_named_in_a_config_or_shell_comment_is_not_a_finding
+tests/test_hygiene.py::test_a_client_secret_named_only_in_a_comment_is_not_a_finding
+tests/test_hygiene.py::test_a_committed_env_file_keeps_its_identity_when_a_variable_is_added
+tests/test_hygiene.py::test_a_committed_env_local_is_tier_one_and_a_template_is_not
+tests/test_hygiene.py::test_a_committed_env_with_live_secrets_is_one_finding_that_names_them_without_values
+tests/test_hygiene.py::test_a_committed_env_with_only_public_defaults_is_a_lead_not_a_finding
+tests/test_hygiene.py::test_a_committed_private_key_file_is_one_finding
+tests/test_hygiene.py::test_a_debugger_in_a_comment_a_docstring_or_a_block_comment_is_not_a_finding
+tests/test_hygiene.py::test_a_debugger_inside_a_multi_line_template_literal_is_text
+tests/test_hygiene.py::test_a_debugger_left_in_app_code_is_tier_one_minor_but_not_in_tests
+tests/test_hygiene.py::test_a_document_quoting_a_sops_value_is_read_but_a_sops_file_is_not
+tests/test_hygiene.py::test_a_documented_cli_is_not_an_unimported_module
+tests/test_hygiene.py::test_a_down_section_or_a_seed_file_never_decides_a_tables_state
+tests/test_hygiene.py::test_a_file_whose_checks_raise_keeps_its_tier_one_items_and_is_named
+tests/test_hygiene.py::test_a_google_key_is_one_lead_per_platform_across_the_repository
+tests/test_hygiene.py::test_a_google_key_repeated_in_a_file_is_one_lead
+tests/test_hygiene.py::test_a_lead_carries_the_comment_above_but_never_the_code
+tests/test_hygiene.py::test_a_live_key_in_source_is_tier_one_and_its_value_never_leaves
+tests/test_hygiene.py::test_a_minified_line_is_skipped_by_junk_and_lead_checks_but_not_by_the_secret_scan
+tests/test_hygiene.py::test_a_moved_line_keeps_its_fingerprint
+tests/test_hygiene.py::test_a_partial_clone_is_read_offline_and_says_what_it_could_not_read
+tests/test_hygiene.py::test_a_password_in_a_url_with_no_user_name_is_scrubbed
+tests/test_hygiene.py::test_a_placeholder_or_low_entropy_value_is_not_a_secret
+tests/test_hygiene.py::test_a_placeholder_salt_in_the_env_template_is_a_lead
+tests/test_hygiene.py::test_a_public_word_makes_only_a_key_or_a_token_public
+tests/test_hygiene.py::test_a_rule_after_a_recursive_block_closes_belongs_to_its_parent
+tests/test_hygiene.py::test_a_scan_that_could_read_nothing_is_unavailable_and_one_that_missed_a_file_is_partial
+tests/test_hygiene.py::test_a_secret_named_client_variable_is_tier_one_but_anon_keys_are_not
+tests/test_hygiene.py::test_a_secret_split_by_a_slash_or_held_in_a_url_never_reaches_the_output
+tests/test_hygiene.py::test_a_security_read_that_fails_open_is_a_lead
+tests/test_hygiene.py::test_a_service_role_jwt_is_a_secret_and_an_anon_jwt_is_not
+tests/test_hygiene.py::test_a_spread_or_a_jsx_react_import_is_a_use
+tests/test_hygiene.py::test_a_swallow_around_a_secret_write_is_a_lead
+tests/test_hygiene.py::test_a_symlink_to_a_fifo_cannot_hang_the_scan
+tests/test_hygiene.py::test_a_table_whose_migrations_were_not_all_read_is_never_filed_as_open
+tests/test_hygiene.py::test_a_timestamped_path_in_a_reason_is_left_as_it_is
+tests/test_hygiene.py::test_a_todo_inside_a_string_is_not_a_comment
+tests/test_hygiene.py::test_a_tracked_symlink_is_never_followed
+tests/test_hygiene.py::test_admin_and_master_qualify_a_key_and_never_name_a_credential_alone
+tests/test_hygiene.py::test_an_inherited_git_dir_never_points_the_scan_at_another_repository
+tests/test_hygiene.py::test_an_oversized_file_is_one_item_that_keeps_its_fingerprint_as_it_grows
+tests/test_hygiene.py::test_an_rls_file_too_large_to_read_blocks_rls_filing_and_is_named
+tests/test_hygiene.py::test_client_variables_are_read_in_code_and_config_only_and_named_once
+tests/test_hygiene.py::test_code_that_quotes_an_encryption_marker_still_has_its_keys_found
+tests/test_hygiene.py::test_disabled_rls_counts_only_as_the_final_state_of_a_table
+tests/test_hygiene.py::test_encrypted_env_files_are_neither_findings_nor_leads
+tests/test_hygiene.py::test_entry_files_without_a_scanned_suffix_still_document_commands
+tests/test_hygiene.py::test_env_values_that_are_not_credentials_are_leads_not_findings
+tests/test_hygiene.py::test_facts_carry_hygiene_and_the_profile_can_turn_filing_off
+tests/test_hygiene.py::test_fake_keys_in_a_redaction_test_are_not_findings
+tests/test_hygiene.py::test_identical_functions_are_one_ledger_item
+tests/test_hygiene.py::test_junk_kinds_are_counted_and_none_of_them_is_tier_one
+tests/test_hygiene.py::test_keys_that_are_public_by_design_are_leads_not_findings
+tests/test_hygiene.py::test_leads_are_capped_but_counted
+tests/test_hygiene.py::test_line_leads_carry_the_comment_just_above
+tests/test_hygiene.py::test_line_numbers_from_the_line_scan_survive_u2028_too
+tests/test_hygiene.py::test_line_numbers_survive_u2028_inside_a_string
+tests/test_hygiene.py::test_live_keys_are_found_in_more_kinds_of_file
+tests/test_hygiene.py::test_more_provider_keys_are_found_and_never_shown
+tests/test_hygiene.py::test_more_test_conventions_are_test_paths
+tests/test_hygiene.py::test_no_secret_value_reaches_the_output_through_junk_or_leads
+tests/test_hygiene.py::test_one_hostile_file_never_costs_the_whole_scan
+tests/test_hygiene.py::test_only_json_small_enough_to_be_a_key_is_read_past_the_cap
+tests/test_hygiene.py::test_open_firebase_rules_and_disabled_rls_are_tier_one
+tests/test_hygiene.py::test_open_writes_and_a_whole_database_read_are_tier_one
+tests/test_hygiene.py::test_outside_a_git_checkout_the_scan_is_unavailable_and_walks_nothing
+tests/test_hygiene.py::test_print_and_a_narrow_except_pass_are_not_junk
+tests/test_hygiene.py::test_public_reads_creates_and_commented_rules_are_leads_or_nothing
+tests/test_hygiene.py::test_repeated_lines_are_numbered_in_line_order
+tests/test_hygiene.py::test_rules_written_across_lines_are_read_whole
+tests/test_hygiene.py::test_terraform_make_just_and_procfile_comments_name_no_client_variable
+tests/test_hygiene.py::test_the_clean_pricer_fixture_has_no_tier_one_items
+tests/test_hygiene.py::test_the_file_cap_counts_only_files_the_scan_reads
+tests/test_hygiene.py::test_the_file_cap_keeps_code_ahead_of_documents_and_data
+tests/test_hygiene.py::test_the_scan_reads_what_is_committed_not_the_working_copy
+tests/test_hygiene.py::test_the_scan_scope_is_reported
+tests/test_hygiene.py::test_the_test_path_rule
+tests/test_hygiene.py::test_values_public_by_design_in_a_committed_env_file_leave_it_a_lead
+tests/test_hygiene.py::test_vendored_imports_and_kebab_case_vue_tags_are_not_junk
+tests/test_hygiene.py::test_verdicts_own_repository_has_no_tier_one_items
+tests/test_hygiene_evidence.py::test_a_blob_a_partial_clone_never_fetched_is_still_in_the_tree
+tests/test_hygiene_evidence.py::test_a_client_secret_names_its_variable_and_every_file_that_reads_it
+tests/test_hygiene_evidence.py::test_a_copied_function_names_every_file_a_copy_is_in
+tests/test_hygiene_evidence.py::test_a_file_is_absent_only_when_the_tree_the_scan_read_does_not_hold_it
+tests/test_hygiene_evidence.py::test_a_file_read_and_found_encrypted_is_vouched_for
+tests/test_hygiene_evidence.py::test_a_file_the_cap_left_out_or_the_scan_could_not_read_is_not_vouched_for
+tests/test_hygiene_evidence.py::test_a_file_too_large_to_read_is_not_vouched_for
+tests/test_hygiene_evidence.py::test_a_python_file_the_parser_refuses_is_named
+tests/test_hygiene_evidence.py::test_a_side_file_from_another_facts_run_is_no_side_file_at_all
+tests/test_hygiene_evidence.py::test_a_side_file_that_cannot_be_read_vouches_for_nothing
+tests/test_hygiene_evidence.py::test_finalize_reads_what_is_gone_from_the_tree_the_scan_read
+tests/test_hygiene_evidence.py::test_finalize_resolves_nothing_on_a_side_file_from_another_run
+tests/test_hygiene_evidence.py::test_rls_is_judged_only_when_every_migration_was_read
+tests/test_hygiene_evidence.py::test_the_scan_names_every_file_its_checks_ran_over_key_files_included
+tests/test_hygiene_evidence.py::test_the_side_file_keeps_what_the_scan_vouches_for_and_finalize_reads_it_back
+tests/test_hygiene_facts.py::test_a_block_that_was_never_split_is_read_where_its_rows_are
+tests/test_hygiene_facts.py::test_a_row_with_a_field_of_the_wrong_type_is_passed_over[excerpt-value4]
+tests/test_hygiene_facts.py::test_a_row_with_a_field_of_the_wrong_type_is_passed_over[fingerprint-7]
+tests/test_hygiene_facts.py::test_a_row_with_a_field_of_the_wrong_type_is_passed_over[line-2]
+tests/test_hygiene_facts.py::test_a_row_with_a_field_of_the_wrong_type_is_passed_over[line-True]
+tests/test_hygiene_facts.py::test_a_row_with_a_field_of_the_wrong_type_is_passed_over[path-value0]
+tests/test_hygiene_facts.py::test_a_row_with_a_field_of_the_wrong_type_is_passed_over[why-None]
+tests/test_hygiene_facts.py::test_a_setting_it_cannot_read_leaves_filing_on_and_says_so[verdict-facts]
+tests/test_hygiene_facts.py::test_a_setting_it_cannot_read_leaves_filing_on_and_says_so[verdict-local]
+tests/test_hygiene_facts.py::test_a_side_file_nested_past_what_the_parser_holds_reads_as_unreadable
+tests/test_hygiene_facts.py::test_a_side_file_that_cannot_be_written_costs_the_run_nothing
+tests/test_hygiene_facts.py::test_every_unread_path_is_kept_though_the_display_is_capped_and_none_is_vouched_for
+tests/test_hygiene_facts.py::test_facts_json_keeps_tier_one_and_every_count_but_no_tier_two_row
+tests/test_hygiene_facts.py::test_false_and_no_turn_filing_off_in_any_case[No-verdict-facts]
+tests/test_hygiene_facts.py::test_false_and_no_turn_filing_off_in_any_case[No-verdict-local]
+tests/test_hygiene_facts.py::test_false_and_no_turn_filing_off_in_any_case[false-verdict-facts]
+tests/test_hygiene_facts.py::test_false_and_no_turn_filing_off_in_any_case[false-verdict-local]
+tests/test_hygiene_facts.py::test_only_the_integer_schema_1_is_read[1.0]
+tests/test_hygiene_facts.py::test_only_the_integer_schema_1_is_read[True]
+tests/test_hygiene_facts.py::test_the_local_tier_honours_hygiene_off
+tests/test_hygiene_facts.py::test_the_local_tier_writes_the_same_split_before_it_finalizes
+tests/test_hygiene_facts.py::test_the_tier_two_rows_are_in_the_side_file_exactly
+tests/test_hygiene_facts.py::test_tier2_items_is_none_without_a_readable_side_file_and_reads_only_tier_two
+tests/test_hygiene_facts.py::test_tier2_items_reads_the_rows_back
+tests/test_hygiene_identity.py::test_a_key_back_two_runs_after_its_fix_regresses_under_its_own_id
+tests/test_hygiene_identity.py::test_a_key_still_there_when_filing_comes_back_on_is_the_same_finding
+tests/test_hygiene_identity.py::test_a_key_that_becomes_a_file_level_finding_says_so
+tests/test_hygiene_identity.py::test_a_regression_keeps_the_acceptance_recorded_under_its_id
+tests/test_hygiene_identity.py::test_two_open_findings_with_one_identity_are_folded_and_neither_vanishes
+tests/test_hygiene_lifecycle.py::test_a_client_secret_resolves_only_once_every_file_that_read_it_was_scanned
+tests/test_hygiene_lifecycle.py::test_a_client_secret_that_moves_to_another_file_stays_the_same_finding
+tests/test_hygiene_lifecycle.py::test_a_copied_function_resolves_only_once_every_copy_was_scanned_or_is_gone
+tests/test_hygiene_lifecycle.py::test_a_deleted_file_resolves_its_finding_and_an_unread_one_carries_it
+tests/test_hygiene_lifecycle.py::test_a_deleted_migration_resolves_no_rls_finding_while_rls_is_unjudged
+tests/test_hygiene_lifecycle.py::test_a_file_gone_from_the_tree_resolves_what_was_in_it
+tests/test_hygiene_lifecycle.py::test_a_file_only_hygiene_cites_does_not_block_the_free_sweep
+tests/test_hygiene_lifecycle.py::test_a_file_the_parser_refused_carries_what_only_the_parser_finds
+tests/test_hygiene_lifecycle.py::test_a_judgment_copy_of_a_hygiene_finding_is_ignored_not_duplicated
+tests/test_hygiene_lifecycle.py::test_a_judgment_may_not_file_a_hygiene_finding
+tests/test_hygiene_lifecycle.py::test_a_judgment_may_not_file_its_own_finding_under_a_hygiene_id
+tests/test_hygiene_lifecycle.py::test_a_ledger_row_not_seen_resolves_only_where_its_file_was_read
+tests/test_hygiene_lifecycle.py::test_a_new_tier_one_item_is_a_new_finding_owned_by_the_harness
+tests/test_hygiene_lifecycle.py::test_a_pass_is_capped_over_a_critical_the_scan_filed
+tests/test_hygiene_lifecycle.py::test_a_side_file_that_could_not_be_read_resolves_no_row_and_says_so
+tests/test_hygiene_lifecycle.py::test_a_squash_onto_a_baseline_too_large_to_read_keeps_the_rls_finding_open
+tests/test_hygiene_lifecycle.py::test_an_id_only_the_outcome_ledger_holds_is_never_minted_again
+tests/test_hygiene_lifecycle.py::test_an_item_not_seen_resolves_only_where_its_file_was_read
+tests/test_hygiene_lifecycle.py::test_an_rls_switch_resolves_only_when_every_migration_was_read
+tests/test_hygiene_lifecycle.py::test_an_unavailable_scan_keeps_the_ledger_rather_than_dropping_it
+tests/test_hygiene_lifecycle.py::test_an_unmeasured_scan_carries_open_items_whatever_else_it_knows
+tests/test_hygiene_lifecycle.py::test_evidence_drift_leaves_the_harnesss_own_findings_out
+tests/test_hygiene_lifecycle.py::test_filing_off_files_nothing_and_resolves_what_was_open
+tests/test_hygiene_lifecycle.py::test_hygiene_findings_stay_out_of_the_testers_track_record
+tests/test_hygiene_lifecycle.py::test_it_regresses_under_the_same_id
+tests/test_hygiene_lifecycle.py::test_it_stays_open_under_its_id_and_resolves_when_its_file_is_read_without_it
+tests/test_hygiene_lifecycle.py::test_leads_followed_counts_findings_that_cite_a_leads_line
+tests/test_hygiene_lifecycle.py::test_merge_files_tier_one_carries_it_and_never_resolves_it_by_silence
+tests/test_hygiene_lifecycle.py::test_past_the_cap_the_rows_with_a_history_are_kept_and_the_counts_stay_exact
+tests/test_hygiene_lifecycle.py::test_still_open_naming_a_hygiene_finding_carries_nothing_twice
+tests/test_hygiene_lifecycle.py::test_the_ledger_is_read_from_the_side_file_and_an_unreadable_one_resolves_nothing
+tests/test_hygiene_lifecycle.py::test_the_ledger_tracks_new_still_open_and_removed_rows
+tests/test_hygiene_lifecycle.py::test_the_local_tier_finalizes_a_night_the_scan_files_a_critical_on
+tests/test_hygiene_lifecycle.py::test_the_refusal_says_whose_the_finding_is_and_invites_no_copy
+tests/test_hygiene_state.py::test_a_hygiene_id_named_by_either_verb_is_ignored_and_recorded
+tests/test_hygiene_state.py::test_a_ledger_file_that_cannot_be_written_keeps_the_rows_in_the_state
+tests/test_hygiene_state.py::test_a_local_night_names_no_hygiene_id_and_says_the_verdict_written
+tests/test_hygiene_state.py::test_a_missing_prior_file_carries_nothing_resolves_nothing_and_says_so
+tests/test_hygiene_state.py::test_a_rows_file_another_run_wrote_is_not_this_states
+tests/test_hygiene_state.py::test_a_sweep_says_the_verdict_it_wrote
+tests/test_hygiene_state.py::test_a_sweep_starts_from_the_verdict_the_tester_wrote_not_the_cap
+tests/test_hygiene_state.py::test_at_sales_scale_only_the_preview_stays_in_the_state
+tests/test_hygiene_state.py::test_the_engines_that_judge_without_a_model_name_no_hygiene_id
+tests/test_hygiene_state.py::test_the_ledger_flags_a_named_file_it_was_not_given_rows_from
+tests/test_hygiene_state.py::test_the_preview_shows_the_ten_oldest_open_rows_and_ten_new_ones
+tests/test_hygiene_state.py::test_the_rows_leave_the_state_and_come_back_from_their_file_next_run
 tests/test_interpreter_floor.py::test_new_style_unions_are_lazy[__init__.py]
 tests/test_interpreter_floor.py::test_new_style_unions_are_lazy[accept.py]
 tests/test_interpreter_floor.py::test_new_style_unions_are_lazy[anchors.py]
@@ -701,10 +1918,12 @@ tests/test_interpreter_floor.py::test_new_style_unions_are_lazy[clock.py]
 tests/test_interpreter_floor.py::test_new_style_unions_are_lazy[enforce_bash_scope.py]
 tests/test_interpreter_floor.py::test_new_style_unions_are_lazy[enforce_run_contract.py]
 tests/test_interpreter_floor.py::test_new_style_unions_are_lazy[enforce_write_scope.py]
+tests/test_interpreter_floor.py::test_new_style_unions_are_lazy[external.py]
 tests/test_interpreter_floor.py::test_new_style_unions_are_lazy[filed.py]
 tests/test_interpreter_floor.py::test_new_style_unions_are_lazy[fixture_freshness.py]
 tests/test_interpreter_floor.py::test_new_style_unions_are_lazy[gate.py]
 tests/test_interpreter_floor.py::test_new_style_unions_are_lazy[harness.py]
+tests/test_interpreter_floor.py::test_new_style_unions_are_lazy[hygiene.py]
 tests/test_interpreter_floor.py::test_new_style_unions_are_lazy[issues.py]
 tests/test_interpreter_floor.py::test_new_style_unions_are_lazy[mutate.py]
 tests/test_interpreter_floor.py::test_new_style_unions_are_lazy[pin_check.py]
@@ -723,7 +1942,9 @@ tests/test_interpreter_floor.py::test_new_style_unions_are_lazy[small.py]
 tests/test_interpreter_floor.py::test_new_style_unions_are_lazy[state.py]
 tests/test_interpreter_floor.py::test_new_style_unions_are_lazy[swebench.py]
 tests/test_interpreter_floor.py::test_new_style_unions_are_lazy[sweep.py]
-tests/test_interpreter_floor.py::test_new_style_unions_are_lazy[usage.py]
+tests/test_interpreter_floor.py::test_new_style_unions_are_lazy[usage.py0]
+tests/test_interpreter_floor.py::test_new_style_unions_are_lazy[usage.py1]
+tests/test_interpreter_floor.py::test_new_style_unions_are_lazy[usage_census.py]
 tests/test_interpreter_floor.py::test_new_style_unions_are_lazy[validate.py]
 tests/test_interpreter_floor.py::test_no_syntax_the_floor_cannot_parse[__init__.py]
 tests/test_interpreter_floor.py::test_no_syntax_the_floor_cannot_parse[accept.py]
@@ -733,10 +1954,12 @@ tests/test_interpreter_floor.py::test_no_syntax_the_floor_cannot_parse[clock.py]
 tests/test_interpreter_floor.py::test_no_syntax_the_floor_cannot_parse[enforce_bash_scope.py]
 tests/test_interpreter_floor.py::test_no_syntax_the_floor_cannot_parse[enforce_run_contract.py]
 tests/test_interpreter_floor.py::test_no_syntax_the_floor_cannot_parse[enforce_write_scope.py]
+tests/test_interpreter_floor.py::test_no_syntax_the_floor_cannot_parse[external.py]
 tests/test_interpreter_floor.py::test_no_syntax_the_floor_cannot_parse[filed.py]
 tests/test_interpreter_floor.py::test_no_syntax_the_floor_cannot_parse[fixture_freshness.py]
 tests/test_interpreter_floor.py::test_no_syntax_the_floor_cannot_parse[gate.py]
 tests/test_interpreter_floor.py::test_no_syntax_the_floor_cannot_parse[harness.py]
+tests/test_interpreter_floor.py::test_no_syntax_the_floor_cannot_parse[hygiene.py]
 tests/test_interpreter_floor.py::test_no_syntax_the_floor_cannot_parse[issues.py]
 tests/test_interpreter_floor.py::test_no_syntax_the_floor_cannot_parse[mutate.py]
 tests/test_interpreter_floor.py::test_no_syntax_the_floor_cannot_parse[pin_check.py]
@@ -755,7 +1978,9 @@ tests/test_interpreter_floor.py::test_no_syntax_the_floor_cannot_parse[small.py]
 tests/test_interpreter_floor.py::test_no_syntax_the_floor_cannot_parse[state.py]
 tests/test_interpreter_floor.py::test_no_syntax_the_floor_cannot_parse[swebench.py]
 tests/test_interpreter_floor.py::test_no_syntax_the_floor_cannot_parse[sweep.py]
-tests/test_interpreter_floor.py::test_no_syntax_the_floor_cannot_parse[usage.py]
+tests/test_interpreter_floor.py::test_no_syntax_the_floor_cannot_parse[usage.py0]
+tests/test_interpreter_floor.py::test_no_syntax_the_floor_cannot_parse[usage.py1]
+tests/test_interpreter_floor.py::test_no_syntax_the_floor_cannot_parse[usage_census.py]
 tests/test_interpreter_floor.py::test_no_syntax_the_floor_cannot_parse[validate.py]
 tests/test_interpreter_floor.py::test_the_floor_is_written_down
 tests/test_interpreter_floor.py::test_the_future_import_detector_reads_the_statement_not_the_text
@@ -782,6 +2007,96 @@ tests/test_limits.py::test_the_external_key_batch_stops_when_the_week_is_spent
 tests/test_limits.py::test_the_fixture_eval_refuses_rather_than_retries_on_a_weekly_limit
 tests/test_limits.py::test_the_runner_still_waits_out_a_session_limit
 tests/test_limits.py::test_the_runner_stops_on_a_weekly_limit_instead_of_spending_its_retry
+tests/test_listing_render.py::test_every_listed_description_is_one_clean_line[agents/verdict.md]
+tests/test_listing_render.py::test_every_listed_description_is_one_clean_line[commands/baseline.md]
+tests/test_listing_render.py::test_every_listed_description_is_one_clean_line[commands/bug.md]
+tests/test_listing_render.py::test_every_listed_description_is_one_clean_line[commands/cause.md]
+tests/test_listing_render.py::test_every_listed_description_is_one_clean_line[commands/charter.md]
+tests/test_listing_render.py::test_every_listed_description_is_one_clean_line[commands/flake.md]
+tests/test_listing_render.py::test_every_listed_description_is_one_clean_line[commands/regression.md]
+tests/test_listing_render.py::test_every_listed_description_is_one_clean_line[commands/release.md]
+tests/test_listing_render.py::test_every_listed_description_is_one_clean_line[commands/run.md]
+tests/test_listing_render.py::test_every_listed_description_is_one_clean_line[commands/spec.md]
+tests/test_listing_render.py::test_every_listed_description_is_one_clean_line[commands/status.md]
+tests/test_listing_render.py::test_every_listed_description_is_one_clean_line[skills/verdict-flaky-triage/SKILL.md]
+tests/test_listing_render.py::test_every_listed_description_is_one_clean_line[skills/verdict-release-risk/SKILL.md]
+tests/test_listing_render.py::test_every_listed_description_is_one_clean_line[skills/verdict-root-cause/SKILL.md]
+tests/test_listing_render.py::test_every_listed_description_is_one_clean_line[skills/verdict-spec-review/SKILL.md]
+tests/test_listing_render.py::test_every_listed_description_is_one_clean_line[skills/verdict-verify-fix/SKILL.md]
+tests/test_listing_render.py::test_the_check_sees_the_description_that_broke_the_page
+tests/test_listing_render.py::test_the_readme_carries_no_images
+tests/test_local_delta.py::test_a_baseline_keeps_this_engines_own_arithmetic
+tests/test_local_delta.py::test_a_carried_blocked_verdict_says_why_it_was_carried
+tests/test_local_delta.py::test_a_claim_about_an_open_findings_function_is_not_filed_twice
+tests/test_local_delta.py::test_a_conflict_the_record_already_held_is_asked_not_refused
+tests/test_local_delta.py::test_a_counterfactual_proves_a_packaged_file_through_the_projects_root
+tests/test_local_delta.py::test_a_dead_gateway_is_named_before_the_suite_runs
+tests/test_local_delta.py::test_a_declared_root_wins_and_a_plain_file_keeps_the_old_rule
+tests/test_local_delta.py::test_a_drifted_finding_is_refiled_and_never_left_silent
+tests/test_local_delta.py::test_a_failing_test_this_engine_filed_is_not_classified_again
+tests/test_local_delta.py::test_a_first_pass_over_a_fresh_project_still_files_what_it_reads
+tests/test_local_delta.py::test_a_first_run_in_an_empty_root_is_a_baseline_with_nothing_carried
+tests/test_local_delta.py::test_a_gateway_that_refuses_the_window_is_asked_again_without_it
+tests/test_local_delta.py::test_a_night_on_a_project_with_a_record_has_a_budget
+tests/test_local_delta.py::test_a_project_whose_ids_carry_no_prefix_files_and_finalizes
+tests/test_local_delta.py::test_a_proof_imports_a_packaged_file_through_the_projects_own_root
+tests/test_local_delta.py::test_a_quarantine_is_released_by_measurement_not_by_its_expiry_date
+tests/test_local_delta.py::test_a_quarantine_that_cannot_be_re_measured_is_kept_and_said_out_loud
+tests/test_local_delta.py::test_a_quarantine_that_still_fails_gets_a_new_expiry_with_measured_counts
+tests/test_local_delta.py::test_a_range_with_nothing_in_it_reads_nothing
+tests/test_local_delta.py::test_a_red_suite_is_a_fail_whatever_the_findings_say
+tests/test_local_delta.py::test_a_resolution_needs_a_measured_fail_then_pass_on_a_chosen_test
+tests/test_local_delta.py::test_a_resolved_finding_that_comes_back_is_regressed_not_new
+tests/test_local_delta.py::test_a_resolved_identity_that_comes_back_is_regressed_under_its_own_id
+tests/test_local_delta.py::test_a_run_that_got_no_answers_writes_no_state
+tests/test_local_delta.py::test_a_standing_blocked_verdict_is_never_improved_by_a_local_run
+tests/test_local_delta.py::test_a_state_on_disk_is_carried_even_when_the_delta_flag_was_forgotten
+tests/test_local_delta.py::test_a_sweep_still_says_none_where_the_judge_would_be
+tests/test_local_delta.py::test_an_expiry_that_is_not_due_is_carried_verbatim
+tests/test_local_delta.py::test_each_question_asks_for_a_window_it_fits_in
+tests/test_local_delta.py::test_in_a_delta_a_models_opinion_that_a_green_test_is_brittle_is_a_lead
+tests/test_local_delta.py::test_in_a_delta_an_unproven_reading_is_a_lead_not_a_finding
+tests/test_local_delta.py::test_no_gate_counts_is_blocked_not_pass
+tests/test_local_delta.py::test_one_test_gets_one_quarantine_entry_and_one_finding
+tests/test_local_delta.py::test_only_changed_and_missing_force_a_re_file[changed-False]
+tests/test_local_delta.py::test_only_changed_and_missing_force_a_re_file[missing-False]
+tests/test_local_delta.py::test_only_changed_and_missing_force_a_re_file[moved-True]
+tests/test_local_delta.py::test_only_changed_and_missing_force_a_re_file[unchanged-True]
+tests/test_local_delta.py::test_only_changed_and_missing_force_a_re_file[unresolvable-True]
+tests/test_local_delta.py::test_silence_never_resolves_a_finding_in_a_local_delta
+tests/test_local_delta.py::test_the_engine_and_its_counters_land_in_last_run_and_in_the_report
+tests/test_local_delta.py::test_the_engines_summary_goes_to_the_phase_log_not_into_the_result_json
+tests/test_local_delta.py::test_the_eval_rig_can_drive_the_local_engine_with_no_network
+tests/test_local_delta.py::test_the_focus_list_and_the_blockers_do_not_grow_forever
+tests/test_local_delta.py::test_the_index_matches_by_line_first_by_name_second_and_never_by_a_common_name
+tests/test_local_delta.py::test_the_night_with_an_inherited_conflict_finalizes_and_asks_once
+tests/test_local_delta.py::test_the_not_tested_list_is_counted_not_described
+tests/test_local_delta.py::test_the_partition_puts_every_prior_open_finding_in_exactly_one_place
+tests/test_local_delta.py::test_the_previous_quarantine_and_verified_intact_survive_a_local_delta
+tests/test_local_delta.py::test_the_second_night_carries_what_the_first_filed_and_is_not_refused
+tests/test_local_delta.py::test_the_verdict_never_improves_on_its_own
+tests/test_local_delta.py::test_the_window_is_a_flag_and_an_environment_variable
+tests/test_local_delta.py::test_two_findings_with_one_identity_in_one_run_are_one_finding
+tests/test_local_gate.py::test_a_base_ref_is_resolved_through_the_merge_base
+tests/test_local_gate.py::test_a_branch_run_never_writes_the_keys_state_root
+tests/test_local_gate.py::test_a_capped_run_says_how_many_functions_it_never_asked_about
+tests/test_local_gate.py::test_a_gate_run_takes_the_caps_without_being_told
+tests/test_local_gate.py::test_a_range_run_reads_the_diff_not_the_reading_map
+tests/test_local_gate.py::test_a_range_without_a_qa_root_is_refused
+tests/test_local_gate.py::test_a_supplied_range_drives_diff_coverage
+tests/test_local_gate.py::test_a_typescript_only_diff_reads_nothing_and_says_so
+tests/test_local_gate.py::test_changed_files_names_what_the_range_touched
+tests/test_local_gate.py::test_chunks_are_narrowed_to_the_lines_the_range_touched
+tests/test_local_gate.py::test_needs_claude_names_every_measured_reason
+tests/test_local_gate.py::test_subprocess_calls_here_name_their_encoding
+tests/test_local_gate.py::test_the_liveliness_probe_reads_a_real_answer
+tests/test_local_gate.py::test_the_model_budget_stops_and_reports_what_it_skipped
+tests/test_local_gate.py::test_the_probe_cap_leaves_a_claim_a_hypothesis
+tests/test_local_gate.py::test_the_reference_state_is_read_and_never_written
+tests/test_local_gate.py::test_the_unexercised_count_is_zero_when_coverage_was_not_measured
+tests/test_local_gate.py::test_touches_findings_reads_anchors_and_cited_evidence
+tests/test_mcp_cli.py::test_help_prints_usage_and_exits
+tests/test_mcp_cli.py::test_version_names_the_distribution
 tests/test_mcp_tools.py::test_findings_delta_filter_and_all
 tests/test_mcp_tools.py::test_findings_open_orders_regressed_first
 tests/test_mcp_tools.py::test_findings_unknown_status
@@ -830,6 +2145,8 @@ tests/test_pin_check.py::test_a_mutation_is_written_atomically
 tests/test_pin_check.py::test_a_scratch_that_runs_the_original_checkout_is_refused
 tests/test_pin_check.py::test_a_usage_error_is_not_a_kill
 tests/test_pin_check.py::test_an_errored_test_is_a_kill
+tests/test_pin_check.py::test_every_catalogue_anchor_matches_exactly_once
+tests/test_pin_check.py::test_mutation_runs_leave_the_anchor_test_out
 tests/test_pin_check.py::test_no_tests_ran_is_not_a_kill
 tests/test_pin_check.py::test_only_the_final_summary_line_counts
 tests/test_pin_check.py::test_runs_its_own_code_reads_the_resolved_path
@@ -861,8 +2178,32 @@ tests/test_project_key.py::test_non_git_directory_falls_back_to_basename
 tests/test_project_key.py::test_normal_repo_uses_lowercased_basename
 tests/test_project_key.py::test_sanitize
 tests/test_project_key.py::test_subdirectory_of_repo_resolves_to_repo_key
+tests/test_qa_root_links.py::test_a_junction_is_a_link_on_windows
+tests/test_qa_root_links.py::test_a_qa_directory_that_is_a_link_into_the_code
+tests/test_qa_root_links.py::test_a_qa_link_that_leaves_the_checkout_is_the_callers_business
+tests/test_qa_root_links.py::test_a_root_among_the_code_is_refused_before_anything_is_created
+tests/test_qa_root_links.py::test_a_second_name_for_a_file_is_a_link_too
+tests/test_qa_root_links.py::test_finalize_refuses_a_link_planted_after_the_facts
+tests/test_qa_root_links.py::test_links_a_tester_parked_deeper_in_the_root_are_not_the_harnesss_business
+tests/test_qa_root_links.py::test_naming_the_code_a_solo_home_does_not_make_it_one
+tests/test_qa_root_links.py::test_out_is_not_a_way_into_the_checkout
+tests/test_qa_root_links.py::test_s1_a_reports_directory_that_is_a_link_to_the_repository
+tests/test_qa_root_links.py::test_s2_a_report_file_that_is_a_link_to_the_readme
+tests/test_qa_root_links.py::test_s3_a_reports_directory_that_points_into_the_source_tree
+tests/test_qa_root_links.py::test_s4_a_facts_file_that_is_a_link_to_the_code_under_test
+tests/test_qa_root_links.py::test_s5_the_run_index_is_never_a_report
+tests/test_qa_root_links.py::test_the_local_tier_refuses_a_linked_root_before_it_measures
+tests/test_qa_root_links.py::test_the_local_tier_refuses_a_root_among_the_code
+tests/test_qa_root_links.py::test_the_maintainers_writers_refuse_a_linked_root[verdict-accept]
+tests/test_qa_root_links.py::test_the_maintainers_writers_refuse_a_linked_root[verdict-answer]
+tests/test_qa_root_links.py::test_the_maintainers_writers_refuse_a_linked_root[verdict-issues --create]
+tests/test_qa_root_links.py::test_the_report_write_checks_the_name_it_opens[<lambda>-judgment0-src]
+tests/test_qa_root_links.py::test_the_report_write_checks_the_name_it_opens[<lambda>-judgment1-.]
+tests/test_qa_root_links.py::test_the_same_three_write_a_clean_root_and_reading_never_refuses
+tests/test_qa_root_links.py::test_the_three_places_a_root_may_be
 tests/test_questions.py::test_a_judgment_question_needs_a_sentence_and_a_known_finding
 tests/test_questions.py::test_a_project_that_never_asked_has_no_questions_fact
+tests/test_questions.py::test_a_refused_finalize_asks_nothing_and_leaves_no_report
 tests/test_questions.py::test_dismiss_needs_a_reason_and_records_it
 tests/test_questions.py::test_finalize_mints_the_id_writes_the_ledger_and_renders_the_section
 tests/test_questions.py::test_the_banner_the_gate_and_the_server_say_what_is_waiting
@@ -885,6 +2226,21 @@ tests/test_release_workflow.py::test_the_comment_filter_is_what_every_test_reads
 tests/test_release_workflow.py::test_the_download_is_checksummed_before_it_runs
 tests/test_release_workflow.py::test_the_job_holds_no_more_than_it_needs
 tests/test_release_workflow.py::test_the_publisher_is_pinned_to_a_release_not_to_latest
+tests/test_report_containment.py::test_a_report_directly_under_reports_is_fine
+tests/test_report_containment.py::test_a_report_outside_reports_is_named[../README.md]
+tests/test_report_containment.py::test_a_report_outside_reports_is_named[/etc/motd.md]
+tests/test_report_containment.py::test_a_report_outside_reports_is_named[C:\\x\\y.md]
+tests/test_report_containment.py::test_a_report_outside_reports_is_named[docs/notes.md]
+tests/test_report_containment.py::test_a_report_outside_reports_is_named[escaped.md]
+tests/test_report_containment.py::test_a_report_outside_reports_is_named[reports/../README.md]
+tests/test_report_containment.py::test_a_report_outside_reports_is_named[reports/./x.md]
+tests/test_report_containment.py::test_a_report_outside_reports_is_named[reports//x.md]
+tests/test_report_containment.py::test_a_report_outside_reports_is_named[reports/sub/x.md]
+tests/test_report_containment.py::test_a_topic_cannot_climb_either
+tests/test_report_containment.py::test_finalize_refuses_a_relative_climb
+tests/test_report_containment.py::test_finalize_refuses_a_report_path_into_the_checkout
+tests/test_report_containment.py::test_the_validator_refuses_a_report_that_left_reports
+tests/test_report_containment.py::test_topic_is_a_filename_fragment_never_a_path
 tests/test_report_names.py::test_a_retry_of_the_same_run_reuses_its_own_file
 tests/test_report_names.py::test_a_second_run_on_the_same_day_keeps_the_first_runs_report
 tests/test_reports.py::test_a_ctrf_report_is_read_the_same_way
@@ -892,13 +2248,26 @@ tests/test_reports.py::test_a_junit_report_outranks_the_summary_line_and_feeds_t
 tests/test_reports.py::test_an_explicit_id_command_outranks_the_reports_ids
 tests/test_reports.py::test_an_unwritten_report_falls_back_to_the_dialect_and_says_so
 tests/test_reports.py::test_the_reader_names_what_it_cannot_read
+tests/test_run_bill.py::test_a_bill_that_cannot_be_written_costs_the_run_nothing
+tests/test_run_bill.py::test_a_sweep_is_billed_as_the_nothing_it_cost
+tests/test_run_bill.py::test_an_operators_label_wins_and_the_measured_models_stay_in_the_bill
+tests/test_run_bill.py::test_an_unknown_bill_is_recorded_as_unknown_not_as_zero
+tests/test_run_bill.py::test_finalize_records_this_runs_bill_and_the_model_that_answered
+tests/test_run_bill.py::test_run_usage_never_raises_and_never_guesses
+tests/test_run_bill.py::test_the_main_session_is_read_only_when_no_delegated_agent_carries_the_fingerprint
+tests/test_run_bill.py::test_the_marker_names_the_session_that_staked_it
+tests/test_run_bill.py::test_with_no_fingerprint_the_transcript_still_being_written_is_the_run
+tests/test_run_eval_task_note.py::test_a_note_follows_the_task_it_does_not_replace_it
+tests/test_run_eval_task_note.py::test_no_note_leaves_the_task_exactly_as_it_was
 tests/test_runner.py::test_a_bare_checkout_is_provisioned_and_launched_headless
 tests/test_runner.py::test_a_completed_run_gates_green_with_the_model_measured
+tests/test_runner.py::test_a_night_that_never_started_leaves_no_marker
 tests/test_runner.py::test_a_path_argument_in_solo_mode_names_the_checkout_not_a_key
 tests/test_runner.py::test_a_session_that_writes_no_state_exits_5_not_yesterdays_verdict
 tests/test_runner.py::test_a_tracked_settings_json_is_not_touched
 tests/test_runner.py::test_an_edited_provision_is_the_operators_and_is_kept
 tests/test_runner.py::test_an_operators_agent_file_and_hooks_are_kept_not_replaced
+tests/test_runner.py::test_an_operators_own_ceiling_is_kept
 tests/test_runner.py::test_an_operators_permission_flag_is_not_doubled
 tests/test_runner.py::test_arguments_after_the_bare_dashes_reach_the_cli_verbatim
 tests/test_runner.py::test_hand_written_state_is_refused_by_default
@@ -909,9 +2278,17 @@ tests/test_runner.py::test_session_limit_reset_time_is_parsed_not_guessed
 tests/test_runner.py::test_skip_unchanged_runs_when_a_quarantine_expired
 tests/test_runner.py::test_skip_unchanged_runs_when_head_moved
 tests/test_runner.py::test_skip_unchanged_spends_no_model_run
+tests/test_runner.py::test_the_cli_is_told_to_wait_for_a_backgrounded_tester
 tests/test_runner.py::test_the_default_prompt_forbids_the_outer_session_an_offer_to_fix
+tests/test_runner.py::test_the_local_command_line_carries_the_delta_and_the_caps
+tests/test_runner.py::test_the_local_endpoint_comes_from_a_file_or_the_environment
 tests/test_runner.py::test_the_runners_own_provision_follows_the_plugin_root
 tests/test_runner.py::test_without_the_flag_unchanged_head_still_runs
+tests/test_runner_env.py::test_a_budget_that_is_not_a_number_is_refused_before_anything_runs
+tests/test_runner_env.py::test_a_named_variable_is_let_through
+tests/test_runner_env.py::test_passthrough_names_come_from_the_flag_and_the_environment
+tests/test_runner_env.py::test_the_child_sees_an_allowlist_not_the_operators_shell
+tests/test_runner_env.py::test_the_session_is_launched_isolated_and_capped
 tests/test_score.py::test_a_broad_row_cannot_steal_the_finding_a_later_row_needs
 tests/test_score.py::test_a_row_starved_by_a_true_conflict_says_so
 tests/test_score.py::test_a_source_checkouts_harness_counts_as_current
@@ -940,6 +2317,8 @@ tests/test_score.py::test_report_contains_row_without_alternatives_is_unchanged
 tests/test_score.py::test_report_forbids_row
 tests/test_score.py::test_stale_without_citation_drops_row
 tests/test_score.py::test_state_rows_score_files_verbs_anchors_and_the_class
+tests/test_score.py::test_the_cause_keys_class_row_reads_the_truncating_lines_not_the_files
+tests/test_score.py::test_the_cause_keys_two_truncation_rows_are_one_class
 tests/test_score.py::test_the_questions_row_reads_the_ledger
 tests/test_score.py::test_two_rows_of_one_class_may_share_a_finding
 tests/test_session_env.py::test_a_gateway_gets_the_three_flags_and_the_token_as_api_key
@@ -957,18 +2336,37 @@ tests/test_session_env.py::test_the_env_file_reaches_the_child_and_seeds_its_con
 tests/test_session_env.py::test_the_runner_refuses_a_missing_env_file
 tests/test_session_start.py::test_a_clean_project_says_so_in_one_line
 tests/test_session_start.py::test_a_finding_already_named_as_a_blocker_is_not_repeated
+tests/test_session_start.py::test_a_hint_that_cannot_be_recorded_is_not_shown
 tests/test_session_start.py::test_a_repo_with_no_qa_state_prints_nothing
+tests/test_session_start.py::test_a_repository_already_set_up_for_verdict_is_not_hinted
+tests/test_session_start.py::test_a_repository_with_state_still_gets_the_banner_not_the_hint
+tests/test_session_start.py::test_a_session_inside_a_subdirectory_counts_the_repository
 tests/test_session_start.py::test_a_state_with_no_verdict_prints_nothing
 tests/test_session_start.py::test_a_team_mode_root_in_the_tree_is_found
+tests/test_session_start.py::test_a_tested_repository_verdict_never_saw_gets_one_hint
 tests/test_session_start.py::test_every_broken_input_fails_open
 tests/test_session_start.py::test_findings_are_offered_as_findings_not_as_orders
+tests/test_session_start.py::test_headless_ci_and_opted_out_sessions_stay_silent[env0]
+tests/test_session_start.py::test_headless_ci_and_opted_out_sessions_stay_silent[env1]
+tests/test_session_start.py::test_headless_ci_and_opted_out_sessions_stay_silent[env2]
+tests/test_session_start.py::test_npm_placeholder_test_script_is_not_a_test_suite
+tests/test_session_start.py::test_only_a_fresh_start_hints[clear]
+tests/test_session_start.py::test_only_a_fresh_start_hints[compact]
+tests/test_session_start.py::test_only_a_fresh_start_hints[resume]
+tests/test_session_start.py::test_only_a_repository_with_a_test_suite_hints[Cargo.toml-True]
+tests/test_session_start.py::test_only_a_repository_with_a_test_suite_hints[README.md-False]
+tests/test_session_start.py::test_only_a_repository_with_a_test_suite_hints[go.mod-True]
+tests/test_session_start.py::test_only_a_repository_with_a_test_suite_hints[pytest.ini-True]
+tests/test_session_start.py::test_only_a_repository_with_a_test_suite_hints[tests-True]
 tests/test_session_start.py::test_resolved_findings_are_not_reported_as_outstanding
 tests/test_session_start.py::test_stale_memory_is_flagged_rather_than_served_as_current
 tests/test_session_start.py::test_the_blocker_comes_first_and_the_counts_follow
+tests/test_session_start.py::test_three_repositories_at_most_then_never_again
 tests/test_skills.py::test_agents_md_names_the_test_command_and_the_doctrine
 tests/test_skills.py::test_every_skill_shares_the_contracts_doctrine_and_routes_claude_code_to_the_agent
 tests/test_skills.py::test_llms_txt_lists_files_that_exist
 tests/test_skills.py::test_the_five_skills_exist_and_are_named_by_their_directory
+tests/test_skills.py::test_the_skills_stay_out_of_claude_codes_slash_menu
 tests/test_skills.py::test_the_skills_use_the_harness_the_package_ships
 tests/test_small.py::test_a_counterfactual_that_changes_nothing_disproves_it
 tests/test_small.py::test_a_counterfactual_that_flips_the_value_proves_the_claim
@@ -982,6 +2380,7 @@ tests/test_small.py::test_a_probe_that_copies_the_example_instead_of_calling_the
 tests/test_small.py::test_a_probe_the_model_malformed_is_refused_and_says_why
 tests/test_small.py::test_a_quarantine_entry_uses_the_key_the_validator_reads
 tests/test_small.py::test_a_skip_expires_only_on_a_future_date
+tests/test_small.py::test_a_transport_failure_is_counted_apart_from_an_unparseable_reply
 tests/test_small.py::test_a_version_guard_is_not_an_abandoned_skip
 tests/test_small.py::test_an_error_class_the_interpreter_names_needs_no_model
 tests/test_small.py::test_an_unknown_severity_is_not_trusted
@@ -1000,6 +2399,7 @@ tests/test_small.py::test_read_env_file_and_a_missing_one
 tests/test_small.py::test_scratch_copy_leaves_out_what_must_not_be_copied
 tests/test_small.py::test_severity_from_reading_is_capped_until_something_is_executed
 tests/test_small.py::test_the_console_script_is_declared
+tests/test_small.py::test_the_flags_a_local_night_is_driven_by_are_declared
 tests/test_small.py::test_the_interpreter_comes_from_the_projects_own_gate
 tests/test_small.py::test_the_judgment_says_what_local_mode_did_not_do
 tests/test_small.py::test_the_probe_asks_for_only_what_the_harness_cannot_measure
@@ -1008,14 +2408,82 @@ tests/test_small.py::test_the_run_refuses_without_an_endpoint
 tests/test_small.py::test_the_verdict_is_arithmetic_over_the_findings
 tests/test_small.py::test_unstable_is_the_symmetric_difference_across_runs
 tests/test_small.py::test_words_split_identifiers_so_a_changelog_can_be_found
+tests/test_small_probes.py::test_a_bare_tool_is_found_on_path_and_a_non_python_gate_is_none
+tests/test_small_probes.py::test_a_fix_made_of_the_functions_own_names_is_allowed[    return abs(x) - 1  # the boundary]
+tests/test_small_probes.py::test_a_fix_made_of_the_functions_own_names_is_allowed[    return max(x, 0) + 1]
+tests/test_small_probes.py::test_a_fix_made_of_the_functions_own_names_is_allowed[    return x + 2]
+tests/test_small_probes.py::test_a_fix_made_of_the_functions_own_names_is_allowed[    return x if x else 0]
+tests/test_small_probes.py::test_a_fix_reaching_a_forbidden_name_by_a_non_ascii_spelling_is_refused[    return \U0001d41eval('x')]
+tests/test_small_probes.py::test_a_fix_reaching_a_forbidden_name_by_a_non_ascii_spelling_is_refused[    return \uff3f\uff3fimport\uff3f\uff3f('os')]
+tests/test_small_probes.py::test_a_fix_reaching_a_forbidden_name_by_a_non_ascii_spelling_is_refused[    return x.\uff3f\uff3fclass\uff3f\uff3f.\uff3f\uff3fmro\uff3f\uff3f()]
+tests/test_small_probes.py::test_a_fix_that_introduces_a_name_is_refused_before_any_copy[    from os import system]
+tests/test_small_probes.py::test_a_fix_that_introduces_a_name_is_refused_before_any_copy[    import os; os.system('x')]
+tests/test_small_probes.py::test_a_fix_that_introduces_a_name_is_refused_before_any_copy[    return __import__('os').system('x')]
+tests/test_small_probes.py::test_a_fix_that_introduces_a_name_is_refused_before_any_copy[    return eval('x')]
+tests/test_small_probes.py::test_a_fix_that_introduces_a_name_is_refused_before_any_copy[    return f"{x}"]
+tests/test_small_probes.py::test_a_fix_that_introduces_a_name_is_refused_before_any_copy[    return open('/etc/passwd').read()]
+tests/test_small_probes.py::test_a_fix_that_introduces_a_name_is_refused_before_any_copy[    return subprocess.run(['x'])]
+tests/test_small_probes.py::test_a_fix_that_introduces_a_name_is_refused_before_any_copy[    return x.__class__.__mro__]
+tests/test_small_probes.py::test_a_fix_using_the_functions_own_non_ascii_name_is_allowed
+tests/test_small_probes.py::test_a_gate_with_no_python_disables_proving_and_says_so
+tests/test_small_probes.py::test_a_literal_call_on_the_function_under_probe_is_accepted[m.round_cents()]
+tests/test_small_probes.py::test_a_literal_call_on_the_function_under_probe_is_accepted[m.round_cents(-1, 2.5, 'two', None, True, b'x')]
+tests/test_small_probes.py::test_a_literal_call_on_the_function_under_probe_is_accepted[m.round_cents(1.005)]
+tests/test_small_probes.py::test_a_literal_call_on_the_function_under_probe_is_accepted[m.round_cents([1, (2, 3)], {'k': {4, 5}}, places=-2, label='x')]
+tests/test_small_probes.py::test_a_quoted_windows_path_is_one_word
+tests/test_small_probes.py::test_a_secret_in_the_expression_is_scrubbed_from_the_record
+tests/test_small_probes.py::test_a_venv_tool_resolves_to_the_python_beside_it
+tests/test_small_probes.py::test_anything_else_is_refused_as_probe_unsafe_and_never_run[(lambda: 1)()]
+tests/test_small_probes.py::test_anything_else_is_refused_as_probe_unsafe_and_never_run[]
+tests/test_small_probes.py::test_anything_else_is_refused_as_probe_unsafe_and_never_run[import os]
+tests/test_small_probes.py::test_anything_else_is_refused_as_probe_unsafe_and_never_run[m.__class__()]
+tests/test_small_probes.py::test_anything_else_is_refused_as_probe_unsafe_and_never_run[m.__dict__]
+tests/test_small_probes.py::test_anything_else_is_refused_as_probe_unsafe_and_never_run[m.f(**k)]
+tests/test_small_probes.py::test_anything_else_is_refused_as_probe_unsafe_and_never_run[m.f(*a)]
+tests/test_small_probes.py::test_anything_else_is_refused_as_probe_unsafe_and_never_run[m.f(1) + 1]
+tests/test_small_probes.py::test_anything_else_is_refused_as_probe_unsafe_and_never_run[m.f(1).g]
+tests/test_small_probes.py::test_anything_else_is_refused_as_probe_unsafe_and_never_run[m.f(1); m.g(2)]
+tests/test_small_probes.py::test_anything_else_is_refused_as_probe_unsafe_and_never_run[m.f(1)[0]]
+tests/test_small_probes.py::test_anything_else_is_refused_as_probe_unsafe_and_never_run[m.f([i for i in ()])]
+tests/test_small_probes.py::test_anything_else_is_refused_as_probe_unsafe_and_never_run[m.f(f'{1}')]
+tests/test_small_probes.py::test_anything_else_is_refused_as_probe_unsafe_and_never_run[m.f(g())]
+tests/test_small_probes.py::test_anything_else_is_refused_as_probe_unsafe_and_never_run[m.f(x)]
+tests/test_small_probes.py::test_anything_else_is_refused_as_probe_unsafe_and_never_run[m.g(1)]
+tests/test_small_probes.py::test_anything_else_is_refused_as_probe_unsafe_and_never_run[m.round_cents(__import__('os').system('x'))]
+tests/test_small_probes.py::test_anything_else_is_refused_as_probe_unsafe_and_never_run[os.getcwd()]
+tests/test_small_probes.py::test_both_probes_run_in_the_scratch_copy_and_the_checkout_is_untouched
+tests/test_small_probes.py::test_every_outcome_carries_the_expression_the_scratch_and_the_status
+tests/test_small_probes.py::test_probes_off_is_read_the_way_hygiene_off_is
+tests/test_small_probes.py::test_probes_off_means_no_counterfactual_is_ever_called[flag]
+tests/test_small_probes.py::test_probes_off_means_no_counterfactual_is_ever_called[profile]
+tests/test_small_probes.py::test_run_probe_itself_refuses_an_unsafe_expression
+tests/test_small_probes.py::test_secret_files_are_left_out_of_the_scratch_copy
+tests/test_small_probes.py::test_the_audits_proof_expression_is_refused_before_any_subprocess
+tests/test_small_probes.py::test_the_default_local_model_is_chat_not_qwen3
+tests/test_small_probes.py::test_the_finding_evidence_names_the_scratch_and_a_failed_probe
+tests/test_small_probes.py::test_the_probe_environment_is_an_allowlist
+tests/test_small_probes.py::test_the_run_writes_the_probe_ledger_into_facts
+tests/test_small_probes.py::test_uv_run_asks_uv_once_for_its_interpreter
+tests/test_stop_hook.py::test_a_finalized_run_leaves_no_marker_and_the_old_rule_still_speaks
+tests/test_stop_hook.py::test_a_first_run_that_never_finalized_has_no_state_at_all
 tests/test_stop_hook.py::test_a_freshly_checked_out_repo_says_nothing
 tests/test_stop_hook.py::test_a_harness_state_whose_scratch_is_elsewhere_does_not_block
 tests/test_stop_hook.py::test_a_harness_written_state_says_nothing
 tests/test_stop_hook.py::test_a_project_with_no_qa_root_says_nothing
 tests/test_stop_hook.py::test_a_state_with_no_usable_run_time_says_nothing
 tests/test_stop_hook.py::test_a_team_mode_qa_root_inside_the_repo_is_found
+tests/test_stop_hook.py::test_a_tester_that_measured_and_never_finalized_is_told_once
 tests/test_stop_hook.py::test_an_old_state_in_an_ordinary_coding_session_says_nothing
+tests/test_stop_hook.py::test_an_unreadable_marker_fails_open
 tests/test_stop_hook.py::test_every_broken_input_fails_open
+tests/test_stop_hook.py::test_everything_short_of_identity_says_nothing[a marker from the future \u2014 a clock, not a run-marker_kw6-event_kw6]
+tests/test_stop_hook.py::test_everything_short_of_identity_says_nothing[a marker too old to be the run that is ending now-marker_kw5-event_kw5]
+tests/test_stop_hook.py::test_everything_short_of_identity_says_nothing[a marker written by a harness that recorded no session-marker_kw4-event_kw4]
+tests/test_stop_hook.py::test_everything_short_of_identity_says_nothing[a parallel agent finishing while the tester is still at work-marker_kw1-event_kw1]
+tests/test_stop_hook.py::test_everything_short_of_identity_says_nothing[already continuing because of this hook-marker_kw7-event_kw7]
+tests/test_stop_hook.py::test_everything_short_of_identity_says_nothing[an agent the CLI did not name-marker_kw2-event_kw2]
+tests/test_stop_hook.py::test_everything_short_of_identity_says_nothing[another session's marker \u2014 last night's, or a run next door-marker_kw0-event_kw0]
+tests/test_stop_hook.py::test_everything_short_of_identity_says_nothing[the main session ending its turn while a background tester runs-marker_kw3-event_kw3]
 tests/test_stop_hook.py::test_hand_written_state_written_this_turn_blocks_the_stop
 tests/test_stop_hook.py::test_it_never_blocks_twice
 tests/test_stop_hook.py::test_the_block_names_a_durable_signal_before_promising_exit_6
@@ -1036,9 +2504,53 @@ tests/test_swebench.py::test_select_takes_every_instance_of_the_small_repositori
 tests/test_swebench.py::test_status_of_reads_swebench_ids_cut_at_whitespace_as_prefixes
 tests/test_swebench.py::test_table_counts_levels_and_survives_unscored_rows
 tests/test_swebench.py::test_test_files_come_from_the_test_patch
+tests/test_swebench_plain.py::test_a_missing_env_file_is_a_usage_error_in_either_arm
+tests/test_swebench_plain.py::test_a_reply_without_an_answer_block_is_retried_once
+tests/test_swebench_plain.py::test_a_session_limit_is_slept_through_and_retried
+tests/test_swebench_plain.py::test_answer_items_reach_cited_refs_through_the_fields_it_reads
+tests/test_swebench_plain.py::test_arm_defaults_to_verdict
+tests/test_swebench_plain.py::test_auto_memory_and_attached_instructions_are_read_from_the_config_directory
+tests/test_swebench_plain.py::test_batch_routes_each_arm_to_its_own_ledger
+tests/test_swebench_plain.py::test_claude_version_reads_the_cli_and_survives_its_absence
+tests/test_swebench_plain.py::test_compare_counts_only_instances_scored_in_both_arms_and_lists_disagreements
+tests/test_swebench_plain.py::test_compare_with_nothing_in_common_says_so
+tests/test_swebench_plain.py::test_headless_is_not_reused_because_it_names_the_agent
+tests/test_swebench_plain.py::test_one_plain_refuses_before_spending_anything
+tests/test_swebench_plain.py::test_one_plain_waits_out_a_session_limit_then_publishes_no_answer
+tests/test_swebench_plain.py::test_one_plain_writes_a_scored_row_graded_on_the_base_commits_source
+tests/test_swebench_plain.py::test_outside_references_name_what_a_session_reached_past_its_instance
+tests/test_swebench_plain.py::test_parse_answer_reads_only_the_last_json_block[crlf-uppercase]
+tests/test_swebench_plain.py::test_parse_answer_reads_only_the_last_json_block[empty-list]
+tests/test_swebench_plain.py::test_parse_answer_reads_only_the_last_json_block[empty]
+tests/test_swebench_plain.py::test_parse_answer_reads_only_the_last_json_block[last-block-wins-2]
+tests/test_swebench_plain.py::test_parse_answer_reads_only_the_last_json_block[last-block-wins]
+tests/test_swebench_plain.py::test_parse_answer_reads_only_the_last_json_block[malformed-last-no-fallback]
+tests/test_swebench_plain.py::test_parse_answer_reads_only_the_last_json_block[none]
+tests/test_swebench_plain.py::test_parse_answer_reads_only_the_last_json_block[not-a-list]
+tests/test_swebench_plain.py::test_parse_answer_reads_only_the_last_json_block[other-language]
+tests/test_swebench_plain.py::test_parse_answer_reads_only_the_last_json_block[prose-only]
+tests/test_swebench_plain.py::test_parse_answer_reads_only_the_last_json_block[unterminated]
+tests/test_swebench_plain.py::test_plain_findings_are_graded_by_the_same_scorer
+tests/test_swebench_plain.py::test_plain_prompt_carries_the_issue_verbatim_and_none_of_the_plugins_vocabulary
+tests/test_swebench_plain.py::test_plain_table_counts_a_run_without_an_answer_and_publishes_modified_checkouts
+tests/test_swebench_plain.py::test_plain_test_command_is_the_suite_gate_write_profile_gives_the_verdict_arm
+tests/test_swebench_plain.py::test_run_with_arm_plain_appends_to_the_plain_ledger_unless_dry
+tests/test_swebench_plain.py::test_scrub_removes_what_was_left_for_the_verdict_arm_and_nothing_tracked
+tests/test_swebench_plain.py::test_table_reads_the_ledger_the_arm_names_and_compare_reads_both
+tests/test_swebench_plain.py::test_the_plain_argv_is_still_the_one_the_runner_builds
+tests/test_swebench_plain.py::test_the_plain_launch_is_the_runners_launch_without_the_plugin
+tests/test_swebench_plain.py::test_the_templates_example_block_is_the_shape_the_mapper_reads
 tests/test_sweep.py::test_a_commit_that_touches_a_cited_file_runs_the_model_and_says_why
 tests/test_sweep.py::test_a_commit_that_touches_nothing_cited_is_swept_without_a_model
+tests/test_sweep.py::test_a_sweep_carries_verified_intact_and_says_nothing_outside_was_read
 tests/test_sweep.py::test_every_blocker_is_a_measurement
+tests/test_sweep.py::test_on_drift_local_never_launches_claude
+tests/test_sweep.py::test_on_drift_local_refuses_without_an_endpoint
+tests/test_sweep.py::test_on_drift_local_still_sweeps_when_it_can_and_names_the_dead_gateway
+tests/test_sweep.py::test_on_drift_model_is_the_default_and_unchanged
+tests/test_sweep.py::test_on_drift_none_writes_nothing_and_says_the_run_did_not_happen
+tests/test_sweep.py::test_the_harness_bootstrap_runs_the_subcommand_it_is_given
+tests/test_sweep.py::test_the_harness_child_imports_the_code_the_runner_is
 tests/test_sweep.py::test_the_synthetic_judgment_carries_every_open_finding_by_id_and_nothing_else
 tests/test_sweep.py::test_the_unchanged_head_path_still_applies
 tests/test_template.py::test_facts_name_the_template_and_the_prompt_that_judged
@@ -1056,6 +2568,12 @@ tests/test_usage.py::test_usage_covers_every_session_recorded_for_the_checkout
 tests/test_usage.py::test_usage_is_none_when_there_is_no_transcript
 tests/test_usage.py::test_usage_sums_the_subagent_and_counts_a_request_once
 tests/test_usage.py::test_usage_survives_a_truncated_transcript
+tests/test_usage_census.py::test_a_request_streamed_twice_is_billed_once_and_the_context_is_the_largest_seen
+tests/test_usage_census.py::test_a_run_with_no_request_and_a_meta_with_no_transcript_are_left_out
+tests/test_usage_census.py::test_another_agents_run_is_not_verdicts_bill
+tests/test_usage_census.py::test_the_launcher_and_the_answering_model_are_read_from_the_transcript
+tests/test_usage_census.py::test_the_table_names_the_largest_run_and_the_cli_prints_json
+tests/test_usage_census.py::test_the_window_is_the_day_the_run_started
 tests/test_validate.py::test_a_clean_judgment_passes
 tests/test_validate.py::test_a_failing_run_may_leave_not_tested_empty
 tests/test_validate.py::test_a_finding_that_will_be_new_is_told_so_before_the_merge
@@ -1131,6 +2649,11 @@ tests/test_validate.py::test_two_findings_may_not_share_one_hash
 tests/test_validate.py::test_two_findings_under_one_id_are_named_as_such
 tests/test_validate.py::test_verified_intact_must_be_a_list
 tests/test_validate.py::test_well_formed_evidence_stays_clean
+tests/test_validate_hook_scope.py::test_a_dot_qa_without_a_repository_beside_it_is_not_a_root
+tests/test_validate_hook_scope.py::test_a_foreign_findings_file_is_ignored_too
+tests/test_validate_hook_scope.py::test_a_foreign_state_json_is_none_of_the_hooks_business
+tests/test_validate_hook_scope.py::test_a_solo_roots_state_is_still_checked
+tests/test_validate_hook_scope.py::test_a_team_roots_state_is_still_checked
 tests/test_verification.py::test_a_clean_verification_writes_no_notes_and_leaves_no_scratch
 tests/test_verification.py::test_a_conftest_the_commit_did_not_touch_is_not_reported_as_copied
 tests/test_verification.py::test_a_failing_test_refuses_only_a_resolution

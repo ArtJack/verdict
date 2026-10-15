@@ -1,0 +1,18 @@
+{
+ "id": "VERDICT-F-80",
+ "title": "A test is skipped with no expiry: reason=\"temporarily disabled 2026-05-02 - flaky?\"",
+ "severity": "Minor",
+ "priority": "P2",
+ "status": "open",
+ "failure_classification": "BRITTLE_TEST",
+ "confidence": "proven",
+ "evidence": [
+  "eval/fixtures/pricer/test_pricer.py:18 \u2014 skip marker with reason 'reason=\"temporarily disabled 2026-05-02 - flaky?\"'; no date or expiry in the reason",
+  "found by a regular expression over the test files, not by a model"
+ ],
+ "root_cause": {
+  "mechanism": "A skip with no expiry is a deleted test that nobody decided to delete: it never runs again and no one is told.",
+  "origin": "not investigated in local mode"
+ },
+ "narrative": "A skipped test with no expiry silently removes coverage. Either give the skip an expiry date or delete the test deliberately."
+}
