@@ -566,3 +566,24 @@ def test_the_local_command_line_carries_the_delta_and_the_caps(monkeypatch):
     assert seen["token_in_env"] is False
     assert "claude" not in " ".join(seen["argv"])
     assert os.environ.get("ANTHROPIC_BASE_URL") is None
+
+
+# ── a run launched on one model stays on it (2026-10-12) ──────────────────────
+
+def test_a_model_given_by_id_pins_both_aliases_a_subagent_could_be_handed():
+    from verdict_mcp.runner import pin_model_aliases
+    env = {}
+    notes = pin_model_aliases(env, "claude-opus-5-5")
+    assert env == {"ANTHROPIC_DEFAULT_OPUS_MODEL": "claude-opus-5-5",
+                   "ANTHROPIC_DEFAULT_SONNET_MODEL": "claude-opus-5-5"}
+    assert notes and "pinned to claude-opus-5-5" in notes[0]
+
+
+def test_an_alias_cannot_be_pinned_and_the_operators_own_pin_is_kept():
+    from verdict_mcp.runner import pin_model_aliases
+    env = {}
+    assert pin_model_aliases(env, "opus") == [] and env == {}
+    env = {"ANTHROPIC_DEFAULT_SONNET_MODEL": "claude-sonnet-5-5"}
+    pin_model_aliases(env, "claude-opus-5-5")
+    assert env["ANTHROPIC_DEFAULT_SONNET_MODEL"] == "claude-sonnet-5-5"
+    assert env["ANTHROPIC_DEFAULT_OPUS_MODEL"] == "claude-opus-5-5"
