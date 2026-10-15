@@ -15,6 +15,9 @@ nothing in this suite looked at:
   by the directory's own rule, which is how the 842 KB listing icon ships.
 
 Both are properties of the whole tree, so both are checked over every tracked file.
+The listing can track the `directory` branch instead, which leaves tests/ and eval/ out
+(.github/directory_branch.py). These checks still hold the default branch, which
+`/plugin marketplace add ArtJack/verdict` installs whole.
 The size line sits below the limit on purpose: a file that grows toward it fails here
 first, while there is still room to split it.
 """

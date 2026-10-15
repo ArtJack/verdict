@@ -25,6 +25,11 @@ say what you measured, cite it, and leave the tree the way a stranger can reprod
   disagree, and `release.yml` refuses a tag that disagrees with them.
 - **Every change gets a CHANGELOG entry** in the existing voice: what was wrong, what was
   measured, what is deliberately not in the release.
+- **The directory listing reads its own branch.** `release.yml` writes each release to
+  `directory` without the files only development needs, so a fixture can hold whatever a
+  test needs. Anything the plugin runs or reads must stay out of `EXCLUDED` in
+  [`.github/directory_branch.py`](.github/directory_branch.py);
+  `tests/test_directory_branch.py` checks every `${CLAUDE_PLUGIN_ROOT}` path it names.
 
 ## What is welcome
 
@@ -55,6 +60,7 @@ say what you measured, cite it, and leave the tree the way a stranger can reprod
 | `eval/` | fixtures, scorer, mutation tools, published results |
 | `tests/` | the suite; `tests/test_agent_contract.py` is the free half of prompt coverage |
 | `.qa/` | Verdict's own QA state, in team mode — every release is audited by the tool |
+| `directory` branch | the plugin as the Claude directory reads it: each release without `tests/`, `eval/`, `.qa/` and CI, written by [`.github/directory_branch.py`](.github/directory_branch.py) |
 | `docs/state-schema.md` | the state contract |
 
 Questions go in an issue. There is no chat.

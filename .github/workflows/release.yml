@@ -125,6 +125,25 @@ jobs:
           git tag -f "$major" "$GITHUB_SHA"
           git push -f origin "$major"
 
+  # The Claude directory's copy. Its listing tracks the `directory` branch, which
+  # holds each release without tests/, eval/, .qa/ and CI: tracking main, the
+  # directory scanned the secret scan's own test data and failed every version
+  # after 0.90.2 for "Secret in a shipped file: tests/test_hygiene.py". One commit
+  # per release on top of the last one, pushed without force.
+  directory-branch:
+    needs: publish
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Write this release's plugin to the directory branch
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          python3 .github/directory_branch.py "$GITHUB_SHA" --label "$GITHUB_REF_NAME" --push
+
   # The MCP Server Registry entry for `io.github.ArtJack/verdict`, kept at the
   # version PyPI has. It was published once by hand at 0.49.0 and never again.
   # Authenticated by the workflow's OIDC identity — the namespace is the
