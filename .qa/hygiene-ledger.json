@@ -1,0 +1,65 @@
+{
+ "schema": 1,
+ "run_number": 16,
+ "rows": [
+  {
+   "fingerprint": "97ae9dc68fab0b10",
+   "kind": "duplicate_function",
+   "path": "eval/run_eval.py",
+   "line": 253,
+   "excerpt": "def is_gateway \u2014 2 identical copies",
+   "status": "open",
+   "delta": "NEW",
+   "first_seen": "2026-10-15",
+   "first_seen_run": 16,
+   "sites": [
+    "eval/run_eval.py",
+    "src/verdict_mcp/runner.py"
+   ]
+  },
+  {
+   "fingerprint": "6c64a551e262a9ef",
+   "kind": "oversized_file",
+   "path": "hooks/enforce_bash_scope.py",
+   "line": 2348,
+   "excerpt": "2348 lines",
+   "status": "open",
+   "delta": "NEW",
+   "first_seen": "2026-10-15",
+   "first_seen_run": 16
+  },
+  {
+   "fingerprint": "6580bd98599ea67b",
+   "kind": "oversized_file",
+   "path": "src/verdict_mcp/harness.py",
+   "line": 3591,
+   "excerpt": "3591 lines",
+   "status": "open",
+   "delta": "NEW",
+   "first_seen": "2026-10-15",
+   "first_seen_run": 16
+  },
+  {
+   "fingerprint": "573591e6d3f3c5f0",
+   "kind": "broad_swallow",
+   "path": "src/verdict_mcp/small.py",
+   "line": 181,
+   "excerpt": "except Exception:       # noqa: BLE001 \u2014 the body is a courtesy, not evidence",
+   "status": "open",
+   "delta": "NEW",
+   "first_seen": "2026-10-15",
+   "first_seen_run": 16
+  },
+  {
+   "fingerprint": "1dd848b03506ddea",
+   "kind": "oversized_file",
+   "path": "src/verdict_mcp/small.py",
+   "line": 2785,
+   "excerpt": "2785 lines",
+   "status": "open",
+   "delta": "NEW",
+   "first_seen": "2026-10-15",
+   "first_seen_run": 16
+  }
+ ]
+}

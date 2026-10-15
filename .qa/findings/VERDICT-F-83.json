@@ -1,0 +1,19 @@
+{
+ "id": "VERDICT-F-83",
+ "title": "A test is skipped with no expiry: \"symlinks unavailable on this platform\"",
+ "severity": "Minor",
+ "priority": "P2",
+ "status": "open",
+ "failure_classification": "BRITTLE_TEST",
+ "confidence": "proven",
+ "evidence": [
+  "tests/test_hooks.py:195 \u2014 skip marker with reason '\"symlinks unavailable on this platform\"'; no date or expiry in the reason",
+  "tests/test_hooks.py:219 \u2014 skip marker with reason '\"symlinks unavailable on this platform\"'; no date or expiry in the reason",
+  "found by a regular expression over the test files, not by a model"
+ ],
+ "root_cause": {
+  "mechanism": "A skip with no expiry is a deleted test that nobody decided to delete: it never runs again and no one is told.",
+  "origin": "not investigated in local mode"
+ },
+ "narrative": "A skipped test with no expiry silently removes coverage. Either give the skip an expiry date or delete the test deliberately."
+}
