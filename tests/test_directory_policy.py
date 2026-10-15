@@ -122,9 +122,16 @@ def test_the_check_sees_a_key_split_the_way_python_joins_it(tmp_path):
     assert [shape for _, shape in secret_shapes(planted)] == ["stripe"]
 
 
+# Never shipped: the listing tracks the `directory` branch, which leaves Verdict's own QA
+# record out. Its test-id ledger outgrew the line at 2,695 tests and has to stay tracked,
+# or every fresh checkout reads all tests as added (2026-10-15).
+NOT_SHIPPED = (".qa/",)
+
+
 def test_no_shipped_file_is_too_large_for_the_directory_to_read():
     big = sorted(((p.stat().st_size, p.relative_to(REPO).as_posix()) for p in tracked_files()
                   if p.is_file() and p.suffix.lower() not in EXEMPT
+                  and not p.relative_to(REPO).as_posix().startswith(NOT_SHIPPED)
                   and p.stat().st_size > SIZE_LINE), reverse=True)
     assert big == [], (f"over {SIZE_LINE // 1024} KiB, close to the size the directory stops "
                        f"reading at — split the file: {big}")
