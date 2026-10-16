@@ -1753,21 +1753,30 @@ class Budget:
 
     A gate nobody waits for is a gate nobody runs, so the caps are part of the
     product: a bounded number of functions, a bounded number of counterfactuals,
-    and a wall-clock ceiling. What matters for honesty is the other half — when a
-    cap bites, the run says how many candidates it never looked at, because a
-    truncated read reported as a complete one is the exact shape of a false green.
+    and a wall-clock ceiling on the model's part. What matters for honesty is the
+    other half — when a cap bites, the run says how many candidates it never looked
+    at, because a truncated read reported as a complete one is the exact shape of a
+    false green.
+
+    The ceiling's clock starts at the first question, not when the budget is built:
+    the suite and coverage run in between, and they are measurement, not model time.
+    Started at construction, it counted them — on Verdict's own repository they took
+    853 of a release gate's 900 s, and the gate read no function and reported "the
+    900s model budget ran out" (2026-10-15).
     """
 
     def __init__(self, functions: int = MAX_FUNCTIONS, probes=None, seconds=None):
         self.functions, self.probes, self.seconds = functions, probes, seconds
         self.used_functions, self.used_probes, self.skipped = 0, 0, 0
         self.stopped = None
-        self._started = time.monotonic()
+        self._started = None
 
     def elapsed_s(self) -> float:
-        return time.monotonic() - self._started
+        return 0.0 if self._started is None else time.monotonic() - self._started
 
     def take_function(self) -> bool:
+        if self._started is None:
+            self._started = time.monotonic()
         if not self.stopped:
             # `>=`: a budget of 0 s is spent at once. With `>`, Windows' 15.6 ms monotonic
             # clock reads 0.0 right after construction and a spent budget reads as unspent.
