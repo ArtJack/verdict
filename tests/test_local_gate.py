@@ -231,6 +231,24 @@ def test_the_model_budget_stops_and_reports_what_it_skipped():
     assert "model budget ran out" in spent.stopped
 
 
+def test_the_model_budget_is_model_time_not_the_suite_before_it(monkeypatch):
+    """Built before the suite and coverage run, the budget used to count them: on Verdict's
+    own repository they took 853 of a release gate's 900 s, and the gate read nothing and
+    said "the 900s model budget ran out" (2026-10-15)."""
+    from types import SimpleNamespace
+    now = [1000.0]
+    monkeypatch.setattr(small, "time", SimpleNamespace(monotonic=lambda: now[0]))
+    budget = small.Budget(functions=99, seconds=900)
+    now[0] += 853                                   # the suite and coverage
+    assert budget.take_function(), "measurement is not model time"
+    assert budget.elapsed_s() == 0
+    now[0] += 899
+    assert budget.take_function()
+    now[0] += 1
+    assert not budget.take_function() and "900s model budget ran out" in budget.stopped
+    assert small.Budget().elapsed_s() == 0, "a budget never asked has spent nothing"
+
+
 def test_the_probe_cap_leaves_a_claim_a_hypothesis():
     budget = small.Budget(probes=1)
     assert budget.take_probe() and not budget.take_probe()
