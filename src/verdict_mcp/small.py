@@ -516,10 +516,13 @@ def capped_failure(severity: str) -> str:
 
 
 def finding_of(claim: dict, ident: str, chunk_source: str, proof: dict | None = None) -> dict:
-    """A claim becomes a finding file — with `confidence: hypothesis`, because nothing
-    here was proven by execution. The harness refuses to call it anything else, and a
-    small-model run that claimed `proven` would be exactly the flattery this project
-    exists to reject."""
+    """A claim becomes a finding file — `confidence: hypothesis` unless `proof` is a
+    counterfactual that ran: the cited line changed in a scratch copy, the expression
+    re-run, and the value followed the line. A model's reading alone is never `proven`;
+    a small-model run that claimed it would be exactly the flattery this project exists
+    to reject. (Until 0.90.9 this said every finding here was a hypothesis, which stopped
+    being true when probes arrived, and a 120B reader filed the stale sentence as a
+    Critical defect in the 0.90.9 release gate.)"""
     excerpt = "\n".join(chunk_source.splitlines()[:6])
     proven = bool(proof and proof.get("status") == "proven")
     evidence = [
