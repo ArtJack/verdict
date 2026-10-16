@@ -167,6 +167,13 @@ handed to a person is listed apart from the rest, because no code change will cl
 `verdict-gate --format json` carries the same as `news` (`any` is the one bit to page on).
 Page on `^verdict-run: news — `, and stay quiet on the rest.
 
+The standing line also names the open findings that a commit in the measured code claims to
+fix — its subject names the id, as in `census: … (F-113) (#330)` — on or after the day the
+finding was first seen. A claim is a lead for the next run, not a resolution: a fix that
+needs a person to run a command, or a guard nothing triggers yet, is rightly still open.
+Commits that touch only the QA root are the record's own and claim nothing.
+`verdict-gate --format json` lists them as `fix_claims`.
+
 `--require-harness` is what keeps an unattended run honest. It checks four traces that only
 `verdict-facts` / `verdict-finalize` leave: facts measured *for this run* (a stale
 `facts.json` from an earlier one does not count), a judgment file, a computed state, and a

@@ -3,7 +3,7 @@
 [CI](https://github.com/ArtJack/verdict/actions/workflows/ci.yml) ·
 [verdict on itself](.qa/reports/INDEX.md) ·
 [eval: 8/8 seeded defects](eval/README.md#published-results) ·
-[pinned rules: 384/384 killed](eval/README.md#suite-fault-detection-power--mutation-testing-on-ourselves) ·
+[pinned rules: 389/389 killed](eval/README.md#suite-fault-detection-power--mutation-testing-on-ourselves) ·
 [PyPI: verdict-qa-mcp](https://pypi.org/project/verdict-qa-mcp/) ·
 [MIT license](LICENSE)
 

@@ -43,7 +43,7 @@ from pathlib import Path
 try:
     from .project_key import derive_key
     from .questions import facts_view as questions_view
-    from .state import (code_drift, fold_accepted, harness_signals, is_open, is_path_like,
+    from .state import (code_drift, fix_claims, fold_accepted, harness_signals, is_open, is_path_like,
                     load_accepted,
                     load_chain_anchor, load_runs, load_state, missing_durable,
                     norm_status, order_findings,
@@ -55,7 +55,7 @@ except ImportError:  # executed as a bare script (GitHub Action gate mode)
     import clock
     from project_key import derive_key
     from questions import facts_view as questions_view
-    from state import (code_drift, fold_accepted, harness_signals, is_open, is_path_like,
+    from state import (code_drift, fix_claims, fold_accepted, harness_signals, is_open, is_path_like,
                    load_accepted,
                    load_chain_anchor, load_runs, load_state, missing_durable,
                    norm_status, order_findings,
@@ -93,7 +93,7 @@ def _finding_no(text):
     return int(m.group(1)) if m else None
 
 
-def news_of(state, findings, rows, parked) -> dict:
+def news_of(state, findings, rows, parked, claims=None) -> dict:
     """What the last run changed: the verdict against the run before it, findings at Major or
     worse that are new, came back, or were resolved — and the release blockers split into the
     ones a parked question has handed to a person and the rest. `any` is the one bit a
@@ -122,7 +122,8 @@ def news_of(state, findings, rows, parked) -> dict:
             blockers.append({"blocker": head})
     changed = was is not None and was != state.get("verdict")
     return {"any": bool(new or resolved or changed), "verdict_was": was, "new": new,
-            "resolved": resolved, "blockers_waiting_on_a_person": waiting, "blockers": blockers}
+            "resolved": resolved, "blockers_waiting_on_a_person": waiting, "blockers": blockers,
+            "fix_claimed": list(claims or [])}
 
 
 def news_line(r) -> str:
@@ -149,6 +150,11 @@ def news_line(r) -> str:
             for b in news["blockers_waiting_on_a_person"]))
     if news["blockers"]:
         held.append("blockers: " + ", ".join(b["blocker"] for b in news["blockers"]))
+    if news.get("fix_claimed"):
+        claimed = news["fix_claimed"]
+        held.append("a commit names as fixed, no run has verified: " + ", ".join(
+            f"{c['id']} ({c['commit']})" for c in claimed[:5])
+            + (f" and {len(claimed) - 5} more" if len(claimed) > 5 else ""))
     return (f"no news — the verdict stands at {r.get('verdict')!r}"
             + (" · " + " · ".join(held) if held else ""))
 
@@ -188,7 +194,9 @@ def evaluate(project, fail_on, max_age_hours, min_run_number, now=None,
                                     "finding": q.get("finding"), "age_days": q.get("age_days")}
                                    for q in qv["parked"]]
     rows, _ = load_runs(state.get("_qa_root") or ".")
-    out["news"] = news_of(state, folded, rows, (qv or {}).get("parked"))
+    out["fix_claims"] = fix_claims(repo_for_root(resolve_root(project)), last.get("git_sha"),
+                                   folded)
+    out["news"] = news_of(state, folded, rows, (qv or {}).get("parked"), out["fix_claims"])
     if verdict not in ("pass", "pass with risks", "blocked", "fail"):
         out.update(exit_code=4, reason=f"state has no usable verdict: {verdict!r}")
         return out

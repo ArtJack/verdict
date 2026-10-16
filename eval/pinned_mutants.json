@@ -2317,5 +2317,35 @@
   "path": "src/verdict_mcp/runner.py",
   "old": "            print(\"verdict-run: no news \u2014 HEAD unchanged, nothing ran\")",
   "new": "            print(f\"verdict-run: {news_line(result)}\")"
+ },
+ {
+  "label": "0.90.10 claims 1: a commit that touches only the QA record claims a fix",
+  "path": "src/verdict_mcp/state.py",
+  "old": "        if paths and all(n.startswith(record) for n in paths):\n            continue\n",
+  "new": ""
+ },
+ {
+  "label": "0.90.10 claims 2: a sibling project's finding id claims this one's fix",
+  "path": "src/verdict_mcp/state.py",
+  "old": "            if hit is None or (prefix and prefix != hit[0]):",
+  "new": "            if hit is None:"
+ },
+ {
+  "label": "0.90.10 claims 3: a commit from before the finding claims its fix",
+  "path": "src/verdict_mcp/state.py",
+  "old": "            if day < str(f.get(\"first_seen\") or \"\")[:10]:\n                continue\n",
+  "new": ""
+ },
+ {
+  "label": "0.90.10 claims 4: a resolved finding is claimed again",
+  "path": "src/verdict_mcp/state.py",
+  "old": "        if m and is_open(f):",
+  "new": "        if m:"
+ },
+ {
+  "label": "0.90.10 claims 5: the standing line never names the claimed fixes",
+  "path": "src/verdict_mcp/gate.py",
+  "old": "    if news.get(\"fix_claimed\"):",
+  "new": "    if False:"
  }
 ]

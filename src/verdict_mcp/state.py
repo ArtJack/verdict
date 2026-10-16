@@ -950,6 +950,63 @@ def order_findings(findings: list[dict]) -> list[dict]:
 _SHA_SHAPE = re.compile(r"^[0-9a-fA-F]{7,40}$")
 
 
+# A commit that fixes a finding names it in its subject: "census: … (F-113) (#330)".
+_CLAIM = re.compile(r"(?<![A-Za-z0-9])(?:([A-Z][A-Z0-9]*)-)?F-(\d+)(?![0-9])")
+_OWN_ID = re.compile(r"(?:([A-Z][A-Z0-9]*)-)?F-(\d+)$")
+_SEVERITY_ORDER = {"Blocker": 0, "Critical": 1, "Major": 2, "Minor": 3, "Trivial": 4}
+
+
+def fix_claims(repo, sha, findings, qa_dir: str = ".qa", timeout: float = 10.0) -> list:
+    """Open findings that a commit in the measured code names in its subject, on or after the
+    day the finding was first seen: a fix somebody claimed, and no run has verified.
+
+    Sales' commits name what they fix. On 2026-10-15, 8 of its 73 open findings had such a
+    commit on main, merged weeks before the runs that went on carrying them open — F-113,
+    F-114 and F-116 for 43 days (trace 2026-10-15). A claim is a lead for the next run, never a
+    resolution: two of the eight were rightly still open, a remedy nobody had run and a
+    containment nothing triggers. A commit that touches only the QA root is the record's own
+    ("qa: run 15 — F-75 closed …") and claims nothing. Never raises: unknown is []."""
+    if not repo or not sha or not isinstance(sha, str):
+        return []
+    by_no = {}
+    for f in findings or []:
+        m = _OWN_ID.match(str(f.get("id") or ""))
+        if m and is_open(f):
+            by_no[int(m.group(2))] = (m.group(1), f)
+    if not by_no:
+        return []
+    try:
+        proc = subprocess.run(["git", "-C", str(repo), "log", "--format=%x1e%h%x1f%cs%x1f%s",
+                               "--name-only", f"{sha.strip()}^{{commit}}", "--"],
+                              capture_output=True, text=True, timeout=timeout)
+    except (OSError, subprocess.SubprocessError):
+        return []
+    if proc.returncode != 0:
+        return []
+    record = qa_dir.strip("/") + "/"
+    claims: dict = {}
+    for entry in proc.stdout.split("\x1e"):
+        head, _, names = entry.partition("\n")
+        parts = head.split("\x1f")
+        if len(parts) != 3:
+            continue
+        commit, day, subject = parts
+        paths = [n.strip() for n in names.splitlines() if n.strip()]
+        if paths and all(n.startswith(record) for n in paths):
+            continue
+        for prefix, num in _CLAIM.findall(subject):
+            hit = by_no.get(int(num))
+            if hit is None or (prefix and prefix != hit[0]):
+                continue
+            f = hit[1]
+            if day < str(f.get("first_seen") or "")[:10]:
+                continue
+            claims.setdefault(f.get("id"), {"id": f.get("id"), "severity": f.get("severity"),
+                                            "commit": commit, "date": day, "subject": subject})
+    return sorted(claims.values(),
+                  key=lambda c: (_SEVERITY_ORDER.get(c["severity"], 9), c["date"]))
+
+
 def code_drift(repo, sha, timeout: float = 3.0) -> dict:
     """How far the code has moved since this state was written.
 

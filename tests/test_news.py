@@ -70,3 +70,60 @@ def test_the_gate_says_the_news_in_text_and_json(tmp_path):
             "PRC-F-2 (Critical, REGRESSED)") in out, out
     data = json.loads(gate(tmp_path, "pricer", "--format", "json", home=home).stdout)
     assert data["news"]["any"] is True and data["news"]["verdict_was"] == "pass with risks"
+
+
+# ── a fix somebody claimed, that no run has verified ──────────────────────────
+
+def _commit(repo, day, subject, path="a.py"):
+    import os
+    import subprocess
+    (repo / path).parent.mkdir(parents=True, exist_ok=True)
+    with open(repo / path, "a", encoding="utf-8") as fh:
+        fh.write(f"# {subject}\n")
+    stamp = f"{day}T12:00:00+00:00"
+    env = dict(os.environ, GIT_AUTHOR_DATE=stamp, GIT_COMMITTER_DATE=stamp)
+    for args in (["add", "-A"], ["commit", "-q", "-m", subject]):
+        subprocess.run(["git", "-C", str(repo), *args], check=True, capture_output=True, env=env)
+
+
+def test_a_commit_that_names_an_open_finding_is_a_claim_never_a_resolution(tmp_path):
+    """Sales' commits name what they fix — "census: … (F-113) (#330)" — and on 2026-10-15 eight
+    of its open findings had such a commit on main, weeks before the runs that went on carrying
+    them open (trace 2026-10-15)."""
+    import subprocess
+    from verdict_mcp.state import fix_claims
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    for args in (["init", "-q", "-b", "main"], ["config", "user.email", "x@y"],
+                 ["config", "user.name", "t"]):
+        subprocess.run(["git", "-C", str(repo), *args], check=True, capture_output=True)
+    _commit(repo, "2026-08-30", "a fix that came before the finding (F-116)")
+    _commit(repo, "2026-09-02", "census: excuse a dropped count only when handed it (F-113) (#330)")
+    _commit(repo, "2026-09-03", "qa: run 15 — F-114 closed by counterfactual", path=".qa/state.json")
+    _commit(repo, "2026-09-04", "a sibling project's finding (VERDICT-F-115)")
+    _commit(repo, "2026-09-05", "a finding already resolved (F-117)")
+    _commit(repo, "2026-09-06", "the body names it, the subject does not")
+    sha = subprocess.run(["git", "-C", str(repo), "rev-parse", "HEAD"], capture_output=True,
+                         text=True, check=True).stdout.strip()
+    findings = [
+        {"id": "F-113", "status": "open", "severity": "Major", "first_seen": "2026-09-02"},
+        {"id": "F-114", "status": "open", "severity": "Major", "first_seen": "2026-09-02"},
+        {"id": "F-115", "status": "open", "severity": "Minor", "first_seen": "2026-09-02"},
+        {"id": "F-116", "status": "open", "severity": "Minor", "first_seen": "2026-09-01"},
+        {"id": "F-117", "status": "resolved", "severity": "Minor", "first_seen": "2026-09-01"},
+    ]
+    claims = fix_claims(repo, sha, findings)
+    assert [c["id"] for c in claims] == ["F-113"], claims
+    assert claims[0]["date"] == "2026-09-02" and claims[0]["subject"].startswith("census:")
+    assert fix_claims(repo, "0" * 40, findings) == [], "a sha this clone cannot see is unknown"
+    assert fix_claims(None, sha, findings) == []
+
+
+def test_the_standing_line_names_the_claimed_fixes():
+    news = news_of({"run_number": 2, "verdict": "fail", "release_blockers": []}, [],
+                   [{"run_number": 1, "verdict": "fail"}, {"run_number": 2, "verdict": "fail"}], [],
+                   [{"id": f"F-{n}", "commit": f"c{n}", "severity": "Major"} for n in range(1, 8)])
+    assert news["any"] is False, "a claim is standing information, not a page"
+    line = news_line({"verdict": "fail", "news": news})
+    assert line.endswith("a commit names as fixed, no run has verified: F-1 (c1), F-2 (c2), "
+                         "F-3 (c3), F-4 (c4), F-5 (c5) and 2 more")
