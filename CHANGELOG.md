@@ -9,6 +9,34 @@ They moved there on 2026-10-03, when this file outgrew what the Claude directory
 will read: at 250 KB it was read, at 267 KB it held 0.90.3 for "Files or downloads the
 validator couldn't inspect". The limit is most likely 256 KiB.
 
+## 0.90.8 — 2026-10-15 · "the tester is the session"
+
+**An asked run could start without Verdict.** On 2026-10-06 four asked money gates ran from a
+packet that never asked for the agent: a generic session at effort `medium`, without Verdict's
+prompt, and two of the four ended their turn with no state. `verdict-run` only asked for the tester
+in words, and the rule that catches a run never finalized only read a subagent's stop.
+
+- **`verdict-run` launches the tester as the session:** `claude --agent verdict --effort <the
+  effort its agent file pins>`, with a prompt for a session that is the tester. The operator's own
+  prompt, `--agent` or `--effort` is kept. A CLI that refuses the flag (before any model call) is
+  launched the old way, and the refusal is not an attempt; with no agent file nothing changes.
+- **The never-finalized rule sees that session's Stop.** A session started as an agent names it on
+  its own hook events (measured on CLI 2.1.281); a plain session's Stop names none. So a tester that
+  ends its turn without `verdict-finalize` is told once whether it ran as a subagent or as the
+  session, and the main session ending its turn beside a background tester still says nothing.
+- **A gate in a root of its own says it was a gate.** Every branch gate runs in a throwaway root,
+  and every one was reported as "run 1 (baseline)", as if the whole repository had been read. With
+  a range and no previous state, `verdict-facts` now labels the run "Gate over BASE..HEAD, in a root
+  of its own: the change is the scope, not a baseline of the repository"; `run_type` stays
+  `baseline`, the strict enum.
+- The SWE-bench control arm still launches plain Claude Code, with neither `--agent` nor `--effort`.
+- Pinned rules 365 → 376, each killed by the suite.
+
+**Not in this release:** changed-line coverage on a branch gate is measured only when the gate is
+given its range (`verdict-run --range`); the local tier still never lifts a standing `fail`; a first
+run with no profile whose guessed interpreter lacks the project's dependencies still reads the
+collection errors as a red suite.
+
 ## 0.90.7 — 2026-10-15 · "the record says what ran"
 
 **Traced on four projects' local nights, the record was telling its reader things that had not
