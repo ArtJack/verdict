@@ -21,6 +21,9 @@ model budget ran out" without a single model call.
   coverage before it are measurement. Over the same range, the fixed engine read 24 functions (the
   cap) where the released one read none. Nights mostly escaped the defect: their ceiling is
   3,600 s, and since 0.90.7 they reuse the sweep's measurement.
+- `finding_of`'s docstring said every local finding is a hypothesis, which stopped being true when
+  counterfactual probes arrived; the fixed release gate, reading for the first time, filed the stale
+  sentence as a proven Critical. It now says what the code does.
 - Pinned rules 376 → 377, each killed by the suite.
 
 **Not in this release:** changed-line coverage on a branch gate is measured only when the gate is
