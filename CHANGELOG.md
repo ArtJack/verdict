@@ -9,6 +9,25 @@ They moved there on 2026-10-03, when this file outgrew what the Claude directory
 will read: at 250 KB it was read, at 267 KB it held 0.90.3 for "Files or downloads the
 validator couldn't inspect". The limit is most likely 256 KiB.
 
+## 0.90.9 — 2026-10-16 · "the model's time is the model's"
+
+**A release gate read nothing and said the model had run out of time.** The local tier's wall-clock
+ceiling (`--max-model-s`, 900 s for a gate) started when its budget was built, before the suite and
+coverage ran. On Verdict's own repository the three release gates of 2026-10-15 spent 663, 716 and
+853 s of their 900 s measuring, and read 24, 5 and 0 functions; the last one reported "the 900s
+model budget ran out" without a single model call.
+
+- **The ceiling is model time.** Its clock starts at the first question to the model; the suite and
+  coverage before it are measurement. Over the same range, the fixed engine read 24 functions (the
+  cap) where the released one read none. Nights mostly escaped the defect: their ceiling is
+  3,600 s, and since 0.90.7 they reuse the sweep's measurement.
+- Pinned rules 376 → 377, each killed by the suite.
+
+**Not in this release:** changed-line coverage on a branch gate is measured only when the gate is
+given its range (`verdict-run --range`); the local tier still never lifts a standing `fail`; a first
+run with no profile whose guessed interpreter lacks the project's dependencies still reads the
+collection errors as a red suite.
+
 ## 0.90.8 — 2026-10-15 · "the tester is the session"
 
 **An asked run could start without Verdict.** On 2026-10-06 four asked money gates ran from a
