@@ -151,6 +151,22 @@ Exit codes: `0` pass · `1` fail · `3` blocked · `4` never ran · `5` stale ·
 `6` hand-written. `4`, `5` and `6` are the interesting ones for a scheduler —
 they mean the *run* broke, not the code.
 
+**What changed, not just what stands.** A `fail` that stands for weeks exits `1` every night,
+and so does a new regression under it, so the exit code cannot tell a scheduler which night
+deserves a person. `verdict-run` and `verdict-gate` say it in one line (0.90.10):
+
+```text
+verdict-run: no news — the verdict stands at 'fail' · waiting on a person: F-144 (Critical/P1) (SALES-Q-14) · blockers: F-096 (Critical/P1)
+verdict-run: news — 1 new at Major or worse: SALES-F-170 (Critical, NEW)
+verdict-run: no news — HEAD unchanged, nothing ran
+```
+
+News is a verdict that moved against the run before it, or a finding at Major or worse that
+is new, came back, or was resolved. A release blocker whose finding a parked question has
+handed to a person is listed apart from the rest, because no code change will clear it.
+`verdict-gate --format json` carries the same as `news` (`any` is the one bit to page on).
+Page on `^verdict-run: news — `, and stay quiet on the rest.
+
 `--require-harness` is what keeps an unattended run honest. It checks four traces that only
 `verdict-facts` / `verdict-finalize` leave: facts measured *for this run* (a stale
 `facts.json` from an earlier one does not count), a judgment file, a computed state, and a

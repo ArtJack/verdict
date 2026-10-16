@@ -2275,5 +2275,47 @@
   "path": "src/verdict_mcp/small.py",
   "old": "        self.stopped = None\n        self._started = None\n",
   "new": "        self.stopped = None\n        self._started = time.monotonic()\n"
+ },
+ {
+  "label": "0.90.10 news 1: a standing night reads as news",
+  "path": "src/verdict_mcp/gate.py",
+  "old": "    return {\"any\": bool(new or resolved or changed), \"verdict_was\": was, \"new\": new,",
+  "new": "    return {\"any\": True, \"verdict_was\": was, \"new\": new,"
+ },
+ {
+  "label": "0.90.10 news 2: a new finding is not news, only one that came back",
+  "path": "src/verdict_mcp/gate.py",
+  "old": "f.get(\"delta\") in (\"NEW\", \"REGRESSED\")]",
+  "new": "f.get(\"delta\") in (\"REGRESSED\",)]"
+ },
+ {
+  "label": "0.90.10 news 3: the verdict is never compared with the run before it",
+  "path": "src/verdict_mcp/gate.py",
+  "old": "    changed = was is not None and was != state.get(\"verdict\")",
+  "new": "    changed = False"
+ },
+ {
+  "label": "0.90.10 news 4: a blocker a parked question hands to a person reads as a code blocker",
+  "path": "src/verdict_mcp/gate.py",
+  "old": "        if no is not None and no in asked:",
+  "new": "        if False:"
+ },
+ {
+  "label": "0.90.10 news 5: a Minor is news",
+  "path": "src/verdict_mcp/gate.py",
+  "old": "NEWS_SEVERITIES = (\"Blocker\", \"Critical\", \"Major\")",
+  "new": "NEWS_SEVERITIES = (\"Blocker\", \"Critical\", \"Major\", \"Minor\")"
+ },
+ {
+  "label": "0.90.10 news 6: a swept night never says what it changed",
+  "path": "src/verdict_mcp/runner.py",
+  "old": "    result = evaluate(project, fail_on, None, before + 1, require_harness=require_harness)\n    print(f\"verdict-run: verdict {result.get('verdict')!r} \u2192 exit {result['exit_code']} \"\n          f\"({result['reason']})\")\n    if news := news_line(result):\n        print(f\"verdict-run: {news}\")\n",
+  "new": "    result = evaluate(project, fail_on, None, before + 1, require_harness=require_harness)\n    print(f\"verdict-run: verdict {result.get('verdict')!r} \u2192 exit {result['exit_code']} \"\n          f\"({result['reason']})\")\n"
+ },
+ {
+  "label": "0.90.10 news 7: a night that ran nothing repeats the last run's news",
+  "path": "src/verdict_mcp/runner.py",
+  "old": "            print(\"verdict-run: no news \u2014 HEAD unchanged, nothing ran\")",
+  "new": "            print(f\"verdict-run: {news_line(result)}\")"
  }
 ]
