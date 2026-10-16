@@ -376,13 +376,19 @@ def test_the_plain_argv_is_still_the_one_the_runner_builds():
         return [n.value for n in ast.walk(main) if isinstance(n, ast.Assign)
                 and any(isinstance(t, ast.Name) and t.id == name for t in n.targets)]
 
-    (cmd,) = assigned("cmd")
+    launch = next(n for n in ast.walk(main)
+                  if isinstance(n, ast.FunctionDef) and n.name == "launch")
+    (cmd,) = [n.value for n in ast.walk(launch) if isinstance(n, ast.Return)]
     shape = [e.value if isinstance(e, ast.Constant) else type(e).__name__ for e in cmd.elts]
     # 0.90.3: `*strict, *mcp, *budget` sit before the passthrough. `--strict-mcp-config`
     # is always there and the control carries it; the other two are empty unless an
     # operator names an MCP config or a budget, which a swebench run does not.
-    assert shape == ["Attribute", "-p", "Name", "--model", "Attribute", "--setting-sources",
-                     "project,local", "Starred", "Starred", "Starred", "Starred"]
+    # 0.90.8: `*tester` after the model is `--agent verdict --effort <the agent's pin>` —
+    # the agent and the effort it pins are what the Verdict arm adds, so the plain arm,
+    # Claude Code as a user gets it, carries neither.
+    assert shape == ["Attribute", "-p", "Name", "--model", "Attribute", "Starred",
+                     "--setting-sources", "project,local", "Starred", "Starred", "Starred",
+                     "Starred"]
     strings = {n.value for n in ast.walk(main) if isinstance(n, ast.Constant)}
     assert "--dangerously-skip-permissions" in strings and "--strict-mcp-config" in strings
     env_calls = [v for v in assigned("env") if isinstance(v, ast.Call)]
