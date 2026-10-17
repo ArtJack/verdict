@@ -83,7 +83,7 @@ def _rows(repo):
 def _worktrees(repo):
     out = subprocess.run(["git", "-C", str(repo), "worktree", "list", "--porcelain"],
                          capture_output=True, text=True, check=True).stdout
-    return [l.split(" ", 1)[1] for l in out.splitlines() if l.startswith("worktree ")]
+    return [line.split(" ", 1)[1] for line in out.splitlines() if line.startswith("worktree ")]
 
 
 # ── the replay itself ─────────────────────────────────────────────────────
