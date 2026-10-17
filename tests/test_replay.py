@@ -247,12 +247,14 @@ def test_replay_one_without_a_repro_block_is_could_not_run_not_a_crash(tmp_path)
     assert row["result"] == "could not run" and "no structured repro" in row["checks"][0]
 
 
-def test_remove_checkout_only_removes_the_directory_it_made(tmp_path):
+def test_remove_checkout_only_removes_the_directory_it_made_and_says_when_it_could_not(tmp_path, capsys):
     keep = tmp_path / "mine" / "tree"
     keep.mkdir(parents=True)
     (tmp_path / "mine" / "precious.txt").write_text("x", encoding="utf-8")
-    replay._remove_checkout(tmp_path, keep)
-    assert (tmp_path / "mine" / "precious.txt").exists()
+    replay._remove_checkout(tmp_path, keep)          # not a worktree of anything: git refuses
+    assert (tmp_path / "mine" / "precious.txt").exists() and keep.exists()
+    err = capsys.readouterr().err
+    assert "was not fully removed" in err and "worktree prune" in err
 
 
 def test_without_repro_names_the_open_proven_major_plus_findings_only():

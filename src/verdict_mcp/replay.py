@@ -166,12 +166,18 @@ def _fresh_checkout(repo: Path) -> tuple[Path | None, str, str]:
 
 
 def _remove_checkout(repo: Path, scratch: Path | None) -> None:
+    """Remove the fresh worktree; a removal that failed is said, with the way to finish it —
+    a locked file on Windows leaves the directory, and git then carries a stale entry."""
     if scratch is None:
         return
-    subprocess.run(["git", "-C", str(repo), "worktree", "remove", "--force", str(scratch)],
-                   capture_output=True, text=True)
+    proc = subprocess.run(["git", "-C", str(repo), "worktree", "remove", "--force", str(scratch)],
+                          capture_output=True, text=True)
     if scratch.parent.name.startswith("verdict-replay-"):   # only the directory this module made
         shutil.rmtree(scratch.parent, ignore_errors=True)
+    if proc.returncode != 0 or scratch.exists():
+        print(f"verdict-replay: the fresh worktree at {scratch} was not fully removed"
+              f"{': ' + proc.stderr.strip().splitlines()[-1][:120] if proc.stderr.strip() else ''} — "
+              f"remove the directory and run `git -C {repo} worktree prune`", file=sys.stderr)
 
 
 def _guard_dir(base: Path) -> Path:
@@ -248,7 +254,7 @@ def replay_one(finding: dict, repo: Path, scratch: Path, qa_root: Path, timeout:
     env["PYTHONPATH"] = os.pathsep.join(
         [str(_guard_dir(scratch.parent)), str(scratch / "src"), str(scratch)]
         + ([env["PYTHONPATH"]] if env.get("PYTHONPATH") else []))
-    env[ORIGINAL_ENV] = os.pathsep.join({str(repo.resolve()), str(repo)})
+    env[ORIGINAL_ENV] = os.pathsep.join(dict.fromkeys([str(repo.resolve()), str(repo)]))
     env["PYTHONDONTWRITEBYTECODE"] = "1"
     env["GIT_NO_LAZY_FETCH"] = "1"
     row = {"id": str(finding.get("id")), "command": command, "cwd": str(cwd),
