@@ -9,6 +9,55 @@ They moved there on 2026-10-03, when this file outgrew what the Claude directory
 will read: at 250 KB it was read, at 267 KB it held 0.90.3 for "Files or downloads the
 validator couldn't inspect". The limit is most likely 256 KiB.
 
+## 0.90.12 — 2026-10-17 · "a finding is a command a stranger can run"
+
+- **`repro` on a finding, `verdict-replay` to run it.** A proven Major+ finding carries
+  `repro: {command, cwd?, expect?}` — the one command that shows the defect and what it
+  produces (an exit code, a substring on stdout or stderr; the symptom, never the fix).
+  `verdict-replay <key> [ID …]` checks the repository out again as a detached worktree at
+  HEAD, runs each command there with the fresh tree first on `PYTHONPATH` (an editable
+  install's `.pth` names the original checkout and would quietly test it), bytecode and lazy
+  fetches off, any spelling of the original path rewritten to the fresh tree, and compares.
+  Results go to `<qa-root>/replays.jsonl`, outside the signed row; exit 0 every finding
+  reproduced, 1 one did not, 2 nothing could be replayed. `--show` prints the commands
+  without running one (they run in a shell with your rights), `--keep` leaves the worktree,
+  `--timeout` is per command. Why: the pass that made the 2026-10-16/17 stranger reports
+  credible — a fresh clone, the finding's script, the expected value — was done by hand six
+  times and never appeared in a report built on the tester's own scratch.
+- **The fresh tree is what runs.** It comes first on `PYTHONPATH`, and a `sitecustomize` the
+  command inherits disarms, after site-packages and before the command, an editable install
+  of the original checkout — a `.pth` line naming it, or a meta-path finder carrying its
+  build directory (meson-python; numpy-financial's replay said "reproduced" with every import
+  from the tester's own tree) — keeping the interpreter's own prefix. A path into the original
+  that the fresh tree lacks (the checkout's `.venv/bin/python`) stays where it is. Output that
+  still cites the original marks the row `isolated: false` and the gate says `NOT isolated`.
+  A claimed reproduction that ended in a traceback while `expect` names no stderr text, and a
+  fresh tree that cannot be imported (a compiled package with no build), are `could not run`,
+  not a reproduction and not a refutation; a compiled package carries its build step in the
+  command (`{repo}`, `{qa_root}` are the fresh tree and the QA root).
+- **Measured on the six 2026-10-16/17 stranger records** (scratch copies, the hand-run scripts
+  as `repro` blocks): 9 of 9 hand-verified Major+ findings on five pure-Python projects
+  reproduced on detached worktrees in 20 s; numpy-financial's three needed the build step.
+- **`verdict-dupes`: the tracker search a report should never skip.** For each open Major+
+  finding, up to six single-word queries (the code names in its title, its words, what its
+  evidence cites) through `gh search issues --include-prs`, ranked by the weight of the terms
+  that returned each item (title 1, evidence ½), a number or special value both titles share
+  (2½) and title overlap; the top five go to `<qa-root>/related.jsonl`, and the gate
+  names each finding's first lead (`tracker #2381 open PR`) and warns when it is an open PR.
+  A lead, never a resolution. Two of nine October stranger findings were already fixed by open
+  PRs, found by hand.
+- **The gate reads the replay.** `verdict-gate` marks each open finding `replay ✓
+  reproduced`, `✗ NOT reproduced` or `? could not run` from the latest row per finding, adds
+  a `replay:` line with the tally and the proven Major+ findings nobody replayed, and carries
+  `replays` in the JSON output. A record nobody replayed shows nothing.
+- **The validator refuses a malformed `repro`** (not an object, an empty command, a `cwd`
+  outside the checkout, an `expect` with unknown keys or a boolean exit). Absent is allowed:
+  `verdict-finalize` says once which proven Major+ findings have none — "proven to its
+  author and to nobody else".
+- The finding template and the agent prompt carry the block; `docs/state-schema.md`
+  documents `findings[].repro` and `replays.jsonl`.
+- Pinned mutants: 16 new (0.90.12 replay 1–12, dupes 1–4); badge 420/420.
+
 ## 0.90.11 — 2026-10-17 · "the project's tests are evidence of intent"
 
 **A Critical that the project's own tests contradict is a question, not a blocker.** On 2026-10-17
