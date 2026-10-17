@@ -362,6 +362,17 @@ and a run that skips it composed its numbers instead of measuring them.
     <root>/findings/<ID>.json the moment it is proven; at the end, judgment.json…
     verdict-finalize --qa-root <root> --judgment judgment.json
 
+**Read `read_first` before anything else.** facts.json ranks the code a passing suite proves
+least: each changed function with how many of its changed lines no test executes (on a
+baseline, the functions no test ever entered), the ones on a money or auth path first. It is
+where to start, not where to stop: on the October stranger runs some proven Majors sat in
+code no test ran, and others in code the suite ran without asserting the case — for those,
+read what the tests assert, not only what they execute. When the profile turns on
+`assertion_gaps`, the first items are lines where a mechanical mutant left the tests that run
+them green (`facts.assertion_gaps.survived`, with those tests named): the suite executes that
+code and checks nothing about it. Read the ranked functions first and in that order; any you
+did not reach goes into `not_tested` by name.
+
 **A finding is a file, written when it is proven.** facts.json names `findings_dir` and
 `finding_template`: one finding is one file, `<root>/findings/<ID>.json`, the shape of that
 template — its keys, nothing the harness computes — plus `narrative`, the prose the report

@@ -106,6 +106,9 @@ here.
 | `calibration` | computed | The track record block: `by_confidence` and `by_proof_method` counts over every finding the project ever filed, with `precision` present only once a bucket reaches `min_sample` (30) settled outcomes. Rendered into the report as **Track record** |
 | `findings[].fix_breaks_tests` | no | How many tests that pass at HEAD fail under the counterfactual fix (0.90.11). Above 0, finalize marks the finding `contract_dispute: true`, caps Blocker/Critical at Major (`severity_was` keeps the filed level), drops it from the release blockers and parks a question for the maintainer; a `fail` that rested on it alone becomes `pass with risks` with `verdict_rule.rule: contract dispute`. Inside a money or security gate's own range the money rule keeps precedence. `contract_rule: off` in the profile disables it |
 | `findings[].repro` | no | `{command, cwd?, expect?}` — the finding as a command a stranger can run (0.90.12). `verdict-replay <key>` runs it on a detached worktree at HEAD with the fresh tree first on `PYTHONPATH`, `cwd` is `repo` (default), `qa_root` or a relative path inside the checkout, and `expect` is any of `exit` (int), `stdout_contains`, `stderr_contains` — what the defect produces; absent, exit 0 is the bar. Malformed is refused by the validator; absent on a proven Major+ finding is said once by finalize. Results live in `replays.jsonl`, never in this file |
+| `findings[].replay` | computed | The harness's own run of the finding's `repro` (0.91.0): `{command, previous_sha, at_head, at_previous, checks_head, checks_previous, isolated?}`, each reading `reproduced` · `not reproduced` · `could not run` · `unavailable` (`at_previous` is `null` for a finding first filed this run). `verdict-facts` measures every open Major+ finding the previous record carried, at HEAD and at the previous commit; `verdict-finalize` measures the ones filed this run, at HEAD. `at_head: reproduced` refuses a resolution, claimed or by silence; `at_previous: reproduced` with `at_head: not reproduced` verifies a claimed fix and resolves a finding nobody re-reported (`resolved_by: measurement (repro)`, `fix_verified`, `fixed_at`, an evidence line, outcome `confirmed`/`measured`). A new finding filed `proven` whose repro did not reproduce is refused with the check that failed; `isolated: false` or `could not run` is silence |
+| `findings[].resolved_by` | computed | `measurement (repro)` when the harness, not the tester, resolved it |
+| `read_first` | computed | facts' ranking (top 10) and how the run accounted for it (0.91.0): `{basis, items, cited, declared_untested, unaccounted}` — a ranked function is `cited` when an open or resolved finding names its file (anchors or evidence) and its function name, `declared_untested` when `not_tested` names it, else `unaccounted`. finalize prints the unaccounted ones; the report renders **Read first**. The third question of the Opus check, answered without a model |
 | `findings[].root_cause` | no | The §3.5 chain when one was established: `{mechanism, origin, class{pattern, sites[]}, trigger, latent_condition, fix_location, proof{method, evidence}, confidence}`. `proof.method` is `counterfactual` · `differential` · `archaeology` · `reading`; `fix_location` is `code` · `test` · `spec` · `environment` · `process`; `confidence` is `proven` · `hypothesis`. Carrying it forward means the next run inherits the diagnosis instead of re-deriving it |
 | `verdict` | yes | `pass` · `pass with risks` · `blocked` · `fail` |
 | `run_type: sweep` | — | The model-free run (0.86.0): `verdict-run --skip-unless-drift` found HEAD moved by commits that touched nothing any finding cites, every gate green with parsed counts, the test-id set unchanged, no quarantine due, no cited line moved — and finalized a synthetic judgment that carries every open finding by id and the previous verdict, `last_run.model: none`. Run number advances; the history row is signed like any other |
@@ -216,6 +219,33 @@ generations fall back to the last write, which is what every row written before 
 existed relies on. Nothing is ever rewritten to mark it stale — the correction is appended,
 and it is the correction that carries the marker.
 
+## Where to read first — `facts.json` → `read_first` (0.91.0)
+
+A ranking, never a finding and never a gate: `{basis, items, of, risk_from}`. With measured
+coverage over a range, each item is a changed function (`path`, `function` — `Class.method`,
+or `(module)`), `unexercised_changed_lines` (changed lines no test executed), `lines`, and
+`risk` — the profile's `risk_paths` glob it matched, or the name stem that put it on a money
+or auth path (`refund`, `payment`, `auth`, …: a whole word, or a word beginning with a stem of
+four letters or more, so `rate` never matches `generate`). Risk paths first, then the most
+unexercised lines. A range without coverage ranks changed functions by `changed_lines`; a run
+with no range ranks the functions no test ever entered (`reading_map.functions_never_entered`, with `missed_lines`), or, without per-function coverage, the reading map's least covered modules. Top 15; `of` says how many there
+were. `risk_paths:` in the profile (globs, a list or comma-separated) replaces the stems.
+
+## Code the suite runs without checking — `facts.json` → `assertion_gaps` (0.91.0)
+
+Opt-in: `assertion_gaps: on` in the profile (with `coverage_suite_cmd` and `test_one_cmd`;
+`assertion_gaps_budget_s`, default 240). On the coverage run's data, for each function on a risk
+path that tests execute (up to 8, the most-tested first; on a range, only its changed lines), up
+to three lines get up to two mechanical mutants each — a comparison flipped, `and`/`or`, a
+condition negated, `+`/`-`, `*`/`/`, 0/1, `True`/`False`, never inside a string — written into a
+fresh worktree one at a time, with only the tests whose coverage contexts executed that line run
+against it. `{status, checkout, functions, mutants, killed, errors, survived, skipped?,
+duration_s}`; each survivor `{path, function, risk, line, operator, before, after, tests}` is a
+line those tests execute and do not check. Two controls per function: its tests must pass on the
+clean tree, and a canary line that raises must make them fail — or the fresh tree is not what
+they import, and the function is skipped with the reason. Survivors lead `read_first`. A lead for
+where to read, never a finding: an equivalent mutant survives too.
+
 ## A finding replayed on a fresh checkout — `<qa-root>/replays.jsonl`
 
 `verdict-replay <key> [ID …]` takes every open Major+ finding with a `repro` block (or the ids
@@ -237,6 +267,10 @@ about a finding, not a run, and does not touch `state.json`:
  "cwd": "/tmp/verdict-replay-x/tree", "expect": {"exit": 1, "stderr_contains": "AssertionError: 100"},
  "exit": 1, "checks": ["exit 1", "stderr_contains found: 'AssertionError: 100'"], "output_tail": "…"}
 ```
+
+**Unattended, the harness runs one shape only** (0.91.0): `verdict-facts` and `verdict-finalize` run a command the tester wrote, outside the Bash guard that watches the tester's own commands, so they run it as argv, never through a shell, and only when it is an interpreter (`python…`, `pypy…`) on a script inside the QA root or the fresh tree, `-c <code>`, `-m pytest|unittest|doctest`, or `pytest`, optionally after `NAME=value` assignments (`LD_*`/`DYLD_*` refused) — no `; & | < > ` $(` or newline outside quotes. Anything else is `could not run` with the reason; `verdict-replay`, typed by a person who can read the command first (`--show`), runs any shape. A run's replays stop at a 600 s budget and say which findings went unmeasured.
+
+Rows written by the harness carry `source: facts` (the previous record's open findings: one row at the previous commit, then one at HEAD) or `source: finalize` (findings filed this run, at HEAD) and `ref`; rows from the command carry neither.
 
 `result` is `reproduced` (every expectation met), `not reproduced` (one was not — the finding
 does not hold on a fresh checkout at this HEAD, or its `expect` describes the author's tree) or
@@ -290,6 +324,19 @@ A related item is a lead for the person writing the report, never a resolution: 
 stays open, and nothing is filed by this command. Why it exists: two of the nine 2026-10-16/17
 stranger findings were already fixed by open PRs (fava #2381, numpy-financial #158), found by
 hand before the reports went out.
+
+## A second look on the local tier — `verdict-check` → `reviews.jsonl` (0.91.0)
+
+`verdict-check <key> [--model chat-120b] [--env-file …] [--max-findings 8] [--dry-run]` asks one
+bounded question per open Major+ finding of a cheap model behind the gateway: which other sites
+share the defect. The sites come from `git grep` for the identifier on the finding's cited line
+(tests, docs, the finding's own function excluded; adjacent lines in one function folded); the
+model only classifies them. Leads go to `<qa-root>/reviews/<run>-local-check.md` and one row in
+`reviews.jsonl` — `{date, run, kind: "local-check", model: "local:<alias>", material: yes|no,
+findings_checked, siblings, report}` — beside the state, never in it. Measured on the six October
+stranger records (2026-10-17, chat-120b, ~1¢): 4 leads, 1 pointing at a site the record's class
+listing missed; a severity question was measured and dropped (13 of 18 flagged, every one an
+upgrade along the standard's "financial error → Critical" line — a constant, not a calibration).
 
 ## What a run cost — `<qa-root>/usage.jsonl`, and who started it
 

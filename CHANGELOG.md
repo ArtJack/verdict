@@ -9,6 +9,49 @@ They moved there on 2026-10-03, when this file outgrew what the Claude directory
 will read: at 250 KB it was read, at 267 KB it held 0.90.3 for "Files or downloads the
 validator couldn't inspect". The limit is most likely 256 KiB.
 
+## 0.91.0 — 2026-10-17 · "the verdict means something"
+
+What a run claims is now checked by the harness, and where a run looks is ranked for it. Every
+item below was measured on the October stranger records before it shipped; two candidates were
+measured and dropped.
+
+- **The recall benchmark, `eval/recall/`.** A model-free scorer of what a run located, proved
+  (a `proven` finding whose `repro` reproduced) and blocked against known defects —
+  hand-verified stranger findings, money-key instances, clean changes — one finding per defect,
+  priced from `usage.jsonl`. `build_cases.py` derives a private case file from records. The
+  before column on six October records: located 17/17, machine-proven 0/17, blocked 2/17.
+- **The repro is measured inside the run.** `verdict-facts` runs every open Major+ finding's
+  `repro` on fresh worktrees at HEAD and at the previous commit; `verdict-finalize` runs the ones
+  filed this run at HEAD. A reproduction at HEAD refuses a resolution, claimed or by silence; one
+  that stops between the commits verifies a fix and resolves a finding nobody re-reported
+  (`resolved_by: measurement (repro)`, `fix_verified`, outcome `confirmed` on a measured basis); a
+  new finding filed `proven` whose repro does not reproduce is refused with the failing check.
+  `repro_rule: on` refuses a proven Major+ without a `repro`. Unattended, the harness runs argv
+  only — an interpreter on a QA-root or fresh-tree script, `-c`, `-m pytest`, or `pytest` — never
+  a shell pipeline: the command is the tester's and runs outside the Bash guard. 600 s budget.
+- **`read_first`.** facts.json ranks where a passing suite proves least: changed functions by
+  changed lines no test executes, functions no test ever entered on a baseline
+  (`reading_map.functions_never_entered`), money and auth paths first (profile `risk_paths`
+  globs, or whole-word / 4+-letter name stems). The prompt starts there and names what it did not
+  reach; the state carries which ranked functions a finding cited, `not_tested` named, or nobody
+  accounted for, and the report renders a Read first table.
+- **Assertion gaps** (`assertion_gaps: on`). On the coverage run's data, mechanical mutants in
+  risk-path functions that tests execute go into a fresh worktree one at a time, against only the
+  tests whose coverage contexts executed the line; a survivor is a line those tests run and do not
+  check, and leads `read_first`. A clean-tree control and a canary per function keep an import of
+  the original checkout from passing for a gap. Measured on two stranger repositories: 20 s and 5
+  survivors on one with a thin suite, 164 s and none on one with a strong suite.
+- **`verdict-check`.** A second look at a finished run on the local tier: which other sites share
+  each Major+ defect — sites from `git grep` on the cited line's identifier, outside the defect's
+  own function; the model only classifies. Leads to `reviews.jsonl`, never the state. ~1¢ a run;
+  on six records 4 leads, 1 a site the record's class listing missed.
+- **Measured and dropped:** a severity floor by risk path (on the Sales record it would have
+  raised 5 proven Minors to Major and corrected none); a severity question in `verdict-check`
+  (13 of 18 flagged, every one an upgrade along the standard's literal "financial error →
+  Critical" line).
+- Pinned mutants: 20 new (0.91.0 replay-in-run 1–7, read-first 1–5, check 1–4, gaps 1–4);
+  "scoped gate 5" re-anchored; badge 440/440.
+
 ## 0.90.12 — 2026-10-17 · "a finding is a command a stranger can run"
 
 - **`repro` on a finding, `verdict-replay` to run it.** A proven Major+ finding carries

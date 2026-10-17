@@ -26,10 +26,12 @@ import argparse
 import json
 import os
 import re
+import shlex
 import shutil
 import subprocess
 import sys
 import tempfile
+import time
 from pathlib import Path
 
 try:
@@ -147,18 +149,19 @@ def _cwd_for(raw, scratch: Path, qa_root: Path) -> tuple[Path | None, str]:
     return candidate, ""
 
 
-def _fresh_checkout(repo: Path) -> tuple[Path | None, str, str]:
-    """(worktree path, HEAD sha, problem). A detached worktree at HEAD: the same tree the
-    run saw, in a place the run's scratch never touched."""
+def _fresh_checkout(repo: Path, ref: str = "HEAD") -> tuple[Path | None, str, str]:
+    """(worktree path, the commit's sha, problem). A detached worktree at `ref`: the same
+    tree the run saw, in a place the run's scratch never touched."""
     base = Path(tempfile.mkdtemp(prefix="verdict-replay-")).resolve()   # git reports resolved paths
     scratch = base / "tree"
-    head = subprocess.run(["git", "-C", str(repo), "rev-parse", "HEAD"], capture_output=True,
-                          text=True)
+    head = subprocess.run(["git", "-C", str(repo), "rev-parse", "--verify", f"{ref}^{{commit}}"],
+                          capture_output=True, text=True)
     if head.returncode != 0:
         shutil.rmtree(base, ignore_errors=True)
-        return None, "", f"not a git repository: {repo}"
+        return None, "", (f"not a git repository: {repo}" if ref == "HEAD"
+                          else f"commit {ref[:12]} is not in this repository")
     proc = subprocess.run(["git", "-C", str(repo), "worktree", "add", "--detach", str(scratch),
-                           "HEAD"], capture_output=True, text=True)
+                           head.stdout.strip()], capture_output=True, text=True)
     if proc.returncode != 0:
         shutil.rmtree(base, ignore_errors=True)
         return None, head.stdout.strip(), f"git worktree add failed: {proc.stderr.strip()[:200]}"
@@ -237,7 +240,99 @@ def _rewrite_paths(command: str, repo: Path, scratch: Path) -> str:
     return command
 
 
-def replay_one(finding: dict, repo: Path, scratch: Path, qa_root: Path, timeout: int) -> dict:
+# What the harness runs without a person: an interpreter on a script in the QA root or the
+# fresh tree, a `-c` string, or pytest — argv, never a shell. `verdict-facts` and
+# `verdict-finalize` run a command the tester wrote, outside the Bash guard that watches the
+# tester's own commands, so a pipeline, a redirection or an arbitrary program is not theirs
+# to run; `verdict-replay`, typed by a person who can read it first (`--show`), runs anything.
+_ENV_ASSIGN = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*=")
+_INTERPRETER = re.compile(r"^(?:python(?:\d+(?:\.\d+)?)?|pypy\d*(?:\.\d+)?|pytest)$")
+_MODULES = ("pytest", "unittest", "doctest")
+_REFUSED_ENV = ("LD_", "DYLD_")
+_SHELL_OPERATORS = (";", "&", "|", "<", ">", "`", "$(", "\n")
+
+
+def _outside_quotes(command: str) -> str:
+    """The command with every quoted span blanked — what a shell would read as operators."""
+    out, quote, i = [], None, 0
+    while i < len(command):
+        c = command[i]
+        if quote:
+            if c == "\\" and quote == '"' and i + 1 < len(command):
+                out.append("  ")
+                i += 2
+                continue
+            if c == quote:
+                quote = None
+            out.append(" ")
+        elif c in "'\"":
+            quote = c
+            out.append(" ")
+        elif c == "\\" and os.name != "nt" and i + 1 < len(command):
+            out.append("  ")
+            i += 2
+            continue
+        else:
+            out.append(c)
+        i += 1
+    return "".join(out)
+
+
+def _split(command: str) -> list[str]:
+    if os.name != "nt":
+        return shlex.split(command)
+    words = shlex.split(command, posix=False)          # a Windows path's backslashes stay
+    return [w[1:-1] if len(w) >= 2 and w[0] == w[-1] and w[0] in "'\"" else w for w in words]
+
+
+def unattended_argv(command: str, scratch: Path, qa_root: Path, cwd: Path):
+    """(argv, env, problem): the command as argv when its shape is one the harness runs
+    unattended, else (None, {}, why)."""
+    bare = _outside_quotes(command)
+    for op in _SHELL_OPERATORS:
+        if op in bare:
+            shown = "a newline" if op == "\n" else f"`{op}`"
+            return None, {}, f"the command uses {shown}, a shell operator"
+    try:
+        words = _split(command)
+    except ValueError as exc:
+        return None, {}, f"the command cannot be split into words ({exc})"
+    env: dict = {}
+    while words and _ENV_ASSIGN.match(words[0]):
+        name, _, value = words.pop(0).partition("=")
+        if name.startswith(_REFUSED_ENV):
+            return None, {}, f"the command sets {name}"
+        env[name] = value
+    if not words:
+        return None, {}, "the command names no program"
+    prog = Path(words[0]).name.lower()
+    prog = prog[:-4] if prog.endswith(".exe") else prog
+    if not _INTERPRETER.match(prog):
+        return None, {}, f"`{Path(words[0]).name}` is not python or pytest"
+    if prog == "pytest":
+        return words, env, ""
+    i = 1
+    while i < len(words) and words[i].startswith("-") and words[i] not in ("-c", "-m"):
+        i += 2 if words[i] in ("-W", "-X") else 1
+    if i >= len(words):
+        return None, {}, "python with no script, `-c` or `-m` reads its program from stdin"
+    if words[i] == "-c":
+        return words, env, ""
+    if words[i] == "-m":
+        module = words[i + 1] if i + 1 < len(words) else ""
+        if module not in _MODULES:
+            return None, {}, f"`-m {module}` is not one of {', '.join(_MODULES)}"
+        return words, env, ""
+    script = Path(words[i])
+    script = (script if script.is_absolute() else Path(cwd) / script).resolve()
+    roots = [Path(qa_root).resolve(), Path(scratch).resolve()]
+    if not any(script == r or r in script.parents for r in roots):
+        return None, {}, f"the script {words[i]} is outside the QA root and the fresh checkout"
+    return words, env, ""
+
+
+def replay_one(finding: dict, repo: Path, scratch: Path, qa_root: Path, timeout: int,
+               unattended: bool = False) -> dict:
     r = repro_of(finding)
     if r is None:
         return {"id": str(finding.get("id")), "command": "", "cwd": "", "expect": {},
@@ -250,18 +345,30 @@ def replay_one(finding: dict, repo: Path, scratch: Path, qa_root: Path, timeout:
         return {"id": str(finding.get("id")), "command": command, "cwd": str(r.get("cwd")),
                 "expect": r.get("expect") if isinstance(r.get("expect"), dict) else {"exit": 0},
                 "result": "could not run", "exit": None, "checks": [problem], "output_tail": ""}
+    row = {"id": str(finding.get("id")), "command": command, "cwd": str(cwd),
+           "expect": r.get("expect") if isinstance(r.get("expect"), dict) else {"exit": 0}}
+    argv, own_env = command, {}
+    if unattended:
+        argv, own_env, refusal = unattended_argv(command, scratch, qa_root, cwd)
+        if argv is None:
+            row.update(result="could not run", exit=None, output_tail="",
+                       checks=[f"not run unattended: {refusal}. The harness runs an interpreter "
+                               "on a script in the QA root or the fresh tree, a `-c` string, or "
+                               "pytest; `verdict-replay` runs any command when a person asks"])
+            return row
     env = dict(os.environ)
+    own_path = own_env.pop("PYTHONPATH", "")
+    env.update(own_env)
     env["PYTHONPATH"] = os.pathsep.join(
         [str(_guard_dir(scratch.parent)), str(scratch / "src"), str(scratch)]
-        + ([env["PYTHONPATH"]] if env.get("PYTHONPATH") else []))
+        + ([own_path] if own_path else [])
+        + ([os.environ["PYTHONPATH"]] if os.environ.get("PYTHONPATH") else []))
     env[ORIGINAL_ENV] = os.pathsep.join(dict.fromkeys([str(repo.resolve()), str(repo)]))
     env["PYTHONDONTWRITEBYTECODE"] = "1"
     env["GIT_NO_LAZY_FETCH"] = "1"
-    row = {"id": str(finding.get("id")), "command": command, "cwd": str(cwd),
-           "expect": r.get("expect") if isinstance(r.get("expect"), dict) else {"exit": 0}}
     try:
-        proc = subprocess.run(command, shell=True, cwd=str(cwd), env=env, capture_output=True,
-                              text=True, errors="replace", timeout=timeout)
+        proc = subprocess.run(argv, shell=not unattended, cwd=str(cwd), env=env,
+                              capture_output=True, text=True, errors="replace", timeout=timeout)
     except subprocess.TimeoutExpired:
         row.update(result="could not run", exit=None, checks=[f"timed out after {timeout}s"],
                    output_tail="")
@@ -291,6 +398,78 @@ def replay_one(finding: dict, repo: Path, scratch: Path, qa_root: Path, timeout:
     row.update(result=result, exit=proc.returncode, checks=checks, isolated=isolated,
                output_tail=(proc.stdout + proc.stderr)[-TAIL:])
     return row
+
+
+MEASURE_MAX_FINDINGS = 12
+MEASURE_TIMEOUT_S = 180
+MEASURE_BUDGET_S = 600
+
+
+def measure_findings(repo: Path, findings, previous_sha: str | None, qa_root: Path,
+                     measured_at: str, timeout: int = MEASURE_TIMEOUT_S,
+                     cap: int = MEASURE_MAX_FINDINGS, source: str = "facts",
+                     refs: tuple = ("HEAD", "previous"),
+                     budget: int = MEASURE_BUDGET_S) -> tuple[dict, list[str]]:
+    """Run each open Major+ finding's `repro` on a fresh worktree at HEAD and, when the
+    record names one, at the previous commit → ({finding id: record}, notes).
+
+    The `verification_test` shape, applied to the command a finding carries: a
+    reproduction at the previous commit and none at HEAD is a fix the harness watched;
+    a reproduction at HEAD is a defect still there, whatever a judgment says. Every row
+    also goes to `replays.jsonl`, so the gate shows the latest reading per finding.
+    """
+    notes: list[str] = []
+    todo = [f for f in findings or [] if wants_replay(f) and repro_of(f) is not None]
+    if not todo:
+        return {}, notes
+    if len(todo) > cap:
+        notes.append(f"replay capped at {cap} of {len(todo)} open Major+ findings with a repro")
+        todo = todo[:cap]
+    want_previous = "previous" in refs and bool(previous_sha)
+    records: dict = {str(f.get("id")): {"command": repro_of(f)["command"],
+                                         "previous_sha": previous_sha if want_previous else None,
+                                         "at_head": "unavailable",
+                                         "at_previous": "unavailable" if want_previous else None}
+                     for f in todo}
+    rows, started, over_budget = [], time.monotonic(), set()
+    # The previous commit first, HEAD last: the gate reads the latest row per finding.
+    for ref, key in ((previous_sha, "at_previous"), ("HEAD", "at_head")):
+        if key == "at_previous" and not want_previous:
+            continue
+        scratch, sha, problem = _fresh_checkout(repo, ref)
+        if scratch is None:
+            notes.append(f"replay at {'HEAD' if ref == 'HEAD' else ref[:7]}: {problem}")
+            continue
+        try:
+            for f in todo:
+                if time.monotonic() - started > budget:
+                    over_budget.add(str(f.get("id")))
+                    continue
+                row = replay_one(f, repo, scratch, qa_root, timeout, unattended=True)
+                row.update(at=measured_at, checkout=sha, scratch=str(scratch), source=source,
+                           ref="HEAD" if ref == "HEAD" else "previous")
+                rows.append(row)
+                rec = records[str(f.get("id"))]
+                rec[key] = row["result"]
+                rec[f"checks_{'head' if key == 'at_head' else 'previous'}"] = row["checks"]
+                if row.get("isolated") is False:
+                    rec["isolated"] = False
+        finally:
+            _remove_checkout(repo, scratch)
+    if rows:
+        with (Path(qa_root) / REPLAYS_FILE).open("a", encoding="utf-8") as handle:
+            for row in rows:      # the previous commit's row first: the gate reads the last
+                handle.write(json.dumps(row, sort_keys=True) + "\n")
+    if over_budget:
+        notes.append(f"replay stopped at its {budget}s budget: {len(over_budget)} finding(s) "
+                     f"not measured at every commit ({', '.join(sorted(over_budget)[:5])})")
+    heads = [r["at_head"] for r in records.values()]
+    notes.append(f"replay: {len(records)} open Major+ finding(s) measured at HEAD"
+                 + (f" and {previous_sha[:7]}" if want_previous else "")
+                 + f" — {heads.count('reproduced')} reproduced, "
+                 f"{heads.count('not reproduced')} not reproduced, "
+                 f"{heads.count('could not run')} could not run")
+    return records, notes
 
 
 def load_replays(qa_root) -> dict:
