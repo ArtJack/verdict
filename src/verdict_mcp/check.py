@@ -253,7 +253,7 @@ def main(argv=None, _model=None) -> int:
     row = {"date": clock.stamp()[:10], "run": run, "kind": "local-check", "model": f"local:{args.model}",
            "material": "yes" if mat else "no", "findings_checked": len(leads),
            "siblings": sum(len(lead["siblings"]) for lead in leads),
-           "report": str(report.relative_to(qa_root))}
+           "report": report.relative_to(qa_root).as_posix()}
     with (qa_root / "reviews.jsonl").open("a", encoding="utf-8") as handle:
         handle.write(json.dumps(row, sort_keys=True) + "\n")
     calls = getattr(model, "calls", None)
