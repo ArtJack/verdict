@@ -205,6 +205,13 @@ closing any cause, search the repository for the same shape and report what you 
    (`PYTHONPATH=<scratch>/src`, or wherever the package lives) and confirm before trusting
    the result: `python -c "import <pkg>; print(<pkg>.__file__)"` must print a path inside
    the scratch. A green counterfactual you did not isolate is evidence of nothing.
+   **Count the green tests your fix breaks.** If the flip that proves the cause makes
+   tests that pass at HEAD fail, record how many on the finding as `"fix_breaks_tests": N`.
+   The harness then files it as a *contract dispute*: capped at Major, never a release
+   blocker on its own, with a question parked for the maintainer. The project's own tests are
+   evidence of intent, and a documented-versus-tested disagreement is theirs to settle, not
+   yours to call a Critical. (django-oscar, 2026-10-17: a how-to said consume, 22 green tests
+   said do not, the tracker had tuned it on purpose — and the verdict said `fail`.)
    **And make it run the code it has now.** CPython validates cached bytecode on the
    source's modification time in whole seconds plus its size, so a second same-size
    injection written within one second silently re-runs the first one's bytecode. Export

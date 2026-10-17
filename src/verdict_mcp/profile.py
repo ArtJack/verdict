@@ -193,3 +193,21 @@ def main(argv=None) -> int:
 
 if __name__ == "__main__":
     sys.exit(main())
+
+
+def contract_rule_from(config: dict, notes: list) -> bool:
+    """The profile's `contract_rule:` — on unless it says off (`off`, `false`, `no`).
+
+    Rule 3 of `harness.gate_policy`: a finding whose fix fails tests that pass at HEAD is a
+    contract dispute, capped at Major and parked as a question, not a release blocker."""
+    value = config.get("contract_rule")
+    if value is None or value == "":
+        return True
+    text = str(value).strip().lower()
+    if text in ("off", "false", "no", "0"):
+        return False
+    if text in ("on", "true", "yes", "1"):
+        return True
+    notes.append(f"contract_rule: '{value}' is not understood (on, off) — the rule stays on")
+    return True
+

@@ -330,6 +330,10 @@ def validate_finding(f: dict, where: str, known_ids, known_tests=None) -> list:
             f"— state its confidence now: {sorted(CONFIDENCES)}. It is scored against "
             "what the finding turns out to do, so it cannot be added later")
 
+    fbt = f.get("fix_breaks_tests")
+    if fbt is not None and (isinstance(fbt, bool) or not isinstance(fbt, int) or fbt < 0):
+        bad.append(f"{where} ({fid}) fix_breaks_tests must be a count of the tests that pass at "
+                   f"HEAD and fail under the fix (0 or more), not {fbt!r}")
     fv = f.get("fix_verified")
     if fv is not None and not isinstance(fv, bool):
         bad.append(f"{where} ({fid}) fix_verified must be true or false, not {fv!r}")
