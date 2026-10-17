@@ -47,6 +47,8 @@ verdict-run = "verdict_mcp.runner:main"
 verdict-accept = "verdict_mcp.accept:main"
 verdict-answer = "verdict_mcp.questions:main"
 verdict-local = "verdict_mcp.small:main"
+verdict-replay = "verdict_mcp.replay:main"
+verdict-dupes = "verdict_mcp.dupes:main"
 
 [build-system]
 requires = ["hatchling"]

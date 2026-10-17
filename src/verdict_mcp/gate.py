@@ -43,6 +43,8 @@ from pathlib import Path
 try:
     from .project_key import derive_key
     from .questions import facts_view as questions_view
+    from .dupes import describe as describe_related, load_related
+    from .replay import load_replays, wants_replay
     from .state import (code_drift, fix_claims, fold_accepted, harness_signals, is_open, is_path_like,
                     load_accepted,
                     load_chain_anchor, load_runs, load_state, missing_durable,
@@ -55,6 +57,8 @@ except ImportError:  # executed as a bare script (GitHub Action gate mode)
     import clock
     from project_key import derive_key
     from questions import facts_view as questions_view
+    from dupes import describe as describe_related, load_related
+    from replay import load_replays, wants_replay
     from state import (code_drift, fix_claims, fold_accepted, harness_signals, is_open, is_path_like,
                    load_accepted,
                    load_chain_anchor, load_runs, load_state, missing_durable,
@@ -197,6 +201,8 @@ def evaluate(project, fail_on, max_age_hours, min_run_number, now=None,
     out["fix_claims"] = fix_claims(repo_for_root(resolve_root(project)), last.get("git_sha"),
                                    folded)
     out["news"] = news_of(state, folded, rows, (qv or {}).get("parked"), out["fix_claims"])
+    _replay_overlay(out, state.get("_qa_root") or ".")
+    _tracker_overlay(out, state.get("_qa_root") or ".")
     if verdict not in ("pass", "pass with risks", "blocked", "fail"):
         out.update(exit_code=4, reason=f"state has no usable verdict: {verdict!r}")
         return out
@@ -324,6 +330,96 @@ def _drift_note(r):
     return None
 
 
+_REPLAY_RESULTS = ("reproduced", "not reproduced", "could not run")
+_REPLAY_MARK = {"reproduced": "✓ reproduced", "not reproduced": "✗ NOT reproduced",
+                "could not run": "? could not run"}
+
+
+def _replay_overlay(out, qa_root) -> None:
+    """The latest `verdict-replay` result per open finding, from the sidecar ledger: a mark on
+    the row and a tally for the reader. A record nobody replayed shows nothing — the nag for a
+    missing `repro` block is finalize's, said once, at the run."""
+    latest = load_replays(qa_root)
+    if not latest:
+        return
+    tally = {k: [] for k in _REPLAY_RESULTS}
+    rows = []
+    for f in out["findings_open"]:
+        r = latest.get(str(f.get("id")))
+        if r and r.get("result") in tally:
+            f = dict(f, replay={"result": r["result"], "at": r.get("at"),
+                                "checkout": r.get("checkout"), "isolated": r.get("isolated", True)})
+            tally[r["result"]].append(str(f.get("id")))
+        rows.append(f)
+    out["findings_open"] = rows
+    out["replays"] = {
+        "reproduced": tally["reproduced"],
+        "not_reproduced": tally["not reproduced"],
+        "could_not_run": tally["could not run"],
+        "not_isolated": [str(f.get("id")) for f in rows
+                         if f.get("replay") and not f["replay"].get("isolated", True)],
+        "unreplayed_proven": [str(f.get("id")) for f in rows
+                              if wants_replay(f) and f.get("confidence") == "proven"
+                              and "replay" not in f],
+    }
+
+
+def _replay_mark(replay: dict) -> str:
+    return _REPLAY_MARK[replay["result"]] + ("" if replay.get("isolated", True) else ", NOT isolated")
+
+
+def _tracker_overlay(out, qa_root) -> None:
+    """The latest `verdict-dupes` row per open finding: its first related tracker item on the
+    row, and one line naming the lead for each searched finding. A lead, never a resolution."""
+    latest = load_related(qa_root)
+    if not latest:
+        return
+    rows, leads = [], []
+    for f in out["findings_open"]:
+        r = latest.get(str(f.get("id")))
+        if r and r.get("queries"):
+            items = [i for i in r.get("items") or [] if isinstance(i, dict) and i.get("number")][:3]
+            f = dict(f, related=[{k: i.get(k) for k in ("number", "title", "state", "kind", "url")}
+                                 for i in items])
+            leads.append((str(f.get("id")), items[0] if items else None))
+        rows.append(f)
+    out["findings_open"] = rows
+    out["tracker"] = {
+        "searched": [fid for fid, _ in leads],
+        "leads": {fid: describe_related(it) for fid, it in leads if it},
+        "open_prs": [fid for fid, it in leads if it and it.get("kind") == "pr" and it.get("state") == "open"],
+    }
+
+
+def tracker_line(r) -> str:
+    """One line on what the tracker holds, or '' when no finding was ever searched."""
+    t = r.get("tracker")
+    if not t or not t.get("searched"):
+        return ""
+    parts = [f"{fid} ↔ {t['leads'][fid]}" if fid in t["leads"] else f"{fid}: nothing related"
+             for fid in t["searched"]]
+    shown = parts[:6]
+    return ("tracker: " + " · ".join(shown) + (f" · and {len(parts) - 6} more" if len(parts) > 6 else "")
+            + (f" — {len(t['open_prs'])} led by an OPEN PR: read it before reporting" if t["open_prs"] else ""))
+
+
+def replay_line(r) -> str:
+    """One line on what a fresh checkout said, or '' when no finding was ever replayed."""
+    t = r.get("replays")
+    if not t:
+        return ""
+    parts = [f"{len(t['reproduced'])} reproduced on a fresh checkout"]
+    if t["not_reproduced"]:
+        parts.append(f"{len(t['not_reproduced'])} NOT reproduced ({', '.join(t['not_reproduced'])})")
+    if t["could_not_run"]:
+        parts.append(f"{len(t['could_not_run'])} could not run ({', '.join(t['could_not_run'])})")
+    if t.get("not_isolated"):
+        parts.append(f"{len(t['not_isolated'])} NOT isolated ({', '.join(t['not_isolated'])})")
+    if t["unreplayed_proven"]:
+        parts.append(f"{len(t['unreplayed_proven'])} proven Major+ never replayed")
+    return "replay: " + " · ".join(parts)
+
+
 def _fmt_text(r, n):
     lines = [f"VERDICT: {r.get('verdict') or 'no state'} → exit {r['exit_code']} ({r['reason']})"]
     if r.get("run_number") is not None:
@@ -338,9 +434,15 @@ def _fmt_text(r, n):
         lines.append(f"accepted risks: {r['accepted_risks']} (the maintainer's decision, "
                      "recorded with verdict-accept — out of the open list; out of the verdict "
                      "from the next run)")
+    if line := replay_line(r):
+        lines.append(line)
+    if line := tracker_line(r):
+        lines.append(line)
     for f in (r.get("findings_open") or [])[:n]:
         lines.append(f"  {f.get('delta', '?'):<10} {f.get('id')} "
-                     f"{f.get('severity')}/{f.get('priority')} {f.get('title', '')}")
+                     f"{f.get('severity')}/{f.get('priority')} {f.get('title', '')}"
+                     + (f" · replay {_replay_mark(f['replay'])}" if f.get("replay") else "")
+                     + (f" · tracker {describe_related(f['related'][0])}" if f.get("related") else ""))
     if r.get("questions_parked"):
         qs = r["questions_parked"]
         lines.append(f"needs human decision: {len(qs)} parked — "
@@ -377,11 +479,21 @@ def _fmt_comment(r, n):
         head.append(f"**Accepted risks:** {r['accepted_risks']} — the maintainer's decision, "
                     "listed in the report")
         head.append("")
+    if line := replay_line(r):
+        head.append(f"**Replay:** {line[len('replay: '):]}")
+        head.append("")
+    if line := tracker_line(r):
+        head.append(f"**Tracker:** {line[len('tracker: '):]}")
+        head.append("")
     rows = (r.get("findings_open") or [])[:n]
     if rows:
         head += ["| Δ | ID | Sev/Pri | Age | Finding |", "|---|---|---|---|---|"]
         for f in rows:
             title = str(f.get("title", "")).replace("|", "\\|")
+            if f.get("replay"):
+                title += f" · replay {_replay_mark(f['replay'])}"
+            if f.get("related"):
+                title += f" · tracker {describe_related(f['related'][0])}"
             head.append(
                 f"| {f.get('delta', '')} | {f.get('id', '')} "
                 f"| {f.get('severity', '')}/{f.get('priority', '')} "

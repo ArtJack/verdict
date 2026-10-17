@@ -159,6 +159,53 @@ def _evidence_shape(finding, where, fid) -> list:
             for i, e in enumerate(evidence) if not isinstance(e, str)]
 
 
+_REPRO_CWDS = ("repo", "qa_root")
+_EXPECT_KEYS = ("exit", "stdout_contains", "stderr_contains")
+
+
+def _repro_shape(finding, where, fid) -> list:
+    """`repro` is the finding as a command — `{command, cwd?, expect?}` — that
+    `verdict-replay` runs on a fresh checkout. Absent is allowed (finalize says
+    which proven findings lack one); present and malformed is refused here,
+    while the author still has the terminal that produced it in front of them.
+    """
+    r = finding.get("repro")
+    if r is None:
+        return []
+    if not isinstance(r, dict):
+        return [f"{where} ({fid}) repro must be an object {{command, cwd?, expect?}}, not "
+                f"{type(r).__name__}"]
+    bad = []
+    cmd = r.get("command")
+    if not isinstance(cmd, str) or not cmd.strip():
+        bad.append(f"{where} ({fid}) repro.command must be the shell command that shows the "
+                   "defect on a fresh checkout — a non-empty string")
+    cwd = r.get("cwd")
+    if cwd is not None and (not isinstance(cwd, str) or not cwd.strip() or cwd.startswith("/")
+                            or cwd.startswith("\\") or ".." in cwd.replace("\\", "/").split("/")):
+        bad.append(f"{where} ({fid}) repro.cwd must be 'repo', 'qa_root' or a relative path "
+                   f"inside the checkout, not {cwd!r}")
+    exp = r.get("expect")
+    if exp is not None:
+        if not isinstance(exp, dict) or not exp:
+            bad.append(f"{where} ({fid}) repro.expect must be an object with any of "
+                       f"{list(_EXPECT_KEYS)} — what the defect produces, not the fix")
+        else:
+            unknown = sorted(k for k in exp if k not in _EXPECT_KEYS)
+            if unknown:
+                bad.append(f"{where} ({fid}) repro.expect has unknown keys {unknown}; the "
+                           f"harness compares only {list(_EXPECT_KEYS)}")
+            ex = exp.get("exit")
+            if "exit" in exp and (isinstance(ex, bool) or not isinstance(ex, int)):
+                bad.append(f"{where} ({fid}) repro.expect.exit must be an integer exit code, "
+                           f"not {ex!r}")
+            for key in ("stdout_contains", "stderr_contains"):
+                if key in exp and (not isinstance(exp[key], str) or not exp[key]):
+                    bad.append(f"{where} ({fid}) repro.expect.{key} must be a non-empty "
+                               "string the output contains when the defect shows")
+    return bad
+
+
 _SHIPPING = ("pass", "pass with risks")
 
 
@@ -320,6 +367,7 @@ def validate_finding(f: dict, where: str, known_ids, known_tests=None) -> list:
         bad.append(f"{where} ({fid}) is open with no evidence — an uncited finding is a "
                    "HYPOTHESIS, not a finding")
     bad.extend(_evidence_shape(f, where, fid))
+    bad.extend(_repro_shape(f, where, fid))
 
     conf = f.get("confidence")
     if conf is not None and conf not in CONFIDENCES:
