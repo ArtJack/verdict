@@ -1191,3 +1191,22 @@ def test_the_report_says_what_this_run_did_not_what_an_old_one_did(tmp_path):
     assert "words of its own" not in report
     assert "Carried by id, not re-read this run" in report
     assert "looked at, still there" not in report
+
+
+def test_the_skip_scan_reads_only_what_the_suite_collects(tmp_path):
+    """An eval fixture is a test-looking file pytest never collects. Verdict's own release
+    gates filed `eval/fixtures/pricer/test_pricer.py` as an abandoned skip for weeks: the
+    scan walked every `test_*.py` in the tree, not the files the suite runs."""
+    repo, qa = project(tmp_path)
+    (repo / "pytest.ini").write_text("[pytest]\nnorecursedirs = eval\n", encoding="utf-8")
+    (repo / "eval" / "fixtures").mkdir(parents=True)
+    (repo / "eval" / "fixtures" / "test_fixture.py").write_text(
+        SKIPPED.replace("not in the repo", "an answer key, never collected"), encoding="utf-8")
+    (repo / "test_skip.py").write_text(SKIPPED, encoding="utf-8")
+    git(repo, "add", "-A")
+    git(repo, "commit", "-qm", "a collected skip and an uncollected one")
+    assert delta(repo, qa) == 0
+    ledger = (qa / "test-ids.txt").read_text(encoding="utf-8")
+    assert "test_skip.py::" in ledger and "test_fixture.py" not in ledger, "the suite's own word"
+    titles = [f["title"] for f in state_of(qa)["findings"] if "skipped with no expiry" in f["title"]]
+    assert len(titles) == 1 and "never collected" not in titles[0], titles

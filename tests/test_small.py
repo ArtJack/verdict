@@ -475,3 +475,44 @@ def test_a_probe_that_copies_the_example_instead_of_calling_the_function_is_refu
         repo, chunk, {"mechanism": "wrong", "line": 2}, sys.executable)
     assert proof["status"] == "unavailable" and "does not call real" in proof["reason"]
     assert "some_function" not in small.PROBE_Q, "no copyable placeholder in the schema"
+
+
+# ── the skip scan reads collected tests, and a conditional skip is a guard ────
+
+def test_a_conditional_pytest_skip_call_is_a_guard_not_a_graveyard(tmp_path):
+    """`if not shutil.which("tar"): pytest.skip(...)` is `skipif` written as a call. The
+    2026-10-15 trace counted seven on Verdict's own suite, filed as abandoned every run."""
+    (tmp_path / "test_x.py").write_text(
+        "import shutil, pytest\n"
+        "def test_tar():\n"
+        "    if not shutil.which('tar'):\n"
+        "        pytest.skip('no GNU tar here')\n"
+        "    assert True\n"
+        "def test_net():\n"
+        "    try:\n"
+        "        import socket\n"
+        "    except ImportError:\n"
+        "        pytest.skip('needs sockets')\n"
+        "def test_abandoned():\n"
+        "    pytest.skip('temporarily disabled 2026-05-02 - flaky?')\n"
+        "pytest.skip('whole module parked', allow_module_level=True)\n", encoding="utf-8")
+    reasons = " ".join(f["reason"] for f in small.skips_without_expiry(tmp_path, ["test_x.py"]))
+    assert "no GNU tar" not in reasons and "needs sockets" not in reasons
+    assert "temporarily disabled" in reasons, "an unconditional call at the top of a test"
+    assert "whole module parked" in reasons, "an unconditional module-level call"
+
+
+def test_the_skip_scan_reads_the_files_the_suite_collects(tmp_path):
+    """A test-looking file pytest never collects — an eval fixture, a vendored suite — is
+    not a quarantine. Verdict's own release gates filed one for weeks."""
+    repo, qa = tmp_path / "repo", tmp_path / "qa"
+    (repo / "tests").mkdir(parents=True); (repo / "eval" / "fixtures").mkdir(parents=True); qa.mkdir()
+    (repo / "tests" / "test_real.py").write_text("def test_a(): pass\n", encoding="utf-8")
+    (repo / "eval" / "fixtures" / "test_fixture.py").write_text("def test_b(): pass\n", encoding="utf-8")
+    assert small.collected_test_files(repo, qa) is None, "no ledger: nothing to read"
+    assert small.skip_scan_files(repo, qa) == ["eval/fixtures/test_fixture.py", "tests/test_real.py"]
+    (qa / "test-ids.txt").write_text("tests/test_real.py::test_a\ntests/gone.py::test_z\n", encoding="utf-8")
+    assert small.collected_test_files(repo, qa) == ["tests/test_real.py"], "the ledger, minus files that are gone"
+    assert small.skip_scan_files(repo, qa) == ["tests/test_real.py"]
+    (qa / "test-ids.txt").write_text("suite.spec.ts > adds\n", encoding="utf-8")
+    assert small.collected_test_files(repo, qa) is None, "ids without a path are no ledger of files"

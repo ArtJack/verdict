@@ -1074,9 +1074,51 @@ def skips_without_expiry(repo: Path, files: list) -> list:
                 # every version guard came back as a finding until this line existed.
                 continue
             line = text[:m.start()].count("\n") + 1
+            if m.group("call") and _under_a_condition(text, line):
+                # `if not shutil.which("tar"): pytest.skip(...)` is the same guard written
+                # as a call. The trace of 2026-10-15 counted seven of them on Verdict's own
+                # suite, filed as abandoned tests every run.
+                continue
             if not has_expiry(args):
                 out.append({"path": rel, "line": line, "reason": args.strip()[:200]})
     return out
+
+
+_CONDITION = re.compile(r"^\s*(?:if|elif|else|except|for|while)\b")
+
+
+def _under_a_condition(text: str, line: int) -> bool:
+    """True when the statement on `line` sits inside an `if`/`except`/loop block: the nearest
+    line above it with less indentation opens one. A skip call at the top of a function or
+    a module is unconditional, and that is the graveyard this scan is for."""
+    lines = text.splitlines()
+    own = lines[line - 1]
+    depth = len(own) - len(own.lstrip())
+    for prev in reversed(lines[:line - 1]):
+        if not prev.strip():
+            continue
+        indent = len(prev) - len(prev.lstrip())
+        if indent < depth:
+            return bool(_CONDITION.match(prev))
+    return False
+
+
+def collected_test_files(repo: Path, qa_root: Path) -> list | None:
+    """The files the suite collects, from the test-id ledger `verdict-facts` writes — or None
+    when there is no ledger with `path::name` ids to read. A test-looking file pytest never
+    collects (an eval fixture, a vendored suite) is not a quarantine: Verdict's own release
+    gates filed `eval/fixtures/pricer/test_pricer.py` as an abandoned skip for weeks."""
+    try:
+        ids = (qa_root / "test-ids.txt").read_text(encoding="utf-8").splitlines()
+    except OSError:
+        return None
+    files = sorted({i.split("::", 1)[0].strip().replace("\\", "/") for i in ids if "::" in i})
+    files = [f for f in files if f and (repo / f).is_file()]
+    return files or None
+
+
+def skip_scan_files(repo: Path, qa_root: Path) -> list:
+    return collected_test_files(repo, qa_root) or test_files(repo)
 
 
 def has_expiry(reason: str) -> bool:
@@ -2446,7 +2488,7 @@ def run(repo: Path, qa_root: Path, model: Model, limit: int, gate: str | None,
             mint(failure_finding(claim, "@"), findings_dir, filed)
 
     # 2. Skips with no expiry — a regular expression, no model call at all.
-    for skip in group_skips(skips_without_expiry(repo, test_files(repo))):
+    for skip in group_skips(skips_without_expiry(repo, skip_scan_files(repo, qa_root))):
         mint(skip_finding(skip, "@"), findings_dir, filed)
 
     # 3. What reading says, function by function — the source, then the tests.
@@ -2462,7 +2504,7 @@ def run(repo: Path, qa_root: Path, model: Model, limit: int, gate: str | None,
     # `usage.jsonl` row every run, and the ledger is a record, not a bill.
     facts["probes"] = probe_ledger
     suite_files = ([p for p in python_in(changed) if is_test_file(p)] if ranged
-                   else test_files(repo)[:limit])
+                   else skip_scan_files(repo, qa_root)[:limit])
     examined += brittle_findings(model, repo, suite_files, mint, findings_dir, filed, budget,
                                  leads=leads)
 
