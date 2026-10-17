@@ -195,6 +195,52 @@ if __name__ == "__main__":
     sys.exit(main())
 
 
+def risk_paths_from(config: dict, notes: list) -> list[str]:
+    """The profile's `risk_paths:` — globs naming the money and auth code, a comma-separated
+    string or a list. Empty when unset: `read_first` then ranks by name stems."""
+    value = config.get("risk_paths")
+    if value is None or value == "":
+        return []
+    items = value if isinstance(value, list) else str(value).split(",")
+    globs = [str(i).strip() for i in items if str(i).strip()]
+    if not globs:
+        notes.append(f"risk_paths: '{value}' names no glob — ranking by name stems")
+    return globs
+
+
+def assertion_gaps_from(config: dict, notes: list) -> tuple[bool, int | None]:
+    """The profile's `assertion_gaps:` (on/off, default off) and `assertion_gaps_budget_s:`."""
+    value = str(config.get("assertion_gaps") or "").strip().lower()
+    on = value in ("on", "true", "yes", "1")
+    if value and not on and value not in ("off", "false", "no", "0"):
+        notes.append(f"assertion_gaps: '{config.get('assertion_gaps')}' is not understood (on, off) — off")
+    budget = config.get("assertion_gaps_budget_s")
+    try:
+        budget = int(budget) if budget not in (None, "") else None
+    except (TypeError, ValueError):
+        notes.append(f"assertion_gaps_budget_s: '{budget}' is not a number of seconds — the default stands")
+        budget = None
+    return on, budget
+
+
+def repro_rule_from(config: dict, notes: list) -> bool:
+    """The profile's `repro_rule:` — off unless it says on (`on`, `true`, `yes`).
+
+    On, `verdict-finalize` refuses a new Blocker/Critical/Major finding filed `proven`
+    with no `repro` block: proven to its author is not proven. Off (the default, so a
+    record that predates the block keeps working), such a finding is accepted and named
+    once. Either way a `repro` that does not reproduce on a fresh worktree refuses `proven`.
+    """
+    value = config.get("repro_rule")
+    if value is None or value == "":
+        return False
+    word = str(value).strip().lower()
+    on, off = {"on", "true", "yes", "1"}, {"off", "false", "no", "0"}
+    if word not in on | off:
+        notes.append(f"repro_rule: '{value}' is not understood (on, off) — the rule stays off")
+    return word in on
+
+
 def contract_rule_from(config: dict, notes: list) -> bool:
     """The profile's `contract_rule:` — on unless it says off (`off`, `false`, `no`).
 

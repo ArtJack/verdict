@@ -49,6 +49,7 @@ verdict-answer = "verdict_mcp.questions:main"
 verdict-local = "verdict_mcp.small:main"
 verdict-replay = "verdict_mcp.replay:main"
 verdict-dupes = "verdict_mcp.dupes:main"
+verdict-check = "verdict_mcp.check:main"
 
 [build-system]
 requires = ["hatchling"]
