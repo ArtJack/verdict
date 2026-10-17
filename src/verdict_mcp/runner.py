@@ -1186,6 +1186,11 @@ def main(argv=None) -> int:
     # run is this runner's own --timeout-s, which kills the process; the CLI's ceiling only
     # ever kills the work. An operator who set their own value keeps it.
     env.setdefault(BG_WAIT_ENV, "0")
+    # Two slips the 2026-10-16/17 stranger runs made on their own: a tester's bare `python`
+    # wrote 113 .pyc files into a checkout, and `git log -S` on a blob:none clone pulled 22 MB
+    # from GitHub. Neither needs the tester to remember anything now.
+    env.setdefault("PYTHONDONTWRITEBYTECODE", "1")
+    env.setdefault("GIT_NO_LAZY_FETCH", "1")
     # A dollar ceiling the CLI itself enforces. Budgets were stated in prose
     # and filled, never used (P-49); the flag existed and was never passed
     # (audit 2026-10-02, O-S-9).

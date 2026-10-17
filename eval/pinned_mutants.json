@@ -2075,8 +2075,8 @@
  {
   "label": "scoped gate 1: a proven defect off the change blocks too",
   "path": "src/verdict_mcp/harness.py",
-  "old": "               and in_change(a[\"path\"], a[\"line\"]) for a in f.get(\"anchors\") or []):\n",
-  "new": "               for a in f.get(\"anchors\") or []):\n"
+  "old": "               and in_change(a[\"path\"], a[\"line\"]) for a in f.get(\"anchors\") or []):\n            proven.append(f)\n",
+  "new": "               for a in f.get(\"anchors\") or []):\n            proven.append(f)\n"
  },
  {
   "label": "scoped gate 2: a Trivial blocks too",
@@ -2087,8 +2087,8 @@
  {
   "label": "scoped gate 3: no range, and it blocks anyway",
   "path": "src/verdict_mcp/harness.py",
-  "old": "    if in_change is None:\n        return [f\"risk_class {risk_class}: no gate range",
-  "new": "    if in_change is None:\n        in_change = lambda path, line: True\n    if False:\n        return [f\"risk_class {risk_class}: no gate range"
+  "old": "    if in_change is None:\n        return notes + [f\"risk_class {risk_class}: no gate range",
+  "new": "    if in_change is None:\n        in_change = lambda path, line: True\n    if False:\n        return notes + [f\"risk_class {risk_class}: no gate range"
  },
  {
   "label": "scoped gate 4: an unproven defect blocks",
@@ -2383,5 +2383,59 @@
   "path": "hooks/enforce_bash_scope.py",
   "old": "            _SCOPE[name] = _expand(_unquote_nested(value), self.base)   # None: unresolved\n",
   "new": "            expanded = _expand(_unquote_nested(value), self.base)\n            if expanded is not None:\n                _SCOPE[name] = expanded\n"
+ },
+ {
+  "label": "0.90.11 contract 1: a fix that fails green tests is never a dispute",
+  "path": "src/verdict_mcp/harness.py",
+  "old": "    if contract_rule:\n        notes.extend(_contract_dispute(state, in_change, judgment))\n",
+  "new": ""
+ },
+ {
+  "label": "0.90.11 contract 2: a disputed Critical keeps its severity",
+  "path": "src/verdict_mcp/harness.py",
+  "old": "        if str(f.get(\"severity\") or \"\") in (\"Blocker\", \"Critical\"):\n            f[\"severity_was\"] = f[\"severity\"]\n            f[\"severity\"] = _SEVERITY_CAP\n",
+  "new": ""
+ },
+ {
+  "label": "0.90.11 contract 3: a disputed finding stays a release blocker",
+  "path": "src/verdict_mcp/harness.py",
+  "old": "    blockers = [b for b in (state.get(\"release_blockers\") or [])\n                if not any(fid in str(b) for fid in ids)]\n",
+  "new": "    blockers = list(state.get(\"release_blockers\") or [])\n"
+ },
+ {
+  "label": "0.90.11 contract 4: a fail that rested on the dispute alone stays a fail",
+  "path": "src/verdict_mcp/harness.py",
+  "old": "    if was == \"fail\" and not blockers and not still:\n        state[\"verdict\"] = \"pass with risks\"",
+  "new": "    if False:\n        state[\"verdict\"] = \"pass with risks\""
+ },
+ {
+  "label": "0.90.11 contract 5: inside a money gate's own change the dispute excuses the defect",
+  "path": "src/verdict_mcp/harness.py",
+  "old": "            continue            # the change's own defect: the money rule judges it\n",
+  "new": "            pass\n"
+ },
+ {
+  "label": "0.90.11 contract 6: contract_rule: off is ignored",
+  "path": "src/verdict_mcp/profile.py",
+  "old": "    if text in (\"off\", \"false\", \"no\", \"0\"):\n        return False\n",
+  "new": ""
+ },
+ {
+  "label": "0.90.11 contract 7: fix_breaks_tests takes any value",
+  "path": "src/verdict_mcp/validate.py",
+  "old": "    if fbt is not None and (isinstance(fbt, bool) or not isinstance(fbt, int) or fbt < 0):",
+  "new": "    if False:"
+ },
+ {
+  "label": "0.90.11 env 1: the tester's python writes bytecode into the checkout",
+  "path": "src/verdict_mcp/runner.py",
+  "old": "    env.setdefault(\"PYTHONDONTWRITEBYTECODE\", \"1\")\n",
+  "new": ""
+ },
+ {
+  "label": "0.90.11 env 2: a partial clone fetches from the network on the tester's behalf",
+  "path": "src/verdict_mcp/runner.py",
+  "old": "    env.setdefault(\"GIT_NO_LAZY_FETCH\", \"1\")\n",
+  "new": ""
  }
 ]
