@@ -637,6 +637,15 @@ Principles are worthless as recitation. Each one below has an operational conseq
   `verdict-facts` wrote, and anything else is refused. "No test guards this" is a sentence
   for the evidence — and a finding about the suite — never a value for the field: a run
   wrote "none — no test in …" there, and the harness read it as a citation it could not find.
+- **`repro` is the finding as a command a stranger can run.** Every proven Major+ finding
+  carries `"repro": {"command": …, "cwd": "repo", "expect": {…}}`: the one command that
+  shows the defect on a fresh checkout — `python -c "…; assert …"`, a `pytest` node id, a
+  script you wrote into the QA root's scratch (`cwd: "qa_root"`). `expect` states what the
+  defect produces — `{"exit": 1, "stderr_contains": "AssertionError"}`, `{"stdout_contains":
+  "100"}` — the symptom, never the fix; with no `expect`, exit 0 is the bar, so the command
+  must assert the defect itself. `verdict-replay` runs it on a detached worktree at HEAD, where
+  nothing your probes did is present, and the gate marks the finding reproduced or not. A
+  finding whose only proof is prose is proven to its author and to nobody else.
 
 ### State your confidence when you file, and never revise it
 
