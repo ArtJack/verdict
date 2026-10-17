@@ -9,6 +9,38 @@ They moved there on 2026-10-03, when this file outgrew what the Claude directory
 will read: at 250 KB it was read, at 267 KB it held 0.90.3 for "Files or downloads the
 validator couldn't inspect". The limit is most likely 256 KiB.
 
+## 0.91.1 — 2026-10-17 · "is the effect checked at all, and is the census ever cut short"
+
+- **The census asks whether an effect is checked.** Whole-statement mutants come first on a
+  line that is one: a call made for its effect, an attribute set and a raise become `pass`, a
+  returned value becomes `None` — is the save, the status change, the field written checked at
+  all? A mutant that does not parse is never run. 16 functions; money logic before admin UI
+  (`dashboard/`, `admin/`, `templatetags/`, `migrations/` last); a 480 s default budget.
+- **A failing clean-tree set no longer hides a function.** When the selected tests do not pass
+  on the fresh tree, each is tried alone and the passing ones kept; a skipped function says why.
+- **The census is never cut short by the tester's Bash call.** `verdict-run` runs
+  `verdict-facts` before the tester starts, outside any Claude Code session, with the census's
+  whole budget; the tester's own `verdict-facts` adopts those facts for the same HEAD and range
+  and claims the run marker for its session. `--no-premeasure` restores the old order. Inside a
+  tester's Bash call the census takes what is left of a 9-minute window.
+- **On by default for asked runs**, unless the profile says `assertion_gaps: off`; finalize
+  accounts for each survivor function — cited by a finding or named in `not_tested` — and under
+  `repro_rule: on` refuses the run until it does.
+- **The local tier uses the census.** It ran none (it collects its own facts and never passed
+  the setting on); now it does, reads survivor files and functions first, hands the survivor to
+  its first question, and names unread survivors in `not_tested`.
+- **`repro_rule` binds the agent's run, and the findings it filed.** The local engine proves by
+  counterfactual, writes no repro and runs unattended; it is told, never refused, and so is a
+  model-free sweep. A finding carried from an earlier run is named, not refused: a record older
+  than the repro block holds proven findings without one, and turning the rule on must not stop
+  every later run for them.
+- **A coverage render that exceeds 300 s falls back to the production files**, so a large suite
+  keeps its reading map and census.
+- Measured at zero model tokens on stranger repositories: survivors 5 -> 18 on a thin-suite
+  library; on a large framework, ranked money-first, all 8 survivors in the money core; the local
+  tier with the census reads those functions first and files hypotheses there.
+- Pinned mutants: 17 new (0.91.1 gaps 5–10, local 1–5, premeasure 1–3, render 1, repro 1–2); badge 457/457.
+
 ## 0.91.0 — 2026-10-17 · "the verdict means something"
 
 What a run claims is now checked by the harness, and where a run looks is ranked for it. Every

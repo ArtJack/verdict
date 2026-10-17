@@ -109,6 +109,7 @@ here.
 | `findings[].replay` | computed | The harness's own run of the finding's `repro` (0.91.0): `{command, previous_sha, at_head, at_previous, checks_head, checks_previous, isolated?}`, each reading `reproduced` · `not reproduced` · `could not run` · `unavailable` (`at_previous` is `null` for a finding first filed this run). `verdict-facts` measures every open Major+ finding the previous record carried, at HEAD and at the previous commit; `verdict-finalize` measures the ones filed this run, at HEAD. `at_head: reproduced` refuses a resolution, claimed or by silence; `at_previous: reproduced` with `at_head: not reproduced` verifies a claimed fix and resolves a finding nobody re-reported (`resolved_by: measurement (repro)`, `fix_verified`, `fixed_at`, an evidence line, outcome `confirmed`/`measured`). A new finding filed `proven` whose repro did not reproduce is refused with the check that failed; `isolated: false` or `could not run` is silence |
 | `findings[].resolved_by` | computed | `measurement (repro)` when the harness, not the tester, resolved it |
 | `read_first` | computed | facts' ranking (top 10) and how the run accounted for it (0.91.0): `{basis, items, cited, declared_untested, unaccounted}` — a ranked function is `cited` when an open or resolved finding names its file (anchors or evidence) and its function name, `declared_untested` when `not_tested` names it, else `unaccounted`. finalize prints the unaccounted ones; the report renders **Read first**. The third question of the Opus check, answered without a model |
+| `assertion_gaps_accounting` | computed | When the census found survivors (0.91.1): `{functions, cited, declared_untested, unaccounted}` over the survivor functions, accounted like `read_first`. finalize prints the unaccounted ones, and under `repro_rule: on` refuses an agent's run until each is cited by a finding or named in `not_tested` (the local engine's runs are told, never refused) |
 | `findings[].root_cause` | no | The §3.5 chain when one was established: `{mechanism, origin, class{pattern, sites[]}, trigger, latent_condition, fix_location, proof{method, evidence}, confidence}`. `proof.method` is `counterfactual` · `differential` · `archaeology` · `reading`; `fix_location` is `code` · `test` · `spec` · `environment` · `process`; `confidence` is `proven` · `hypothesis`. Carrying it forward means the next run inherits the diagnosis instead of re-deriving it |
 | `verdict` | yes | `pass` · `pass with risks` · `blocked` · `fail` |
 | `run_type: sweep` | — | The model-free run (0.86.0): `verdict-run --skip-unless-drift` found HEAD moved by commits that touched nothing any finding cites, every gate green with parsed counts, the test-id set unchanged, no quarantine due, no cited line moved — and finalized a synthetic judgment that carries every open finding by id and the previous verdict, `last_run.model: none`. Run number advances; the history row is signed like any other |
@@ -186,6 +187,15 @@ question blocked 7 of the 8 positives, with the same one false block, at about a
 cost: the rule fixes Verdict's call, it does not out-call that baseline. Unscoped, the rule
 blocked 3 of 8 clean changes, which is why it is scoped to the change.
 
+`repro_rule: on` (0.91.0) makes a `repro` block part of `proven`. `verdict-finalize` refuses an
+agent's run in which a Major-or-worse finding filed in that run claims `proven` with no `repro`
+block, and (0.91.1) one that leaves an assertion-gap survivor function neither cited nor named in
+`not_tested`. Findings carried from earlier runs are named, never refused: a record older than
+the block carries proven findings without one, and refusing every later run for them would stop
+the record (0.91.1). The local engine's runs and a model-free sweep are told, never refused.
+Off, the default, the same findings are accepted and named once. Either way a `repro` that does
+not reproduce on a fresh worktree refuses `proven`.
+
 **A fix that fails the project's own green tests is a contract dispute (0.90.11).** A finding carrying `fix_breaks_tests` above 0 is capped at Major, taken out of the release blockers and parked as a question; the verdict is lowered from `fail` to `pass with risks` only when nothing else blocks. The project's tests are evidence of intent: on 2026-10-17 a django-oscar baseline called a Critical what 22 green tests and the tracker's history had settled the other way.
 
 A run whose tester answered on more than one model (its own
@@ -233,17 +243,29 @@ were. `risk_paths:` in the profile (globs, a list or comma-separated) replaces t
 
 ## Code the suite runs without checking — `facts.json` → `assertion_gaps` (0.91.0)
 
-Opt-in: `assertion_gaps: on` in the profile (with `coverage_suite_cmd` and `test_one_cmd`;
-`assertion_gaps_budget_s`, default 240). On the coverage run's data, for each function on a risk
-path that tests execute (up to 8, the most-tested first; on a range, only its changed lines), up
-to three lines get up to two mechanical mutants each — a comparison flipped, `and`/`or`, a
-condition negated, `+`/`-`, `*`/`/`, 0/1, `True`/`False`, never inside a string — written into a
-fresh worktree one at a time, with only the tests whose coverage contexts executed that line run
+On for an asked run (`verdict-run` sets `VERDICT_ASSERTION_GAPS=on`; 0.91.1), opt-in otherwise:
+`assertion_gaps: on|off` in the profile always wins (with `coverage_suite_cmd` and `test_one_cmd`;
+`assertion_gaps_budget_s`, default 480; inside a Claude Code session — the tester's own
+`verdict-facts` call, which ends at 10 minutes — the census gets what is left of a 9-minute window
+after the coverage run, at least 60 s). On the coverage run's data, for each function on a risk
+path that tests execute (up to 16: a function whose own name is on a risk path first, then one
+whose file is, admin UI — `dashboard/`, `admin/`, `templatetags/`, `migrations/` — last; the
+most-tested first within each; on a range, only its changed lines),
+up to three lines get up to two mechanical mutants each, never inside a string — first a
+whole-statement mutant when the line is one (a call made for its effect, an attribute set or a
+raise becomes `pass`; a returned value becomes `None`: is the save, the status change, the field
+written checked at all?), then a comparison flipped, `and`/`or`, a condition negated, `+`/`-`,
+`*`/`/`, 0/1, `True`/`False` — written into a fresh worktree one at a time (a mutant that does
+not parse is never run), with only the tests whose coverage contexts executed that line run
 against it. `{status, checkout, functions, mutants, killed, errors, survived, skipped?,
 duration_s}`; each survivor `{path, function, risk, line, operator, before, after, tests}` is a
 line those tests execute and do not check. Two controls per function: its tests must pass on the
-clean tree, and a canary line that raises must make them fail — or the fresh tree is not what
-they import, and the function is skipped with the reason. Survivors lead `read_first`. A lead for
+clean tree — a set that does not is retried test by test and the passing ones kept, since a
+functional test that needs a built asset the fresh tree lacks, or one that depends on suite
+order, must not make the function unmeasurable — and a canary line that raises must make them
+fail, or the fresh tree is not what they import. A skipped function says why, with the failing
+tests' last lines. The census reads the coverage JSON with contexts; on a very large suite its
+render can exceed the harness's 300 s and the census reports itself unavailable. Survivors lead `read_first`. A lead for
 where to read, never a finding: an equivalent mutant survives too.
 
 ## A finding replayed on a fresh checkout — `<qa-root>/replays.jsonl`
