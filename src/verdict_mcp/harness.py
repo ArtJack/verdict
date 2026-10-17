@@ -3581,10 +3581,15 @@ def finalize_main(argv=None) -> int:
     # and do not check, and the place a defect hides behind a green suite. A run
     # that turned the census on accounts for each survivor function — a finding cites it, or
     # not_tested names it — and under repro_rule: on it is refused until it does.
+    # Both refusals below bind the agent's run only. The local engine proves by counterfactual,
+    # never writes a repro, and runs unattended: a rule it cannot satisfy would cost a night's
+    # state, not improve a judgment (the Sales and ifta profiles turn repro_rule on, 2026-10-17).
+    strict = repro_rule_from(profile_config, profile_notes) and \
+        str((facts.get("last_run") or {}).get("engine") or "") != "verdict-local"
     gap_acc = survivor_accounting(facts, state)
     if gap_acc and gap_acc["unaccounted"]:
         shown = ", ".join(gap_acc["unaccounted"][:5]) + (" ..." if len(gap_acc["unaccounted"]) > 5 else "")
-        if repro_rule_from(profile_config, profile_notes):
+        if strict:
             print(f"verdict-finalize: {len(gap_acc['unaccounted'])} assertion-gap survivor function(s) "
                   f"are neither cited by a finding nor named in not_tested: {shown} - read them, or "
                   "name each in not_tested as path::function with why", file=sys.stderr)
@@ -3601,7 +3606,7 @@ def finalize_main(argv=None) -> int:
     # and `verdict-replay`, have prose. Said once here - and refused under `repro_rule: on`.
     # ASCII on purpose: this stream reaches a cp1252 console on Windows (CI, 2026-10-17).
     if prose := without_repro(state["findings"]):
-        if repro_rule_from(profile_config, profile_notes):
+        if strict:
             print(f"verdict-finalize: repro_rule is on and {len(prose)} proven Major+ finding(s) "
                   f"carry no `repro` block: {', '.join(prose)} - add the command that shows the "
                   "defect (command, cwd, expect), or file the finding as `probable`",

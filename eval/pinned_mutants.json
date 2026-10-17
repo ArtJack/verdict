@@ -2737,5 +2737,11 @@
   "path": "src/verdict_mcp/small.py",
   "old": "                    assertion_gaps=({\"test_one_cmd\": config.get(\"test_one_cmd\"), \"budget_s\": gaps_budget,\n",
   "new": "                    assertion_gaps=None and ({\"test_one_cmd\": config.get(\"test_one_cmd\"), \"budget_s\": gaps_budget,\n"
+ },
+ {
+  "label": "0.91.1 local 5: the local engine's night is refused under repro_rule",
+  "path": "src/verdict_mcp/harness.py",
+  "old": "        str((facts.get(\"last_run\") or {}).get(\"engine\") or \"\") != \"verdict-local\"\n",
+  "new": "        True\n"
  }
 ]

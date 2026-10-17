@@ -678,3 +678,19 @@ def test_a_measurement_past_its_budget_stops_and_says_so(repo, qa_root, capsys):
                                              refs=("HEAD",), budget=-1)
     assert all(r["at_head"] == "unavailable" for r in records.values())
     assert any("replay stopped at its -1s budget: 2 finding(s)" in n for n in notes)
+
+
+
+def test_repro_rule_binds_the_agents_run_and_not_the_local_engine(repo, qa_root, capsys):
+    """The local engine proves by counterfactual and writes no repro; under repro_rule: on its
+    unattended night would have been refused for a rule it cannot satisfy."""
+    (qa_root / "profile.md").write_text("---\nrepro_rule: on\n---\n\n# QA Profile — widget\n", encoding="utf-8")
+    _facts(repo, qa_root)
+    facts = json.loads((qa_root / "facts.json").read_text(encoding="utf-8"))
+    facts.setdefault("last_run", {})["engine"] = "verdict-local"
+    (qa_root / "facts.json").write_text(json.dumps(facts), encoding="utf-8")
+    _finding_file(qa_root, "W-F-3", repro=None)
+    rc, state = _finalize(qa_root, judgment(findings=[]))
+    err = capsys.readouterr().err
+    assert rc == 0, err
+    assert "no structured repro on 1 proven Major+ finding(s): W-F-3" in err
