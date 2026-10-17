@@ -43,7 +43,7 @@ from pathlib import Path
 try:
     from .project_key import derive_key
     from .questions import facts_view as questions_view
-    from .state import (code_drift, fold_accepted, harness_signals, is_open, is_path_like,
+    from .state import (code_drift, fix_claims, fold_accepted, harness_signals, is_open, is_path_like,
                     load_accepted,
                     load_chain_anchor, load_runs, load_state, missing_durable,
                     norm_status, order_findings,
@@ -55,7 +55,7 @@ except ImportError:  # executed as a bare script (GitHub Action gate mode)
     import clock
     from project_key import derive_key
     from questions import facts_view as questions_view
-    from state import (code_drift, fold_accepted, harness_signals, is_open, is_path_like,
+    from state import (code_drift, fix_claims, fold_accepted, harness_signals, is_open, is_path_like,
                    load_accepted,
                    load_chain_anchor, load_runs, load_state, missing_durable,
                    norm_status, order_findings,
@@ -77,6 +77,86 @@ def _resolve_project(arg):
         return ".", "team-mode .qa/ in the working directory"
     key, source = derive_key(".")
     return key, f"solo key {key!r} (from {source})"
+
+
+# What a person can act on. A standing verdict is not news, however bad: Sales stood at `fail`
+# for 18 runs on two items that wait on a person — a decision and one production command — and
+# the nightly, which pages only when a night itself breaks, said nothing for weeks. It would have
+# said nothing about a new regression either: both nights exit 1 (trace 2026-10-15, wave 3).
+NEWS_SEVERITIES = ("Blocker", "Critical", "Major")
+_FINDING_NO = re.compile(r"F-(\d+)")
+
+
+def _finding_no(text):
+    """`SALES-F-096`, `F-096` and a blocker line starting "F-096 (Critical/P1) —" are one finding."""
+    m = _FINDING_NO.search(str(text or ""))
+    return int(m.group(1)) if m else None
+
+
+def news_of(state, findings, rows, parked, claims=None) -> dict:
+    """What the last run changed: the verdict against the run before it, findings at Major or
+    worse that are new, came back, or were resolved — and the release blockers split into the
+    ones a parked question has handed to a person and the rest. `any` is the one bit a
+    scheduler pages on."""
+    run = state.get("run_number") or 0
+    prev = next((r for r in reversed(rows) if (r.get("run_number") or 0) < run), None)
+    was = prev.get("verdict") if prev else None
+
+    def brief(f):
+        return {"id": f.get("id"), "severity": f.get("severity"), "delta": f.get("delta"),
+                "title": f.get("title")}
+
+    serious = [f for f in findings if f.get("severity") in NEWS_SEVERITIES]
+    new = [brief(f) for f in serious if is_open(f) and f.get("delta") in ("NEW", "REGRESSED")]
+    resolved = [brief(f) for f in serious if f.get("delta") == "RESOLVED"]
+    asked = {}
+    for q in parked or []:
+        asked.setdefault(_finding_no(q.get("finding")), []).append(q.get("id"))
+    waiting, blockers = [], []
+    for line in state.get("release_blockers") or []:
+        no = _finding_no(line)
+        head = str(line).split(" — ", 1)[0].strip()
+        if no is not None and no in asked:
+            waiting.append({"blocker": head, "questions": asked[no]})
+        else:
+            blockers.append({"blocker": head})
+    changed = was is not None and was != state.get("verdict")
+    return {"any": bool(new or resolved or changed), "verdict_was": was, "new": new,
+            "resolved": resolved, "blockers_waiting_on_a_person": waiting, "blockers": blockers,
+            "fix_claimed": list(claims or [])}
+
+
+def news_line(r) -> str:
+    """One line for a log or a notification: what changed, or that nothing did."""
+    news = r.get("news")
+    if not news:
+        return ""
+    if news["any"]:
+        parts = []
+        if news.get("verdict_was") is not None and news["verdict_was"] != r.get("verdict"):
+            parts.append(f"verdict {news['verdict_was']!r} → {r.get('verdict')!r}")
+        if news["new"]:
+            parts.append(f"{len(news['new'])} new at Major or worse: " + ", ".join(
+                f"{f['id']} ({f['severity']}, {f['delta']})" for f in news["new"][:4])
+                + (" …" if len(news["new"]) > 4 else ""))
+        if news["resolved"]:
+            parts.append(f"{len(news['resolved'])} resolved: " + ", ".join(
+                str(f["id"]) for f in news["resolved"][:4]) + (" …" if len(news["resolved"]) > 4 else ""))
+        return "news — " + "; ".join(parts)
+    held = []
+    if news["blockers_waiting_on_a_person"]:
+        held.append("waiting on a person: " + ", ".join(
+            f"{b['blocker']} ({', '.join(map(str, b['questions']))})"
+            for b in news["blockers_waiting_on_a_person"]))
+    if news["blockers"]:
+        held.append("blockers: " + ", ".join(b["blocker"] for b in news["blockers"]))
+    if news.get("fix_claimed"):
+        claimed = news["fix_claimed"]
+        held.append("a commit names as fixed, no run has verified: " + ", ".join(
+            f"{c['id']} ({c['commit']})" for c in claimed[:5])
+            + (f" and {len(claimed) - 5} more" if len(claimed) > 5 else ""))
+    return (f"no news — the verdict stands at {r.get('verdict')!r}"
+            + (" · " + " · ".join(held) if held else ""))
 
 
 def evaluate(project, fail_on, max_age_hours, min_run_number, now=None,
@@ -113,6 +193,10 @@ def evaluate(project, fail_on, max_age_hours, min_run_number, now=None,
         out["questions_parked"] = [{"id": q["id"], "question": q.get("question"),
                                     "finding": q.get("finding"), "age_days": q.get("age_days")}
                                    for q in qv["parked"]]
+    rows, _ = load_runs(state.get("_qa_root") or ".")
+    out["fix_claims"] = fix_claims(repo_for_root(resolve_root(project)), last.get("git_sha"),
+                                   folded)
+    out["news"] = news_of(state, folded, rows, (qv or {}).get("parked"), out["fix_claims"])
     if verdict not in ("pass", "pass with risks", "blocked", "fail"):
         out.update(exit_code=4, reason=f"state has no usable verdict: {verdict!r}")
         return out
@@ -246,6 +330,8 @@ def _fmt_text(r, n):
         lines.append(f"run {r['run_number']} ({r.get('run_type')}) · {r.get('last_run_utc')} · {r.get('sha_range')}")
     if note := _drift_note(r):
         lines.append(note)
+    if line := news_line(r):
+        lines.append(line)
     if r.get("release_blockers"):
         lines.append("release blockers: " + ", ".join(r["release_blockers"]))
     if r.get("accepted_risks"):

@@ -93,6 +93,8 @@ def test_a_commit_that_touches_nothing_cited_is_swept_without_a_model(tmp_path):
     assert s["isolation_check"]["result"] == "n/a"
     report = (qa / s["last_run"]["report"]).read_text(encoding="utf-8")
     assert "run 2 (sweep)" in report and "Model-free sweep over" in report
+    assert "verdict-run: no news — the verdict stands at 'pass with risks'" in proc.stdout, \
+        "a swept night carries everything by id: nothing for a person to act on"
     assert proc.returncode == 0, proc.stdout + proc.stderr
     rows = [json.loads(ln) for ln in (qa / "runs.jsonl").read_text(encoding="utf-8").splitlines()]
     assert rows[-1]["run_type"] == "sweep" and rows[-1]["run_number"] == 2
@@ -115,6 +117,8 @@ def test_the_unchanged_head_path_still_applies(tmp_path):
     proc, model_ran = run(tmp_path, repo, home, "--skip-unless-drift")
     assert not model_ran and "HEAD unchanged since run 1" in proc.stderr
     assert state_of(qa)["run_number"] == 1
+    assert "verdict-run: no news — HEAD unchanged, nothing ran" in proc.stdout, \
+        "a night that ran nothing does not repeat the last run's news"
 
 
 # ── the tier below the sweep: --on-drift ──────────────────────────────────
