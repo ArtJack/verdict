@@ -2459,7 +2459,7 @@
  {
   "label": "0.90.12 replay 4: a command that never started reads as a result",
   "path": "src/verdict_mcp/replay.py",
-  "old": "    if proc.returncode in CANNOT_START:\n",
+  "old": "    if proc.returncode in CANNOT_START or NOT_RECOGNIZED in proc.stderr:\n",
   "new": "    if False:\n"
  },
  {
@@ -2483,8 +2483,8 @@
  {
   "label": "0.90.12 replay 8: a path the fresh tree lacks is rewritten anyway",
   "path": "src/verdict_mcp/replay.py",
-  "old": "        if rest and (scratch / rest.lstrip(\"/\")).exists():\n",
-  "new": "        if rest:\n"
+  "old": "        if target.exists():\n",
+  "new": "        if True:\n"
  },
  {
   "label": "0.90.12 replay 9: a crash is a reproduction whenever the exit code matches",
@@ -2495,8 +2495,8 @@
  {
   "label": "0.90.12 replay 10: output from the original checkout passes as isolated",
   "path": "src/verdict_mcp/replay.py",
-  "old": "        if re.search(re.escape(root) + r\"/(?!\\.|venv/|env/|node_modules/)\", text):\n            return True\n",
-  "new": "        if re.search(re.escape(root) + r\"/(?!\\.|venv/|env/|node_modules/)\", text):\n            return False\n"
+  "old": "        if re.search(re.escape(root.replace(\"\\\\\", \"/\")) + r\"/(?!\\.|venv/|env/|node_modules/)\", plain):\n            return True\n",
+  "new": "        if re.search(re.escape(root.replace(\"\\\\\", \"/\")) + r\"/(?!\\.|venv/|env/|node_modules/)\", plain):\n            return False\n"
  },
  {
   "label": "0.90.12 replay 11: the guard that disarms an editable install is not on the path",

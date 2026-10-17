@@ -7,6 +7,7 @@ reading its ledger.
 """
 
 import json
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -37,7 +38,7 @@ def _repo(tmp_path):
     git(["init", "-qb", "main"], r)
     (r / "src" / "pricer" / "__init__.py").write_text("", encoding="utf-8")
     (r / "src" / "pricer" / "money.py").write_text(DEFECT, encoding="utf-8")
-    (r / "probe.py").write_text("print(__file__)\n", encoding="utf-8")
+    (r / "probe.py").write_text("import os; print(__file__.replace(os.sep, '/'))\n", encoding="utf-8")
     git(["add", "-A"], r)
     git(["commit", "-qm", "defect at HEAD"], r)
     (r / "src" / "pricer" / "money.py").write_text(FIXED, encoding="utf-8")
@@ -83,7 +84,7 @@ def _rows(repo):
 def _worktrees(repo):
     out = subprocess.run(["git", "-C", str(repo), "worktree", "list", "--porcelain"],
                          capture_output=True, text=True, check=True).stdout
-    return [line.split(" ", 1)[1] for line in out.splitlines() if line.startswith("worktree ")]
+    return [str(Path(line.split(" ", 1)[1])) for line in out.splitlines() if line.startswith("worktree ")]
 
 
 # ── the replay itself ─────────────────────────────────────────────────────
@@ -133,7 +134,7 @@ def test_a_wrong_exit_code_is_not_reproduced_and_no_expect_means_exit_0(tmp_path
 def test_a_command_that_cannot_start_or_times_out_is_could_not_run(tmp_path, capsys):
     repo = _repo(tmp_path)
     _state(repo, [_finding("PRICER-F-5", {"command": "no-such-tool-xyz --flag", "expect": {"exit": 0}}),
-                  _finding("PRICER-F-6", {"command": f"{PY} -c \"import time; time.sleep(30)\"",
+                  _finding("PRICER-F-6", {"command": f"{PY} -c \"import time; time.sleep(6)\"",
                                            "expect": {"exit": 0}})])
     assert replay.main([str(repo), "--timeout", "2"]) == 2, "nothing could be replayed"
     by_id = {r["id"]: r for r in _rows(repo)}
@@ -162,21 +163,20 @@ def test_a_path_the_fresh_tree_lacks_stays_where_it_is(tmp_path):
     tree finds nothing (exit 127 on every real record, 2026-10-17). It stays; the fresh tree
     still comes first on the import path."""
     repo = _repo(tmp_path)
-    (repo / ".venv" / "bin").mkdir(parents=True)
-    tool = repo / ".venv" / "bin" / "python"
-    tool.write_text(f"#!/bin/sh\nexec {PY} \"$@\"\n", encoding="utf-8")
-    tool.chmod(0o755)
-    _state(repo, [_finding("PRICER-F-7", {"command": f"{tool} {repo / 'probe.py'}",
+    (repo / ".venv").mkdir()
+    tool = repo / ".venv" / "tool.py"      # untracked, like the interpreter in a checkout's venv
+    tool.write_text("import runpy, sys; runpy.run_path(sys.argv[1], run_name='__main__')\n", encoding="utf-8")
+    _state(repo, [_finding("PRICER-F-7", {"command": f"{PY} {tool} {repo / 'probe.py'}",
                                            "expect": {"stdout_contains": "/tree/probe.py"}})])
     assert replay.main([str(repo)]) == 0
     (row,) = _rows(repo)
     assert row["result"] == "reproduced", row
-    assert row["command"] == f"{tool} {row['scratch']}/probe.py"
+    assert row["command"] == f"{PY} {tool} {row['scratch']}{os.sep}probe.py"
 
 
 def test_from_qa_root_the_fresh_tree_is_first_on_the_import_path(tmp_path):
     repo = _repo(tmp_path)
-    _state(repo, [_finding("PRICER-F-7", {"command": f"{PY} -c \"import pricer; print(pricer.__file__)\"",
+    _state(repo, [_finding("PRICER-F-7", {"command": f"{PY} -c \"import pricer, os; print(pricer.__file__.replace(os.sep, '/'))\"",
                                            "cwd": "qa_root",
                                            "expect": {"stdout_contains": "/tree/src/pricer/"}})])
     assert replay.main([str(repo)]) == 0
@@ -186,7 +186,7 @@ def test_from_qa_root_the_fresh_tree_is_first_on_the_import_path(tmp_path):
 
 def test_cwd_is_a_directory_inside_the_fresh_checkout_or_the_command_does_not_run(tmp_path):
     repo = _repo(tmp_path)
-    _state(repo, [_finding("PRICER-F-8", {"command": f"{PY} -c \"import os; print(os.getcwd())\"",
+    _state(repo, [_finding("PRICER-F-8", {"command": f"{PY} -c \"import os; print(os.getcwd().replace(os.sep, '/'))\"",
                                            "cwd": "src", "expect": {"stdout_contains": "/tree/src"}}),
                   _finding("PRICER-F-9", {"command": "true", "cwd": "../.."}),
                   _finding("PRICER-F-10", {"command": "true", "cwd": "/"}),
@@ -256,9 +256,10 @@ def test_an_editable_install_of_the_original_checkout_is_disarmed_at_startup(tmp
     repo = _repo(tmp_path)
     # the probe learns the original's path at run time: a literal in the command would be
     # rewritten to the fresh tree, which is the point of the rewrite
-    probe = ("import os, sys; o = os.environ['VERDICT_REPLAY_ORIGINAL'].split(os.pathsep)[0] + '/'; "
-             "print([p for p in sys.path if p.startswith(o)]); "
-             "print(any(getattr(f, '_build_path', '').startswith(o) for f in sys.meta_path))")
+    probe = ("import os, sys; n = lambda p: os.path.normcase(os.path.normpath(p)); "
+             "o = n(os.environ['VERDICT_REPLAY_ORIGINAL'].split(os.pathsep)[0]) + os.sep; "
+             "print([p for p in sys.path if n(p).startswith(o)]); "
+             "print(any(n(getattr(f, '_build_path', 'x')).startswith(o) for f in sys.meta_path))")
     _state(repo, [_finding("PRICER-F-7", {"command": f"{PY} -c \"{probe}\"",
                                            "expect": {"stdout_contains": "[]\nFalse"}})])
     import os
@@ -291,9 +292,10 @@ def test_output_naming_the_original_checkout_marks_the_replay_not_isolated(tmp_p
     repo = _repo(tmp_path)
     # a path the fresh tree lacks (a build directory, as meson-python prints) is not rewritten,
     # so the output names the original — the shape of the 2026-10-17 numpy-financial replay
-    _state(repo, [_finding("PRICER-F-3", {"command": f"{PY} -c \"print('from {repo}/build/cp312/pricer/money.py')\"",
+    spelled = str(repo).replace(os.sep, "/")      # a backslash inside a Python literal is an escape
+    _state(repo, [_finding("PRICER-F-3", {"command": f"{PY} -c \"print('from {spelled}/build/cp312/pricer/money.py')\"",
                                            "expect": {"stdout_contains": "from"}}),
-                  _finding("PRICER-F-4", {"command": f"{PY} -c \"print('{repo}/.venv/lib/site-packages/x.py: warning')\"",
+                  _finding("PRICER-F-4", {"command": f"{PY} -c \"print('{spelled}/.venv/lib/site-packages/x.py: warning')\"",
                                            "expect": {"stdout_contains": "warning"}})])
     assert replay.main([str(repo)]) == 0
     by_id = {r["id"]: r for r in _rows(repo)}

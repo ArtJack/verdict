@@ -53,12 +53,18 @@ import os as _os, sys as _sys
 
 def disarm(path, meta_path, originals, prefixes):
     \"\"\"(sys.path, sys.meta_path) without what points into the original checkout.\"\"\"
-    roots = [o.rstrip("/") + "/" for o in originals if o]
-    keep = [p.rstrip("/") + "/" for p in prefixes if p]
+    def norm(p):
+        return _os.path.normcase(_os.path.normpath(p))
+
+    roots = [norm(o) for o in originals if o]
+    keep = [norm(p) for p in prefixes if p]
 
     def original(value):
-        return (isinstance(value, str) and any(value.startswith(r) or value == r[:-1] for r in roots)
-                and not any(value.startswith(k) for k in keep))
+        if not isinstance(value, str) or not value:
+            return False
+        v = norm(value)
+        return (any(v == r or v.startswith(r + _os.sep) for r in roots)
+                and not any(v == k or v.startswith(k + _os.sep) for k in keep))
 
     def strings(obj):
         if isinstance(obj, str):
@@ -85,7 +91,9 @@ if _originals:
         list(_sys.path), list(_sys.meta_path), _originals,
         [_sys.prefix, _sys.exec_prefix, _sys.base_prefix, _sys.base_exec_prefix])
     for _k in [k for k in _sys.path_importer_cache if isinstance(k, str)]:
-        if any(_k.startswith(o.rstrip("/") + "/") for o in _originals):
+        _n = _os.path.normcase(_os.path.normpath(_k))
+        if any(_n == _os.path.normcase(_os.path.normpath(o)) or
+               _n.startswith(_os.path.normcase(_os.path.normpath(o)) + _os.sep) for o in _originals):
             del _sys.path_importer_cache[_k]
 """ % ORIGINAL_ENV
 TRACEBACK = "Traceback (most recent call last)"
@@ -100,6 +108,7 @@ def _import_failure(err: str) -> str:
         return lines[-1][:160]
     return ""
 CANNOT_START = (126, 127, 9009)
+NOT_RECOGNIZED = "is not recognized as an internal or external command"   # cmd.exe, exit 1
 SEVERITIES_ASKED = ("Blocker", "Critical", "Major")
 TAIL = 1200
 
@@ -174,8 +183,9 @@ def _guard_dir(base: Path) -> Path:
 def _names_original(text: str, repo: Path) -> bool:
     """The output cites a path into the original checkout — an import, a traceback frame —
     other than its hidden directories (`.venv`, `.git`, `.qa`) and a venv by any usual name."""
+    plain = text.replace("\\", "/")
     for root in {str(repo.resolve()), str(repo)}:
-        if re.search(re.escape(root) + r"/(?!\.|venv/|env/|node_modules/)", text):
+        if re.search(re.escape(root.replace("\\", "/")) + r"/(?!\.|venv/|env/|node_modules/)", plain):
             return True
     return False
 
@@ -199,17 +209,24 @@ def _verdict(expect: dict, returncode: int, out: str, err: str) -> tuple[str, li
     return ("reproduced" if ok else "not reproduced"), checks
 
 
+def _either_sep(root: str) -> str:
+    """A regex for `root` spelled with either separator — Windows commands name the checkout
+    both ways."""
+    return r"[\\/]".join(re.escape(part) for part in re.split(r"[\\/]", root))   # a leading '/' is a part
+
+
 def _rewrite_paths(command: str, repo: Path, scratch: Path) -> str:
     """A path into the original checkout would quietly test the original — rewritten to the
     fresh tree when the fresh tree has it. What the tree lacks stays where it is: the
     interpreter in the checkout's own `.venv` is untracked, and the fresh tree has no venv."""
     def swap(m):
         rest = m.group(2)
-        if rest and (scratch / rest.lstrip("/")).exists():
+        target = scratch / rest.lstrip("/\\") if rest else scratch
+        if target.exists():
             return str(scratch) + rest
         return m.group(0)
     for root in {str(repo.resolve()), str(repo)}:
-        command = re.sub(rf"({re.escape(root)})((?:/[^\s'\"]*)?)", swap, command)
+        command = re.sub(rf"({_either_sep(root)})((?:[\\/][^\s'\"]*)?)", swap, command)
     return command
 
 
@@ -241,7 +258,7 @@ def replay_one(finding: dict, repo: Path, scratch: Path, qa_root: Path, timeout:
     except OSError as exc:
         row.update(result="could not run", exit=None, checks=[str(exc)[:200]], output_tail="")
         return row
-    if proc.returncode in CANNOT_START:
+    if proc.returncode in CANNOT_START or NOT_RECOGNIZED in proc.stderr:
         row.update(result="could not run", exit=proc.returncode,
                    checks=[f"the command could not start (exit {proc.returncode})"],
                    output_tail=(proc.stdout + proc.stderr)[-TAIL:])
