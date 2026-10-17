@@ -123,9 +123,14 @@ def _env(repo: Path, scratch: Path) -> dict:
     return env
 
 
+def _quote(test_id: str) -> str:
+    """A test id for the profile's shell: cmd.exe reads double quotes, never single ones."""
+    return ('"' + test_id.replace('"', '') + '"') if os.name == "nt" else shlex.quote(test_id)
+
+
 def _run_tests(cmd: str, ids, scratch: Path, env: dict) -> str:
     """`pass`, `fail` (a test failed), or `error` (nothing ran, a usage error, a timeout)."""
-    command = cmd.replace("{id}", " ".join(shlex.quote(i) for i in ids))
+    command = cmd.replace("{id}", " ".join(_quote(i) for i in ids))
     try:
         proc = subprocess.run(command, shell=True, cwd=str(scratch), env=env, capture_output=True,
                               text=True, errors="replace", timeout=RUN_TIMEOUT_S)
