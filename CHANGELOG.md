@@ -9,6 +9,34 @@ They moved there on 2026-10-03, when this file outgrew what the Claude directory
 will read: at 250 KB it was read, at 267 KB it held 0.90.3 for "Files or downloads the
 validator couldn't inspect". The limit is most likely 256 KiB.
 
+## 0.90.11 — 2026-10-17 · "the project's tests are evidence of intent"
+
+**A Critical that the project's own tests contradict is a question, not a blocker.** On 2026-10-17
+a baseline of a 43k-line shop framework said `fail` on a Critical — four discount types never
+consume their condition's items — that 22 green tests assert the other way and the tracker had
+tuned on purpose. The run knew: its own counterfactual fix broke those tests, and it wrote the
+number into free text. Six stranger runs in two days showed the same shape twice.
+
+- **A fix that fails green tests is a contract dispute.** A finding carries `fix_breaks_tests`,
+  the count of tests that pass at HEAD and fail under the counterfactual fix; the prompt asks for
+  it and the validator enforces a count. Above 0, finalize marks the finding `contract_dispute`,
+  caps Blocker/Critical at Major (`severity_was` keeps the filed level), takes it out of the
+  release blockers and parks a question for the maintainer with three answers. A `fail` that
+  rested on it alone becomes `pass with risks`, recorded as `verdict_rule: contract dispute`.
+  Inside a money or security gate's own range the money rule keeps precedence. `contract_rule:
+  off` in the profile disables it.
+- **Two isolation slips the session now stops.** `verdict-run` carries
+  `PYTHONDONTWRITEBYTECODE=1` (a tester's bare `python` wrote 113 `.pyc` files into a checkout)
+  and `GIT_NO_LAZY_FETCH=1` (`git log -S` on a `blob:none` clone fetched 22 MB from GitHub) into
+  the tester's environment.
+- Pinned rules 395 → 404, each killed by the suite.
+
+**Not in this release:** a hand-run `verdict-finalize` inside a live session reads that
+session's transcript as the tester's bill, so a session that changed model reads as a
+two-model tester (`blocked`); the bill should bind to the run's own session. The certainty
+pass — a fresh-checkout replay of a finding's repro, and a duplicate search in the target's
+tracker — is designed and not built.
+
 ## 0.90.10 — 2026-10-17 · "what changed, and what only a commit claims"
 
 **A standing verdict is not news; a new regression is.** Sales stood at `fail` for 18 runs on two
