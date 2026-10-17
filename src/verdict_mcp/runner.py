@@ -64,7 +64,7 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 try:
-    from .gate import evaluate
+    from .gate import evaluate, news_line
     from .project_key import derive_key
     from .state import home as state_home
     from .state import is_path_like, norm_status, resolve_root
@@ -72,7 +72,7 @@ try:
 except ImportError:  # bare-script execution
     sys.path.insert(0, str(Path(__file__).resolve().parent))
     import clock
-    from gate import evaluate
+    from gate import evaluate, news_line
     from project_key import derive_key
     from state import home as state_home
     from state import is_path_like, norm_status, resolve_root
@@ -893,6 +893,8 @@ def sweep(repo, qa_root, project, fail_on, require_harness, before, notes=None) 
     result = evaluate(project, fail_on, None, before + 1, require_harness=require_harness)
     print(f"verdict-run: verdict {result.get('verdict')!r} → exit {result['exit_code']} "
           f"({result['reason']})")
+    if news := news_line(result):
+        print(f"verdict-run: {news}")
     if result.get("report"):
         print(f"verdict-run: report {result['report']}")
     return result["exit_code"]
@@ -1091,6 +1093,7 @@ def main(argv=None) -> int:
                               require_harness=args.require_harness)
             print(f"verdict-run: verdict {result.get('verdict')!r} → exit "
                   f"{result['exit_code']} ({result['reason']})", file=sys.stderr)
+            print("verdict-run: no news — HEAD unchanged, nothing ran")
             return result["exit_code"]
 
     alive, detail = True, ""
@@ -1137,6 +1140,8 @@ def main(argv=None) -> int:
                           require_harness=args.require_harness)
         print(f"verdict-run: verdict {result.get('verdict')!r} → exit {result['exit_code']} "
               f"({result['reason']}) · judged locally, no Claude tokens spent")
+        if news := news_line(result):
+            print(f"verdict-run: {news}")
         if result.get("report"):
             print(f"verdict-run: report {result['report']}")
         return result["exit_code"]
@@ -1252,6 +1257,8 @@ def main(argv=None) -> int:
                       max_commits_behind=args.max_commits_behind)
     print(f"verdict-run: verdict {result.get('verdict')!r} → exit {result['exit_code']} "
           f"({result['reason']})")
+    if news := news_line(result):
+        print(f"verdict-run: {news}")
     if result.get("report"):
         print(f"verdict-run: report {result['report']}")
     return result["exit_code"]
