@@ -1146,7 +1146,9 @@ def test_files(repo: Path) -> list:
             continue
         name = path.name
         if name.startswith("test_") or name.endswith("_test.py") or "tests" in path.parts:
-            out.append(str(path.relative_to(repo)))
+            # Forward slashes on every platform, as pytest spells its ids: the ledger and
+            # the tree walk name the same file the same way.
+            out.append(str(path.relative_to(repo)).replace("\\", "/"))
     return out
 
 
