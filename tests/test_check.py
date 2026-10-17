@@ -119,3 +119,18 @@ def test_a_site_in_the_defects_own_function_or_next_to_another_site_is_not_a_sib
     sites = check.sites_of(repo, "payment.total", check._own_lines(finding))
     assert [s["path"] + ":" + str(s["line"]) for s in sites] == ["shop/pay.py:12", "shop/pay.py:17"], \
         "line 7 sits inside refund itself; capture and total_of are other functions"
+
+
+def test_a_module_level_citation_is_excluded_by_its_own_line(tmp_path):
+    """The defect's own function covers a citation inside a function; a module-level one has no
+    function to exclude, and only the nearby-line rule keeps it from being its own sibling."""
+    repo = tmp_path / "conf"
+    (repo / "shop").mkdir(parents=True)
+    git(["init", "-qb", "main"], repo)
+    (repo / "shop" / "conf.py").write_text(
+        "FEE = settings.payment_fee\n" + "\n" * 8 + "LATE = settings.payment_fee + 1\n", encoding="utf-8")
+    git(["add", "-A"], repo)
+    git(["commit", "-qm", "conf"], repo)
+    finding = {"anchors": [{"path": "shop/conf.py", "line": 1}]}
+    sites = check.sites_of(repo, "settings.payment_fee", check._own_lines(finding))
+    assert [(s["path"], s["line"]) for s in sites] == [("shop/conf.py", 10)]
