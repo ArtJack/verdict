@@ -16,9 +16,11 @@ import sys
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
+import pytest
+
 from conftest import judgment
 from verdict_mcp import usage
-from verdict_mcp.harness import _record_bill
+from verdict_mcp.harness import _gateway_host, _record_bill
 
 HARNESS = Path(__file__).resolve().parent.parent / "src" / "verdict_mcp" / "harness.py"
 SESSION = "sess-1"
@@ -171,6 +173,35 @@ def test_a_sweep_is_billed_as_the_nothing_it_cost(qa_root):
     [row] = _rows(qa_root)
     assert row["model"] == "none" and row["usage"]["requests"] == 0
     assert row["usage"]["output_tokens"] == 0 and "no model was called" in row["note"]
+
+
+@pytest.mark.parametrize("given, host", [
+    ("http://gateway.test:4000", "gateway.test"),
+    ("http://op:pw@gateway.test:4000/relay?key=k", "gateway.test"),
+    # No scheme: `urlparse` finds no hostname here, and the old fallback billed it whole.
+    ("gateway.test:4000/relay?key=k", "gateway.test"),
+    ("gateway.test", "gateway.test"),           # what a 0.90.10 facts.json holds
+    ("http://[fd7a::1]:4000", "fd7a::1"),
+    ("http:///v1/messages", None),              # a URL that names no host
+    ("http://[fd7a::1", None),                  # unparseable: nothing, not the text
+    ({"url": "http://gateway.test"}, None),     # not a string: nothing
+    ("", None),
+    (None, None),
+])
+def test_the_bill_names_a_gateway_by_its_hostname_alone(given, host):
+    assert _gateway_host(given) == host
+
+
+def test_a_local_run_bills_the_host_the_state_left_out(qa_root):
+    state = {"run_number": 3, "run_type": "delta",
+             "last_run": {"timestamp_utc": "2026-10-16T03:15:00Z", "model": "local:chat-120b",
+                          "engine": "verdict-local", "local": {"model": "chat-120b", "calls": 4}}}
+    _record_bill(qa_root, state, None, "gateway.test")
+    _record_bill(qa_root, state, None)
+    named, unnamed = _rows(qa_root)
+    assert named["local"] == {"model": "chat-120b", "calls": 4, "host": "gateway.test"}
+    assert unnamed["local"] == {"model": "chat-120b", "calls": 4}, "no host known, none written"
+    assert "host" not in state["last_run"]["local"], "the state passed in is not changed"
 
 
 def test_run_usage_never_raises_and_never_guesses(tmp_path, monkeypatch):
