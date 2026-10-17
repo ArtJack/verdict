@@ -164,8 +164,8 @@
  {
   "label": "0.90.3 hooks fail-closed: a parser failure while armed is waved through",
   "path": "hooks/enforce_bash_scope.py",
-  "old": "            \"be told \u2014 run it in simpler steps.\\n\")\n        return 2\n",
-  "new": "            \"be told \u2014 run it in simpler steps.\\n\")\n        return 1\n"
+  "old": "            \"be told — run it in simpler steps.\\n\")\n        return 2\n",
+  "new": "            \"be told — run it in simpler steps.\\n\")\n        return 1\n"
  },
  {
   "label": "0.90.3 hooks a NUL byte in the command crashes the guard",
@@ -488,8 +488,8 @@
  {
   "label": "H5 F-53: back to the fixed 'minutes ago' phrase",
   "path": "src/verdict_mcp/harness.py",
-  "old": "                \"meaning\": f\"an earlier attempt at this same commit, {_ago(age_h)} \u2014 \"\n                           \"this run's own retry, not a lost run. Nothing is missing\",",
-  "new": "                \"meaning\": \"an earlier attempt at this same commit, minutes ago \u2014 \"\n                           \"this run's own retry, not a lost run. Nothing is missing\","
+  "old": "                \"meaning\": f\"an earlier attempt at this same commit, {_ago(age_h)} — \"\n                           \"this run's own retry, not a lost run. Nothing is missing\",",
+  "new": "                \"meaning\": \"an earlier attempt at this same commit, minutes ago — \"\n                           \"this run's own retry, not a lost run. Nothing is missing\","
  },
  {
   "label": "H6 F-53: _ago reports hours as minutes",
@@ -594,7 +594,7 @@
   "new": "                if False:"
  },
  {
-  "label": "T08 a bare `-` is parsed as an option bundle [EQUIVALENT: yields no operand vs an operand `_target_ok` waves through as a flag \u2014 same verdict either way]",
+  "label": "T08 a bare `-` is parsed as an option bundle [EQUIVALENT: yields no operand vs an operand `_target_ok` waves through as a flag — same verdict either way]",
   "path": "hooks/enforce_bash_scope.py",
   "old": "        elif t.startswith(\"-\") and len(t) > 1:\n            rest = t[1:]",
   "new": "        elif t.startswith(\"-\"):\n            rest = t[1:]",
@@ -687,8 +687,8 @@
  {
   "label": "0.77.0 Q6 F-26: the report stops counting what was not run",
   "path": "src/verdict_mcp/harness.py",
-  "old": "                   \"measured but not verifiable\"\n                   + (f\" \u00b7 {not_run} not run (tests cited in prose only, none declared \"\n                      \"as `verification_test`)\" if not_run else \"\")\n                   + (f\" \u00b7 {prose_only} measured on a prose citation only \u2014 recorded, not \"\n                      \"confirmed; declare `verification_test`\" if prose_only else \"\"))\n",
-  "new": "                   \"measured but not verifiable\"\n                   + (f\" \u00b7 {prose_only} measured on a prose citation only \u2014 recorded, not \"\n                      \"confirmed; declare `verification_test`\" if prose_only else \"\"))\n"
+  "old": "                   \"measured but not verifiable\"\n                   + (f\" · {not_run} not run (tests cited in prose only, none declared \"\n                      \"as `verification_test`)\" if not_run else \"\")\n                   + (f\" · {prose_only} measured on a prose citation only — recorded, not \"\n                      \"confirmed; declare `verification_test`\" if prose_only else \"\"))\n",
+  "new": "                   \"measured but not verifiable\"\n                   + (f\" · {prose_only} measured on a prose citation only — recorded, not \"\n                      \"confirmed; declare `verification_test`\" if prose_only else \"\"))\n"
  },
  {
   "label": "0.77.0 Q7 F-60: the bash guard's stderr pin is never called (the text survives)",
@@ -852,7 +852,7 @@
   "old": "errors=\"replace\"",
   "new": "errors=\"strict\"",
   "equivalent": true,
-  "note": "Measured, not assumed: with encoding='utf-8' every character these guards emit is encodable \u2014 paths reach the message through !r, which escapes lone surrogates \u2014 so no input distinguishes the two. Scoring it would only pressure someone into a test that cannot fail."
+  "note": "Measured, not assumed: with encoding='utf-8' every character these guards emit is encodable — paths reach the message through !r, which escapes lone surrogates — so no input distinguishes the two. Scoring it would only pressure someone into a test that cannot fail."
  },
  {
   "label": "0.80.0 C3 qa_paths: VERDICT_HOME loses its default",
@@ -1181,8 +1181,8 @@
  {
   "label": "0.83.0 L7 facts: the repository path is not recorded, so finalize can anchor nothing",
   "path": "src/verdict_mcp/harness.py",
-  "old": "        # and it runs from the QA root \u2014 it has to be told where the code is.\n        \"repo\": str(repo),\n",
-  "new": "        # and it runs from the QA root \u2014 it has to be told where the code is.\n"
+  "old": "        # and it runs from the QA root — it has to be told where the code is.\n        \"repo\": str(repo),\n",
+  "new": "        # and it runs from the QA root — it has to be told where the code is.\n"
  },
  {
   "label": "0.83.0 L8 finalize: nothing says when it could not anchor",
@@ -1229,8 +1229,8 @@
  {
   "label": "0.84.0 M4 hook: a file whose id disagrees with its name is accepted",
   "path": "src/verdict_mcp/validate.py",
-  "old": "    if str(data.get(\"id\") or \"\") != fid:\n        bad.append(f\"{where} carries id {data.get('id')!r}, but the filename says {fid!r} \u2014 \"\n",
-  "new": "    if False:\n        bad.append(f\"{where} carries id {data.get('id')!r}, but the filename says {fid!r} \u2014 \"\n"
+  "old": "    if str(data.get(\"id\") or \"\") != fid:\n        bad.append(f\"{where} carries id {data.get('id')!r}, but the filename says {fid!r} — \"\n",
+  "new": "    if False:\n        bad.append(f\"{where} carries id {data.get('id')!r}, but the filename says {fid!r} — \"\n"
  },
  {
   "label": "0.84.0 M5 validate: a second finding filed inside another finding's class passes",
@@ -1265,8 +1265,8 @@
  {
   "label": "0.84.0 M10 questions: an identical question is minted again instead of deduplicated",
   "path": "src/verdict_mcp/questions.py",
-  "old": "        if key in existing:\n            notes.append(f\"question already on the ledger as {existing[key]} \u2014 not re-asked\")\n            continue\n",
-  "new": "        if False:\n            notes.append(f\"question already on the ledger as {existing[key]} \u2014 not re-asked\")\n            continue\n"
+  "old": "        if key in existing:\n            notes.append(f\"question already on the ledger as {existing[key]} — not re-asked\")\n            continue\n",
+  "new": "        if False:\n            notes.append(f\"question already on the ledger as {existing[key]} — not re-asked\")\n            continue\n"
  },
  {
   "label": "0.84.0 M11 facts: last run's finding files are deleted instead of moved aside",
@@ -1437,7 +1437,7 @@
   "new": "    return True"
  },
  {
-  "label": "0.89.0 Q1 stop hook: any session's marker blocks the tester \u2014 last night's dead nightly speaks in today's session",
+  "label": "0.89.0 Q1 stop hook: any session's marker blocks the tester — last night's dead nightly speaks in today's session",
   "path": "hooks/enforce_run_contract.py",
   "old": "    if not session or marker.get(\"session_id\") != session:\n        return None",
   "new": "    if not session:\n        return None"
@@ -1481,8 +1481,8 @@
  {
   "label": "0.89.0 Q8 harness: a bill that cannot be written takes the run down with it",
   "path": "src/verdict_mcp/harness.py",
-  "old": "    except Exception as exc:        # noqa: BLE001 \u2014 see the docstring\n        print(f\"verdict-finalize: the run's bill was not recorded",
-  "new": "    except KeyError as exc:        # noqa: BLE001 \u2014 see the docstring\n        print(f\"verdict-finalize: the run's bill was not recorded"
+  "old": "    except Exception as exc:        # noqa: BLE001 — see the docstring\n        print(f\"verdict-finalize: the run's bill was not recorded",
+  "new": "    except KeyError as exc:        # noqa: BLE001 — see the docstring\n        print(f\"verdict-finalize: the run's bill was not recorded"
  },
  {
   "label": "0.89.0 Q9 harness: the measured model overwrites the label the operator chose",
@@ -1859,7 +1859,7 @@
  {
   "label": "0.91.0 H6 merge: a still_open copy of a hygiene finding is filed twice",
   "path": "src/verdict_mcp/harness.py",
-  "old": "        if is_hygiene(f):\n            continue  # a `still_open` copy of the harness's own finding \u2014 reconciled below\n",
+  "old": "        if is_hygiene(f):\n            continue  # a `still_open` copy of the harness's own finding — reconciled below\n",
   "new": ""
  },
  {
@@ -2309,13 +2309,13 @@
  {
   "label": "0.90.10 news 6: a swept night never says what it changed",
   "path": "src/verdict_mcp/runner.py",
-  "old": "    result = evaluate(project, fail_on, None, before + 1, require_harness=require_harness)\n    print(f\"verdict-run: verdict {result.get('verdict')!r} \u2192 exit {result['exit_code']} \"\n          f\"({result['reason']})\")\n    if news := news_line(result):\n        print(f\"verdict-run: {news}\")\n",
-  "new": "    result = evaluate(project, fail_on, None, before + 1, require_harness=require_harness)\n    print(f\"verdict-run: verdict {result.get('verdict')!r} \u2192 exit {result['exit_code']} \"\n          f\"({result['reason']})\")\n"
+  "old": "    result = evaluate(project, fail_on, None, before + 1, require_harness=require_harness)\n    print(f\"verdict-run: verdict {result.get('verdict')!r} → exit {result['exit_code']} \"\n          f\"({result['reason']})\")\n    if news := news_line(result):\n        print(f\"verdict-run: {news}\")\n",
+  "new": "    result = evaluate(project, fail_on, None, before + 1, require_harness=require_harness)\n    print(f\"verdict-run: verdict {result.get('verdict')!r} → exit {result['exit_code']} \"\n          f\"({result['reason']})\")\n"
  },
  {
   "label": "0.90.10 news 7: a night that ran nothing repeats the last run's news",
   "path": "src/verdict_mcp/runner.py",
-  "old": "            print(\"verdict-run: no news \u2014 HEAD unchanged, nothing ran\")",
+  "old": "            print(\"verdict-run: no news — HEAD unchanged, nothing ran\")",
   "new": "            print(f\"verdict-run: {news_line(result)}\")"
  },
  {
@@ -2437,5 +2437,101 @@
   "path": "src/verdict_mcp/runner.py",
   "old": "    env.setdefault(\"GIT_NO_LAZY_FETCH\", \"1\")\n",
   "new": ""
+ },
+ {
+  "label": "0.90.12 replay 1: a missed expectation still counts as reproduced",
+  "path": "src/verdict_mcp/replay.py",
+  "old": "            hit = str(expect[key]) in text\n",
+  "new": "            hit = True\n"
+ },
+ {
+  "label": "0.90.12 replay 2: the command runs in the tester's own checkout, not the fresh one",
+  "path": "src/verdict_mcp/replay.py",
+  "old": "    command = _rewrite_paths(str(r[\"command\"]), repo, scratch)\n",
+  "new": "    command = str(r[\"command\"])\n"
+ },
+ {
+  "label": "0.90.12 replay 3: the fresh worktree is left behind",
+  "path": "src/verdict_mcp/replay.py",
+  "old": "        if not args.keep:\n            _remove_checkout(repo, scratch)\n",
+  "new": "        if args.keep:\n            _remove_checkout(repo, scratch)\n"
+ },
+ {
+  "label": "0.90.12 replay 4: a command that never started reads as a result",
+  "path": "src/verdict_mcp/replay.py",
+  "old": "    if proc.returncode in CANNOT_START:\n",
+  "new": "    if False:\n"
+ },
+ {
+  "label": "0.90.12 replay 5: the fresh tree is not on the import path",
+  "path": "src/verdict_mcp/replay.py",
+  "old": "        [str(_guard_dir(scratch.parent)), str(scratch / \"src\"), str(scratch)]\n",
+  "new": "        [str(_guard_dir(scratch.parent))]\n"
+ },
+ {
+  "label": "0.90.12 replay 6: the gate shows no replay",
+  "path": "src/verdict_mcp/gate.py",
+  "old": "    _replay_overlay(out, state.get(\"_qa_root\") or \".\")\n",
+  "new": ""
+ },
+ {
+  "label": "0.90.12 replay 7: a malformed repro passes the validator",
+  "path": "src/verdict_mcp/validate.py",
+  "old": "    bad.extend(_repro_shape(f, where, fid))\n",
+  "new": ""
+ },
+ {
+  "label": "0.90.12 replay 8: a path the fresh tree lacks is rewritten anyway",
+  "path": "src/verdict_mcp/replay.py",
+  "old": "        if rest and (scratch / rest.lstrip(\"/\")).exists():\n",
+  "new": "        if rest:\n"
+ },
+ {
+  "label": "0.90.12 replay 9: a crash is a reproduction whenever the exit code matches",
+  "path": "src/verdict_mcp/replay.py",
+  "old": "    if result == \"reproduced\" and TRACEBACK in proc.stderr and \"stderr_contains\" not in row[\"expect\"]:\n",
+  "new": "    if False:\n"
+ },
+ {
+  "label": "0.90.12 replay 10: output from the original checkout passes as isolated",
+  "path": "src/verdict_mcp/replay.py",
+  "old": "        if re.search(re.escape(root) + r\"/(?!\\.|venv/|env/|node_modules/)\", text):\n            return True\n",
+  "new": "        if re.search(re.escape(root) + r\"/(?!\\.|venv/|env/|node_modules/)\", text):\n            return False\n"
+ },
+ {
+  "label": "0.90.12 replay 11: the guard that disarms an editable install is not on the path",
+  "path": "src/verdict_mcp/replay.py",
+  "old": "        [str(_guard_dir(scratch.parent)), str(scratch / \"src\"), str(scratch)]\n",
+  "new": "        [str(scratch / \"src\"), str(scratch)]\n"
+ },
+ {
+  "label": "0.90.12 replay 12: a fresh tree that cannot be imported counts as a refutation",
+  "path": "src/verdict_mcp/replay.py",
+  "old": "    if result == \"not reproduced\" and (failure := _import_failure(proc.stderr)):\n",
+  "new": "    if False:\n"
+ },
+ {
+  "label": "0.90.12 dupes 1: an item returned by two terms ranks like one returned by one",
+  "path": "src/verdict_mcp/dupes.py",
+  "old": "            if term not in it[\"hits\"]:\n                it[\"hits\"].append(term)\n",
+  "new": "            if not it[\"hits\"]:\n                it[\"hits\"].append(term)\n"
+ },
+ {
+  "label": "0.90.12 dupes 2: a search that failed is recorded as searched",
+  "path": "src/verdict_mcp/dupes.py",
+  "old": "            if problem:\n                break\n            hits[term] = items\n",
+  "new": "            hits[term] = items\n"
+ },
+ {
+  "label": "0.90.12 dupes 3: the gate shows no tracker lead",
+  "path": "src/verdict_mcp/gate.py",
+  "old": "    _tracker_overlay(out, state.get(\"_qa_root\") or \".\")\n",
+  "new": ""
+ },
+ {
+  "label": "0.90.12 dupes 4: the profile's remote is ignored for the checkout's origin",
+  "path": "src/verdict_mcp/dupes.py",
+  "old": "    url = m.group(1).strip() if m else \"\"\n",
+  "new": "    url = \"\"\n"
  }
 ]

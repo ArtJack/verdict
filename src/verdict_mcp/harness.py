@@ -64,6 +64,7 @@ try:
     from .hygiene import ledger as hygiene_ledger
     from .hygiene import reconcile as reconcile_hygiene
     from .filed import FINDINGS_DIR, archive_findings, load_filed
+    from .replay import without_repro
     from .reports import read_report
     from .profile import RISK_CLASSES, ProfileError, gates_from, hygiene_filing_from, contract_rule_from, risk_class_from
     from .profile import load as load_profile
@@ -92,6 +93,7 @@ except ImportError:  # bare-script execution
     from hygiene import ledger as hygiene_ledger
     from hygiene import reconcile as reconcile_hygiene
     from filed import FINDINGS_DIR, archive_findings, load_filed
+    from replay import without_repro
     from reports import read_report
     from profile import RISK_CLASSES, ProfileError, gates_from, hygiene_filing_from, contract_rule_from, risk_class_from
     from profile import load as load_profile
@@ -3263,6 +3265,13 @@ def finalize_main(argv=None) -> int:
                                                                              profile_notes)):
         if note.startswith(("verdict ", "risk_class", "profile not read", "contract dispute")):
             print(f"verdict-finalize: {note}", file=sys.stderr)
+    # A proven finding with no command behind it is proven to its author only: a stranger,
+    # and `verdict-replay`, have prose. Said once here, never a refusal — the run is done.
+    if prose := without_repro(state["findings"]):
+        print(f"verdict-finalize: no structured repro on {len(prose)} proven Major+ finding(s): "
+              f"{', '.join(prose)} — verdict-replay cannot check them; a `repro` block "
+              "(command, cwd, expect) makes a finding a command a stranger can run",
+              file=sys.stderr)
     # Folded in memory; the ledger is saved only once the state is accepted (questions.fold).
     asked, qnotes, qledger = questions.fold(
         qa_root, questions.id_prefix(state["findings"], state["project"]),

@@ -14,7 +14,9 @@
   ask for the fix to be verified (`verdict-verify-fix`).
 - The maintainer's two pens: `verdict-accept` (accept a finding's risk, with a citation)
   and `verdict-answer` (answer a question the tester parked). The tester cannot write
-  either file.
+  either file. A third checks the tester: `verdict-replay` runs each proven finding's
+  `repro` command on a fresh detached checkout and writes `replays.jsonl`; `verdict-dupes`
+  searches the tracker for each finding and writes `related.jsonl`.
 
 ## If you are here to change Verdict
 
@@ -32,7 +34,7 @@
   `src/verdict_mcp/harness.py` (facts, finalize, report), `validate.py` (the state
   contract, also the PostToolUse hook), `anchors.py` (cited lines, hashed; drift),
   `filed.py` (findings as files), `questions.py` (the questions ledger and
-  `verdict-answer`), `accept.py`, `gate.py`, `runner.py` (headless runs), `server.py`
+  `verdict-answer`), `accept.py`, `replay.py` (`verdict-replay`), `dupes.py` (`verdict-dupes`), `gate.py`, `runner.py` (headless runs), `server.py`
   (MCP); the guards `hooks/`; the state schema `docs/state-schema.md`; the evals
   `eval/`; the release notes `CHANGELOG.md` (one version line, three manifests).
 - **A release** is a tag: `release.yml` builds, publishes to PyPI and the MCP registry,

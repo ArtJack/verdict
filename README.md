@@ -3,7 +3,7 @@
 [CI](https://github.com/ArtJack/verdict/actions/workflows/ci.yml) ·
 [verdict on itself](.qa/reports/INDEX.md) ·
 [eval: 8/8 seeded defects](eval/README.md#published-results) ·
-[pinned rules: 404/404 killed](eval/README.md#suite-fault-detection-power--mutation-testing-on-ourselves) ·
+[pinned rules: 420/420 killed](eval/README.md#suite-fault-detection-power--mutation-testing-on-ourselves) ·
 [PyPI: verdict-qa-mcp](https://pypi.org/project/verdict-qa-mcp/) ·
 [MIT license](LICENSE)
 
@@ -83,7 +83,7 @@ same harness as a pip package:
 
 ```
 npx skills add ArtJack/verdict        # release risk · verify a fix · flaky triage · root cause · spec review
-pip install verdict-qa-mcp            # verdict-facts, verdict-finalize, verdict-gate, verdict-accept, verdict-answer
+pip install verdict-qa-mcp            # verdict-facts, verdict-finalize, verdict-gate, verdict-accept, verdict-answer, verdict-replay, verdict-dupes
 ```
 
 Listed on [skills.sh](https://skills.sh/ArtJack/verdict).
@@ -514,6 +514,25 @@ the ledger; the session-start banner and `verdict-gate` say how many are waiting
 mailed and no issue is filed for a question — it is pushed to every surface that reaches you,
 and it waits there.
 
+
+The third pen checks the tester. A proven Major+ finding carries `repro` — the one command
+that shows the defect, and what it produces — and `verdict-replay myapp` runs every such
+command on a detached worktree at HEAD, where nothing the tester's probes did is present:
+
+```
+verdict-replay myapp              # every open Major+ finding with a repro; --show lists the commands first
+verdict-replay myapp MYAPP-F-3    # one finding
+```
+
+Each result lands in `replays.jsonl`, outside the signed state, and the gate marks the finding
+`replay ✓ reproduced`, `✗ NOT reproduced` or `? could not run` and counts the proven findings
+nobody replayed. A finding whose only proof is prose is proven to its author and to nobody else.
+
+Before a report goes out, `verdict-dupes myapp` searches the repository's issues and pull
+requests for each open Major+ finding (the code names in its title, its words, what its
+evidence cites — through `gh`) and writes the leads to `related.jsonl`; the gate names each
+finding's first lead and warns when it is an open PR. Two of nine stranger findings in October
+2026 were already fixed by open PRs — found by hand, then; by the command, now.
 ## The tester has memory. The implementer did not.
 
 That asymmetry had a measured cost. Verdict filed eleven evidenced findings on a live site,

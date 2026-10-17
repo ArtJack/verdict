@@ -105,6 +105,7 @@ here.
 | `findings[].accepted` | on `accepted` | `{by, on, citation, reason}` — the maintainer's decision to accept the risk, copied from `accepted.json` by `verdict-finalize`. `status: accepted` (delta `ACCEPTED`) is the one status a judgment may not write: it closes the finding for the open counts and the release blockers, lists it under **Accepted risks** in the report, and settles it `confirmed` on the maintainer's word. A revoked acceptance reopens the finding at the next run with `accepted_revoked` on it |
 | `calibration` | computed | The track record block: `by_confidence` and `by_proof_method` counts over every finding the project ever filed, with `precision` present only once a bucket reaches `min_sample` (30) settled outcomes. Rendered into the report as **Track record** |
 | `findings[].fix_breaks_tests` | no | How many tests that pass at HEAD fail under the counterfactual fix (0.90.11). Above 0, finalize marks the finding `contract_dispute: true`, caps Blocker/Critical at Major (`severity_was` keeps the filed level), drops it from the release blockers and parks a question for the maintainer; a `fail` that rested on it alone becomes `pass with risks` with `verdict_rule.rule: contract dispute`. Inside a money or security gate's own range the money rule keeps precedence. `contract_rule: off` in the profile disables it |
+| `findings[].repro` | no | `{command, cwd?, expect?}` — the finding as a command a stranger can run (0.90.12). `verdict-replay <key>` runs it on a detached worktree at HEAD with the fresh tree first on `PYTHONPATH`, `cwd` is `repo` (default), `qa_root` or a relative path inside the checkout, and `expect` is any of `exit` (int), `stdout_contains`, `stderr_contains` — what the defect produces; absent, exit 0 is the bar. Malformed is refused by the validator; absent on a proven Major+ finding is said once by finalize. Results live in `replays.jsonl`, never in this file |
 | `findings[].root_cause` | no | The §3.5 chain when one was established: `{mechanism, origin, class{pattern, sites[]}, trigger, latent_condition, fix_location, proof{method, evidence}, confidence}`. `proof.method` is `counterfactual` · `differential` · `archaeology` · `reading`; `fix_location` is `code` · `test` · `spec` · `environment` · `process`; `confidence` is `proven` · `hypothesis`. Carrying it forward means the next run inherits the diagnosis instead of re-deriving it |
 | `verdict` | yes | `pass` · `pass with risks` · `blocked` · `fail` |
 | `run_type: sweep` | — | The model-free run (0.86.0): `verdict-run --skip-unless-drift` found HEAD moved by commits that touched nothing any finding cites, every gate green with parsed counts, the test-id set unchanged, no quarantine due, no cited line moved — and finalized a synthetic judgment that carries every open finding by id and the previous verdict, `last_run.model: none`. Run number advances; the history row is signed like any other |
@@ -214,6 +215,81 @@ higher on each correction; the highest generation for a run number wins, and equ
 generations fall back to the last write, which is what every row written before the field
 existed relies on. Nothing is ever rewritten to mark it stale — the correction is appended,
 and it is the correction that carries the marker.
+
+## A finding replayed on a fresh checkout — `<qa-root>/replays.jsonl`
+
+`verdict-replay <key> [ID …]` takes every open Major+ finding with a `repro` block (or the ids
+named), checks the repository out again as a detached git worktree at HEAD — the same tree the
+run saw, in a place the run's scratch never touched — runs each `repro.command` there with
+`PYTHONPATH` pointing at the fresh tree, `PYTHONDONTWRITEBYTECODE=1` and `GIT_NO_LAZY_FETCH=1`,
+and compares what happened with `repro.expect`. Any spelling of the original checkout's path in
+the command is rewritten to the fresh tree: an editable install's `.pth` names the original
+checkout and would quietly test it. `--show` prints the commands without running one (they run
+in a shell with your rights); `--keep` leaves the worktree for a look; `--timeout` is per command
+(600 s).
+
+One JSON line per replayed finding, appended, outside the signed row — a replay is evidence
+about a finding, not a run, and does not touch `state.json`:
+
+```json
+{"id": "PRICER-F-3", "result": "reproduced", "at": "2026-10-17T09:12:44Z", "run_number": 7,
+ "checkout": "1a2b3c4…", "scratch": "/tmp/verdict-replay-x/tree", "command": "python -c …",
+ "cwd": "/tmp/verdict-replay-x/tree", "expect": {"exit": 1, "stderr_contains": "AssertionError: 100"},
+ "exit": 1, "checks": ["exit 1", "stderr_contains found: 'AssertionError: 100'"], "output_tail": "…"}
+```
+
+`result` is `reproduced` (every expectation met), `not reproduced` (one was not — the finding
+does not hold on a fresh checkout at this HEAD, or its `expect` describes the author's tree) or
+`could not run` (the command never started: exit 126/127, a timeout, a `cwd` outside the
+checkout; or it never reached the defect: a claimed reproduction that ended in a traceback
+while `expect` names no stderr text — an exit code alone cannot tell a crash from the defect —
+and a traceback ending in `ImportError`/`ModuleNotFoundError`, which on a fresh tree is a
+compiled package with no build: numpy-financial's `_cfinancial`, 2026-10-17; such a package
+needs its build step in `repro.command`, e.g. `uv pip install --no-build-isolation --no-deps
+--target {qa_root}/scratch/site {repo} && PYTHONPATH={qa_root}/scratch/site:$PYTHONPATH …`).
+`isolated` is false when the output cites a path into the original checkout other than its
+hidden directories and a venv — an import, a traceback frame — and the gate says `NOT
+isolated`: the fresh tree may not be what ran. Two things make the fresh tree what runs: it
+comes first on `PYTHONPATH`, and a `sitecustomize` the command inherits disarms, after
+site-packages and before the command, an editable install of the original checkout — a `.pth`
+line naming it, or a meta-path finder carrying its build directory (meson-python) — keeping
+everything under the interpreter's own prefix, where the dependencies live. `{repo}` and
+`{qa_root}` in the command are the fresh tree and the QA root. Exit codes: 0 every replayed
+finding reproduced · 1 one did not · 2 nothing could be replayed. `verdict-gate` reads the latest row per open finding: a mark on the row (`replay ✓
+reproduced`, `✗ NOT reproduced`, `? could not run`), a `replay:` line with the tally and the
+proven Major+ findings never replayed, and `replays` in the JSON output. Why it exists: the pass
+that made the 2026-10-16/17 stranger reports credible — a fresh clone, the finding's script, the
+expected value, by hand, six times — is the pass a reader cannot see in a report built on the
+tester's own scratch.
+
+## What the tracker already holds — `<qa-root>/related.jsonl`
+
+`verdict-dupes <key> [ID …]` searches the repository's GitHub issues and pull requests for each
+open Major+ finding (or the ids named): up to six single-word queries — the code names in the
+finding's title, the title's distinctive words, the code names and file stems its evidence
+cites — through `gh search issues --include-prs` (one word per query: the tracker's search is
+an AND over words). The remote is the profile's `Repo-Remote`, else the checkout's `origin`,
+else `--remote owner/name`; `--show` prints the terms and searches nothing. Items are ranked by
+the weight of the terms that returned them (a title term 1, an evidence term ½ — what the
+evidence cites is where the defect lives, not what it is), a number or special value both
+titles share (`-100%`, `NaN`: 2½ each — numpy-financial's fixing PR #158 was found by `rate`
+and outranked by four generic hits until this), then plain title overlap; the top five are
+appended as one JSON line per finding, outside the signed row:
+
+```json
+{"id": "FAVA-F-1", "at": "2026-10-17T09:30:00Z", "remote": "beancount/fava", "run_number": 1,
+ "queries": ["metadata", "rewrites", "serialisation"],
+ "items": [{"number": 2381, "title": "serialisation: preserve numeric string metadata", "state": "open",
+            "kind": "pr", "url": "https://github.com/beancount/fava/pull/2381", "updated": "2026-10-15",
+            "hits": ["metadata", "serialisation"], "overlap": 2, "score": 2.5}]}
+```
+
+`verdict-gate` shows each searched finding's first item on its row (`tracker #2381 open PR`)
+and a `tracker:` line naming the lead per finding, with a warning when a lead is an open PR.
+A related item is a lead for the person writing the report, never a resolution: the finding
+stays open, and nothing is filed by this command. Why it exists: two of the nine 2026-10-16/17
+stranger findings were already fixed by open PRs (fava #2381, numpy-financial #158), found by
+hand before the reports went out.
 
 ## What a run cost — `<qa-root>/usage.jsonl`, and who started it
 
