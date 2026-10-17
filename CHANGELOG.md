@@ -9,6 +9,38 @@ They moved there on 2026-10-03, when this file outgrew what the Claude directory
 will read: at 250 KB it was read, at 267 KB it held 0.90.3 for "Files or downloads the
 validator couldn't inspect". The limit is most likely 256 KiB.
 
+## 0.90.10 — 2026-10-17 · "what changed, and what only a commit claims"
+
+**A standing verdict is not news; a new regression is.** Sales stood at `fail` for 18 runs on two
+items that wait on a person — a decision and one production command — and the nightly, which pages
+only when a night itself breaks, said nothing for weeks. It would have said nothing about a new
+regression either: both nights exit `1`. And 8 of its 73 open findings had a later commit on main
+naming them in its subject, carried open for weeks.
+
+- **`verdict-run` and `verdict-gate` say what the last run changed.** News is a verdict that moved
+  against the run before it, or a finding at Major or worse that is new, came back, or was resolved.
+  One line: `news — …`, or `no news — the verdict stands at 'fail' · waiting on a person: … ·
+  blockers: …`; a night that ran nothing says so instead of repeating the last run's news. Release
+  blockers a parked question has handed to a person are listed apart from the rest. Exit codes are
+  unchanged; `--format json` carries `news` (`any` is the bit to page on).
+- **A fix somebody claimed is named, never assumed.** The gate lists `fix_claims`: open findings
+  that a commit in the measured history names in its subject (`census: … (F-113) (#330)`), dated on
+  or after the day the finding was first seen, touching more than the QA record. The standing line
+  ends "a commit names as fixed, no run has verified: …". A claim is a lead for the next run, not a
+  resolution: two of Sales' eight are rightly still open.
+- **The skip scan reads the tests the suite collects.** It walked every `test_*.py` in the tree, so
+  it filed an eval fixture pytest never collects as an abandoned skip on every run of Verdict's own
+  repository. It now reads the test-id ledger `verdict-facts` writes, and walks the tree only
+  without one. A `pytest.skip()` call under an `if`, `except` or loop is a guard, like `skipif`.
+- **The Bash guard knows the command's own assignments.** `S=.qa/scratch; mkdir -p $S` was refused
+  as an unresolved variable: 21 of the 33 hook refusals in the 2026-10-15 trace. A value is known
+  only when it expands to a literal; `FOO=x cmd` and a pipeline stage set nothing for later commands.
+- Pinned rules 377 → 395, each killed by the suite.
+
+**Not in this release:** the local tier still never lifts a standing `fail`; a first run with no
+profile whose guessed interpreter lacks the project's dependencies still reads the collection errors
+as a red suite; the Claude tier does not yet record which test design technique a finding came from.
+
 ## 0.90.9 — 2026-10-16 · "the model's time is the model's"
 
 **A release gate read nothing and said the model had run out of time.** The local tier's wall-clock
