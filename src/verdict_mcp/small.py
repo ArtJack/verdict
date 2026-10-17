@@ -73,6 +73,7 @@ try:
                           finalize_main, finding_hash, is_test_file, split_hygiene)
     from .filed import FINDINGS_DIR, archive_findings
     from .hygiene import _scrub as scrub_secrets
+    from .profile import assertion_gaps_from, risk_paths_from
     from .profile import ProfileError, gates_from, hygiene_filing_from
     from .profile import load as load_profile
     from .reports import read_report
@@ -89,6 +90,7 @@ except ImportError:  # bare-script execution
                          finalize_main, finding_hash, is_test_file, split_hygiene)
     from filed import FINDINGS_DIR, archive_findings
     from hygiene import _scrub as scrub_secrets
+    from profile import assertion_gaps_from, risk_paths_from
     from profile import ProfileError, gates_from, hygiene_filing_from
     from profile import load as load_profile
     from reports import read_report
@@ -298,11 +300,36 @@ def chunks_of(repo: Path, rel: str) -> list:
     return out
 
 
+def gap_functions(facts: dict) -> dict:
+    """`{path: {function name: [survivors]}}` from facts' assertion-gap census (0.91.1): the
+    lines a mechanical mutant left the tests that run them green. The most precise free target
+    there is: a line the suite executes and checks nothing about."""
+    out: dict = {}
+    for g in ((facts.get("assertion_gaps") or {}).get("survived") or []):
+        if not isinstance(g, dict):
+            continue
+        path = str(g.get("path") or "").replace("\\", "/")
+        name = str(g.get("function") or "").rsplit(".", 1)[-1]
+        if path and name:
+            out.setdefault(path, {}).setdefault(name, []).append(g)
+    return out
+
+
+def gap_hint(survivors: list) -> str:
+    """What the census saw, as one sentence the reader can check against the source."""
+    shown = "; ".join(f"line {g.get('line')} `{str(g.get('before'))[:80]}` -> `{str(g.get('after'))[:60]}`"
+                      for g in survivors[:2])
+    return ("A mutation test changed this function and the tests that execute it stayed green ("
+            f"{shown}): nothing the suite asserts depends on those lines. Read them first.")
+
+
 def candidates(facts: dict, repo: Path) -> list:
-    """Which files to read, least covered first — the reading map when the profile
-    measured coverage, the tracked source otherwise."""
+    """Which files to read: the ones holding an assertion-gap survivor first, then least
+    covered first — the reading map when the profile measured coverage, the tracked source
+    otherwise."""
     reading = facts.get("reading_map") or {}
-    files = [m["path"] for m in (reading.get("lowest") or []) if m.get("path")]
+    files = list(gap_functions(facts))
+    files += [m["path"] for m in (reading.get("lowest") or []) if m.get("path")]
     files += [m["path"] for m in (reading.get("never_imported") or []) if isinstance(m, dict)
               and m.get("path")]
     if not files:
@@ -391,8 +418,10 @@ def delta_candidates(facts: dict, repo: Path, changed: list) -> list:
         return candidates(facts, repo)
     cold = changed_lines_of(facts)
     drifted = drifted_paths(facts)
+    gapped = gap_functions(facts)
     ranked, seen = [], set()
-    for group in ([p for p in changed if p in cold],
+    for group in ([p for p in changed if p in gapped],
+                  [p for p in changed if p in cold],
                   [p for p in changed if p in drifted],
                   list(changed)):
         for rel in group:
@@ -456,10 +485,12 @@ Answer with JSON only:
   "impact": "<one sentence: what a caller gets wrong because of it>"}}"""
 
 
-def examine(model: Model, chunk: Chunk) -> dict | None:
+def examine(model: Model, chunk: Chunk, hint: str | None = None) -> dict | None:
     """Two bounded calls: is it wrong, and if so how bad. Neither sees the other's
-    context — the second is given the claim as text, not as history."""
-    first = model.ask_json(CONTRACT_Q.format(path=chunk.path, source=chunk.numbered()))
+    context — the second is given the claim as text, not as history. `hint` is what the
+    assertion-gap census measured about this function, appended to the first question."""
+    first = model.ask_json(CONTRACT_Q.format(path=chunk.path, source=chunk.numbered())
+                           + (f"\n\n{hint}" if hint else ""))
     if not first or str(first.get("verdict")) != "mismatch":
         return None
     mechanism = str(first.get("mechanism") or "").strip()
@@ -1941,10 +1972,18 @@ def regressed_finding(prior: dict, claim_entry: dict, how: str) -> dict:
     return entry
 
 
+def ordered_chunks(repo: Path, rel: str, lines, gaps: dict | None) -> list:
+    """The functions to ask about, the ones holding an assertion-gap survivor first."""
+    chunks = chunks_in_range(repo, rel, lines)
+    named = (gaps or {}).get(rel) or {}
+    return sorted(chunks, key=lambda c: c.name not in named) if named else chunks
+
+
 def file_findings(model: Model, repo: Path, targets: list, mint, findings_dir: Path,
                   filed: list, python: str, prove: bool, budget: Budget,
                   prior_index: PriorIndex | None = None, already_open: list | None = None,
-                  leads: list | None = None, probes: list | None = None) -> tuple:
+                  leads: list | None = None, probes: list | None = None,
+                  gaps: dict | None = None, asked: set | None = None) -> tuple:
     """Read the source, one function at a time, and try to prove each claim by flipping
     the line in a scratch copy. Returns (examined, proven, disproven).
 
@@ -1958,11 +1997,14 @@ def file_findings(model: Model, repo: Path, targets: list, mint, findings_dir: P
     """
     examined = proven = disproven = 0
     for rel, lines in targets:
-        for chunk in chunks_in_range(repo, rel, lines):
+        named = (gaps or {}).get(rel) or {}
+        for chunk in ordered_chunks(repo, rel, lines, gaps):
             if not budget.take_function():
                 continue
             examined += 1
-            claim = examine(model, chunk)
+            if asked is not None:
+                asked.add((rel, chunk.name))
+            claim = examine(model, chunk, gap_hint(named[chunk.name]) if chunk.name in named else None)
             if not claim:
                 continue
             proof = (counterfactual(model, repo, chunk, claim, python)
@@ -2284,10 +2326,16 @@ def measure(repo: Path, qa_root: Path, gates: list, config: dict, sha_range,
         "started_utc": clock.stamp(), "repo": str(repo), "git_sha": head,
         "engine": ENGINE}, indent=2) + "\n", encoding="utf-8")
     archived = archive_findings(qa_root, keep=retry)
+    # The assertion-gap census, as verdict-facts runs it (0.91.1): without it this engine's
+    # reading order and hints had nothing to steer by — measured 2026-10-17, a local run whose
+    # profile said `assertion_gaps: on` carried no census at all.
+    gaps_on, gaps_budget = assertion_gaps_from(config, profile_notes)
     facts = collect(repo, qa_root, gates, config.get("test_ids_cmd"), abandoned=abandoned,
                     test_one_cmd=config.get("test_one_cmd"),
                     coverage_suite_cmd=config.get("coverage_suite_cmd"), sha_range=sha_range,
-                    hygiene_filing=filing)
+                    hygiene_filing=filing,
+                    assertion_gaps=({"test_one_cmd": config.get("test_one_cmd"), "budget_s": gaps_budget,
+                                     "globs": risk_paths_from(config, [])} if gaps_on else None))
     facts.pop("_added_test_ids", None)
     ids = facts.pop("_test_ids", None)
     if ids is not None:
@@ -2497,11 +2545,13 @@ def run(repo: Path, qa_root: Path, model: Model, limit: int, gate: str | None,
     already_open: list = []
     leads: list | None = [] if previous else None      # a project with a record to protect
     probe_ledger: list = []                            # every counterfactual, refusals too
+    asked_functions: set = set()
     examined, proven, disproven = file_findings(model, repo, targets, mint, findings_dir,
                                                 filed, python, prove, budget,
                                                 prior_index=PriorIndex(previous),
                                                 already_open=already_open, leads=leads,
-                                                probes=probe_ledger)
+                                                probes=probe_ledger, gaps=gap_functions(facts),
+                                                asked=asked_functions)
     # Beside `last_run`, not inside its `local` block: that block is copied into a
     # `usage.jsonl` row every run, and the ledger is a record, not a bill.
     facts["probes"] = probe_ledger
@@ -2604,9 +2654,11 @@ def run(repo: Path, qa_root: Path, model: Model, limit: int, gate: str | None,
                 "context": "declare `test_one_cmd` in the profile so the harness can run one "
                            "test, or release the quarantine deliberately"})
 
+    unread = [(path, name) for path, names in gap_functions(facts).items() for name in names
+              if (path, name) not in asked_functions]
     not_tested = not_tested_lines(model, files, examined, prior_open, still_open_ids,
                                   refiled, prove, budget, quarantine_notes, non_python,
-                                  disabled=disabled)
+                                  disabled=disabled, unread_survivors=unread)
     if leads:
         not_tested.append(
             f"{len(leads)} reading(s) this engine could not prove were listed as leads in the "
@@ -2718,7 +2770,7 @@ def leads_text(leads) -> str:
 def not_tested_lines(model: Model, files: list, examined: int, prior_open: list,
                      still_open: list, refiled: list, prove: bool, budget: Budget,
                      quarantine_notes: list, non_python: bool,
-                     disabled: str | None = None) -> list:
+                     disabled: str | None = None, unread_survivors: list | None = None) -> list:
     """What a night like this one does not do, counted rather than described.
 
     The temptation with a cheap engine is to let its report read like the
@@ -2752,6 +2804,8 @@ def not_tested_lines(model: Model, files: list, examined: int, prior_open: list,
     if budget.stopped:
         out.append(f"{budget.skipped} candidate function(s) were never asked about: "
                    f"{budget.stopped}")
+    out.extend(f"{path}::{name} — an assertion-gap survivor this run did not read"
+               for path, name in (unread_survivors or []))
     if non_python:
         out.append(NO_CODE_READ)
     out.extend(quarantine_notes)
