@@ -6,7 +6,6 @@ asks `gh search issues --include-prs`, ranks what comes back, and the gate names
 """
 
 import json
-from pathlib import Path
 
 from verdict_mcp import dupes
 from verdict_mcp.gate import _fmt_comment, _fmt_text, evaluate
@@ -50,7 +49,7 @@ def _fake_search(calls):
 
 
 def _rows(root):
-    return [json.loads(l) for l in (root / "related.jsonl").read_text(encoding="utf-8").splitlines()]
+    return [json.loads(line) for line in (root / "related.jsonl").read_text(encoding="utf-8").splitlines()]
 
 
 # ── terms ─────────────────────────────────────────────────────────────────

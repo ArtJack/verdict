@@ -77,7 +77,7 @@ TRUNCATES = {"command": ASSERT_CMD, "cwd": "repo",
 
 
 def _rows(repo):
-    return [json.loads(l) for l in (repo / ".qa" / "replays.jsonl").read_text(encoding="utf-8").splitlines()]
+    return [json.loads(line) for line in (repo / ".qa" / "replays.jsonl").read_text(encoding="utf-8").splitlines()]
 
 
 def _worktrees(repo):
