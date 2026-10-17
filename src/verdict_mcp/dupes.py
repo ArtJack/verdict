@@ -218,6 +218,9 @@ def describe(item: dict) -> str:
 
 
 def main(argv=None, _search=search, _sleep=time.sleep) -> int:
+    for stream in (sys.stdout, sys.stderr):
+        if hasattr(stream, "reconfigure"):
+            stream.reconfigure(encoding="utf-8")   # the Windows cp1252 trap, every CLI
     ap = argparse.ArgumentParser(prog="verdict-dupes", description=__doc__.split("\n\n")[0])
     ap.add_argument("project", help="project key or a repo path whose .qa/ holds state.json")
     ap.add_argument("ids", nargs="*", help="finding ids to search (default: every open Major+ finding)")

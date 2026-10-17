@@ -305,6 +305,9 @@ def load_replays(qa_root) -> dict:
 
 
 def main(argv=None) -> int:
+    for stream in (sys.stdout, sys.stderr):
+        if hasattr(stream, "reconfigure"):
+            stream.reconfigure(encoding="utf-8")   # the Windows cp1252 trap, every CLI
     ap = argparse.ArgumentParser(prog="verdict-replay", description=__doc__.split("\n\n")[0])
     ap.add_argument("project", help="project key or a repo path whose .qa/ holds state.json")
     ap.add_argument("ids", nargs="*", help="finding ids to replay (default: every open Major+ "

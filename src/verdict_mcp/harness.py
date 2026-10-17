@@ -3268,8 +3268,9 @@ def finalize_main(argv=None) -> int:
     # A proven finding with no command behind it is proven to its author only: a stranger,
     # and `verdict-replay`, have prose. Said once here, never a refusal — the run is done.
     if prose := without_repro(state["findings"]):
+        # ASCII on purpose: this stream reaches a cp1252 console on Windows (CI, 2026-10-17).
         print(f"verdict-finalize: no structured repro on {len(prose)} proven Major+ finding(s): "
-              f"{', '.join(prose)} — verdict-replay cannot check them; a `repro` block "
+              f"{', '.join(prose)}; verdict-replay cannot check them. A `repro` block "
               "(command, cwd, expect) makes a finding a command a stranger can run",
               file=sys.stderr)
     # Folded in memory; the ledger is saved only once the state is accepted (questions.fold).

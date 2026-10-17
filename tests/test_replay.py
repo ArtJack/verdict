@@ -139,7 +139,7 @@ def test_a_command_that_cannot_start_or_times_out_is_could_not_run(tmp_path, cap
     assert replay.main([str(repo), "--timeout", "2"]) == 2, "nothing could be replayed"
     by_id = {r["id"]: r for r in _rows(repo)}
     assert by_id["PRICER-F-5"]["result"] == "could not run"
-    assert by_id["PRICER-F-5"]["checks"] == ["the command could not start (exit 127)"]
+    assert by_id["PRICER-F-5"]["checks"][0].startswith("the command could not start (exit ")   # 127; cmd.exe says 1
     assert by_id["PRICER-F-6"]["result"] == "could not run"
     assert by_id["PRICER-F-6"]["checks"] == ["timed out after 2s"]
     assert "? PRICER-F-5 could not run" in capsys.readouterr().err
@@ -155,7 +155,8 @@ def test_a_path_into_the_original_checkout_is_rewritten_to_the_fresh_tree(tmp_pa
     assert replay.main([str(repo)]) == 0
     (row,) = _rows(repo)
     assert row["result"] == "reproduced"
-    assert str(repo) not in row["command"] and row["command"].endswith("/tree/probe.py")
+    assert str(repo) not in row["command"]
+    assert row["command"].endswith(f"{os.sep}tree{os.sep}probe.py")
 
 
 def test_a_path_the_fresh_tree_lacks_stays_where_it_is(tmp_path):
