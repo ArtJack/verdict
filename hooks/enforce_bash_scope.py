@@ -475,6 +475,16 @@ def _tmp_roots():
     return [os.path.realpath(r) for r in roots if r]
 
 
+def _known(m) -> str:
+    """What `$name` stands for: the command's own assignment first, then the environment.
+    An assignment the command made with an unresolved value shadows the environment —
+    `HOME=$UNSET/x; echo > $HOME/f` is not a write under the real home."""
+    name = m.group(1)
+    if name in _SCOPE:
+        return m.group(0) if _SCOPE[name] is None else _SCOPE[name]
+    return os.environ.get(name, m.group(0))
+
+
 def _expand(target: str, cwd: str) -> str | None:
     """Substitute what can be known; None means an unresolved variable remains.
 
@@ -483,10 +493,7 @@ def _expand(target: str, cwd: str) -> str | None:
     wherever Claude Code happened to start the hook.
     """
     expanded = _PWD.sub(lambda m: cwd, target)
-    expanded = _VAR.sub(
-        lambda m: cwd if m.group(1) == "PWD"
-        else _SCOPE.get(m.group(1), os.environ.get(m.group(1), m.group(0))),
-        expanded)
+    expanded = _VAR.sub(lambda m: cwd if m.group(1) == "PWD" else _known(m), expanded)
     if "$" in expanded:
         return None
     return os.path.expanduser(expanded)
@@ -858,7 +865,7 @@ class _Trail:
     def _assign(self, segment, view):
         """Record `S=value` and `export S=value` for the segments that follow. `FOO=x cmd`
         sets FOO for `cmd` alone, and a pipeline stage is a subshell (the caller skips it),
-        so neither reaches the scope. A value that is itself unresolved drops the name.
+        so neither reaches the scope. A value that is itself unresolved stays unresolved.
         Read from the raw words: `_tokens` takes a leading assignment off as syntax."""
         if segment.startswith(_HEREDOC):
             return
@@ -874,11 +881,7 @@ class _Trail:
             if not _ASSIGNMENT.match(word):
                 continue
             name, _, value = word.partition("=")
-            expanded = _expand(_unquote_nested(value), self.base)
-            if expanded is None:
-                _SCOPE.pop(name, None)
-            else:
-                _SCOPE[name] = expanded
+            _SCOPE[name] = _expand(_unquote_nested(value), self.base)   # None: unresolved
 
     def _step(self, toks):
         """Follow one `cd`, `pushd` or `popd`."""

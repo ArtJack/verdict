@@ -403,6 +403,10 @@ def test_bash_reads_the_commands_own_assignments(repo):
                        bash_event("S=$TOTALLY_UNSET_VAR_XYZ/x; echo x > $S/y", repo), strict="1")
     assert rc == 2 and "unresolved" in err, "an unresolved value does not become a known name"
     rc, err = run_hook("enforce_bash_scope.py",
+                       bash_event("HOME=$TOTALLY_UNSET_VAR_XYZ/x; echo x > $HOME/f", repo), strict="1")
+    assert rc == 2 and "unresolved" in err, \
+        "an unresolved assignment shadows the environment; it is not a write under the real home"
+    rc, err = run_hook("enforce_bash_scope.py",
                        bash_event("FOO=.qa/a true; echo x > $FOO/b", repo), strict="1")
     assert rc == 2 and "unresolved" in err, "`FOO=x cmd` sets FOO for cmd alone"
     rc, err = run_hook("enforce_bash_scope.py",
