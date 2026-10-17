@@ -2347,5 +2347,41 @@
   "path": "src/verdict_mcp/gate.py",
   "old": "    if news.get(\"fix_claimed\"):",
   "new": "    if False:"
+ },
+ {
+  "label": "0.90.10 skip scan 1: a test-looking file the suite never collects is scanned for skips",
+  "path": "src/verdict_mcp/small.py",
+  "old": "    return collected_test_files(repo, qa_root) or test_files(repo)\n",
+  "new": "    return test_files(repo)\n"
+ },
+ {
+  "label": "0.90.10 skip scan 2: a pytest.skip() under a condition reads as an abandoned test",
+  "path": "src/verdict_mcp/small.py",
+  "old": "            if m.group(\"call\") and _under_a_condition(text, line):",
+  "new": "            if False:"
+ },
+ {
+  "label": "0.90.10 skip scan 3: the night's scan ignores the ledger of collected tests",
+  "path": "src/verdict_mcp/small.py",
+  "old": "    for skip in group_skips(skips_without_expiry(repo, skip_scan_files(repo, qa_root))):",
+  "new": "    for skip in group_skips(skips_without_expiry(repo, test_files(repo))):"
+ },
+ {
+  "label": "0.90.10 bash vars 1: an assignment made earlier in the command is not read",
+  "path": "hooks/enforce_bash_scope.py",
+  "old": "        else _SCOPE.get(m.group(1), os.environ.get(m.group(1), m.group(0))),",
+  "new": "        else os.environ.get(m.group(1), m.group(0)),"
+ },
+ {
+  "label": "0.90.10 bash vars 2: `FOO=x cmd` sets FOO for every command after it",
+  "path": "hooks/enforce_bash_scope.py",
+  "old": "        elif any(not _ASSIGNMENT.match(w) for w in words):\n            return\n",
+  "new": ""
+ },
+ {
+  "label": "0.90.10 bash vars 3: an assignment whose value is unresolved is recorded as its text",
+  "path": "hooks/enforce_bash_scope.py",
+  "old": "            if expanded is None:\n                _SCOPE.pop(name, None)\n            else:\n                _SCOPE[name] = expanded\n",
+  "new": "            _SCOPE[name] = value if expanded is None else expanded\n"
  }
 ]
