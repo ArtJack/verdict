@@ -65,7 +65,7 @@ try:
     from .hygiene import reconcile as reconcile_hygiene
     from .filed import FINDINGS_DIR, archive_findings, load_filed
     from .reports import read_report
-    from .profile import RISK_CLASSES, ProfileError, gates_from, hygiene_filing_from, risk_class_from
+    from .profile import RISK_CLASSES, ProfileError, gates_from, hygiene_filing_from, contract_rule_from, risk_class_from
     from .profile import load as load_profile
     from .project_key import derive_key
     from .state import (OUTCOMES_FILE, accepted_block, calibration, in_force, is_open,
@@ -93,7 +93,7 @@ except ImportError:  # bare-script execution
     from hygiene import reconcile as reconcile_hygiene
     from filed import FINDINGS_DIR, archive_findings, load_filed
     from reports import read_report
-    from profile import RISK_CLASSES, ProfileError, gates_from, hygiene_filing_from, risk_class_from
+    from profile import RISK_CLASSES, ProfileError, gates_from, hygiene_filing_from, contract_rule_from, risk_class_from
     from profile import load as load_profile
     from project_key import derive_key
     from state import (OUTCOMES_FILE, accepted_block, calibration, in_force, is_open,
@@ -2972,7 +2972,8 @@ def change_lines(repo, sha_range):
 
 
 def gate_policy(state: dict, bill: dict | None, risk_class: str | None = None,
-                in_change=None) -> list[str]:
+                in_change=None, judgment: dict | None = None,
+                contract_rule: bool = True) -> list[str]:
     """The verdict rules a judgment cannot talk its way past → what each did, for the run.
 
     1. **One model.** A tester whose own transcript answers on more than one model did not
@@ -2989,6 +2990,17 @@ def gate_policy(state: dict, bill: dict | None, risk_class: str | None = None,
        Unscoped, the rule also blocked three of eight clean changes for defects that were
        already there; scoped to the change it is what Phase 2b measures. No range, no rule:
        a defect the change made cannot be told from one it found.
+        3. **A fix that fails the project's own green tests is a contract dispute, not a
+       blocker.** A finding whose counterfactual broke tests that pass at HEAD
+       (`fix_breaks_tests` > 0) is marked `contract_dispute`, capped at Major, taken out of
+       the release blockers, and a question is parked for the maintainer: the tests are
+       evidence of intent, and a documented-versus-tested disagreement is theirs to settle.
+       If the judgment's `fail` rested on it alone, the verdict becomes `pass with risks`.
+       Inside a money or security gate's own range the money rule keeps precedence: a defect
+       the change made is judged as the change, not as the project's contract. On
+       2026-10-17 django-oscar's baseline said `fail` on a Critical that 22 green tests
+       assert the other way and the tracker had tuned on purpose; `profile.md` turns the rule
+       off with `contract_rule: off`.
     """
     models = {str(m): int(n) for m, n in ((bill or {}).get("models") or {}).items() if m}
     if len(models) > 1:
@@ -2998,11 +3010,14 @@ def gate_policy(state: dict, bill: dict | None, risk_class: str | None = None,
                                  "reason": reason}
         state["verdict"] = "blocked"
         return [f"verdict blocked: {reason} — no verdict is signed by a model nobody chose"]
+    notes: list[str] = []
+    if contract_rule:
+        notes.extend(_contract_dispute(state, in_change, judgment))
     if risk_class not in RISK_CLASSES or state.get("verdict") not in ("pass", "pass with risks"):
-        return []
+        return notes
     if in_change is None:
-        return [f"risk_class {risk_class}: no gate range, so a defect the change made cannot be "
-                "told from one it found — the judgment's verdict stands"]
+        return notes + [f"risk_class {risk_class}: no gate range, so a defect the change made "
+                        "cannot be told from one it found — the judgment's verdict stands"]
     proven = []
     for f in state.get("findings") or []:
         if not (is_open(f) and not is_hygiene(f)
@@ -3014,7 +3029,7 @@ def gate_policy(state: dict, bill: dict | None, risk_class: str | None = None,
                and in_change(a["path"], a["line"]) for a in f.get("anchors") or []):
             proven.append(f)
     if not proven:
-        return []
+        return notes
     was = state.get("verdict")
     blockers = list(state.get("release_blockers") or [])
     named = " ".join(str(b) for b in blockers)
@@ -3028,8 +3043,61 @@ def gate_policy(state: dict, bill: dict | None, risk_class: str | None = None,
     state["verdict_rule"] = {"rule": f"risk_class {risk_class}: a proven defect the change made "
                                      "blocks",
                              "was": was, "raised_by": [str(f.get("id")) for f in proven]}
-    return [f"verdict raised from '{was}' to 'fail': risk_class {risk_class}, and "
-            f"{', '.join(str(f.get('id')) for f in proven)} proven in the change"]
+    return notes + [f"verdict raised from '{was}' to 'fail': risk_class {risk_class}, and "
+                    f"{', '.join(str(f.get('id')) for f in proven)} proven in the change"]
+
+
+_SEVERITY_CAP = "Major"
+
+
+def _contract_dispute(state: dict, in_change, judgment: dict | None) -> list[str]:
+    """Rule 3 of `gate_policy`: the findings whose fix fails the project's own green tests."""
+    capped = []
+    for f in state.get("findings") or []:
+        n = f.get("fix_breaks_tests")
+        if not (is_open(f) and not is_hygiene(f) and isinstance(n, int)
+                and not isinstance(n, bool) and n > 0):
+            continue
+        if in_change is not None and any(
+                isinstance(a, dict) and a.get("path") and a.get("line")
+                and in_change(a["path"], a["line"]) for a in f.get("anchors") or []):
+            continue            # the change's own defect: the money rule judges it
+        f["contract_dispute"] = True
+        if str(f.get("severity") or "") in ("Blocker", "Critical"):
+            f["severity_was"] = f["severity"]
+            f["severity"] = _SEVERITY_CAP
+        capped.append(f)
+    if not capped:
+        return []
+    ids = [str(f.get("id")) for f in capped]
+    blockers = [b for b in (state.get("release_blockers") or [])
+                if not any(fid in str(b) for fid in ids)]
+    state["release_blockers"] = blockers
+    if judgment is not None:
+        for f in capped:
+            judgment.setdefault("questions", []).append({
+                "question": (f"{f['fix_breaks_tests']} test(s) that pass at HEAD assert the "
+                             f"behaviour {f.get('id')} calls a defect, and the fix would fail "
+                             f"them. Which is the contract — the tests, or what {f.get('id')} "
+                             "expects?"),
+                "finding": str(f.get("id")),
+                "context": (f"{f.get('id')} is filed as a contract dispute: capped at "
+                            f"{_SEVERITY_CAP}, not a release blocker on its own. "
+                            "Verdict does not settle a documented-versus-tested disagreement."),
+                "options": ["The tests are the contract: close the finding as intended behaviour",
+                            "The documented behaviour is the contract: fix the code and the tests",
+                            "Neither yet: decide the contract first"]})
+    was = state.get("verdict")
+    still = [f for f in state.get("findings") or []
+             if is_open(f) and not is_hygiene(f)
+             and str(f.get("severity") or "") in ("Blocker", "Critical")]
+    if was == "fail" and not blockers and not still:
+        state["verdict"] = "pass with risks"
+        state["verdict_rule"] = {"rule": "contract dispute", "was": was, "capped": ids}
+        return [f"verdict lowered from 'fail' to 'pass with risks': {', '.join(ids)} filed as a "
+                "contract dispute (the fix fails tests that pass at HEAD), and nothing else blocks"]
+    return [f"contract dispute: {', '.join(ids)} capped at {_SEVERITY_CAP} and taken out of the "
+            f"blockers; the verdict stands at {was!r}"]
 
 
 def _record_bill(qa_root: Path, state: dict, bill: dict | None) -> None:
@@ -3190,8 +3258,10 @@ def finalize_main(argv=None) -> int:
         repo_dir = facts.get("repo")
         in_change = change_lines(Path(repo_dir) if repo_dir else None,
                                  (facts.get("last_run") or {}).get("sha_range"))
-    for note in profile_notes + gate_policy(state, bill, risk_class, in_change):
-        if note.startswith(("verdict ", "risk_class", "profile not read")):
+    for note in profile_notes + gate_policy(state, bill, risk_class, in_change, judgment=judgment,
+                                            contract_rule=contract_rule_from(profile_config,
+                                                                             profile_notes)):
+        if note.startswith(("verdict ", "risk_class", "profile not read", "contract dispute")):
             print(f"verdict-finalize: {note}", file=sys.stderr)
     # Folded in memory; the ledger is saved only once the state is accepted (questions.fold).
     asked, qnotes, qledger = questions.fold(

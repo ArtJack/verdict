@@ -220,6 +220,103 @@ def test_finalize_without_a_range_keeps_the_judgment_and_says_so(repo, qa_root, 
     assert state["verdict"] == "pass with risks" and "no gate range" in err
 
 
+# ── rule 3: a fix that fails the project's own green tests is a contract dispute ──
+
+def _critical_with_fix_breaking(n):
+    f = finding("W-F-1", severity="Critical", evidence=["a.py:2 — the guard, as 22 tests assert it"])
+    f["fix_breaks_tests"] = n
+    return f
+
+
+def test_a_fix_that_fails_green_tests_is_a_contract_dispute_not_a_blocker(repo, qa_root, capsys):
+    """django-oscar, 2026-10-17: a baseline said `fail` on a Critical that 22 green tests
+    assert the other way and the tracker had tuned on purpose. The tests are evidence of
+    intent; a documented-versus-tested disagreement is the maintainer's to settle."""
+    from verdict_mcp.harness import facts_main
+    three_lines(repo)
+    assert facts_main(["--repo", str(repo), "--qa-root", str(qa_root)]) == 0
+    write_finding(qa_root, _critical_with_fix_breaking(22))
+    rc, state = run_finalize(qa_root, judgment(findings=[], verdict="fail",
+                                               release_blockers=["W-F-1 (Critical): the guard"]))
+    err = capsys.readouterr().err
+    assert rc == 0, err
+    f = next(x for x in state["findings"] if x["id"] == "W-F-1")
+    assert f["contract_dispute"] is True and f["severity"] == "Major" and f["severity_was"] == "Critical"
+    assert state["release_blockers"] == [] and state["verdict"] == "pass with risks"
+    assert state["verdict_rule"] == {"rule": "contract dispute", "was": "fail", "capped": ["W-F-1"]}
+    assert "verdict lowered from 'fail' to 'pass with risks'" in err
+    ledger = json.loads((qa_root / "questions.json").read_text(encoding="utf-8"))
+    q = next(r for r in ledger["questions"].values() if r.get("finding") == "W-F-1")
+    assert "22 test(s) that pass at HEAD" in q["question"] and "Which is the contract" in q["question"]
+    report = (qa_root / state["last_run"]["report"]).read_text(encoding="utf-8")
+    assert "contract dispute" in report
+
+
+def test_a_fix_that_breaks_nothing_and_a_switched_off_rule_leave_the_verdict_alone(repo, qa_root, capsys):
+    from verdict_mcp.harness import facts_main
+    three_lines(repo)
+    assert facts_main(["--repo", str(repo), "--qa-root", str(qa_root)]) == 0
+    write_finding(qa_root, _critical_with_fix_breaking(0))
+    rc, state = run_finalize(qa_root, judgment(findings=[], verdict="fail",
+                                               release_blockers=["W-F-1 (Critical): the guard"]))
+    assert rc == 0, capsys.readouterr().err
+    f = next(x for x in state["findings"] if x["id"] == "W-F-1")
+    assert "contract_dispute" not in f and f["severity"] == "Critical" and state["verdict"] == "fail"
+    (qa_root / "state.json").unlink()
+    (qa_root / "findings" / "W-F-1.json").unlink()
+    _profile(qa_root, "contract_rule: off")
+    assert facts_main(["--repo", str(repo), "--qa-root", str(qa_root)]) == 0
+    write_finding(qa_root, _critical_with_fix_breaking(22))
+    rc, state = run_finalize(qa_root, judgment(findings=[], verdict="fail",
+                                               release_blockers=["W-F-1 (Critical): the guard"]))
+    assert rc == 0, capsys.readouterr().err
+    f = next(x for x in state["findings"] if x["id"] == "W-F-1")
+    assert "contract_dispute" not in f and state["verdict"] == "fail", "the profile switched it off"
+
+
+def test_a_disputed_finding_that_is_not_alone_caps_but_does_not_lower(repo, qa_root, capsys):
+    from verdict_mcp.harness import facts_main
+    three_lines(repo)
+    assert facts_main(["--repo", str(repo), "--qa-root", str(qa_root)]) == 0
+    write_finding(qa_root, _critical_with_fix_breaking(3))
+    other = finding("W-F-2", severity="Critical", evidence=["a.py:3 — a second, undisputed defect"])
+    write_finding(qa_root, other)
+    rc, state = run_finalize(qa_root, judgment(findings=[], verdict="fail",
+                                               release_blockers=["W-F-1 (Critical)", "W-F-2 (Critical)"]))
+    err = capsys.readouterr().err
+    assert rc == 0, err
+    assert state["verdict"] == "fail" and state["release_blockers"] == ["W-F-2 (Critical)"]
+    assert "capped at Major" in err and "the verdict stands at 'fail'" in err
+
+
+def test_inside_a_money_gates_own_change_the_money_rule_keeps_precedence(repo, qa_root, capsys):
+    """A defect the change made, whose fix fails the change's own tests, is judged as the
+    change: the money rule blocks it, the contract rule does not excuse it."""
+    from verdict_mcp.harness import facts_main
+    three_lines(repo)
+    _profile(qa_root, "risk_class: money")
+    assert facts_main(["--repo", str(repo), "--qa-root", str(qa_root), "--range", "HEAD~1..HEAD"]) == 0
+    f = finding("W-F-1", severity="Minor", evidence=["a.py:2 — the guard"])
+    f["fix_breaks_tests"] = 4
+    write_finding(qa_root, f)
+    rc, state = run_finalize(qa_root, judgment(findings=[]))
+    assert rc == 0, capsys.readouterr().err
+    assert state["verdict"] == "fail", "in the change: the money rule, not the dispute"
+    f = next(x for x in state["findings"] if x["id"] == "W-F-1")
+    assert "contract_dispute" not in f
+
+
+def test_fix_breaks_tests_must_be_a_count(repo, qa_root, capsys):
+    from verdict_mcp.harness import facts_main
+    three_lines(repo)
+    assert facts_main(["--repo", str(repo), "--qa-root", str(qa_root)]) == 0
+    f = finding("W-F-1", severity="Major", evidence=["a.py:2 — the guard"])
+    f["fix_breaks_tests"] = "22"
+    write_finding(qa_root, f)
+    rc, _ = run_finalize(qa_root, judgment(findings=[]))
+    assert rc != 0 and "fix_breaks_tests must be a count" in capsys.readouterr().err
+
+
 # ── the profile field ──────────────────────────────────────────────────────────
 
 from verdict_mcp.profile import risk_class_from  # noqa: E402

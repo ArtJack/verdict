@@ -90,6 +90,10 @@ def test_the_session_is_launched_isolated_and_capped(tmp_path, repo):
     assert "AWS_SECRET_ACCESS_KEY" not in seen["env"] and "GH_TOKEN" not in seen["env"]
     assert "CLAUDE_PROBE" in seen["env"] and "KEEP_ME" in seen["env"]
     assert "VERDICT_STRICT" in seen["env"]
+    # Two slips the stranger runs of 2026-10-16/17 made: 113 .pyc files written into a
+    # checkout by a bare `python`, and 22 MB fetched from GitHub by `git log -S` on a partial
+    # clone. The session carries both guards without the tester having to remember them.
+    assert "PYTHONDONTWRITEBYTECODE" in seen["env"] and "GIT_NO_LAZY_FETCH" in seen["env"]
 
 
 def test_a_budget_that_is_not_a_number_is_refused_before_anything_runs(tmp_path, repo):
