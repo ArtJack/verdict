@@ -381,6 +381,39 @@ def test_bash_blocks_unresolved_variable_target(repo):
     assert "unresolved" in err
 
 
+def test_bash_reads_the_commands_own_assignments(repo):
+    """`S=.qa/scratch; mkdir -p $S` is the tester's own shell style, and the guard refused it
+    as an unresolved variable 21 times in 33 refusals (trace 2026-10-15). An assignment
+    made earlier in the same command is known; one whose value is unresolved is not."""
+    rc, err = run_hook("enforce_bash_scope.py",
+                       bash_event("S=.qa/scratch; mkdir -p $S/probes && echo x > $S/probes/p.py", repo),
+                       strict="1")
+    assert rc == 0, err
+    rc, err = run_hook("enforce_bash_scope.py",
+                       bash_event("export S=.qa/scratch; echo x > $S/exported.txt", repo), strict="1")
+    assert rc == 0, err
+    rc, err = run_hook("enforce_bash_scope.py",
+                       bash_event("S=/etc; S=.qa/ok; echo x > $S/f", repo), strict="1")
+    assert rc == 0, "the latest assignment wins: " + err
+    rc, err = run_hook("enforce_bash_scope.py",
+                       bash_event("S=src; echo x > $S/app.py", repo), strict="1")
+    assert rc == 2 and "unresolved" not in err and "QA root" in err, \
+        "resolved through the assignment, and judged on the path it names"
+    rc, err = run_hook("enforce_bash_scope.py",
+                       bash_event("S=$TOTALLY_UNSET_VAR_XYZ/x; echo x > $S/y", repo), strict="1")
+    assert rc == 2 and "unresolved" in err, "an unresolved value does not become a known name"
+    rc, err = run_hook("enforce_bash_scope.py",
+                       bash_event("HOME=$TOTALLY_UNSET_VAR_XYZ/x; echo x > $HOME/f", repo), strict="1")
+    assert rc == 2 and "unresolved" in err, \
+        "an unresolved assignment shadows the environment; it is not a write under the real home"
+    rc, err = run_hook("enforce_bash_scope.py",
+                       bash_event("FOO=.qa/a true; echo x > $FOO/b", repo), strict="1")
+    assert rc == 2 and "unresolved" in err, "`FOO=x cmd` sets FOO for cmd alone"
+    rc, err = run_hook("enforce_bash_scope.py",
+                       bash_event("S=.qa/a | cat; echo x > $S/b", repo), strict="1")
+    assert rc == 2 and "unresolved" in err, "a pipeline stage is a subshell"
+
+
 def test_bash_denies_when_unparseable_but_pattern_visible(repo):
     rc, _ = run_hook("enforce_bash_scope.py",
                      bash_event("echo 'oops > src/x.py", repo), strict="1")

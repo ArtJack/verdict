@@ -451,6 +451,11 @@ _SEPARATOR = re.compile(r"(?:&&|\|\||[;\n]|(?<!>)\|)")
 # command called `true`. Not the `&` of `&&`, `&>`, `>&`, `<&` or `|&`.
 _BACKGROUND = re.compile(r"(?<![<>&|])&(?![>&])")
 _VAR = re.compile(r"\$\{?([A-Za-z_][A-Za-z0-9_]*)\}?")
+# What the command itself assigned before the segment in hand: `S=.qa/scratch; mkdir -p
+# $S`. The walker resets it per command and records a value only when it expands to a
+# literal, so `$S` after `S=$UNSET/x` stays unresolved. 21 of the 33 refusals in the
+# 2026-10-15 trace were this shape — the tester's own shell style, refused every time.
+_SCOPE: dict = {}
 # `$(pwd)` and its backtick spelling: the one command substitution whose value
 # the guard knows, because it is the directory the guard is tracking.
 _PWD = re.compile(r"\$\(\s*pwd\s*\)|`\s*pwd\s*`")
@@ -470,6 +475,16 @@ def _tmp_roots():
     return [os.path.realpath(r) for r in roots if r]
 
 
+def _known(m) -> str:
+    """What `$name` stands for: the command's own assignment first, then the environment.
+    An assignment the command made with an unresolved value shadows the environment —
+    `HOME=$UNSET/x; echo > $HOME/f` is not a write under the real home."""
+    name = m.group(1)
+    if name in _SCOPE:
+        return m.group(0) if _SCOPE[name] is None else _SCOPE[name]
+    return os.environ.get(name, m.group(0))
+
+
 def _expand(target: str, cwd: str) -> str | None:
     """Substitute what can be known; None means an unresolved variable remains.
 
@@ -478,9 +493,7 @@ def _expand(target: str, cwd: str) -> str | None:
     wherever Claude Code happened to start the hook.
     """
     expanded = _PWD.sub(lambda m: cwd, target)
-    expanded = _VAR.sub(
-        lambda m: cwd if m.group(1) == "PWD" else os.environ.get(m.group(1), m.group(0)),
-        expanded)
+    expanded = _VAR.sub(lambda m: cwd if m.group(1) == "PWD" else _known(m), expanded)
     if "$" in expanded:
         return None
     return os.path.expanduser(expanded)
@@ -797,6 +810,7 @@ class _Trail:
         self.stack = []             # pushd / popd
         self.scopes = []            # an open `(`: what its `)` puts back
         self.base = root            # the directory of the segment in hand — always a real one
+        _SCOPE.clear()              # one command, one scope of its own assignments
 
     def walk(self, command, view=None):
         """Yield (separator-before, text, masked) for each simple command,
@@ -838,6 +852,7 @@ class _Trail:
             piped_on = i + 1 < len(segments) and segments[i + 1][0] == "|"
             if sep != "|" and not piped_on:
                 self._step(toks)
+                self._assign(segment, seg_view)
             elif not piped_on and _moves(toks):
                 self.here = None    # the last stage: the current shell in zsh, a subshell in bash
             net = seg_view.count("(") - opened - seg_view.count(")")
@@ -846,6 +861,27 @@ class _Trail:
             for _ in range(-net):
                 if self.scopes:
                     self.here, self.old, self.stack = self.scopes.pop()
+
+    def _assign(self, segment, view):
+        """Record `S=value` and `export S=value` for the segments that follow. `FOO=x cmd`
+        sets FOO for `cmd` alone, and a pipeline stage is a subshell (the caller skips it),
+        so neither reaches the scope. A value that is itself unresolved stays unresolved.
+        Read from the raw words: `_tokens` takes a leading assignment off as syntax."""
+        if segment.startswith(_HEREDOC):
+            return
+        try:
+            words = shlex.split(_without_redirections(segment, view), posix=(os.name != "nt"))
+        except ValueError:
+            return
+        if words and os.path.basename(words[0]) == "export":
+            words = words[1:]
+        elif any(not _ASSIGNMENT.match(w) for w in words):
+            return
+        for word in words:
+            if not _ASSIGNMENT.match(word):
+                continue
+            name, _, value = word.partition("=")
+            _SCOPE[name] = _expand(_unquote_nested(value), self.base)   # None: unresolved
 
     def _step(self, toks):
         """Follow one `cd`, `pushd` or `popd`."""
