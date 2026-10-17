@@ -610,6 +610,7 @@ def test_repro_rule_on_refuses_a_proven_major_without_a_block_and_off_only_names
     rc, state = _finalize(qa_root, judgment(findings=[]))
     err = capsys.readouterr().err
     assert rc == 0 and "no structured repro on 1 proven Major+ finding(s): W-F-3" in err
+    (qa_root / "state.json").unlink()            # the same filing, as a first run under the rule
     (qa_root / "profile.md").write_text("---\nrepro_rule: on\n---\n\n# QA Profile — widget\n",
                                         encoding="utf-8")
     rc, state = _finalize(qa_root, judgment(findings=[]))
@@ -694,3 +695,27 @@ def test_repro_rule_binds_the_agents_run_and_not_the_local_engine(repo, qa_root,
     err = capsys.readouterr().err
     assert rc == 0, err
     assert "no structured repro on 1 proven Major+ finding(s): W-F-3" in err
+
+
+def test_repro_rule_refuses_a_finding_filed_in_this_run_and_names_a_carried_one(repo, qa_root, capsys):
+    """A record older than the repro block carries proven findings without one. Turning the rule
+    on must not refuse every later run for them: they are named, and a new one is refused."""
+    _facts(repo, qa_root)
+    _finding_file(qa_root, "W-F-3", repro=None)
+    rc, state = _finalize(qa_root, judgment(findings=[]))
+    assert rc == 0, capsys.readouterr().err
+    (qa_root / "profile.md").write_text("---\nrepro_rule: on\n---\n\n# QA Profile — widget\n", encoding="utf-8")
+    git(["commit", "-q", "--allow-empty", "-m", "next"], repo)
+    _facts(repo, qa_root)
+    rc, state = _finalize(qa_root, judgment(findings=[], still_open=["W-F-3"]))
+    err = capsys.readouterr().err
+    assert rc == 0, err
+    assert [(f["id"], f["delta"]) for f in state["findings"]] == [("W-F-3", "STILL_OPEN")]
+    assert "no structured repro on 1 proven Major+ finding(s): W-F-3" in err
+    git(["commit", "-q", "--allow-empty", "-m", "next again"], repo)
+    _facts(repo, qa_root)
+    _finding_file(qa_root, "W-F-4", repro=None, title="W-F-4: the fee is never added in a.py")
+    rc, state = _finalize(qa_root, judgment(findings=[], still_open=["W-F-3"]))
+    err = capsys.readouterr().err
+    assert rc == 2, err
+    assert "repro_rule is on and 1 proven Major+ finding(s) carry no `repro` block: W-F-4 -" in err

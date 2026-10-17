@@ -2743,5 +2743,17 @@
   "path": "src/verdict_mcp/harness.py",
   "old": "        str((facts.get(\"last_run\") or {}).get(\"engine\") or \"\") != \"verdict-local\"\n",
   "new": "        True\n"
+ },
+ {
+  "label": "0.91.1 repro 1: a finding carried from an older run refuses the run under repro_rule",
+  "path": "src/verdict_mcp/harness.py",
+  "old": "        fresh = [i for i in prose if i in filed_now]\n",
+  "new": "        fresh = list(prose)\n"
+ },
+ {
+  "label": "0.91.1 repro 2: a model-free sweep is held to the agent's accounting under repro_rule",
+  "path": "src/verdict_mcp/harness.py",
+  "old": "    strict = repro_rule_from(profile_config, profile_notes) and facts.get(\"run_type\") != \"sweep\" and \\\n",
+  "new": "    strict = repro_rule_from(profile_config, profile_notes) and \\\n"
  }
 ]

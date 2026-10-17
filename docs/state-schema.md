@@ -187,6 +187,15 @@ question blocked 7 of the 8 positives, with the same one false block, at about a
 cost: the rule fixes Verdict's call, it does not out-call that baseline. Unscoped, the rule
 blocked 3 of 8 clean changes, which is why it is scoped to the change.
 
+`repro_rule: on` (0.91.0) makes a `repro` block part of `proven`. `verdict-finalize` refuses an
+agent's run in which a Major-or-worse finding filed in that run claims `proven` with no `repro`
+block, and (0.91.1) one that leaves an assertion-gap survivor function neither cited nor named in
+`not_tested`. Findings carried from earlier runs are named, never refused: a record older than
+the block carries proven findings without one, and refusing every later run for them would stop
+the record (0.91.1). The local engine's runs and a model-free sweep are told, never refused.
+Off, the default, the same findings are accepted and named once. Either way a `repro` that does
+not reproduce on a fresh worktree refuses `proven`.
+
 **A fix that fails the project's own green tests is a contract dispute (0.90.11).** A finding carrying `fix_breaks_tests` above 0 is capped at Major, taken out of the release blockers and parked as a question; the verdict is lowered from `fail` to `pass with risks` only when nothing else blocks. The project's tests are evidence of intent: on 2026-10-17 a django-oscar baseline called a Critical what 22 green tests and the tracker's history had settled the other way.
 
 A run whose tester answered on more than one model (its own

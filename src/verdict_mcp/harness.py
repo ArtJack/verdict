@@ -3583,8 +3583,9 @@ def finalize_main(argv=None) -> int:
     # not_tested names it — and under repro_rule: on it is refused until it does.
     # Both refusals below bind the agent's run only. The local engine proves by counterfactual,
     # never writes a repro, and runs unattended: a rule it cannot satisfy would cost a night's
-    # state, not improve a judgment (the Sales and ifta profiles turn repro_rule on, 2026-10-17).
-    strict = repro_rule_from(profile_config, profile_notes) and \
+    # state, not improve a judgment. A model-free sweep is no one's run at all: it carries the
+    # record forward because nothing it rested on moved.
+    strict = repro_rule_from(profile_config, profile_notes) and facts.get("run_type") != "sweep" and \
         str((facts.get("last_run") or {}).get("engine") or "") != "verdict-local"
     gap_acc = survivor_accounting(facts, state)
     if gap_acc and gap_acc["unaccounted"]:
@@ -3603,12 +3604,17 @@ def finalize_main(argv=None) -> int:
               f"{', '.join(rfa['unaccounted'][:5])}{' ...' if len(rfa['unaccounted']) > 5 else ''}",
               file=sys.stderr)
     # A proven finding with no command behind it is proven to its author only: a stranger,
-    # and `verdict-replay`, have prose. Said once here - and refused under `repro_rule: on`.
+    # and `verdict-replay`, have prose. Said once here - and refused under `repro_rule: on`
+    # for a finding filed in this run. A record older than the repro block carries proven
+    # findings without one (19 of them in one project's record when the rule was first turned
+    # on); refusing every later run for those would stop the record, not improve it.
     # ASCII on purpose: this stream reaches a cp1252 console on Windows (CI, 2026-10-17).
     if prose := without_repro(state["findings"]):
-        if strict:
-            print(f"verdict-finalize: repro_rule is on and {len(prose)} proven Major+ finding(s) "
-                  f"carry no `repro` block: {', '.join(prose)} - add the command that shows the "
+        filed_now = {str(f.get("id")) for f in state["findings"] if f.get("delta") == "NEW"}
+        fresh = [i for i in prose if i in filed_now]
+        if strict and fresh:
+            print(f"verdict-finalize: repro_rule is on and {len(fresh)} proven Major+ finding(s) "
+                  f"carry no `repro` block: {', '.join(fresh)} - add the command that shows the "
                   "defect (command, cwd, expect), or file the finding as `probable`",
                   file=sys.stderr)
             return 2

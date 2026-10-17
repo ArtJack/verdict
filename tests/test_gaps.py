@@ -30,13 +30,13 @@ def test_fee_runs():
 CMD = f"{sys.executable} -m pytest {{id}} -q -p no:cacheprovider"
 
 
-def _repo(tmp_path, tests=TESTS):
+def _repo(tmp_path, tests=TESTS, pricing=PRICING):
     repo = tmp_path / "shop"
     (repo / "shop").mkdir(parents=True)
     (repo / "tests").mkdir()
     git(["init", "-qb", "main"], repo)
     (repo / "shop" / "__init__.py").write_text("", encoding="utf-8")
-    (repo / "shop" / "pricing.py").write_text(PRICING, encoding="utf-8")
+    (repo / "shop" / "pricing.py").write_text(pricing, encoding="utf-8")
     (repo / "tests" / "test_pricing.py").write_text(tests, encoding="utf-8")
     git(["add", "-A"], repo)
     git(["commit", "-qm", "shop"], repo)
@@ -70,6 +70,38 @@ def test_a_call_made_for_its_effect_an_attribute_set_and_a_raise_become_pass():
 def test_a_mutant_that_does_not_parse_is_never_run():
     assert gaps._parses(["x = (\n", "    pass\n"]) is False and gaps._parses(["x = 1\n"]) is True
 
+
+
+SPLIT_CALL = """def charge_fee(amount):
+    fee = amount * 2 // 100
+    log(
+        record(fee)
+    )
+    return amount + fee
+
+
+def log(x):
+    return x
+
+
+def record(x):
+    return x
+"""
+
+
+def test_the_last_argument_of_a_split_call_is_never_run_as_a_statement(tmp_path):
+    """`record(fee)` on its own line looks like a call made for its effect, but it is the last
+    argument of `log(`: `pass` there does not parse, and running it would count an import error
+    as a measurement of the suite."""
+    tests = "from shop.pricing import charge_fee\n\n\ndef test_fee_runs():\n    charge_fee(100)\n"
+    repo = _repo(tmp_path, tests=tests, pricing=SPLIT_CALL)
+    f = "tests/test_pricing.py::test_fee_runs|run"
+    files = {"shop/pricing.py": {"functions": {"charge_fee": {"executed_lines": [2, 3, 4, 6]}},
+                                 "contexts": {"2": [f], "3": [f], "4": [f], "6": [f]}}}
+    r = gaps.census(repo, files, CMD, is_test=lambda p: p.startswith("tests/"), test_id=_tid, budget_s=120)
+    assert r["status"] == "measured" and "skipped" not in r, r
+    assert r["errors"] == 0, r
+    assert sorted({s["line"] for s in r["survived"]}) == [2, 6], r["survived"]
 
 def test_operators_never_touch_a_string_or_a_definition():
     assert [m["after"].strip() for m in gaps.mutants_of("    if amount and amount > total:")] == \
@@ -159,7 +191,7 @@ def test_two_survivors_in_one_function_are_one_read_first_item(tmp_path):
 
 
 
-def _finalize_with_survivors(repo, qa_root, judgment_over, profile=None):
+def _finalize_with_survivors(repo, qa_root, judgment_over, profile=None, sweep=False):
     import json as _json
     from conftest import judgment
     from verdict_mcp.harness import facts_main, finalize_main
@@ -172,7 +204,8 @@ def _finalize_with_survivors(repo, qa_root, judgment_over, profile=None):
          "before": "return amount + fee", "after": "return amount - fee", "tests": ["t::x"]}]}
     (qa_root / "facts.json").write_text(_json.dumps(facts), encoding="utf-8")
     (qa_root / "judgment.json").write_text(_json.dumps(judgment(**judgment_over)), encoding="utf-8")
-    rc = finalize_main(["--qa-root", str(qa_root), "--judgment", str(qa_root / "judgment.json")])
+    rc = finalize_main(["--qa-root", str(qa_root), "--judgment", str(qa_root / "judgment.json")]
+                       + (["--sweep"] if sweep else []))
     state = _json.loads((qa_root / "state.json").read_text(encoding="utf-8")) if (qa_root / "state.json").is_file() else None
     return rc, state
 
@@ -191,6 +224,15 @@ def test_a_survivor_function_nobody_accounted_for_is_said_and_refused_when_stric
     assert rc == 0 and state["assertion_gaps_accounting"]["declared_untested"] == ["shop/pricing.py::charge_fee"]
 
 
+
+def test_a_model_free_sweep_is_not_held_to_the_agents_accounting(repo, qa_root, capsys):
+    """No agent ran: a sweep carries the record forward because nothing it rested on moved, so
+    under repro_rule: on an unaccounted survivor is said, never a refusal of the night."""
+    rc, state = _finalize_with_survivors(repo, qa_root, {"findings": []}, profile="repro_rule: on", sweep=True)
+    err = capsys.readouterr().err
+    assert rc == 0, err
+    assert state["run_type"] == "sweep"
+    assert "1 assertion-gap survivor function(s) unaccounted: shop/pricing.py::charge_fee" in err
 
 def test_money_logic_is_measured_before_admin_ui():
     ctx = lambda n: {str(i): ["tests/t.py::t|run"] for i in range(1, n + 1)}
