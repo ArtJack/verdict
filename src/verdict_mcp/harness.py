@@ -868,6 +868,9 @@ def is_test_file(path: str) -> bool:
     return bool(_TEST_FILE.search(str(path).replace("\\", "/")))
 
 COVERAGE_TIMEOUT_S = 1800
+RENDER_TIMEOUT_S = 300
+TEST_OMIT = ("tests/*", "*/tests/*", "test/*", "*/test/*", "test_*.py", "*/test_*.py",
+             "*_test.py", "conftest.py", "*/conftest.py")
 _HUNK = re.compile(r"^@@ -\d+(?:,\d+)? \+(\d+)(?:,(\d+))? @@")
 _CONTEXT_SUFFIX = re.compile(r"\|(run|setup|teardown|call)$")
 
@@ -986,6 +989,27 @@ def measure_coverage(repo: Path, sha_range: str | None, cmd: str | None,
     return diff, reading_map, exercised
 
 
+FACTS_WINDOW_S = 540
+GAPS_MIN_S = 60
+
+
+def inside_agent_call() -> bool:
+    """True when this process runs inside a Claude Code session — a tester's Bash call."""
+    return bool(os.environ.get("CLAUDECODE") or os.environ.get("CLAUDE_CODE_ENTRYPOINT"))
+
+
+PREMEASURED_ENV = "VERDICT_FACTS_PREMEASURED"
+PREMEASURED_MAX_AGE_MIN = 180
+
+
+def _restake_marker(qa_root: Path) -> None:
+    """The run marker verdict-run's measurement staked, claimed for this session — the stop
+    hook and finalize's bill read the session from it."""
+    marker = _read_json(qa_root / "run-in-progress.json") or {}
+    marker.update(_session_identity())
+    (qa_root / "run-in-progress.json").write_text(json.dumps(marker, indent=2) + "\n", encoding="utf-8")
+
+
 def _put(facts: dict, **values) -> None:
     """Set each value that says something; an empty one is left out of facts.json."""
     facts.update({k: v for k, v in values.items() if v})
@@ -996,13 +1020,19 @@ def _coverage_with_gaps(repo: Path, sha_range, cmd, findings, assertion_gaps: di
     (0.91.0): mutants in risk-path functions tests execute, against only the tests that execute
     each line. Opt-in: it costs suite time, never model time."""
     box: dict = {}
+    started = time.monotonic()
 
     def census(files, changed):
+        budget = assertion_gaps.get("budget_s") or GAPS_BUDGET_S
+        if inside_agent_call():
+            # verdict-facts is the tester's first Bash call, and a Bash call ends at 10 minutes:
+            # the census takes what is left of a 9-minute window after the coverage run.
+            budget = min(budget, max(GAPS_MIN_S, FACTS_WINDOW_S - int(time.monotonic() - started)))
         box["gaps"] = gap_census_of(repo, files, assertion_gaps["test_one_cmd"],
                                     globs=assertion_gaps.get("globs"), changed=changed,
                                     is_test=is_test_file,
                                     test_id=lambda c: _test_id_from_context(c, repo),
-                                    budget_s=assertion_gaps.get("budget_s") or GAPS_BUDGET_S)
+                                    budget_s=budget)
 
     wanted = bool(assertion_gaps and assertion_gaps.get("test_one_cmd"))
     coverage, reading_map, exercised = measure_coverage(repo, sha_range, cmd, findings,
@@ -1188,15 +1218,31 @@ def _run_coverage(repo: Path, scratch: Path, cmd: str) -> tuple[dict | None, dic
         return None, {"reason": f"coverage run did not complete: {type(exc).__name__}"}
     duration = round(time.monotonic() - started, 2)
     render = _render_cmd(cmd, out)
+    scope = "all files"
     try:
         rproc = subprocess.run(render, cwd=str(repo), shell=True, capture_output=True,
-                               text=True, timeout=300, env=env)
-    except (subprocess.TimeoutExpired, OSError) as exc:
+                               text=True, timeout=RENDER_TIMEOUT_S, env=env)
+    except subprocess.TimeoutExpired:
+        # A large suite's contexts make the full render slow: freqtrade's exceeded 300 s
+        # (2026-10-17) and every coverage fact went with it. The production files alone
+        # carry what the reading map, read_first and the assertion-gap census read.
+        rc.write_text(rc.read_text(encoding="utf-8").replace(
+            "[report]\n", "[report]\nomit = " + ", ".join(TEST_OMIT) + "\n", 1), encoding="utf-8")
+        scope = f"production files only (the full render exceeded {RENDER_TIMEOUT_S} s)"
+        try:
+            rproc = subprocess.run(render, cwd=str(repo), shell=True, capture_output=True,
+                                   text=True, timeout=COVERAGE_TIMEOUT_S // 2, env=env)
+        except (subprocess.TimeoutExpired, OSError) as exc:
+            rproc, rendered_err = None, type(exc).__name__
+        else:
+            rendered_err = _summary_line(rproc.stdout + rproc.stderr)
+    except OSError as exc:
         rproc = None
         rendered_err = type(exc).__name__
     else:
         rendered_err = _summary_line(rproc.stdout + rproc.stderr)
-    meta = {"render_command": render, "suite_exit_code": proc.returncode, "duration_s": duration}
+    meta = {"render_command": render, "suite_exit_code": proc.returncode, "duration_s": duration,
+            **({"render_scope": scope} if scope != "all files" else {})}
     if rproc is None or rproc.returncode != 0 or not out.is_file():
         return None, {**meta, "reason": "the suite ran but the coverage database could not be "
                                         "rendered: " + rendered_err}
@@ -1216,8 +1262,13 @@ def _diff_from_files(files: dict, changed: dict, meta: dict, sha_range: str,
     split = {"production": [0, 0], "tests": [0, 0]}   # [measured, executed]
     touching: set = set()
     never_entered: list = []
+    production_only = bool(meta.get("render_scope"))
     for path, lines in changed.items():
         f = files.get(path) or files.get(path.replace("/", "\\"))
+        if not f and production_only and is_test_file(path):
+            per_file[path] = {"changed": len(lines), "measured": 0, "executed": 0,
+                              "note": "a test file, left out of a production-only render"}
+            continue
         if not f:
             # coverage reports the files it saw. A changed .py file it never
             # saw was imported by nothing the suite ran — every changed line
@@ -2077,6 +2128,24 @@ def _fold_accepted(entry: dict, ledger: dict | None) -> None:
 READ_FIRST_ACCOUNTED = 10
 
 
+def survivor_accounting(facts: dict, state: dict) -> dict | None:
+    """The census's survivor functions, accounted like read_first's items; stamped on the state
+    as `assertion_gaps_accounting` when the census ran and found any."""
+    survived = ((facts.get("assertion_gaps") or {}).get("survived")) or []
+    items, seen = [], set()
+    for g in survived:
+        key = (str(g.get("path") or ""), str(g.get("function") or ""))
+        if key[0] and key[1] and key not in seen:
+            seen.add(key)
+            items.append({"path": key[0], "function": key[1]})
+    if not items:
+        state.pop("assertion_gaps_accounting", None)
+        return None
+    acc = read_first_accounting(items, state.get("findings") or [], state.get("not_tested") or [])
+    state["assertion_gaps_accounting"] = {"functions": len(items), **acc}
+    return acc
+
+
 def read_first_accounting(items, findings, not_tested) -> dict:
     """Each ranked function: cited by an open or resolved finding (the file among its anchors
     or evidence, and the function's name in its text), named in `not_tested`, or neither."""
@@ -2905,7 +2974,12 @@ def facts_main(argv=None) -> int:
     # Reuse, not resume. A model's judgment cannot be continued from the
     # middle, but the gates it was about to judge can be spared a second run —
     # and only while they still describe this commit and are minutes old.
-    existing = _read_json(qa_root / "facts.json") if args.reuse_if_fresh else None
+    # verdict-run measures before the tester starts (0.91.1) and names the commit it measured:
+    # the tester's own first call then adopts those facts instead of measuring for a second time
+    # inside a Bash call that ends at 10 minutes — where the assertion-gap census lost half its
+    # budget on 2026-10-17 and a known defect's survivor went unmeasured.
+    premeasured = os.environ.get(PREMEASURED_ENV, "")
+    existing = _read_json(qa_root / "facts.json") if (args.reuse_if_fresh or premeasured) else None
     if existing:
         head = _git(["rev-parse", "HEAD"], repo)
         try:
@@ -2915,12 +2989,22 @@ def facts_main(argv=None) -> int:
         except (ValueError, TypeError):
             age = 1e9
         same_head = (existing.get("last_run") or {}).get("git_sha") == head
-        if same_head and age <= args.reuse_max_age_min:
+        same_range = (existing.get("last_run") or {}).get("sha_range") == (args.sha_range or None) \
+            or not args.sha_range
+        adopt = premeasured and premeasured == head and age <= PREMEASURED_MAX_AGE_MIN and same_range
+        if same_head and (adopt or (args.reuse_if_fresh and age <= args.reuse_max_age_min)):
             existing["reused"] = {"measured_at": existing.get("measured_at"),
                                   "age_minutes": round(age, 1),
-                                  "why": "same HEAD, within the freshness window; "
-                                         "gates were not re-run"}
+                                  "why": ("measured by verdict-run before the tester started"
+                                          if adopt else "same HEAD, within the freshness window")
+                                         + "; gates were not re-run"}
+            if adopt:
+                _restake_marker(qa_root)
             print(json.dumps(existing, indent=2))
+            print(f"verdict-facts: reusing facts measured {round(age, 1)} min ago at this HEAD. "
+                  f"Judgment template → {judgment_template()}; one finding = one file, "
+                  f"{qa_root / FINDINGS_DIR}/<ID>.json; next id {existing.get('next_finding_id')}",
+                  file=sys.stderr)
             return 0
 
     # Order matters: read whatever the last run left behind, *then* stake this
@@ -3493,6 +3577,20 @@ def finalize_main(argv=None) -> int:
               "did not reproduce on a fresh worktree at HEAD - fix the repro, or file the "
               "finding as `probable`:\n  " + "\n  ".join(repro_problems), file=sys.stderr)
         return 2
+    # The census's survivors are measured facts about the suite (0.91.1): a line its tests run
+    # and do not check, and the place a defect hides behind a green suite. A run
+    # that turned the census on accounts for each survivor function — a finding cites it, or
+    # not_tested names it — and under repro_rule: on it is refused until it does.
+    gap_acc = survivor_accounting(facts, state)
+    if gap_acc and gap_acc["unaccounted"]:
+        shown = ", ".join(gap_acc["unaccounted"][:5]) + (" ..." if len(gap_acc["unaccounted"]) > 5 else "")
+        if repro_rule_from(profile_config, profile_notes):
+            print(f"verdict-finalize: {len(gap_acc['unaccounted'])} assertion-gap survivor function(s) "
+                  f"are neither cited by a finding nor named in not_tested: {shown} - read them, or "
+                  "name each in not_tested as path::function with why", file=sys.stderr)
+            return 2
+        print(f"verdict-finalize: {len(gap_acc['unaccounted'])} assertion-gap survivor function(s) "
+              f"unaccounted: {shown}", file=sys.stderr)
     rfa = state.get("read_first") if isinstance(state.get("read_first"), dict) else {}
     if rfa.get("unaccounted"):
         print(f"verdict-finalize: {len(rfa['unaccounted'])} of {len(rfa.get('items') or [])} read_first "

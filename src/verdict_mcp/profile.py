@@ -43,6 +43,8 @@ they already own — the same trust level the `--gate` flags always had.
 # installed by pip.
 from __future__ import annotations
 
+import os
+
 import re
 import sys
 from pathlib import Path
@@ -209,8 +211,13 @@ def risk_paths_from(config: dict, notes: list) -> list[str]:
 
 
 def assertion_gaps_from(config: dict, notes: list) -> tuple[bool, int | None]:
-    """The profile's `assertion_gaps:` (on/off, default off) and `assertion_gaps_budget_s:`."""
-    value = str(config.get("assertion_gaps") or "").strip().lower()
+    """The profile's `assertion_gaps:` (on/off) and `assertion_gaps_budget_s:`. Unset, the
+    environment's `VERDICT_ASSERTION_GAPS` decides — `verdict-run` sets it on for an asked run —
+    and otherwise it is off; the profile's word always wins."""
+    raw = config.get("assertion_gaps")
+    if raw is None or str(raw).strip() == "":
+        raw = os.environ.get("VERDICT_ASSERTION_GAPS", "")
+    value = str(raw or "").strip().lower()
     on = value in ("on", "true", "yes", "1")
     if value and not on and value not in ("off", "false", "no", "0"):
         notes.append(f"assertion_gaps: '{config.get('assertion_gaps')}' is not understood (on, off) — off")
