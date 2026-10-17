@@ -60,5 +60,6 @@ def test_the_fallback_render_runs_on_real_coverage(tmp_path, monkeypatch):
     scratch.mkdir()
     files, meta = harness._run_coverage(repo, scratch, f"{sys.executable} -m coverage run -m pytest -q -p no:cacheprovider")
     assert files is not None, meta
-    assert "pkg/pay.py" in files and not any(p.startswith("tests/") for p in files), sorted(files)
+    rendered = {p.replace("\\", "/") for p in files}            # coverage.py keys use os.sep on Windows
+    assert "pkg/pay.py" in rendered and not any(p.startswith("tests/") for p in rendered), sorted(rendered)
     assert meta["render_scope"].startswith("production files only")
