@@ -64,9 +64,12 @@ try:
     from .hygiene import ledger as hygiene_ledger
     from .hygiene import reconcile as reconcile_hygiene
     from .filed import FINDINGS_DIR, archive_findings, load_filed
-    from .replay import without_repro
+    from .gaps import BUDGET_S as GAPS_BUDGET_S
+    from .gaps import census as gap_census_of
+    from .readfirst import read_first
+    from .replay import measure_findings, without_repro
     from .reports import read_report
-    from .profile import RISK_CLASSES, ProfileError, gates_from, hygiene_filing_from, contract_rule_from, risk_class_from
+    from .profile import RISK_CLASSES, ProfileError, gates_from, hygiene_filing_from, contract_rule_from, repro_rule_from, risk_class_from, risk_paths_from, assertion_gaps_from
     from .profile import load as load_profile
     from .project_key import derive_key
     from .state import (OUTCOMES_FILE, accepted_block, calibration, in_force, is_open,
@@ -93,9 +96,12 @@ except ImportError:  # bare-script execution
     from hygiene import ledger as hygiene_ledger
     from hygiene import reconcile as reconcile_hygiene
     from filed import FINDINGS_DIR, archive_findings, load_filed
-    from replay import without_repro
+    from gaps import BUDGET_S as GAPS_BUDGET_S
+    from gaps import census as gap_census_of
+    from readfirst import read_first
+    from replay import measure_findings, without_repro
     from reports import read_report
-    from profile import RISK_CLASSES, ProfileError, gates_from, hygiene_filing_from, contract_rule_from, risk_class_from
+    from profile import RISK_CLASSES, ProfileError, gates_from, hygiene_filing_from, contract_rule_from, repro_rule_from, risk_paths_from, assertion_gaps_from, risk_class_from
     from profile import load as load_profile
     from project_key import derive_key
     from state import (OUTCOMES_FILE, accepted_block, calibration, in_force, is_open,
@@ -932,7 +938,7 @@ def measure_diff_coverage(repo: Path, sha_range: str | None, cmd: str | None) ->
 
 
 def measure_coverage(repo: Path, sha_range: str | None, cmd: str | None,
-                     findings) -> tuple[dict, dict | None, dict | None]:
+                     findings, on_files=None) -> tuple[dict, dict | None, dict | None]:
     """One coverage run, three facts: the diff measurement (`coverage`, the
     shape it has always had), the reading map (every production module's
     coverage, ascending, with the findings that cite it — T-16), and the
@@ -962,6 +968,8 @@ def measure_coverage(repo: Path, sha_range: str | None, cmd: str | None,
     if files is None:
         return ({"status": "unavailable", "command": cmd, **meta}, None, None)
     meta["command"] = cmd
+    if on_files is not None:
+        on_files(files, changed if sha_range else None)
     reading_map = reading_map_from(files, findings, _tracked_python(repo))
     reading_map.update(duration_s=meta.get("duration_s"), suite_exit_code=meta.get("suite_exit_code"))
     exercised = exercised_by_from(files, findings, repo)
@@ -976,6 +984,36 @@ def measure_coverage(repo: Path, sha_range: str | None, cmd: str | None,
     else:
         diff = _diff_from_files(files, changed, meta, sha_range, repo)
     return diff, reading_map, exercised
+
+
+def _put(facts: dict, **values) -> None:
+    """Set each value that says something; an empty one is left out of facts.json."""
+    facts.update({k: v for k, v in values.items() if v})
+
+
+def _coverage_with_gaps(repo: Path, sha_range, cmd, findings, assertion_gaps: dict | None):
+    """The coverage run, and on its data the assertion-gap census when the profile asks for it
+    (0.91.0): mutants in risk-path functions tests execute, against only the tests that execute
+    each line. Opt-in: it costs suite time, never model time."""
+    box: dict = {}
+
+    def census(files, changed):
+        box["gaps"] = gap_census_of(repo, files, assertion_gaps["test_one_cmd"],
+                                    globs=assertion_gaps.get("globs"), changed=changed,
+                                    is_test=is_test_file,
+                                    test_id=lambda c: _test_id_from_context(c, repo),
+                                    budget_s=assertion_gaps.get("budget_s") or GAPS_BUDGET_S)
+
+    wanted = bool(assertion_gaps and assertion_gaps.get("test_one_cmd"))
+    coverage, reading_map, exercised = measure_coverage(repo, sha_range, cmd, findings,
+                                                        on_files=census if wanted else None)
+    gaps = box.get("gaps")
+    if assertion_gaps and not gaps:
+        why = ("needs coverage_suite_cmd: the census runs, per line, the tests whose coverage "
+               "contexts executed it") if not cmd else (
+              "needs test_one_cmd with {id}" if not wanted else "the coverage run produced no data")
+        gaps = {"status": "unavailable", "reason": f"assertion_gaps {why}"}
+    return coverage, reading_map, exercised, gaps
 
 
 def _tracked_python(repo: Path) -> list[str]:
@@ -1051,7 +1089,20 @@ def reading_map_from(files: dict, findings, tracked=None) -> dict:
                        "last_cited_run": cited["last_cited_run"] if cited else None})
     total = sum(m["statements"] or 0 for m in modules)
     missed = sum(m["missed"] or 0 for m in modules)
+    # Functions no test ever entered (0.91.0): `read_first` ranks them on a baseline, where
+    # there is no range to rank changed lines by.
+    unentered = []
+    for path, f in (files or {}).items():
+        p = str(path).replace("\\", "/")
+        if is_test_file(p):
+            continue
+        for name, fb in ((f or {}).get("functions") or {}).items():
+            gone = len((fb or {}).get("missing_lines") or [])
+            if name and gone and not (fb or {}).get("executed_lines"):
+                unentered.append({"path": p, "function": name, "missed": gone})
+    unentered.sort(key=lambda u: (-u["missed"], u["path"], u["function"]))
     return {"status": "measured", "modules": len(modules),
+            **({"functions_never_entered": unentered[:60]} if unentered else {}),
             "overall_percent": (round(100 * (total - missed) / total) if total else None),
             "lowest": lowest,
             "never_examined": [m["path"] for m in modules if m["path"] not in by_module][:10],
@@ -1233,7 +1284,8 @@ def _diff_from_files(files: dict, changed: dict, meta: dict, sha_range: str,
 def collect(repo: Path, qa_root: Path, gates: list[tuple[str, str]],
             test_ids_cmd: str | None = None, abandoned=_UNSET,
             test_one_cmd: str | None = None, coverage_suite_cmd: str | None = None,
-            sha_range: str | None = None, hygiene_filing: str = "on") -> dict:
+            sha_range: str | None = None, hygiene_filing: str = "on",
+            assertion_gaps: dict | None = None) -> dict:
     """Measure everything about this run that is not a judgment.
 
     `hygiene_filing` is the profile's `hygiene:` setting, which each caller reads
@@ -1591,8 +1643,16 @@ def collect(repo: Path, qa_root: Path, gates: list[tuple[str, str]],
     if vnotes:
         facts["verification_notes"] = vnotes
     prev_findings = [f for f in ((previous or {}).get("findings") or []) if isinstance(f, dict)]
-    coverage, reading_map, exercised = measure_coverage(repo, sha_range, coverage_suite_cmd,
-                                                        prev_findings)
+    # The same measurement for the command a finding carries (0.91.0): its `repro` run on a
+    # fresh worktree at HEAD and at the previous commit. A reproduction that stops between
+    # the two is a fix the harness watched; one that persists holds the finding open against
+    # any resolution. Silence changes nothing; measurement does.
+    replays, rnotes = measure_findings(repo, [f for f in prev_findings if is_open(f)], prev_sha,
+                                       qa_root, str(facts.get("measured_at") or ""))
+    _put(facts, replay=replays, replay_notes=rnotes)
+    coverage, reading_map, exercised, gaps = _coverage_with_gaps(
+        repo, sha_range, coverage_suite_cmd, prev_findings, assertion_gaps)
+    _put(facts, assertion_gaps=gaps)
     facts["coverage"] = coverage
     if reading_map:
         facts["reading_map"] = reading_map
@@ -1746,6 +1806,98 @@ def finding_hash(finding: dict) -> str:
 DECIDED = ("confirmed", "refuted")
 
 
+SEVERITIES_ASKED = ("Blocker", "Critical", "Major")
+
+
+def _replay_fresh_findings(state: dict, facts: dict, qa_root: Path) -> list[str]:
+    """Run the repro of every open Major+ finding this run filed - new, regressed, or
+    carrying a repro the previous record lacked - on a fresh worktree at HEAD, stamp the
+    reading, and name the ones filed `proven` that did not reproduce."""
+    repo_dir = facts.get("repo")
+    repo = Path(repo_dir) if repo_dir and Path(repo_dir).is_dir() else None
+    if repo is None:
+        return []
+    measured = facts.get("replay") if isinstance(facts.get("replay"), dict) else {}
+    def unmeasured(f):
+        rec = measured.get(str(f.get("id")))
+        return not rec or rec.get("command") != f["repro"].get("command")   # re-filed with a new repro
+    fresh = [f for f in state.get("findings") or []
+             if isinstance(f.get("repro"), dict) and unmeasured(f) and is_open(f)
+             and f.get("severity") in SEVERITIES_ASKED
+             and isinstance(f.get("repro"), dict) and str(f["repro"].get("command") or "").strip()]
+    if not fresh:
+        return []
+    records, notes = measure_findings(repo, fresh, None, qa_root,
+                                      str(facts.get("measured_at") or ""), refs=("HEAD",),
+                                      source="finalize")
+    for note in notes:
+        print(f"verdict-finalize: {note}", file=sys.stderr)
+    problems = []
+    for f in fresh:
+        rec = records.get(str(f.get("id")))
+        if not rec:
+            continue
+        f["replay"] = rec
+        if rec.get("at_head") == "not reproduced" and f.get("confidence") == "proven" \
+                and rec.get("isolated") is not False:
+            problems.append(f"{f.get('id')}: {'; '.join(rec.get('checks_head') or [])}")
+    return problems
+
+
+def _apply_replay(entry: dict, prior: dict | None, replays: dict,
+                  measured_at: str | None = None) -> None:
+    """Stamp the repro measurement on a finding, and let it decide what prose cannot.
+
+    `at_head: reproduced` refuses a resolution — claimed or by silence — the way a
+    cited test that still fails does. `at_previous: reproduced` with `at_head: not
+    reproduced` is a fix the harness watched: a claimed resolution becomes
+    `fix_verified`, and a finding nobody re-reported is resolved by measurement, which
+    is what a record that carried thirteen fixed findings open was missing (trace
+    2026-10-15). Anything inconclusive — could not run, not isolated, no previous
+    reading — is silence, and silence changes nothing.
+    """
+    key = str(entry.get("id") or (prior or {}).get("id") or "")
+    rec = replays.get(key) if replays else None
+    if not rec:
+        return
+    entry["replay"] = rec
+    if rec.get("at_head") in ("reproduced", "not reproduced") and measured_at:
+        entry["last_verified_at"] = measured_at
+    if rec.get("isolated") is False:
+        return                                   # the fresh tree may not be what ran
+    resolving = entry.get("delta") == "RESOLVED"
+    if rec.get("at_head") == "reproduced":
+        if resolving:
+            entry["status"] = "open"
+            entry["delta"] = "STILL_OPEN"
+            entry.pop("fix_verified", None)
+            entry["resolution_refused"] = ("its repro still reproduces on a fresh worktree at "
+                                           "HEAD — measured by verdict-facts, so the resolution "
+                                           "is not accepted")
+            if "carried_forward" in entry:
+                entry["carried_forward"] = ("not reported this run, but its repro still "
+                                            "reproduces at HEAD — held open by measurement")
+        return
+    if rec.get("at_head") == "not reproduced" and rec.get("at_previous") == "reproduced":
+        sha7 = str(rec.get("previous_sha") or "")[:7]
+        line = (f"replay (measured): the repro reproduces at {sha7} and not at HEAD, on fresh "
+                "worktrees of each")
+        if not resolving:
+            entry["status"] = "resolved"
+            entry["delta"] = "RESOLVED"
+        if not resolving or entry.get("carried_forward"):
+            # The harness settled it: a finding held open, or resolved by nobody's claim.
+            entry["resolved_by"] = "measurement (repro)"
+            if "carried_forward" in entry:
+                entry["carried_forward"] = ("not reported this run; its repro reproduces at the "
+                                            "previous commit and not at HEAD — resolved by "
+                                            "measurement")
+        entry["fix_verified"] = True
+        if measured_at:
+            entry["fixed_at"] = measured_at[:10]
+        entry["evidence"] = [*(str(e) for e in (entry.get("evidence") or [])), line]
+
+
 def _stamp_outcome(finding: dict, prior: dict | None = None) -> dict:
     """Derive the outcome from what the finding did — never from asking.
 
@@ -1815,10 +1967,18 @@ def _stamp_outcome(finding: dict, prior: dict | None = None) -> dict:
     # said the opposite of the note beside it (VERDICT-F-40).
     contradicts = (attempted and v.get("at_head") == "fail"
                    and not v.get("not_weighed"))
+    r = finding.get("replay") if isinstance(finding.get("replay"), dict) else {}
+    shows_fix_by_repro = (r.get("at_previous") == "reproduced" and r.get("at_head") == "not reproduced"
+                          and r.get("isolated") is not False)
+    contradicts = contradicts or (r.get("at_head") == "reproduced" and r.get("isolated") is not False)
     claimed = finding.get("fix_verified") is True
     if delta == "RESOLVED" and shows_fix:
         return {"outcome": "confirmed", "outcome_basis": "measured",
                 "outcome_reason": "fix-verified: the guarding test failed on re-injection"}
+    if delta == "RESOLVED" and shows_fix_by_repro:
+        return {"outcome": "confirmed", "outcome_basis": "measured",
+                "outcome_reason": "fix-verified: the repro reproduces at the previous commit "
+                                  "and not at HEAD"}
     if delta == "RESOLVED" and claimed and contradicts:
         return {"outcome": "unknown",
                 "outcome_reason": "claimed fix-verified, but the cited test still fails at HEAD"}
@@ -1914,6 +2074,38 @@ def _fold_accepted(entry: dict, ledger: dict | None) -> None:
                 entry["accepted_revoked"] = dict(row["revoked"])
 
 
+READ_FIRST_ACCOUNTED = 10
+
+
+def read_first_accounting(items, findings, not_tested) -> dict:
+    """Each ranked function: cited by an open or resolved finding (the file among its anchors
+    or evidence, and the function's name in its text), named in `not_tested`, or neither."""
+    nt = " ".join(str(x) for x in not_tested or []).lower()
+    cited, untested, unaccounted = [], [], []
+    for it in items:
+        path = str(it.get("path") or "")
+        fn = str(it.get("function") or "")
+        short = fn.rsplit(".", 1)[-1].lower() if fn and fn != "(module)" else ""
+        key = f"{path}::{fn}" if fn else path
+        base = path.rsplit("/", 1)[-1].lower()
+
+        def cites(f):
+            text = " ".join([str(f.get("title") or "")] + [str(e) for e in f.get("evidence") or []]).lower()
+            files = {str((a or {}).get("path") or "").replace("\\", "/") for a in f.get("anchors") or []
+                     if isinstance(a, dict)}
+            in_file = path in files or any(p.endswith("/" + path) or path.endswith("/" + p) for p in files if p) \
+                or base in text
+            return in_file and (not short or short in text)
+
+        if any(isinstance(f, dict) and cites(f) for f in findings or []):
+            cited.append(key)
+        elif (short and short in nt) or (path and path.lower() in nt):
+            untested.append(key)
+        else:
+            unaccounted.append(key)
+    return {"cited": cited, "declared_untested": untested, "unaccounted": unaccounted}
+
+
 def merge(facts: dict, judgment: dict, previous: dict | None, today: date | None = None,
           ledger: dict | None = None, accepted: dict | None = None, qa_root=None) -> dict:
     """Facts + judgment → a state file, with identity and deltas computed.
@@ -2007,6 +2199,7 @@ def merge(facts: dict, judgment: dict, previous: dict | None, today: date | None
             entry["confidence"] = prior["confidence"]
         _fold_accepted(entry, accepted)
         _apply_verification(entry, prior, facts.get("verification") or {}, measured_at)
+        _apply_replay(entry, prior, facts.get("replay") or {}, measured_at)
         _introduce(entry, prior, repo)
         if repo is not None:
             _anchor(entry, prior, repo, facts.get("run_number"))
@@ -2072,6 +2265,7 @@ def merge(facts: dict, judgment: dict, previous: dict | None, today: date | None
         # re-reported proves nothing by itself; its cited test, re-run at both
         # commits, can still settle it either way.
         _apply_verification(carried, prior, facts.get("verification") or {}, measured_at)
+        _apply_replay(carried, prior, facts.get("replay") or {}, measured_at)
         _suggest_tests(carried, facts)
         carried.update(_stamp_outcome(carried, prior))
         findings.append(carried)
@@ -2187,6 +2381,16 @@ def merge(facts: dict, judgment: dict, previous: dict | None, today: date | None
         state["reading_map"] = facts["reading_map"]
     else:
         state.pop("reading_map", None)
+    # The ranked functions the run accounted for (0.91.0): cited by a finding, or named in
+    # not_tested. The third question the Opus check asked by hand — "which changed code does no
+    # finding and no not_tested line cover?" — answered without a model.
+    rf = facts.get("read_first") if isinstance(facts.get("read_first"), dict) else None
+    if rf and rf.get("items"):
+        state["read_first"] = {"basis": rf.get("basis"), "items": rf["items"][:READ_FIRST_ACCOUNTED],
+                               **read_first_accounting(rf["items"][:READ_FIRST_ACCOUNTED], findings,
+                                                       state.get("not_tested") or [])}
+    else:
+        state.pop("read_first", None)
     # Measured coverage outranks written coverage. The judgment may still carry
     # its own block when the harness had nothing to measure with.
     if isinstance(facts.get("coverage"), dict) and facts["coverage"].get("status"):
@@ -2668,6 +2872,7 @@ def facts_main(argv=None) -> int:
     # is a place for the model to be confidently wrong. Explicit --gate still
     # wins — a caller narrowing a run should not have to edit the profile.
     profile_notes, profile_source, declared_authorship, filing = [], None, None, "on"
+    config: dict = {}
     if not args.no_profile:
         try:
             config, profile_notes = load_profile(qa_root)
@@ -2741,11 +2946,24 @@ def facts_main(argv=None) -> int:
     retry = bool(abandoned) and abandoned.get("git_sha") == head and started is not None \
         and (clock.now() - started).total_seconds() / 3600 <= RETRY_WINDOW_HOURS
     archived = archive_findings(qa_root, keep=retry)
+    gaps_on, gaps_budget = assertion_gaps_from(config, profile_notes)
     facts = collect(repo, qa_root, gates, args.test_ids_cmd, abandoned=abandoned,
                     test_one_cmd=args.test_one_cmd, coverage_suite_cmd=args.coverage_suite_cmd,
-                    sha_range=args.sha_range, hygiene_filing=filing)
+                    sha_range=args.sha_range, hygiene_filing=filing,
+                    assertion_gaps=({"test_one_cmd": args.test_one_cmd, "budget_s": gaps_budget,
+                                     "globs": risk_paths_from(config, [])} if gaps_on else None))
     if archived:
         facts["findings_archived"] = archived
+    # Where to read first (0.91.0): the changed code no test executes, risk paths first.
+    head_range = (facts.get("last_run") or {}).get("sha_range")
+    cov = facts.get("coverage") if isinstance(facts.get("coverage"), dict) else {}
+    ranked = read_first(repo, cov, facts.get("reading_map"),
+                        changed=(_changed_lines(repo, head_range)
+                                 if head_range and cov.get("status") != "measured" else None),
+                        globs=risk_paths_from(config, profile_notes), is_test=is_test_file,
+                        gaps=facts.get("assertion_gaps"))
+    if ranked:
+        facts["read_first"] = ranked
     if declared_authorship:
         facts.setdefault("code_census", {}).setdefault("provenance", {})[
             "declared"] = declared_authorship
@@ -3265,10 +3483,32 @@ def finalize_main(argv=None) -> int:
                                                                              profile_notes)):
         if note.startswith(("verdict ", "risk_class", "profile not read", "contract dispute")):
             print(f"verdict-finalize: {note}", file=sys.stderr)
+    # A finding filed this run with a `repro` is run on a fresh worktree at HEAD before
+    # anything is written (0.91.0): `proven` with a reproduction that fails on a tree the
+    # tester never touched is not proven, and the run is refused with the check that failed.
+    # Findings the previous record already carried were measured by verdict-facts.
+    repro_problems = _replay_fresh_findings(state, facts, qa_root)
+    if repro_problems:
+        print(f"verdict-finalize: {len(repro_problems)} finding(s) claim `proven` on a repro that "
+              "did not reproduce on a fresh worktree at HEAD - fix the repro, or file the "
+              "finding as `probable`:\n  " + "\n  ".join(repro_problems), file=sys.stderr)
+        return 2
+    rfa = state.get("read_first") if isinstance(state.get("read_first"), dict) else {}
+    if rfa.get("unaccounted"):
+        print(f"verdict-finalize: {len(rfa['unaccounted'])} of {len(rfa.get('items') or [])} read_first "
+              f"functions are neither cited by a finding nor named in not_tested: "
+              f"{', '.join(rfa['unaccounted'][:5])}{' ...' if len(rfa['unaccounted']) > 5 else ''}",
+              file=sys.stderr)
     # A proven finding with no command behind it is proven to its author only: a stranger,
-    # and `verdict-replay`, have prose. Said once here, never a refusal — the run is done.
+    # and `verdict-replay`, have prose. Said once here - and refused under `repro_rule: on`.
+    # ASCII on purpose: this stream reaches a cp1252 console on Windows (CI, 2026-10-17).
     if prose := without_repro(state["findings"]):
-        # ASCII on purpose: this stream reaches a cp1252 console on Windows (CI, 2026-10-17).
+        if repro_rule_from(profile_config, profile_notes):
+            print(f"verdict-finalize: repro_rule is on and {len(prose)} proven Major+ finding(s) "
+                  f"carry no `repro` block: {', '.join(prose)} - add the command that shows the "
+                  "defect (command, cwd, expect), or file the finding as `probable`",
+                  file=sys.stderr)
+            return 2
         print(f"verdict-finalize: no structured repro on {len(prose)} proven Major+ finding(s): "
               f"{', '.join(prose)}; verdict-replay cannot check them. A `repro` block "
               "(command, cwd, expect) makes a finding a command a stranger can run",
@@ -3467,6 +3707,25 @@ def _render_reading_map(state: dict) -> list[str]:
     if never:
         out += ["", "Never cited by any finding, least covered first: "
                 + ", ".join(f"`{p}`" for p in never[:10])]
+    out.append("")
+    return out
+
+
+def _render_read_first(state: dict) -> list[str]:
+    """The ranked functions, and which of them the run accounted for."""
+    rf = state.get("read_first") if isinstance(state.get("read_first"), dict) else {}
+    if not rf.get("items"):
+        return []
+    status = {k: "finding" for k in rf.get("cited") or []}
+    status.update({k: "not_tested" for k in rf.get("declared_untested") or []})
+    out = [f"## Read first — {rf.get('basis')}", "",
+           "| Function | Risk | Accounted for |", "|---|---|---|"]
+    for it in rf["items"]:
+        key = f"{it.get('path')}::{it.get('function')}" if it.get("function") else str(it.get("path"))
+        out.append(f"| `{key}` | {it.get('risk') or '—'} | {status.get(key, '**no** — neither cited nor declared untested')} |")
+    if rf.get("unaccounted"):
+        out += ["", f"{len(rf['unaccounted'])} of {len(rf['items'])} ranked functions were neither cited by a "
+                "finding nor named in Not tested."]
     out.append("")
     return out
 
@@ -3829,6 +4088,7 @@ def render_report(state: dict, prose: dict | None = None) -> str:
         out += ["## Verified intact", "",
                 "\n".join(f"- {v}" for v in vi), ""]
     out += _render_questions(state)
+    out += _render_read_first(state)
     out += _render_reading_map(state)
     out += ["## Not tested", ""]
     nt = state.get("not_tested") or []

@@ -2099,8 +2099,8 @@
  {
   "label": "scoped gate 5: verdict-facts drops the range",
   "path": "src/verdict_mcp/harness.py",
-  "old": "                    sha_range=args.sha_range, hygiene_filing=filing)\n",
-  "new": "                    sha_range=None, hygiene_filing=filing)\n"
+  "old": "                    sha_range=args.sha_range, hygiene_filing=filing,\n",
+  "new": "                    sha_range=None, hygiene_filing=filing,\n"
  },
  {
   "label": "scoped gate 6: verdict-run never exports the range",
@@ -2533,5 +2533,125 @@
   "path": "src/verdict_mcp/dupes.py",
   "old": "    url = m.group(1).strip() if m else \"\"\n",
   "new": "    url = \"\"\n"
+ },
+ {
+  "label": "0.91.0 replay-in-run 1: a repro that still reproduces at HEAD no longer refuses a resolution",
+  "path": "src/verdict_mcp/harness.py",
+  "old": "    if rec.get(\"at_head\") == \"reproduced\":\n        if resolving:\n",
+  "new": "    if False:\n        if resolving:\n"
+ },
+ {
+  "label": "0.91.0 replay-in-run 2: a repro that stopped reproducing no longer resolves a carried finding",
+  "path": "src/verdict_mcp/harness.py",
+  "old": "        if not resolving:\n            entry[\"status\"] = \"resolved\"\n",
+  "new": "        if False:\n            entry[\"status\"] = \"resolved\"\n"
+ },
+ {
+  "label": "0.91.0 replay-in-run 3: a new proven finding whose repro fails is accepted",
+  "path": "src/verdict_mcp/harness.py",
+  "old": "    if repro_problems:\n        print(f\"verdict-finalize: {len(repro_problems)} finding(s) claim `proven` on a repro that \"\n",
+  "new": "    if False:\n        print(f\"verdict-finalize: {len(repro_problems)} finding(s) claim `proven` on a repro that \"\n"
+ },
+ {
+  "label": "0.91.0 replay-in-run 4: the repro measurement is not a basis for a confirmed outcome",
+  "path": "src/verdict_mcp/harness.py",
+  "old": "    shows_fix_by_repro = (r.get(\"at_previous\") == \"reproduced\" and r.get(\"at_head\") == \"not reproduced\"\n                          and r.get(\"isolated\") is not False)\n",
+  "new": "    shows_fix_by_repro = False\n"
+ },
+ {
+  "label": "0.91.0 replay-in-run 5: facts never measures at the previous commit",
+  "path": "src/verdict_mcp/harness.py",
+  "old": "    replays, rnotes = measure_findings(repo, [f for f in prev_findings if is_open(f)], prev_sha,\n",
+  "new": "    replays, rnotes = measure_findings(repo, [f for f in prev_findings if is_open(f)], None,\n"
+ },
+ {
+  "label": "0.91.0 replay-in-run 6: the harness runs a tester's pipeline unattended",
+  "path": "src/verdict_mcp/replay.py",
+  "old": "                row = replay_one(f, repo, scratch, qa_root, timeout, unattended=True)\n",
+  "new": "                row = replay_one(f, repo, scratch, qa_root, timeout)\n"
+ },
+ {
+  "label": "0.91.0 replay-in-run 7: a shell operator outside quotes passes the unattended shape",
+  "path": "src/verdict_mcp/replay.py",
+  "old": "    for op in _SHELL_OPERATORS:\n        if op in bare:\n",
+  "new": "    for op in ():\n        if op in bare:\n"
+ },
+ {
+  "label": "0.91.0 read-first 1: risk paths are no longer ranked first",
+  "path": "src/verdict_mcp/readfirst.py",
+  "old": "        items.sort(key=lambda i: (not i[\"risk\"], -i[\"unexercised_changed_lines\"], i[\"path\"], i[\"function\"]))\n",
+  "new": "        items.sort(key=lambda i: (-i[\"unexercised_changed_lines\"], i[\"path\"], i[\"function\"]))\n"
+ },
+ {
+  "label": "0.91.0 read-first 2: a stem matches inside a word (rate in generate)",
+  "path": "src/verdict_mcp/readfirst.py",
+  "old": "            if word == stem or (len(stem) >= 4 and word.startswith(stem)):\n",
+  "new": "            if stem in word:\n"
+ },
+ {
+  "label": "0.91.0 read-first 3: facts no longer carries the ranking",
+  "path": "src/verdict_mcp/harness.py",
+  "old": "    if ranked:\n        facts[\"read_first\"] = ranked\n",
+  "new": ""
+ },
+ {
+  "label": "0.91.0 read-first 4: a function named in not_tested still reads as unaccounted",
+  "path": "src/verdict_mcp/harness.py",
+  "old": "        elif (short and short in nt) or (path and path.lower() in nt):\n",
+  "new": "        elif False:\n"
+ },
+ {
+  "label": "0.91.0 read-first 5: a finding that cites the file but not the function accounts for it",
+  "path": "src/verdict_mcp/harness.py",
+  "old": "            return in_file and (not short or short in text)\n",
+  "new": "            return in_file\n"
+ },
+ {
+  "label": "0.91.0 check 1: a sibling site the model rejected is reported",
+  "path": "src/verdict_mcp/check.py",
+  "old": "            if answer.get(\"same_defect\") is True:\n",
+  "new": "            if True:\n"
+ },
+ {
+  "label": "0.91.0 check 2: the finding's own line is offered as its sibling",
+  "path": "src/verdict_mcp/check.py",
+  "old": "        if any(path == p and abs(n - ln) <= 3 for p, ln in own):\n            continue\n",
+  "new": ""
+ },
+ {
+  "label": "0.91.0 check 3: test files are searched for siblings",
+  "path": "src/verdict_mcp/check.py",
+  "old": "        if not num.isdigit() or _excluded(path):\n",
+  "new": "        if not num.isdigit():\n"
+ },
+ {
+  "label": "0.91.0 check 4: a site inside the defect's own function is offered as a sibling",
+  "path": "src/verdict_mcp/check.py",
+  "old": "        if (path, fn) in own_functions and fn != \"(module)\":\n            continue\n",
+  "new": ""
+ },
+ {
+  "label": "0.91.0 gaps 1: the canary is not checked, so an import of the original passes for a gap",
+  "path": "src/verdict_mcp/gaps.py",
+  "old": "            if verdict != \"fail\":\n                skipped.append(f\"{t['path']}::{t['function']} (a canary did not fail its tests: the \"\n",
+  "new": "            if False:\n                skipped.append(f\"{t['path']}::{t['function']} (a canary did not fail its tests: the \"\n"
+ },
+ {
+  "label": "0.91.0 gaps 2: tests failing on the clean tree count their mutants as killed",
+  "path": "src/verdict_mcp/gaps.py",
+  "old": "            if _run_tests(test_one_cmd, ids, scratch, env) != \"pass\":\n",
+  "new": "            if False:\n"
+ },
+ {
+  "label": "0.91.0 gaps 3: a function on no risk path is mutated",
+  "path": "src/verdict_mcp/gaps.py",
+  "old": "            if not risk:\n                continue\n            tested = {}\n",
+  "new": "            tested = {}\n"
+ },
+ {
+  "label": "0.91.0 gaps 4: a mutant written inside a string literal",
+  "path": "src/verdict_mcp/gaps.py",
+  "old": "    masked = _outside_quotes(line)\n",
+  "new": "    masked = line\n"
  }
 ]
