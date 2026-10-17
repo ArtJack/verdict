@@ -68,7 +68,8 @@ def test_terms_skip_the_language_and_the_stopwords():
     f = {"title": "`return None` when the value is wrong — `self.save()` ignores `update_fields`",
          "evidence": ["src/payments/models.py:40 — `def save(self, *args)`"]}
     terms = dupes.terms_of(f)
-    assert "return" not in terms and "None" not in terms and "self" not in terms and "save" not in [t.lower() for t in terms] or "update_fields" in terms
+    lowered = [t.lower() for t in terms]
+    assert "return" not in lowered and "none" not in lowered and "self" not in lowered, terms
     assert "update_fields" in terms
     assert "models" in terms, terms
 

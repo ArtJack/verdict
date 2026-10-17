@@ -170,7 +170,8 @@ def _remove_checkout(repo: Path, scratch: Path | None) -> None:
         return
     subprocess.run(["git", "-C", str(repo), "worktree", "remove", "--force", str(scratch)],
                    capture_output=True, text=True)
-    shutil.rmtree(scratch.parent, ignore_errors=True)
+    if scratch.parent.name.startswith("verdict-replay-"):   # only the directory this module made
+        shutil.rmtree(scratch.parent, ignore_errors=True)
 
 
 def _guard_dir(base: Path) -> Path:
@@ -231,7 +232,11 @@ def _rewrite_paths(command: str, repo: Path, scratch: Path) -> str:
 
 
 def replay_one(finding: dict, repo: Path, scratch: Path, qa_root: Path, timeout: int) -> dict:
-    r = repro_of(finding) or {}
+    r = repro_of(finding)
+    if r is None:
+        return {"id": str(finding.get("id")), "command": "", "cwd": "", "expect": {},
+                "result": "could not run", "exit": None, "output_tail": "",
+                "checks": ["no structured repro (`repro.command`) on the finding"]}
     command = _rewrite_paths(str(r["command"]), repo, scratch)
     command = command.replace("{repo}", str(scratch)).replace("{qa_root}", str(qa_root))
     cwd, problem = _cwd_for(r.get("cwd"), scratch, qa_root)

@@ -241,6 +241,19 @@ def test_nothing_to_replay_and_no_repository_are_exit_2(tmp_path, capsys):
     assert replay.main([str(tmp_path / "nowhere")]) == 2
 
 
+def test_replay_one_without_a_repro_block_is_could_not_run_not_a_crash(tmp_path):
+    row = replay.replay_one(_finding("PRICER-F-9"), tmp_path, tmp_path / "tree", tmp_path, 5)
+    assert row["result"] == "could not run" and "no structured repro" in row["checks"][0]
+
+
+def test_remove_checkout_only_removes_the_directory_it_made(tmp_path):
+    keep = tmp_path / "mine" / "tree"
+    keep.mkdir(parents=True)
+    (tmp_path / "mine" / "precious.txt").write_text("x", encoding="utf-8")
+    replay._remove_checkout(tmp_path, keep)
+    assert (tmp_path / "mine" / "precious.txt").exists()
+
+
 def test_without_repro_names_the_open_proven_major_plus_findings_only():
     findings = [_finding("A-F-1"), _finding("A-F-2", TRUNCATES), _finding("A-F-3", severity="Minor"),
                 _finding("A-F-4", confidence="likely"), _finding("A-F-5", status="resolved"),
