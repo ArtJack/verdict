@@ -371,6 +371,7 @@ def plugin_root(explicit=None):
 
 # `0` = wait for background tasks indefinitely (the CLI's own wording on stderr).
 BG_WAIT_ENV = "CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS"
+GAPS_DEFAULT_ENV = "VERDICT_ASSERTION_GAPS"
 
 GATEWAY_FLAGS = {
     # A model that is not Anthropic's behind the base URL rejects the `thinking`
@@ -937,6 +938,39 @@ def clear_marker(qa_root) -> None:
         pass
 
 
+PREMEASURED_ENV = "VERDICT_FACTS_PREMEASURED"
+PREMEASURE_TIMEOUT_S = 3600
+
+
+def premeasure(repo, qa_root, env, sha_range=None, run=subprocess.run) -> str | None:
+    """`verdict-facts` before the tester starts → the HEAD it measured, or None (0.91.1).
+
+    The tester's first command is verdict-facts, and its Bash call ends at 10 minutes; a large
+    suite under coverage plus the assertion-gap census does not fit. Measured here, outside any
+    Claude Code session, the census gets its whole budget; the tester's call adopts the result.
+    A measurement that fails is said and left to the tester, which measures as before."""
+    child = {k: v for k, v in env.items() if k not in ("CLAUDECODE", "CLAUDE_CODE_ENTRYPOINT")}
+    cmd = [sys.executable, "-m", "verdict_mcp.harness", "facts", "--repo", str(repo),
+           "--qa-root", str(qa_root)] + (["--range", sha_range] if sha_range else [])
+    started = time.monotonic()
+    try:
+        proc = run(cmd, env=child, capture_output=True, text=True, timeout=PREMEASURE_TIMEOUT_S)
+    except (subprocess.TimeoutExpired, OSError) as exc:
+        print(f"verdict-run: measuring before the tester failed ({type(exc).__name__}); the tester "
+              "measures on its own", file=sys.stderr)
+        return None
+    if proc.returncode != 0:
+        tail = (proc.stderr or proc.stdout or "").strip().splitlines()[-1:] or [""]
+        print(f"verdict-run: measuring before the tester exited {proc.returncode} ({tail[0][:160]}); "
+              "the tester measures on its own", file=sys.stderr)
+        return None
+    head = subprocess.run(["git", "-C", str(repo), "rev-parse", "HEAD"], capture_output=True,
+                          text=True).stdout.strip()
+    print(f"verdict-run: facts measured before the tester started ({time.monotonic() - started:.0f} s); "
+          "its verdict-facts adopts them", file=sys.stderr)
+    return head or None
+
+
 def run_local(repo, qa_root, args, base_url, token) -> int:
     """Hand the night to `verdict-local` → its exit code. No `claude` is launched."""
     try:
@@ -990,6 +1024,10 @@ def main(argv=None) -> int:
                     help="when HEAD equals the last run's sha and no quarantine "
                          "has expired, re-gate the standing verdict instead of "
                          "spending a model run")
+    ap.add_argument("--no-premeasure", action="store_true",
+                    help="let the tester run verdict-facts itself instead of measuring before it "
+                         "starts (default: measure first, so a long census is not cut by the "
+                         "tester's 10-minute Bash call)")
     ap.add_argument("--skip-unless-drift", action="store_true",
                     help="when HEAD moved but nothing any finding cites changed, every gate "
                          "is green, the test-id set is unchanged and no quarantine is due, "
@@ -1191,6 +1229,11 @@ def main(argv=None) -> int:
     # from GitHub. Neither needs the tester to remember anything now.
     env.setdefault("PYTHONDONTWRITEBYTECODE", "1")
     env.setdefault("GIT_NO_LAZY_FETCH", "1")
+    # An asked run gets the assertion-gap census unless the profile says `assertion_gaps: off`
+    # (0.91.1): suite time, never model time, and it points the tester at code the suite runs
+    # without checking. verdict-facts runs it only when the
+    # profile also has coverage_suite_cmd and test_one_cmd.
+    env.setdefault(GAPS_DEFAULT_ENV, "on")
     # A dollar ceiling the CLI itself enforces. Budgets were stated in prose
     # and filled, never used (P-49); the flag existed and was never passed
     # (audit 2026-10-02, O-S-9).
@@ -1219,6 +1262,10 @@ def main(argv=None) -> int:
         return [args.claude_cmd, "-p", text, "--model", args.model, *tester,
                 "--setting-sources", "project,local", *strict, *mcp, *budget, *passthrough]
 
+    if not args.no_premeasure:
+        head = premeasure(repo, qa_root, env, args.sha_range)
+        if head:
+            env[PREMEASURED_ENV] = head
     cmd = launch(tester)
     attempt = 0
     while attempt < 2:

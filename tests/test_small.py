@@ -516,3 +516,76 @@ def test_the_skip_scan_reads_the_files_the_suite_collects(tmp_path):
     assert small.skip_scan_files(repo, qa) == ["tests/test_real.py"]
     (qa / "test-ids.txt").write_text("suite.spec.ts > adds\n", encoding="utf-8")
     assert small.collected_test_files(repo, qa) is None, "ids without a path are no ledger of files"
+
+
+# ── assertion-gap survivors steer the local reader (0.91.1) ───────────────
+
+GAPS = {"assertion_gaps": {"survived": [
+    {"path": "shop/pay.py", "function": "Provider.charge", "line": 12, "operator": "condition",
+     "before": "if self._capture:", "after": "if not (self._capture):", "tests": ["t::a"]}]}}
+
+
+def test_files_and_functions_holding_a_survivor_are_read_first(tmp_path):
+    (tmp_path / "shop").mkdir()
+    (tmp_path / "shop" / "pay.py").write_text(
+        "class Provider:\n    def refund(self):\n        return 1\n\n    def charge(self):\n        return 2\n",
+        encoding="utf-8")
+    (tmp_path / "shop" / "util.py").write_text("def f():\n    return 0\n", encoding="utf-8")
+    facts = dict(GAPS, reading_map={"lowest": [{"path": "shop/util.py"}, {"path": "shop/pay.py"}]})
+    assert small.candidates(facts, tmp_path)[:2] == ["shop/pay.py", "shop/util.py"]
+    assert small.delta_candidates(facts, tmp_path, ["shop/util.py", "shop/pay.py"])[0] == "shop/pay.py"
+    names = [c.name for c in small.ordered_chunks(tmp_path, "shop/pay.py", None, small.gap_functions(facts))]
+    assert names[0] == "charge" and "refund" in names
+
+
+def test_the_survivor_reaches_the_first_question_as_a_hint():
+    model = FakeModel([{"verdict": "matches", "line": None, "mechanism": "fine"}])
+    hint = small.gap_hint(small.gap_functions(GAPS)["shop/pay.py"]["charge"])
+    small.examine(model, _chunk(), hint)
+    assert "line 12 `if self._capture:` -> `if not (self._capture):`" in model.asked[0]
+    assert "nothing the suite asserts depends on those lines" in model.asked[0]
+    small.examine(model, _chunk())
+    assert "mutation test" not in model.asked[1], "no census, no hint"
+
+
+
+def test_not_tested_names_the_survivor_functions_no_question_reached():
+    class M:
+        name, answered, unanswered, errors = "chat-120b", 3, 0, 0
+
+    class B:
+        stopped, skipped = None, 0
+
+    lines = small.not_tested_lines(M(), ["shop/pay.py"], 1, [], [], [], True, B(), [], False,
+                                   unread_survivors=[("shop/pay.py", "charge")])
+    assert "shop/pay.py::charge — an assertion-gap survivor this run did not read" in lines
+
+
+
+def test_the_local_engine_runs_the_census_its_profile_asks_for(tmp_path, monkeypatch):
+    """2026-10-17: a local run whose profile said `assertion_gaps: on` carried no census — this
+    engine collects its own facts and never passed the setting on (the class this function's
+    docstring records twice before: 0.88.0's commands, 0.91.0's `hygiene:`)."""
+    import subprocess as sp
+    repo = tmp_path / "r"
+    repo.mkdir()
+    sp.run(["git", "init", "-qb", "main"], cwd=repo, check=True)
+    (repo / "a.py").write_text("x = 1\n", encoding="utf-8")
+    sp.run(["git", "-c", "user.email=t@t", "-c", "user.name=t", "add", "-A"], cwd=repo, check=True)
+    sp.run(["git", "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-qm", "a"], cwd=repo, check=True)
+    qa = tmp_path / "qa"
+    qa.mkdir()
+    seen = {}
+
+    def fake_collect(*a, **kw):
+        seen.update(kw)
+        return {"last_run": {}}
+
+    monkeypatch.setattr(small, "collect", fake_collect)
+    config = {"assertion_gaps": "on", "test_one_cmd": "pytest {id}", "risk_paths": "shop/*",
+              "coverage_suite_cmd": "python -m coverage run -m pytest"}
+    small.measure(repo, qa, [], config, None, [])
+    assert seen["assertion_gaps"] == {"test_one_cmd": "pytest {id}", "budget_s": None, "globs": ["shop/*"]}, seen
+    seen.clear()
+    small.measure(repo, qa, [], {**config, "assertion_gaps": "off"}, None, [])
+    assert seen["assertion_gaps"] is None

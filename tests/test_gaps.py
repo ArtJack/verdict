@@ -58,6 +58,19 @@ def _tid(context):
     return context.split("|")[0]
 
 
+def test_a_call_made_for_its_effect_an_attribute_set_and_a_raise_become_pass():
+    assert [m["after"] for m in gaps.mutants_of("        self.save(update_fields=['status'])")] == ["        pass"]
+    assert [m["after"] for m in gaps.mutants_of("    order.paid_total = amount")] == ["    pass"]
+    assert [m["after"] for m in gaps.mutants_of("        raise ValueError('negative')")][:1] == ["        pass"]
+    assert [m["after"].strip() for m in gaps.mutants_of("    return amount + fee")] == ["return None", "return amount - fee"]
+    assert gaps.mutants_of("    total = amount") == [], "a local name, no effect to check"
+    assert gaps._structural("    amount=amount,") == [], "an argument inside a call is not a statement"
+
+
+def test_a_mutant_that_does_not_parse_is_never_run():
+    assert gaps._parses(["x = (\n", "    pass\n"]) is False and gaps._parses(["x = 1\n"]) is True
+
+
 def test_operators_never_touch_a_string_or_a_definition():
     assert [m["after"].strip() for m in gaps.mutants_of("    if amount and amount > total:")] == \
         ["if amount and amount >= total:", "if amount or amount > total:"]
@@ -87,11 +100,26 @@ def test_tests_that_import_the_original_checkout_are_caught_by_the_canary(tmp_pa
     assert all("a canary did not fail its tests" in s for s in r["skipped"]), r["skipped"]
 
 
-def test_a_function_whose_tests_fail_on_the_clean_tree_is_skipped(tmp_path):
+def test_a_function_whose_tests_fail_on_the_clean_tree_is_skipped_and_says_why(tmp_path):
     repo = _repo(tmp_path, tests=TESTS.replace("== 180", "== 181"))
     r = gaps.census(repo, _files(), CMD, is_test=lambda p: p.startswith("tests/"), test_id=_tid, budget_s=120)
-    assert "shop/pricing.py::apply_discount (its tests do not pass on the clean tree)" in r["skipped"]
+    (skip,) = [s for s in r["skipped"] if s.startswith("shop/pricing.py::apply_discount")]
+    assert "its tests do not pass on the clean tree: FAILED tests/test_pricing.py::test_discount" in skip
     assert {s["function"] for s in r["survived"]} == {"charge_fee"}
+
+
+def test_a_test_that_fails_beside_a_passing_one_is_dropped_not_the_function(tmp_path):
+    """2026-10-17: a money function's first six tests included ones that fail in a fresh
+    worktree, and the whole function was skipped. Each test alone keeps the ones that pass."""
+    extra = TESTS + "\n\ndef test_broken_elsewhere():\n    from shop.pricing import charge_fee\n    charge_fee(1)\n    assert False\n"
+    repo = _repo(tmp_path, tests=extra)
+    files = _files()
+    broken = "tests/test_pricing.py::test_broken_elsewhere|run"
+    for ln in ("8", "9"):
+        files["shop/pricing.py"]["contexts"][ln] = [broken] + files["shop/pricing.py"]["contexts"][ln]
+    r = gaps.census(repo, files, CMD, is_test=lambda p: p.startswith("tests/"), test_id=_tid, budget_s=120)
+    fee = [s for s in r["survived"] if s["function"] == "charge_fee"]
+    assert fee and all(s["tests"] == ["tests/test_pricing.py::test_fee_runs"] for s in fee), r
 
 
 def test_only_risk_paths_and_tested_lines_are_candidates():
@@ -128,3 +156,86 @@ def test_two_survivors_in_one_function_are_one_read_first_item(tmp_path):
     g = {"survived": [one, dict(one, operator="condition", after="not (a == b)")]}
     r = read_first(tmp_path, None, None, gaps=g)
     assert [(i["path"], i["function"]) for i in r["items"]] == [("p/dummy.py", "get_form")]
+
+
+
+def _finalize_with_survivors(repo, qa_root, judgment_over, profile=None):
+    import json as _json
+    from conftest import judgment
+    from verdict_mcp.harness import facts_main, finalize_main
+    if profile:
+        (qa_root / "profile.md").write_text(f"---\n{profile}\n---\n\n# QA Profile\n", encoding="utf-8")
+    assert facts_main(["--repo", str(repo), "--qa-root", str(qa_root)]) == 0
+    facts = _json.loads((qa_root / "facts.json").read_text(encoding="utf-8"))
+    facts["assertion_gaps"] = {"status": "measured", "survived": [
+        {"path": "shop/pricing.py", "function": "charge_fee", "line": 9, "operator": "arithmetic",
+         "before": "return amount + fee", "after": "return amount - fee", "tests": ["t::x"]}]}
+    (qa_root / "facts.json").write_text(_json.dumps(facts), encoding="utf-8")
+    (qa_root / "judgment.json").write_text(_json.dumps(judgment(**judgment_over)), encoding="utf-8")
+    rc = finalize_main(["--qa-root", str(qa_root), "--judgment", str(qa_root / "judgment.json")])
+    state = _json.loads((qa_root / "state.json").read_text(encoding="utf-8")) if (qa_root / "state.json").is_file() else None
+    return rc, state
+
+
+def test_a_survivor_function_nobody_accounted_for_is_said_and_refused_when_strict(repo, qa_root, capsys):
+    rc, state = _finalize_with_survivors(repo, qa_root, {"findings": []})
+    err = capsys.readouterr().err
+    assert rc == 0 and "1 assertion-gap survivor function(s) unaccounted: shop/pricing.py::charge_fee" in err
+    assert state["assertion_gaps_accounting"]["unaccounted"] == ["shop/pricing.py::charge_fee"]
+    (qa_root / "state.json").unlink()
+    rc, state = _finalize_with_survivors(repo, qa_root, {"findings": []}, profile="repro_rule: on")
+    assert rc == 2 and "read them, or name each in not_tested as path::function" in capsys.readouterr().err
+    rc, state = _finalize_with_survivors(repo, qa_root, {"findings": [],
+                                                         "not_tested": ["shop/pricing.py::charge_fee — out of budget"]},
+                                         profile="repro_rule: on")
+    assert rc == 0 and state["assertion_gaps_accounting"]["declared_untested"] == ["shop/pricing.py::charge_fee"]
+
+
+
+def test_money_logic_is_measured_before_admin_ui():
+    ctx = lambda n: {str(i): ["tests/t.py::t|run"] for i in range(1, n + 1)}
+    files = {
+        "shop/dashboard/orders/views.py": {"functions": {"OrderListView.get_queryset": {"executed_lines": list(range(1, 20))}},
+                                           "contexts": ctx(19)},
+        "shop/offer/benefits.py": {"functions": {"PercentageDiscountBenefit.apply": {"executed_lines": [1, 2, 3]}},
+                                   "contexts": ctx(3)},
+        "shop/order/utils.py": {"functions": {"helper": {"executed_lines": [1, 2, 3, 4]}}, "contexts": ctx(4)},
+    }
+    order = [c["function"] for c in gaps.candidates(files, test_id=lambda c: c.split("|")[0])]
+    assert order == ["PercentageDiscountBenefit.apply", "helper", "OrderListView.get_queryset"], order
+
+
+
+def test_an_asked_run_gets_the_census_unless_the_profile_says_off(monkeypatch):
+    from verdict_mcp.profile import assertion_gaps_from
+    monkeypatch.delenv("VERDICT_ASSERTION_GAPS", raising=False)
+    assert assertion_gaps_from({}, [])[0] is False, "unset everywhere: off"
+    monkeypatch.setenv("VERDICT_ASSERTION_GAPS", "on")
+    assert assertion_gaps_from({}, [])[0] is True, "verdict-run's default"
+    assert assertion_gaps_from({"assertion_gaps": "off"}, [])[0] is False, "the profile's word wins"
+    assert assertion_gaps_from({"assertion_gaps": "on", "assertion_gaps_budget_s": "90"}, []) == (True, 90)
+
+
+def test_verdict_run_sets_the_census_default_for_the_child():
+    from verdict_mcp import runner
+    src = __import__("inspect").getsource(runner)
+    assert 'env.setdefault(GAPS_DEFAULT_ENV, "on")' in src and runner.GAPS_DEFAULT_ENV == "VERDICT_ASSERTION_GAPS"
+
+
+
+def test_inside_an_agent_call_the_census_takes_what_is_left_of_the_window(tmp_path, monkeypatch):
+    from verdict_mcp import harness
+    seen = {}
+    monkeypatch.setattr(harness, "measure_coverage",
+                        lambda repo, rng, cmd, findings, on_files=None: (on_files({}, None), ({}, None, None))[1])
+    monkeypatch.setattr(harness, "gap_census_of",
+                        lambda *a, budget_s=None, **kw: seen.setdefault("budget", budget_s) and {"status": "measured"})
+    monkeypatch.setattr(harness, "FACTS_WINDOW_S", 100)
+    monkeypatch.setenv("CLAUDECODE", "1")
+    harness._coverage_with_gaps(tmp_path, None, "cov", [], {"test_one_cmd": "x {id}", "budget_s": 480})
+    assert harness.GAPS_MIN_S <= seen["budget"] <= 100
+    seen.clear()
+    monkeypatch.delenv("CLAUDECODE")
+    monkeypatch.delenv("CLAUDE_CODE_ENTRYPOINT", raising=False)
+    harness._coverage_with_gaps(tmp_path, None, "cov", [], {"test_one_cmd": "x {id}", "budget_s": 480})
+    assert seen["budget"] == 480, "a nightly has no 10-minute call to fit in"

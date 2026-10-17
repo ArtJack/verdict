@@ -2639,8 +2639,8 @@
  {
   "label": "0.91.0 gaps 2: tests failing on the clean tree count their mutants as killed",
   "path": "src/verdict_mcp/gaps.py",
-  "old": "            if _run_tests(test_one_cmd, ids, scratch, env) != \"pass\":\n",
-  "new": "            if False:\n"
+  "old": "            if not ids:\n                skipped.append(f\"{t['path']}::{t['function']} (its tests do not pass on the clean tree: \"\n",
+  "new": "            if False:\n                skipped.append(f\"{t['path']}::{t['function']} (its tests do not pass on the clean tree: \"\n"
  },
  {
   "label": "0.91.0 gaps 3: a function on no risk path is mutated",
@@ -2653,5 +2653,89 @@
   "path": "src/verdict_mcp/gaps.py",
   "old": "    masked = _outside_quotes(line)\n",
   "new": "    masked = line\n"
+ },
+ {
+  "label": "0.91.1 gaps 5: a call made for its effect is never deleted",
+  "path": "src/verdict_mcp/gaps.py",
+  "old": "    if isinstance(node, ast.Expr) and isinstance(node.value, ast.Call):\n        return [(\"statement\", indent + \"pass\")]\n",
+  "new": ""
+ },
+ {
+  "label": "0.91.1 gaps 6: a mutant that does not parse is run and read as killed",
+  "path": "src/verdict_mcp/gaps.py",
+  "old": "                    if not _parses(mutated):\n                        continue                      # a line inside a bracket, not a statement\n",
+  "new": ""
+ },
+ {
+  "label": "0.91.1 local 1: files holding a survivor are no longer read first",
+  "path": "src/verdict_mcp/small.py",
+  "old": "    files = list(gap_functions(facts))\n",
+  "new": "    files = []\n"
+ },
+ {
+  "label": "0.91.1 local 2: the census hint never reaches the reader",
+  "path": "src/verdict_mcp/small.py",
+  "old": "                           + (f\"\\n\\n{hint}\" if hint else \"\"))\n",
+  "new": "                           )\n"
+ },
+ {
+  "label": "0.91.1 gaps 7: a set that fails on the clean tree is not retried test by test",
+  "path": "src/verdict_mcp/gaps.py",
+  "old": "    return [i for i in ids if _run_tests(cmd, [i], scratch, env) == \"pass\"]\n",
+  "new": "    return []\n"
+ },
+ {
+  "label": "0.91.1 render 1: a slow full render loses every coverage fact instead of falling back",
+  "path": "src/verdict_mcp/harness.py",
+  "old": "    except subprocess.TimeoutExpired:\n        # A large suite's contexts make the full render slow: freqtrade's exceeded 300 s\n",
+  "new": "    except ZeroDivisionError:\n        # A large suite's contexts make the full render slow: freqtrade's exceeded 300 s\n"
+ },
+ {
+  "label": "0.91.1 gaps 8: an unaccounted survivor passes a strict profile",
+  "path": "src/verdict_mcp/harness.py",
+  "old": "            return 2\n        print(f\"verdict-finalize: {len(gap_acc['unaccounted'])} assertion-gap survivor function(s) \"\n",
+  "new": "            pass\n        print(f\"verdict-finalize: {len(gap_acc['unaccounted'])} assertion-gap survivor function(s) \"\n"
+ },
+ {
+  "label": "0.91.1 local 3: an unread survivor function is left out of not_tested",
+  "path": "src/verdict_mcp/small.py",
+  "old": "    out.extend(f\"{path}::{name} — an assertion-gap survivor this run did not read\"\n               for path, name in (unread_survivors or []))\n",
+  "new": ""
+ },
+ {
+  "label": "0.91.1 gaps 9: an unset profile ignores verdict-run's census default",
+  "path": "src/verdict_mcp/profile.py",
+  "old": "        raw = os.environ.get(\"VERDICT_ASSERTION_GAPS\", \"\")\n",
+  "new": "        raw = \"\"\n"
+ },
+ {
+  "label": "0.91.1 gaps 10: inside an agent call the census ignores the 10-minute Bash window",
+  "path": "src/verdict_mcp/harness.py",
+  "old": "        if inside_agent_call():\n",
+  "new": "        if False:\n"
+ },
+ {
+  "label": "0.91.1 premeasure 1: the tester's facts call ignores verdict-run's measurement",
+  "path": "src/verdict_mcp/harness.py",
+  "old": "        adopt = premeasured and premeasured == head and age <= PREMEASURED_MAX_AGE_MIN and same_range\n",
+  "new": "        adopt = False\n"
+ },
+ {
+  "label": "0.91.1 premeasure 2: an adopted measurement keeps verdict-run's marker, not the tester's session",
+  "path": "src/verdict_mcp/harness.py",
+  "old": "            if adopt:\n                _restake_marker(qa_root)\n",
+  "new": ""
+ },
+ {
+  "label": "0.91.1 premeasure 3: the premeasurement runs inside the session's 10-minute window",
+  "path": "src/verdict_mcp/runner.py",
+  "old": "    child = {k: v for k, v in env.items() if k not in (\"CLAUDECODE\", \"CLAUDE_CODE_ENTRYPOINT\")}\n",
+  "new": "    child = dict(env)\n"
+ },
+ {
+  "label": "0.91.1 local 4: the local engine collects its facts without the census its profile asks for",
+  "path": "src/verdict_mcp/small.py",
+  "old": "                    assertion_gaps=({\"test_one_cmd\": config.get(\"test_one_cmd\"), \"budget_s\": gaps_budget,\n",
+  "new": "                    assertion_gaps=None and ({\"test_one_cmd\": config.get(\"test_one_cmd\"), \"budget_s\": gaps_budget,\n"
  }
 ]

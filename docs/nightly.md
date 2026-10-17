@@ -41,6 +41,17 @@ VERDICT_STRICT=1 claude -p "/verdict:run" \
   audit. In team mode (`.qa/` committed) the state travels with the repo; in
   solo mode it lives in `$VERDICT_HOME` on the box.
 
+**`verdict-run` measures before the tester starts (0.91.1).** The tester's first command is
+`verdict-facts`, run as a Bash call that ends at 10 minutes; a large suite under coverage plus
+the assertion-gap census does not fit, and a census cut short leaves the lines it never reached
+unmeasured. So `verdict-run` runs `verdict-facts` itself first — outside any Claude Code session,
+with the census's whole budget — and passes the commit it measured as
+`VERDICT_FACTS_PREMEASURED`; the tester's own `verdict-facts` adopts those facts for the same
+HEAD and range (and claims the run marker for its session, which the stop hook and the bill
+read). A measurement that fails is said, and the tester measures as before. `--no-premeasure`
+restores the old order. An asked run also gets the census by default
+(`VERDICT_ASSERTION_GAPS=on`) unless the profile says `assertion_gaps: off`.
+
 **Make the runner session-limit aware.** A subscription window exhausted by daytime work
 will kill the nightly run mid-flight — the CLI prints `You've hit your session limit ·
 resets <time>` and exits non-zero, and the gate then correctly refuses the stale state
