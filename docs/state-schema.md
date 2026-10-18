@@ -437,20 +437,25 @@ where a defect sat inside that scope or behind a census survivor, and missed one
 named scope and one that needed the open-ended reading a full run does.
 
 Measured again with the risk focus steering the packet (2026-10-18; four of the benchmark's
-repositories, 15 known defects, the same prompts and profiles):
+repositories, 15 known defects, the same prompts and profiles). Located is judged by hand, defect
+by defect: the scorer's naming words credited several findings to the wrong defect across these runs
+(one generic word, such as `rate`, plus the same file), and a stricter two-word rule then missed a
+correct one, so the key's words need rewriting before its count can stand alone.
 
-| | located | proven | cost |
+| | located (by hand) | scorer as shipped | cost |
 |---|---|---|---|
-| full asked runs | 12 of 15 | 7 of 15 | $15.09 |
-| escalation with the risk focus | 9 of 15 | 4 of 15 | $6.16 |
+| full asked runs | 11 of 15 | 12 of 15 | $15.09 |
+| escalation, about 35 calls | 8 of 15 | 9 of 15 | $6.16 |
+| escalation, about 60 calls (`--escalate-calls 60`) | 7 of 15 | 11 of 15 | $7.89 |
 
-Every packet pointed at every known defect, and the tester did not reach them all. Its
-not-tested lists say where the rest went: items cut by its budget of about 35 calls, a mechanism
-measured and put to the owner as a question, one observed and not pursued. It also proved one
-Major outside the known list, which a hand replay confirmed. Three of its proofs could not be
-replayed in the run: one because the command began with `env` (it now runs), two because the
-fresh checkout lacks the package's compiled extension. The packet no longer limits an escalation
-run; its budget does. One run per case throughout: read these as a direction, not a rate.
+Every packet pointed at every known defect, and the tester did not reach them all. At about 35
+calls its not-tested lists say where the rest went: items cut by its budget, a mechanism measured
+and put to the owner as a question, one observed and not pursued. At about 60 calls it did not
+find more of the known defects: the extra calls went elsewhere, into proven findings outside the
+known list (one of them confirmed by a hand replay, found at both budgets) and contract questions.
+So the default stays at about 35. Three proofs at 35 calls could not be replayed in the run: one
+because the command began with `env` (it now runs), two because the fresh checkout lacks the
+package's compiled extension. One run per case throughout: read these as a direction, not a rate.
 
 ## A repro for an old finding — `verdict-backfill` → `<qa-root>/backfill.jsonl` (0.92.0)
 
