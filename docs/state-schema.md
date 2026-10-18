@@ -428,13 +428,28 @@ baseline each, Opus 5.5 at the agent's `xhigh`, scored by `eval/recall/score_rec
 |---|---|---|---|
 | full asked runs | 10 of 13 | 8 of 13 | $15.55 |
 | escalation, first instructions | 2 of 13 | 2 of 13 | $4.17 |
-| escalation, as shipped | 8 of 13 | 5 of 13 | $6.37 |
+| escalation, covering the named scope | 8 of 13 | 5 of 13 | $6.37 |
 
 The first instructions kept the tester inside the list, and with no coverage map the list was
-thin. As shipped, the tester also covers the scope its instructions name. It matched the full
-runs where a defect sat inside that scope or behind a census survivor, and missed one outside the
-named scope and one that needed the open-ended reading a full run does. One run per case: read
-these as a direction, not a rate.
+thin. Then the tester also covered the scope its instructions name. It matched the full runs
+where a defect sat inside that scope or behind a census survivor, and missed one outside the
+named scope and one that needed the open-ended reading a full run does.
+
+Measured again with the risk focus steering the packet (2026-10-18; four of the benchmark's
+repositories, 15 known defects, the same prompts and profiles):
+
+| | located | proven | cost |
+|---|---|---|---|
+| full asked runs | 12 of 15 | 7 of 15 | $15.09 |
+| escalation with the risk focus | 9 of 15 | 4 of 15 | $6.16 |
+
+Every packet pointed at every known defect, and the tester did not reach them all. Its
+not-tested lists say where the rest went: items cut by its budget of about 35 calls, a mechanism
+measured and put to the owner as a question, one observed and not pursued. It also proved one
+Major outside the known list, which a hand replay confirmed. Three of its proofs could not be
+replayed in the run: one because the command began with `env` (it now runs), two because the
+fresh checkout lacks the package's compiled extension. The packet no longer limits an escalation
+run; its budget does. One run per case throughout: read these as a direction, not a rate.
 
 ## A repro for an old finding — `verdict-backfill` → `<qa-root>/backfill.jsonl` (0.92.0)
 
