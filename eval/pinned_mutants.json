@@ -2755,5 +2755,11 @@
   "path": "src/verdict_mcp/harness.py",
   "old": "    strict = repro_rule_from(profile_config, profile_notes) and facts.get(\"run_type\") != \"sweep\" and \\\n",
   "new": "    strict = repro_rule_from(profile_config, profile_notes) and \\\n"
+ },
+ {
+  "label": "0.91.2 profile 1: a key the harness reads is announced as unread on every run",
+  "path": "src/verdict_mcp/profile.py",
+  "old": "         \"assertion_gaps_budget_s\", \"repro_rule\", \"contract_rule\")\n",
+  "new": "         \"assertion_gaps_budget_s\", \"contract_rule\")\n"
  }
 ]
