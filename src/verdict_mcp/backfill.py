@@ -273,7 +273,8 @@ def setup_hint(repo: Path, ref: str, rels, names) -> str:
 
 
 def cited(repo: Path, finding: dict, ref: str = "HEAD", roots=()) -> tuple:
-    """(the excerpts the model reads, the cited modules' import paths, the names they define)."""
+    """(the excerpts the model reads, the cited modules' import paths, the names they define, the
+    cited files, and each cited function's `(file, first body line, last line)` for the reach check)."""
     parts, tree, modules, defined, rels, spans = [], None, [], [], [], []
     for cited, line in citations(finding):
         rel = resolve_path(repo, ref, cited, tree)
