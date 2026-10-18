@@ -79,12 +79,29 @@ def test_gates_given_as_a_bare_value_is_rejected(tmp_path):
         load(tmp_path)
 
 
-def test_keys_verdict_facts_does_not_read_are_reported_not_dropped(tmp_path):
+def test_keys_the_harness_does_not_read_are_reported_not_dropped(tmp_path):
     (tmp_path / "profile.md").write_text(
         "---\ngates:\n  suite: pytest\nsecurity_pass: enabled\n---\n", encoding="utf-8")
     config, notes = load(tmp_path)
     assert config["security_pass"] == "enabled"
-    assert any("not read by verdict-facts" in n and "security_pass" in n for n in notes)
+    assert any("not read by the harness" in n and "security_pass" in n for n in notes)
+
+
+def test_every_key_the_harness_reads_is_known_so_none_is_reported_unread(tmp_path):
+    """A key added to a reader and not to KNOWN is announced as unread on every run, the way
+    `repro_rule` was on the first two profiles that turned it on (2026-10-17)."""
+    import re
+    from verdict_mcp.profile import KNOWN
+    src = Path(__file__).resolve().parent.parent / "src" / "verdict_mcp"
+    read = set()
+    for f in src.glob("*.py"):
+        read |= set(re.findall(r'config(?:\.get\(|\[)"([a-z_]+)"', f.read_text(encoding="utf-8")))
+    assert read and read <= set(KNOWN), sorted(read - set(KNOWN))
+    (tmp_path / "profile.md").write_text(
+        "---\nrepro_rule: on\nrisk_class: money\ncontract_rule: on\nrisk_paths: shop/\n"
+        "assertion_gaps: on\nassertion_gaps_budget_s: 300\n---\n", encoding="utf-8")
+    config, notes = load(tmp_path)
+    assert not [n for n in notes if "not read" in n], notes
 
 
 def test_a_missing_profile_is_reported_and_is_not_fatal(tmp_path):
