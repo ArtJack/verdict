@@ -427,9 +427,9 @@ baseline each, Opus 5.5 at the agent's `xhigh`, scored by `eval/recall/score_rec
 
 | | located | proven | cost |
 |---|---|---|---|
-| full asked runs | 10 of 13 | 8 of 13 | $15.55 |
-| escalation, first instructions | 2 of 13 | 2 of 13 | $4.17 |
-| escalation, covering the named scope | 8 of 13 | 5 of 13 | $6.37 |
+| full asked runs | 9 of 13 | 7 of 13 | $15.55 |
+| escalation, first instructions | 1 of 13 | 1 of 13 | $4.17 |
+| escalation, covering the named scope | 7 of 13 | 6 of 13 | $6.37 |
 
 The first instructions kept the tester inside the list, and with no coverage map the list was
 thin. Then the tester also covered the scope its instructions name. It matched the full runs
@@ -437,16 +437,19 @@ where a defect sat inside that scope or behind a census survivor, and missed one
 named scope and one that needed the open-ended reading a full run does.
 
 Measured again with the risk focus steering the packet (2026-10-18; four of the benchmark's
-repositories, 15 known defects, the same prompts and profiles). Located is judged by hand, defect
-by defect: the scorer's naming words credited several findings to the wrong defect across these runs
-(one generic word, such as `rate`, plus the same file), and a stricter two-word rule then missed a
-correct one, so the key's words need rewriting before its count can stand alone.
+repositories, 15 known defects, the same prompts and profiles):
 
-| | located (by hand) | scorer as shipped | cost |
-|---|---|---|---|
-| full asked runs | 11 of 15 | 12 of 15 | $15.09 |
-| escalation, about 35 calls | 8 of 15 | 9 of 15 | $6.16 |
-| escalation, about 60 calls (`--escalate-calls 60`) | 7 of 15 | 11 of 15 | $7.89 |
+| | located | cost |
+|---|---|---|
+| full asked runs | 11 of 15 | $15.09 |
+| escalation, about 35 calls | 8 of 15 | $6.16 |
+| escalation, about 60 calls (`--escalate-calls 60`) | 7 of 15 | $7.89 |
+
+Every number in both tables is scored with the benchmark key as rewritten on 2026-10-18. Its first
+naming words were domain words (`payment`, `rate`, `amount`, `confirmed`), and one of them plus the
+same file credited several findings to the wrong defect: the earlier tables read one higher in each
+row, and the 60-call row read 11. The rewritten words are mechanism terms taken from each defect's
+own title, and they score these runs exactly as a defect-by-defect hand judgment does.
 
 Every packet pointed at every known defect, and the tester did not reach them all. At about 35
 calls its not-tested lists say where the rest went: items cut by its budget, a mechanism measured
