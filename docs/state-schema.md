@@ -239,7 +239,10 @@ or auth path (`refund`, `payment`, `auth`, …: a whole word, or a word beginnin
 four letters or more, so `rate` never matches `generate`). Risk paths first, then the most
 unexercised lines. A range without coverage ranks changed functions by `changed_lines`; a run
 with no range ranks the functions no test ever entered (`reading_map.functions_never_entered`, with `missed_lines`), or, without per-function coverage, the reading map's least covered modules. Top 15; `of` says how many there
-were. `risk_paths:` in the profile (globs, a list or comma-separated) replaces the stems.
+were. `risk_paths:` in the profile (globs, a list or comma-separated) replaces the stems. Without
+it, a file the profile's risk-focus section points at (`risk_focus.files`, below) is a risk path
+first, with `risk: risk focus`, and the stems come after (0.92.0): a project with neither ranked
+its least covered modules alphabetically, and the scope its profile named sat below the cap.
 
 ## Code the suite runs without checking — `facts.json` → `assertion_gaps` (0.91.0)
 
@@ -290,7 +293,7 @@ about a finding, not a run, and does not touch `state.json`:
  "exit": 1, "checks": ["exit 1", "stderr_contains found: 'AssertionError: 100'"], "output_tail": "…"}
 ```
 
-**Unattended, the harness runs one shape only** (0.91.0): `verdict-facts` and `verdict-finalize` run a command the tester wrote, outside the Bash guard that watches the tester's own commands, so they run it as argv, never through a shell, and only when it is an interpreter (`python…`, `pypy…`) on a script inside the QA root or the fresh tree, `-c <code>`, `-m pytest|unittest|doctest`, or `pytest`, optionally after `NAME=value` assignments (`LD_*`/`DYLD_*` refused) — no `; & | < > ` $(` or newline outside quotes. Anything else is `could not run` with the reason; `verdict-replay`, typed by a person who can read the command first (`--show`), runs any shape. A run's replays stop at a 600 s budget and say which findings went unmeasured.
+**Unattended, the harness runs one shape only** (0.91.0): `verdict-facts` and `verdict-finalize` run a command the tester wrote, outside the Bash guard that watches the tester's own commands, so they run it as argv, never through a shell, and only when it is an interpreter (`python…`, `pypy…`) on a script inside the QA root or the fresh tree, `-c <code>`, `-m pytest|unittest|doctest`, or `pytest`, optionally after `NAME=value` assignments, with or without a leading `env` (0.92.0; `env` with an option such as `-i` is refused, as are `LD_*`/`DYLD_*`) — no `; & | < > ` $(` or newline outside quotes. Anything else is `could not run` with the reason; `verdict-replay`, typed by a person who can read the command first (`--show`), runs any shape. A run's replays stop at a 600 s budget and say which findings went unmeasured.
 
 Rows written by the harness carry `source: facts` (the previous record's open findings: one row at the previous commit, then one at HEAD) or `source: finalize` (findings filed this run, at HEAD) and `ref`; rows from the command carry neither.
 
@@ -359,6 +362,159 @@ findings_checked, siblings, report}` — beside the state, never in it. Measured
 stranger records (2026-10-17, chat-120b, ~1¢): 4 leads, 1 pointing at a site the record's class
 listing missed; a severity question was measured and dropped (13 of 18 flagged, every one an
 upgrade along the standard's "financial error → Critical" line — a constant, not a calibration).
+
+## A cheaper asked run — `verdict-run --escalate` → `escalation.md`, `last_run.escalation` (0.92.0)
+
+An asked Opus run spends most of its bill re-reading its own context: one baseline took 63
+requests for $3.90. `verdict-run --escalate` measures first, as every asked run does, then runs
+`verdict-local` in a scratch copy of the QA root on those facts, at zero Claude tokens, and
+launches the tester with a packet instead of an open brief. The packet lists, most promising
+first: claims the local tier proved by counterfactual, every census survivor function, the head
+of the risk-ranked reading map, the small model's unproven readings and unfiled leads (from
+`leads.json`, which every local run now writes beside its report), and the reasons a model run is
+owed. The tester proves or drops each item, covers the scope its instructions name where the list
+does not reach, and says in `not_tested` what it did not read.
+
+- The packet is kept as `<qa-root>/escalation.md`; its summary goes into facts.json as
+  `last_run.escalation` (`leads`, `proven_local`, `survivor_functions`, `local_model`,
+  `local_calls`, `functions_read`, `budget_usd`, `calls_aim`, `packet_sha`), which finalize carries into the
+  state and into the run's `usage.jsonl` row.
+- Finalize adds one line to `not_tested`, in the harness's voice: how many items the tester was
+  handed, by which model, and that Claude read nothing else.
+- The run's dollar cap defaults to $2.50 and is named in the packet; `--max-budget-usd`, or the
+  same flag after `--`, sets another. The packet asks the tester to aim for about 35 tool calls;
+  `--escalate-calls N` names another (`last_run.escalation.calls_aim`). The run closes with its bill.
+- Nothing starts, and never a full run in its place, when the gateway is down, the measurement
+  before the tester failed, or the breadth pass exited without finishing.
+- A session stopped at its dollar cap is not retried, escalation or not: a second attempt would
+  spend the cap again. Nor is a run that wrote its state, whatever its output says afterwards: on
+  2026-10-18 a session-limit notice printed after finalize cost an hour's wait and a second session.
+
+The breadth pass and the packet start from what the profile's owner said matters.
+`verdict-facts` reads every profile section whose heading contains "risk", minus the lines that
+say what is out of scope, into facts.json as `risk_focus`: `paths` and `names` (what it names in
+backticks), `words` (its prose, less the words that name no part of a codebase), `named_files`
+(files named outright: a full path, or a bare `benefits.py` read in the directory its bullet named
+last; a bare name no bullet places counts only where it sits under a named directory, and not at
+all when that leaves more than two) and `files`, ranked: files named
+outright, then files that define the named functions and classes, then files under a named path,
+then files whose path carries a named word. A name defined once outranks one defined in a dozen
+files, and `set_input` also finds `set_input_dispatch_by_period`. Tests and migrations are never
+in it. The breadth pass reads those files after the census survivors' files and before the
+coverage order, the named functions first within each file; with no coverage map it used to read
+the largest files. After the reading map, the packet lists up to twelve named functions, two per
+file going round the files and skipping protocol stubs and abstract methods that only raise
+`NotImplementedError`, then up to six named files that nothing above it cites.
+
+`eval/recall/packet_recall.py` measures the packet's ceiling at zero Claude tokens: it composes
+each benchmark case's packet as `--escalate` does and counts a known defect as pointed at when the
+packet cites one of its files. Six stranger repositories, 17 known defects, one breadth pass each
+(2026-10-18):
+
+| packet | points at |
+|---|---|
+| before the risk focus | 6 of 17 |
+| the breadth pass reads the named scope | 9 of 17 |
+| + named functions, going round the files | 10 of 17 |
+| + files named outright first, specific names before generic ones | 12 of 17 |
+| + named files in the packet | 16 of 17 |
+
+The one left sits in code its profile never names. Pointed at is the ceiling, not the catch: the
+tester still has to read the item and prove it.
+
+Measured 2026-10-18 on the recall benchmark: four stranger repositories, 13 known defects, one
+baseline each, Opus 5.5 at the agent's `xhigh`, scored by `eval/recall/score_recall.py`.
+
+| | located | proven | cost |
+|---|---|---|---|
+| full asked runs | 9 of 13 | 7 of 13 | $15.55 |
+| escalation, first instructions | 1 of 13 | 1 of 13 | $4.17 |
+| escalation, covering the named scope | 7 of 13 | 6 of 13 | $6.37 |
+
+The first instructions kept the tester inside the list, and with no coverage map the list was
+thin. Then the tester also covered the scope its instructions name. It matched the full runs
+where a defect sat inside that scope or behind a census survivor, and missed one outside the
+named scope and one that needed the open-ended reading a full run does.
+
+Measured again with the risk focus steering the packet (2026-10-18; four of the benchmark's
+repositories, 15 known defects, the same prompts and profiles):
+
+| | located | cost |
+|---|---|---|
+| full asked runs | 11 of 15 | $15.09 |
+| escalation, about 35 calls | 8 of 15 | $6.16 |
+| escalation, about 60 calls (`--escalate-calls 60`) | 7 of 15 | $7.89 |
+
+Every number in both tables is scored with the benchmark key as rewritten on 2026-10-18. Its first
+naming words were domain words (`payment`, `rate`, `amount`, `confirmed`), and one of them plus the
+same file credited several findings to the wrong defect: the earlier tables read one higher in each
+row, and the 60-call row read 11. The rewritten words are mechanism terms taken from each defect's
+own title, and they score these runs exactly as a defect-by-defect hand judgment does.
+
+Every packet pointed at every known defect, and the tester did not reach them all. At about 35
+calls its not-tested lists say where the rest went: items cut by its budget, a mechanism measured
+and put to the owner as a question, one observed and not pursued. At about 60 calls it did not
+find more of the known defects: the extra calls went elsewhere, into proven findings outside the
+known list (one of them confirmed by a hand replay, found at both budgets) and contract questions.
+So the default stays at about 35. Three proofs at 35 calls could not be replayed in the run: one
+because the command began with `env` (it now runs), two because the fresh checkout lacks the
+package's compiled extension. One run per case throughout: read these as a direction, not a rate.
+
+## A repro for an old finding — `verdict-backfill` → `<qa-root>/backfill.jsonl` (0.92.0)
+
+Findings filed before 0.90.12 carry prose and no `repro` block, so nothing can replay them.
+`verdict-backfill <key> [ID …]` asks the local model, one open, proven, Major-or-worse finding at
+a time, for a standalone script whose assertion fails, with a message starting `DEFECT:`, while the
+defect is there. A draft that imports a network or process module, calls a destructive `os` or
+`shutil` function, raises the mark itself or asserts nothing real is refused before it runs.
+Each kept draft is written to `scratch/backfill/<ID>.py` and runs on a fresh checkout of the
+record's last tested commit; when it does not reproduce there, also at the commit the finding was
+anchored on. One row per finding goes to `backfill.jsonl`, and its `verdict` says one of three
+things:
+
+- **still broken**: the repro reproduces at the record's commit. The next finalize attaches it to
+  the finding, with `repro.origin` naming the model and the date, and every later run replays it.
+  A model-written repro never closes its finding: when it stops reproducing between two runs, the
+  finding stays open with `fix_suspected` saying so, and the gate's `backfill:` line names it. On
+  one record on 2026-10-18 (19 old findings), two trials kept four repros and then three, the
+  second with the checks below; read by hand, three of the seven test their finding and four test
+  something near it, and an unrelated change can make that kind pass.
+- **looks fixed since `<sha>`**: it reproduces at the anchored commit and not at the record's.
+  `verdict-gate` names these on a `backfill:` line. Said, never resolved: a run with judgment
+  closes a finding.
+- **no working repro**: the draft was discarded.
+
+The model is shown what a script needs in order to run: each cited file's import path and
+outline, and how the project's own tests set up (the Django settings module from pytest's
+configuration, the head of the test file nearest the cited code). A finding gets up to three
+drafts, each told why the last one failed. A draft that imports none of the cited modules and
+names nothing the cited files define is refused before it runs. A kept one must also execute the
+cited function: a tracer, run in the same sandbox, checks that a line of its body ran. Its one
+marked assertion states what must not happen, so that any correct fix passes it, not only the
+fix the model had in mind.
+
+Measured 2026-10-18 by `eval/backfill/faithful.py` on five defects with known minimal fixes. A
+kept repro is faithful when it reproduces at the defect's commit and stops reproducing once the
+fix is applied. Two trials per row:
+
+| drafts shown | kept | faithful |
+|---|---|---|
+| import paths and outlines | 0 of 5 (one trial) | — |
+| + the tests' setup; must touch the cited code | 6 of 10 | 3 |
+| + must run the cited function | 7 of 10 | 5 |
+| + an assertion any correct fix passes | 5 of 10 | 4 |
+
+Ten drafts a row: the difference between the last two rows is within noise. What the rows do say
+is that a kept repro can still test something beside its finding, which is why a model-written
+repro never closes one.
+
+A repro whose `origin` starts with `backfill` was written by a model, so wherever it runs (the
+backfill, finalize's replay, the nightly's in-run replay, `verdict-replay`) it runs only inside a
+sandbox: no network, including localhost, and no writes outside its fresh checkout (macOS
+`sandbox-exec`). It also runs with a scrubbed environment and a scratch `HOME`, so nothing the
+caller's shell holds is there to read. On a machine with no such sandbox it is not run at all.
+That is what lets it run on a project whose profile says `probes: off`: those functions reach live
+accounts and money, and with no network they reach neither.
 
 ## What a run cost — `<qa-root>/usage.jsonl`, and who started it
 

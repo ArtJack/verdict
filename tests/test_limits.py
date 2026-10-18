@@ -97,6 +97,27 @@ def test_the_runner_still_waits_out_a_session_limit(tmp_path, monkeypatch):
     assert slept and slept[0] <= 120, "a window that reopens in hours is worth waiting for"
 
 
+
+def test_a_run_that_wrote_its_state_is_never_retried_over_a_session_limit_notice(tmp_path, monkeypatch):
+    """2026-10-18: the tester finalized, the CLI then printed a session-limit notice, and the
+    runner slept an hour and paid for a second session that wrote a second run."""
+    repo, home = tmp_path / "repo", tmp_path / "home"
+    repo.mkdir()
+    monkeypatch.setenv("VERDICT_HOME", str(home))
+    _profile(home / "t", repo)
+    state = home / "t" / "state.json"
+    body = ("import json, sys\n"
+            f"open({str(state)!r}, 'w').write(json.dumps({{'run_number': 1}}))\n"
+            f"sys.stdout.write({SESSION!r} + chr(10))\n")
+    stub = write_stub(tmp_path, body, name="claude-finished")
+    calls, slept = [], []
+    real = runner._run_streaming
+    monkeypatch.setattr(runner, "_run_streaming", lambda *a: calls.append(a) or real(*a))
+    monkeypatch.setattr(runner.time, "sleep", lambda s: slept.append(s))
+    runner.main(["t", "--repo", str(repo), "--claude-cmd", str(stub), "--no-provision",
+                 "--reset-ceiling-s", "120"])
+    assert len(calls) == 1 and slept == [], "the run is on disk; nothing is waited for or retried"
+
 def test_the_external_key_batch_stops_when_the_week_is_spent():
     sys.path.insert(0, str(REPO / "eval"))
     import swebench  # noqa: PLC0415  (an eval script, imported for its rule)

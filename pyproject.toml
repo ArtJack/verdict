@@ -50,6 +50,7 @@ verdict-local = "verdict_mcp.small:main"
 verdict-replay = "verdict_mcp.replay:main"
 verdict-dupes = "verdict_mcp.dupes:main"
 verdict-check = "verdict_mcp.check:main"
+verdict-backfill = "verdict_mcp.backfill:main"
 
 [build-system]
 requires = ["hatchling"]

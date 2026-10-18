@@ -138,3 +138,15 @@ def test_finalize_carries_the_accounting_into_the_state_and_the_report(repo, qa_
     assert state["read_first"]["declared_untested"] == ["b.py::pay"]
     report = (qa_root / state["last_run"]["report"]).read_text(encoding="utf-8")
     assert "## Read first" in report and "| `a.py::charge` | charge | **no**" in report
+
+
+def test_files_the_risk_focus_points_at_are_risk_paths_when_the_profile_sets_none(tmp_path):
+    assert risk_of("src/core/inventory.py", "", focus={"src/core/inventory.py"}) == "risk focus"
+    assert risk_of("src/core/inventory.py", "", globs=["lib/*"], focus={"src/core/inventory.py"}) == "", \
+        "risk_paths, when set, decide alone"
+    rm = {"lowest": [{"path": "src/_babel.py", "percent": 0}, {"path": "src/core/inventory.py", "percent": 0},
+                     {"path": "src/beans/abc.py", "percent": 0}]}
+    r = read_first(tmp_path, None, rm, focus=["src/core/inventory.py"])
+    assert [i["path"] for i in r["items"]][0] == "src/core/inventory.py", r["items"]
+    assert r["risk_from"] == "the profile's risk focus, then name stems"
+    assert read_first(tmp_path, None, rm)["items"][0]["path"] == "src/_babel.py"

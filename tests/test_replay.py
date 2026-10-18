@@ -638,6 +638,11 @@ def test_repro_rule_on_refuses_a_proven_major_without_a_block_and_off_only_names
     ('{py} -c "$(cat {qa}/x)"', True),          # inside double quotes: python reads it literally
     ("{py} -c pass; touch {qa}/pwned", False),
     ("echo `id`", False),
+    ("env PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src {py} {qa}/scratch/probe.py", True),
+    ("/usr/bin/env {py} {qa}/scratch/probe.py", True),
+    ("env -i {py} {qa}/scratch/probe.py", False),
+    ('env LD_PRELOAD=/tmp/x.so {py} -c "pass"', False),
+    ("env", False),
 ])
 def test_only_an_interpreter_on_a_script_a_c_string_or_pytest_runs_unattended(tmp_path, command, ok):
     qa = tmp_path / "qa"
@@ -651,6 +656,8 @@ def test_only_an_interpreter_on_a_script_a_c_string_or_pytest_runs_unattended(tm
         assert why
     if "DJANGO_SETTINGS_MODULE" in cmd:
         assert env == {"PYTHONPATH": "src", "DJANGO_SETTINGS_MODULE": "tests.settings"}
+    if cmd.startswith("env PYTHONDONTWRITEBYTECODE"):
+        assert env == {"PYTHONDONTWRITEBYTECODE": "1", "PYTHONPATH": "src"} and argv[0] == PY, (argv, env)
 
 
 def test_facts_does_not_run_a_pipeline_and_says_why(repo, qa_root, capsys):

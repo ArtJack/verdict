@@ -1397,8 +1397,8 @@
  {
   "label": "0.87.0 O2 runner: a weekly limit spends the retry instead of stopping",
   "path": "src/verdict_mcp/runner.py",
-  "old": "        if limit_kind(output) == \"weekly\":",
-  "new": "        if False:"
+  "old": "    if limit_kind(output) == \"weekly\":",
+  "new": "    if False:"
  },
  {
   "label": "0.87.0 O3 runner: seconds_until_reset waits out any limit, weekly included",
@@ -2237,8 +2237,8 @@
  {
   "label": "0.90.8 agent launch 6: the session that is the tester is told to go and find one",
   "path": "src/verdict_mcp/runner.py",
-  "old": "        text = prompt if told else (AGENT_PROMPT if tester else DEFAULT_PROMPT)",
-  "new": "        text = prompt if told else DEFAULT_PROMPT"
+  "old": "    text = prompt if told else (AGENT_PROMPT if tester else DEFAULT_PROMPT)",
+  "new": "    text = prompt if told else DEFAULT_PROMPT"
  },
  {
   "label": "0.90.8 stop rule 1: the tester's own Stop is not seen",
@@ -2761,5 +2761,215 @@
   "path": "src/verdict_mcp/profile.py",
   "old": "         \"assertion_gaps_budget_s\", \"repro_rule\", \"contract_rule\")\n",
   "new": "         \"assertion_gaps_budget_s\", \"contract_rule\")\n"
+ },
+ {
+  "label": "escalate 1: a session stopped at its dollar cap is tried again, spending the cap twice",
+  "path": "src/verdict_mcp/runner.py",
+  "old": "    if budget_exhausted(output):\n",
+  "new": "    if False:\n"
+ },
+ {
+  "label": "escalate 2: the tester is started although the breadth pass failed",
+  "path": "src/verdict_mcp/runner.py",
+  "old": "        code = local_main(argv)\n        if code != 0:\n",
+  "new": "        code = local_main(argv)\n        if False:\n"
+ },
+ {
+  "label": "escalate 3: census survivors are left out of the tester's packet",
+  "path": "src/verdict_mcp/escalate.py",
+  "old": "    for path, fn, found in grouped[:MAX_SURVIVOR_FUNCTIONS]:\n",
+  "new": "    for path, fn, found in grouped[:0]:\n"
+ },
+ {
+  "label": "escalate 4: an escalation run's record does not say what its tester was handed",
+  "path": "src/verdict_mcp/harness.py",
+  "old": "    if isinstance(escalation, dict):\n        line = escalation_not_tested(escalation)\n",
+  "new": "    if False:\n        line = escalation_not_tested(escalation)\n"
+ },
+ {
+  "label": "escalate 5: an escalation run with no gateway starts anyway",
+  "path": "src/verdict_mcp/runner.py",
+  "old": "    base_url, token = local_endpoint(args.local_env_file, dict(os.environ))\n    if not base_url or not token:\n",
+  "new": "    base_url, token = local_endpoint(args.local_env_file, dict(os.environ))\n    if False:\n"
+ },
+ {
+  "label": "backfill 1: a model-written repro runs without the sandbox",
+  "path": "src/verdict_mcp/replay.py",
+  "old": "        if not wrap:\n            row.update(result=\"could not run\", exit=None, output_tail=\"\",\n",
+  "new": "        if False:\n            row.update(result=\"could not run\", exit=None, output_tail=\"\",\n"
+ },
+ {
+  "label": "backfill 2: a model-written repro inherits the caller's environment",
+  "path": "src/verdict_mcp/replay.py",
+  "old": "        env = {k: v for k, v in env.items() if k in keep}\n",
+  "new": "        env = dict(env)\n"
+ },
+ {
+  "label": "backfill 3: a draft that reproduces nowhere is kept as proof",
+  "path": "src/verdict_mcp/backfill.py",
+  "old": "    if head.get(\"result\") == \"reproduced\":\n        return f\"{STILL_BROKEN}",
+  "new": "    if True:\n        return f\"{STILL_BROKEN}"
+ },
+ {
+  "label": "backfill 4: finalize attaches the repro of a finding that only looks fixed",
+  "path": "src/verdict_mcp/replay.py",
+  "old": "                or not str(row.get(\"verdict\") or \"\").startswith(STILL_BROKEN)\n",
+  "new": ""
+ },
+ {
+  "label": "backfill 5: a draft that raises the mark itself passes the check",
+  "path": "src/verdict_mcp/backfill.py",
+  "old": "        if isinstance(node, ast.Raise) and node.exc is not None and MARK in ast.unparse(node.exc):\n",
+  "new": "        if False:\n"
+ },
+ {
+  "label": "backfill 6: a model-written repro that stopped reproducing resolves its finding",
+  "path": "src/verdict_mcp/harness.py",
+  "old": "        if model_written(entry.get(\"repro\") or (prior or {}).get(\"repro\")):\n",
+  "new": "        if False:\n"
+ },
+ {
+  "label": "runner 1: a run that wrote its state is retried over a session-limit notice",
+  "path": "src/verdict_mcp/runner.py",
+  "old": "        if _read_run_number(qa_root) > before:\n            # A run that wrote its state is finished",
+  "new": "        if False:\n            # A run that wrote its state is finished"
+ },
+ {
+  "label": "focus 1: a file the risk section names outright no longer leads the reading order",
+  "path": "src/verdict_mcp/focus.py",
+  "old": "            \"files\": (named_files + ranked + under + worded)[:MAX_FILES]}",
+  "new": "            \"files\": (ranked + named_files + under + worded)[:MAX_FILES]}"
+ },
+ {
+  "label": "focus 2: a name defined in a dozen files weighs as much as one defined once",
+  "path": "src/verdict_mcp/focus.py",
+  "old": "    weight = {f: sum(1 / df[n] for n in found) for f, found in defining.items()}\n",
+  "new": "    weight = {f: len(found) for f, found in defining.items()}\n"
+ },
+ {
+  "label": "focus 3: a named function no longer finds its `name_*` variants",
+  "path": "src/verdict_mcp/focus.py",
+  "old": "+ \"|\".join(re.escape(n) for n in names) + r\")(_[A-Za-z0-9_]*)?([^A-Za-z0-9_]|$)\")",
+  "new": "+ \"|\".join(re.escape(n) for n in names) + r\")([^A-Za-z0-9_]|$)\")"
+ },
+ {
+  "label": "focus 4: tests and migrations are read as the scope the profile names",
+  "path": "src/verdict_mcp/focus.py",
+  "old": "    tracked = [f for f in _tracked(Path(repo)) if not is_test(f) and \"/migrations/\" not in f\"/{f}\"]\n",
+  "new": "    tracked = _tracked(Path(repo))\n"
+ },
+ {
+  "label": "focus 5: a line saying what is out of scope is read as scope",
+  "path": "src/verdict_mcp/focus.py",
+  "old": "        if inside and \"out of scope\" not in line.lower():\n",
+  "new": "        if inside:\n"
+ },
+ {
+  "label": "focus 6: the breadth pass reads by coverage order, not the scope the profile names",
+  "path": "src/verdict_mcp/small.py",
+  "old": "    files += [f for f in ((facts.get(\"risk_focus\") or {}).get(\"files\") or []) if isinstance(f, str)]\n",
+  "new": ""
+ },
+ {
+  "label": "focus 7: functions the risk section names are read in file order",
+  "path": "src/verdict_mcp/small.py",
+  "old": "    return sorted(chunks, key=lambda c: (c.name not in named, c.name.rsplit(\".\", 1)[-1] not in focus))\n",
+  "new": "    return sorted(chunks, key=lambda c: c.name not in named)\n"
+ },
+ {
+  "label": "escalate 6: the packet stops listing the files the risk section names",
+  "path": "src/verdict_mcp/escalate.py",
+  "old": "              \"it the scope is about\" for f in files[:MAX_NAMED_FILES]]\n",
+  "new": "              \"it the scope is about\" for f in files[:0]]\n"
+ },
+ {
+  "label": "escalate 7: one file's named functions take every slot before the next file gets one",
+  "path": "src/verdict_mcp/escalate.py",
+  "old": "    for turn in range(PER_FILE):\n        for found in per_file:\n            if turn < len(found) and len(out) < MAX_NAMED:\n                out.append(found[turn])\n",
+  "new": "    for found in per_file:\n        for turn in range(PER_FILE):\n            if turn < len(found) and len(out) < MAX_NAMED:\n                out.append(found[turn])\n"
+ },
+ {
+  "label": "escalate 8: a protocol stub is handed to the tester as named code to read",
+  "path": "src/verdict_mcp/escalate.py",
+  "old": "                    if named(child.name) and not _is_stub(child) and (rel, qual) not in skip:\n",
+  "new": "                    if named(child.name) and (rel, qual) not in skip:\n"
+ },
+ {
+  "label": "escalate 9: a named function no longer matches its `name_*` variants in the packet",
+  "path": "src/verdict_mcp/escalate.py",
+  "old": "        return any(name == n or (len(n) >= 5 and \"_\" in n and name.startswith(n + \"_\")) for n in names)\n",
+  "new": "        return any(name == n for n in names)\n"
+ },
+ {
+  "label": "backfill 7: a draft that fails its assertion without running the cited function is kept",
+  "path": "src/verdict_mcp/backfill.py",
+  "old": "            and reaches(repo, qa_root, python, prefix, path, spans, head_ref, timeout, sandbox) is False:\n",
+  "new": "            and False:\n"
+ },
+ {
+  "label": "backfill 8: a draft that touches none of the cited code is run anyway",
+  "path": "src/verdict_mcp/backfill.py",
+  "old": "    if not touches(script, *targets):\n",
+  "new": "    if False:\n"
+ },
+ {
+  "label": "backfill 9: the draft is no longer shown how the project's tests set up",
+  "path": "src/verdict_mcp/backfill.py",
+  "old": "                           setup=setup_hint(repo, head_ref, rels, names)[:4000])\n",
+  "new": "                           setup=\"\")\n"
+ },
+ {
+  "label": "focus 8: the reading map ignores the files the risk section points at",
+  "path": "src/verdict_mcp/readfirst.py",
+  "old": "    if path in focus:\n        return \"risk focus\"\n",
+  "new": ""
+ },
+ {
+  "label": "focus 9: facts rank the reading map without the risk focus",
+  "path": "src/verdict_mcp/harness.py",
+  "old": "                        gaps=facts.get(\"assertion_gaps\"), focus=(focus or {}).get(\"files\") or ())\n",
+  "new": "                        gaps=facts.get(\"assertion_gaps\"), focus=())\n"
+ },
+ {
+  "label": "escalate 10: a module in the reading map is shown as a function named None",
+  "path": "src/verdict_mcp/escalate.py",
+  "old": "    where = f\"{item.get('path')}::{item['function']}\" if item.get(\"function\") else str(item.get(\"path\"))\n",
+  "new": "    where = f\"{item.get('path')}::{item.get('function')}\"\n"
+ },
+ {
+  "label": "backfill 10: a finding left without a repro drops what its last draft ran into",
+  "path": "src/verdict_mcp/backfill.py",
+  "old": "        row[\"last_why\"] = str(result.get(\"why\") or \"\")[-400:]\n",
+  "new": "        pass\n"
+ },
+ {
+  "label": "escalate 11: an abstract method that only raises NotImplementedError takes a named slot",
+  "path": "src/verdict_mcp/escalate.py",
+  "old": "    if body and isinstance(body[-1], ast.Raise) and body[-1].exc is not None and not_implemented(body[-1].exc):\n        body = body[:-1]\n",
+  "new": ""
+ },
+ {
+  "label": "focus 10: a bare file name is matched across the tree, not in the directory its bullet named",
+  "path": "src/verdict_mcp/focus.py",
+  "old": "                elif context:\n                    path = f\"{context}/{path}\"\n",
+  "new": "                elif False:\n                    path = f\"{context}/{path}\"\n"
+ },
+ {
+  "label": "focus 11: a bare name with several matches is dropped even where one sits under a named directory",
+  "path": "src/verdict_mcp/focus.py",
+  "old": "            found = [f for f in found if any(f.startswith(d + \"/\") for d in dirs)]\n",
+  "new": "            found = found\n"
+ },
+ {
+  "label": "replay 0.92.0: a repro that starts with `env` and only sets variables is not run unattended",
+  "path": "src/verdict_mcp/replay.py",
+  "old": "    if len(words) > 1 and Path(words[0]).name == \"env\" and not words[1].startswith(\"-\"):\n",
+  "new": "    if False:\n"
+ },
+ {
+  "label": "escalate 12: the packet asks for 35 calls whatever the operator names",
+  "path": "src/verdict_mcp/runner.py",
+  "old": "                                         args.escalate_calls or escalate.CALLS_DEFAULT)\n",
+  "new": "                                         escalate.CALLS_DEFAULT)\n"
  }
 ]

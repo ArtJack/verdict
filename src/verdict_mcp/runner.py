@@ -69,9 +69,11 @@ try:
     from .state import home as state_home
     from .state import is_path_like, norm_status, resolve_root
     from . import clock
+    from . import escalate
 except ImportError:  # bare-script execution
     sys.path.insert(0, str(Path(__file__).resolve().parent))
     import clock
+    import escalate
     from gate import evaluate, news_line
     from project_key import derive_key
     from state import home as state_home
@@ -235,6 +237,25 @@ def agent_flags(repo, passthrough) -> list:
 
 
 _FLAG_REFUSED = re.compile(r"error: unknown option '--(?:agent|effort)'")
+_BUDGET_STOP = re.compile(r"Exceeded USD budget|error_max_budget_usd")
+
+
+def final_stop(output) -> str | None:
+    """Why a finished attempt must not be tried again → the message, or None. A weekly limit is
+    days away; a session stopped at its dollar cap would spend the cap again."""
+    if limit_kind(output) == "weekly":
+        return (f"verdict-run: {limit_line(output)} — no model run is possible until then; the "
+                "standing verdict is left as it is")
+    if budget_exhausted(output):
+        return ("verdict-run: the session stopped at its dollar cap — not retried, since a second "
+                "attempt would spend the cap again; whatever state it wrote stands")
+    return None
+
+
+def budget_exhausted(output) -> bool:
+    """The CLI stopped the session at its `--max-budget-usd` ceiling. Such a run is not
+    retried: a second attempt spends the same ceiling again for the same missing state."""
+    return bool(_BUDGET_STOP.search(output or ""))
 
 
 def flag_refused(output) -> bool:
@@ -993,6 +1014,161 @@ def run_local(repo, qa_root, args, base_url, token) -> int:
     return local_main(argv)
 
 
+def escalation_packet(repo, qa_root, args, budget_usd, local_main=None) -> tuple:
+    """The breadth pass and the tester's packet → (packet text or None, exit code).
+
+    `verdict-local` reads in a scratch copy of the QA root, on the facts verdict-run has just
+    measured, so the real record is written once, by the tester. The copy is removed whatever
+    happens; the packet and its summary are kept beside the record."""
+    if local_main is None:
+        try:
+            from .small import main as local_main
+        except ImportError:  # bare-script execution
+            from small import main as local_main
+    scratch = escalate.scratch_copy(qa_root)
+    try:
+        argv = escalate.local_argv(repo, scratch, qa_root, args.local_model, args.local_limit,
+                                   args.sha_range, args.local_env_file)
+        code = local_main(argv)
+        if code != 0:
+            print(f"verdict-run: the breadth pass exited {code} — no packet, so no escalation run "
+                  "was started; run without --escalate for a full asked run", file=sys.stderr)
+            return None, 5
+        facts = json.loads((Path(qa_root) / "facts.json").read_text(encoding="utf-8"))
+        text, summary = escalate.compose(scratch, facts, budget_usd,
+                                         args.escalate_calls or escalate.CALLS_DEFAULT)
+        escalate.record(qa_root, text, summary)
+        print(f"verdict-run: escalation — {summary['leads']} item(s) for the tester from "
+              f"{summary['local_model']} ({summary['functions_read']} function(s) read, "
+              f"{summary['proven_local']} proven by counterfactual, {summary['survivor_functions']} "
+              f"census survivor function(s)); packet {escalate.PACKET_FILE}", file=sys.stderr)
+        return text, 0
+    except (OSError, json.JSONDecodeError) as exc:
+        print(f"verdict-run: the breadth pass left no readable facts ({type(exc).__name__}) — no "
+              "escalation run was started", file=sys.stderr)
+        return None, 5
+    finally:
+        shutil.rmtree(scratch, ignore_errors=True)
+
+
+def resolve_cap(args, passthrough) -> tuple:
+    """The run's dollar ceiling → (cap or None, the flags to add, an error or None).
+
+    An operator's `--max-budget-usd` after `--` stays where it is and names the cap. An
+    escalation run with none gets the default: it is the cheap run by construction, and the
+    ceiling is what makes "cheap" a guarantee rather than a hope."""
+    cap = None
+    if args.max_budget_usd not in (None, ""):
+        try:
+            cap = float(args.max_budget_usd)
+        except ValueError:
+            return None, [], f"--max-budget-usd {args.max_budget_usd!r} is not a number"
+    given = [i for i, p in enumerate(passthrough) if p == "--max-budget-usd"]
+    if cap is None and given and given[-1] + 1 < len(passthrough):
+        try:
+            cap = float(passthrough[given[-1] + 1])
+        except ValueError:
+            pass
+    elif cap is None and args.escalate:
+        cap = escalate.BUDGET_DEFAULT_USD
+    flags = ["--max-budget-usd", f"{cap:g}"] if cap is not None and not given else []
+    return cap, flags, None
+
+
+def start_escalation(repo, qa_root, args, env, base_url, token, cap) -> tuple:
+    """The checks and the breadth pass before an escalation run's tester → (packet, exit code
+    or None to go on). Every refusal here starts nothing, and never a full run in its place.
+    Without --escalate there is nothing to do: ("", None)."""
+    if not args.escalate:
+        return "", None
+    if not env.get(PREMEASURED_ENV):
+        print("verdict-run: --escalate reads on the facts measured before the tester starts, "
+              "and that measurement failed — no escalation run was started, and no full run "
+              "in its place", file=sys.stderr)
+        return "", 2
+    try:
+        from .small import gateway_alive
+    except ImportError:  # bare-script execution
+        from small import gateway_alive
+    alive, detail = gateway_alive(base_url, token)
+    print(f"verdict-run: local engine — {detail}", file=sys.stderr)
+    if not alive:
+        clear_marker(qa_root)
+        print("verdict-run: the local gateway is down, so there is no breadth pass — no "
+              "escalation run was started, and no full run in its place", file=sys.stderr)
+        return "", 5
+    packet, code = escalation_packet(repo, qa_root, args, cap)
+    if packet is None:
+        clear_marker(qa_root)
+        return "", code
+    return packet, None
+
+
+def escalate_preflight(args, ap) -> tuple:
+    """(base_url, token, exit code or None) for `--escalate`, before anything runs; without
+    the flag, (None, None, None)."""
+    if args.escalate_calls is not None and (not args.escalate or args.escalate_calls < 1):
+        ap.error("--escalate-calls takes a positive number and goes with --escalate")
+    if not args.escalate:
+        return None, None, None
+    if args.on_drift != "model" or args.no_premeasure:
+        ap.error("--escalate is an asked run: it measures first and launches the tester, so it "
+                 "takes neither --on-drift local/none nor --no-premeasure")
+    base_url, token = local_endpoint(args.local_env_file, dict(os.environ))
+    if not base_url or not token:
+        print("verdict-run: --escalate needs the local gateway — ANTHROPIC_BASE_URL and "
+              "ANTHROPIC_AUTH_TOKEN in --local-env-file or in the environment. Refusing before "
+              "anything runs: an escalation run with no breadth pass would be a full asked run "
+              "nobody asked for.", file=sys.stderr)
+        return None, None, 2
+    return base_url, token, None
+
+
+# Opus 5.5 list rates, $/MTok: what an escalation run's bill line prices its tokens at.
+OPUS_RATES = {"input_tokens": 4.0, "output_tokens": 20.0, "cache_read_input_tokens": 0.20,
+              "cache_creation_input_tokens": 5.0}
+
+
+def tester_prompt(prompt, told, tester, packet) -> str:
+    """The words the session is launched with: the operator's, else the agent's or the
+    delegating prompt, and an escalation run's packet after them."""
+    text = prompt if told else (AGENT_PROMPT if tester else DEFAULT_PROMPT)
+    return f"{text}\n\n{packet}" if packet else text
+
+
+def print_bill(args, qa_root, before=0) -> None:
+    """An escalation run closes with what it cost; a full run's bill is in usage.jsonl as before."""
+    bill = bill_line(qa_root, before) if args.escalate else None
+    if bill:
+        print(f"verdict-run: escalation run bill — {bill}")
+
+
+def bill_line(qa_root, before=0) -> str | None:
+    """The bill of every run this invocation wrote (run_number above `before`), summed from
+    usage.jsonl and priced when the model is Opus 5.5: a session that finalized twice spent twice."""
+    try:
+        rows = [json.loads(line) for line in
+                (Path(qa_root) / "usage.jsonl").read_text(encoding="utf-8").splitlines() if line.strip()]
+    except (OSError, json.JSONDecodeError):
+        return None
+    usage: dict = {}
+    for row in rows:
+        if isinstance(row.get("run_number"), int) and row["run_number"] > before:
+            for key, value in (row.get("usage") or {}).items():
+                if isinstance(value, (int, float)) and not isinstance(value, bool):
+                    usage[key] = usage.get(key, 0) + value
+                elif key == "model":
+                    usage[key] = value
+    if not usage.get("requests"):
+        return None
+    line = (f"{usage['requests']} request(s), {usage.get('output_tokens', 0):,} output and "
+            f"{usage.get('cache_read_input_tokens', 0):,} cache-read token(s)")
+    if str(usage.get("model") or "").startswith("claude-opus-5-5"):
+        dollars = sum(usage.get(k, 0) * rate for k, rate in OPUS_RATES.items()) / 1e6
+        line += f", about ${dollars:.2f} at list price"
+    return line
+
+
 def main(argv=None) -> int:
     # The recorded Windows trap, hit for the second time in this repo: cp1252
     # consoles cannot encode `→`, and a crashed print turns exit codes into
@@ -1024,6 +1200,15 @@ def main(argv=None) -> int:
                     help="when HEAD equals the last run's sha and no quarantine "
                          "has expired, re-gate the standing verdict instead of "
                          "spending a model run")
+    ap.add_argument("--escalate", action="store_true",
+                    help="a cheaper asked run: verdict-local reads first, at zero Claude tokens, "
+                         "in a scratch copy of the QA root, and the tester gets only what it passed "
+                         "on (claims it proved, census survivors, unproven readings, reasons a model "
+                         "run is owed) and a dollar cap, $2.50 unless --max-budget-usd says "
+                         "otherwise. Needs the local gateway (--local-env-file)")
+    ap.add_argument("--escalate-calls", type=int, default=None, metavar="N",
+                    help="with --escalate: the tool calls the packet asks the tester to aim for "
+                         f"(default {escalate.CALLS_DEFAULT}); the dollar cap still stops the run")
     ap.add_argument("--no-premeasure", action="store_true",
                     help="let the tester run verdict-facts itself instead of measuring before it "
                          "starts (default: measure first, so a long census is not cut by the "
@@ -1097,7 +1282,9 @@ def main(argv=None) -> int:
     spends_claude = args.on_drift == "model"
     if args.on_drift in ("local", "none"):
         args.skip_unless_drift = True
-    base_url = token = None
+    base_url, token, refused = escalate_preflight(args, ap)
+    if refused is not None:
+        return refused
     if args.on_drift == "local":
         base_url, token = local_endpoint(args.local_env_file, dict(os.environ))
         if not base_url or not token:
@@ -1237,14 +1424,10 @@ def main(argv=None) -> int:
     # A dollar ceiling the CLI itself enforces. Budgets were stated in prose
     # and filled, never used (P-49); the flag existed and was never passed
     # (audit 2026-10-02, O-S-9).
-    budget = []
-    if args.max_budget_usd not in (None, ""):
-        try:
-            budget = ["--max-budget-usd", f"{float(args.max_budget_usd):g}"]
-        except ValueError:
-            print(f"verdict-run: --max-budget-usd {args.max_budget_usd!r} is not a number",
-                  file=sys.stderr)
-            return 2
+    cap, budget, problem = resolve_cap(args, passthrough)
+    if problem:
+        print(f"verdict-run: {problem}", file=sys.stderr)
+        return 2
     # `project,local`: the user-scope plugin stays out (isolation), and the
     # hooks provisioned into settings.local.json come in. `--strict-mcp-config`
     # is the half of "isolation" the setting sources never covered: user-scope
@@ -1257,8 +1440,10 @@ def main(argv=None) -> int:
     tester = agent_flags(repo, passthrough)
     told = bool(args.prompt_file or args.prompt)    # the operator's words, in either mode
 
+    packet = ""
+
     def launch(tester):
-        text = prompt if told else (AGENT_PROMPT if tester else DEFAULT_PROMPT)
+        text = tester_prompt(prompt, told, tester, packet)
         return [args.claude_cmd, "-p", text, "--model", args.model, *tester,
                 "--setting-sources", "project,local", *strict, *mcp, *budget, *passthrough]
 
@@ -1266,6 +1451,9 @@ def main(argv=None) -> int:
         head = premeasure(repo, qa_root, env, args.sha_range)
         if head:
             env[PREMEASURED_ENV] = head
+    packet, refused = start_escalation(repo, qa_root, args, env, base_url, token, cap)
+    if refused is not None:
+        return refused
     cmd = launch(tester)
     attempt = 0
     while attempt < 2:
@@ -1283,11 +1471,15 @@ def main(argv=None) -> int:
             print(f"verdict-run: attempt {attempt} timed out after {args.timeout_s}s",
                   file=sys.stderr)
             continue
-        if limit_kind(output) == "weekly":
-            # Days away, not hours: nothing this run can wait for, and a second
-            # attempt would only spend the retry. Say so in the CLI's own words.
-            print(f"verdict-run: {limit_line(output)} — no model run is possible until then; "
-                  "the standing verdict is left as it is", file=sys.stderr)
+        if stop := final_stop(output):
+            # A weekly limit is days away, and a session stopped at its dollar cap would spend
+            # the cap again: either way a second attempt only spends the retry.
+            print(stop, file=sys.stderr)
+            break
+        if _read_run_number(qa_root) > before:
+            # A run that wrote its state is finished, whatever its output says. On 2026-10-18 a
+            # tester finalized, the CLI then printed a session-limit notice, and the runner slept
+            # an hour and paid for a second session that wrote a second run of the same commit.
             break
         wait = seconds_until_reset(output, args.reset_ceiling_s)
         if wait and attempt == 1:
@@ -1295,7 +1487,7 @@ def main(argv=None) -> int:
                   file=sys.stderr)
             time.sleep(wait)
             continue
-        if _read_run_number(qa_root) <= before and attempt == 1:
+        if attempt == 1:
             # The known headless failure: the session ends its turn while the
             # delegated agent is still working — exit 0, no state. That is a
             # lost run, not a verdict; one retry before the gate says so.
@@ -1313,6 +1505,7 @@ def main(argv=None) -> int:
         print(f"verdict-run: {news}")
     if result.get("report"):
         print(f"verdict-run: report {result['report']}")
+    print_bill(args, qa_root, before)
     return result["exit_code"]
 
 

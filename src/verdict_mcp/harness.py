@@ -67,7 +67,9 @@ try:
     from .gaps import BUDGET_S as GAPS_BUDGET_S
     from .gaps import census as gap_census_of
     from .readfirst import read_first
-    from .replay import measure_findings, without_repro
+    from .focus import risk_focus
+    from .replay import adopt_backfill, load_backfill, measure_findings, model_written, without_repro
+    from .escalate import not_tested_line as escalation_not_tested
     from .reports import read_report
     from .profile import RISK_CLASSES, ProfileError, gates_from, hygiene_filing_from, contract_rule_from, repro_rule_from, risk_class_from, risk_paths_from, assertion_gaps_from
     from .profile import load as load_profile
@@ -99,7 +101,9 @@ except ImportError:  # bare-script execution
     from gaps import BUDGET_S as GAPS_BUDGET_S
     from gaps import census as gap_census_of
     from readfirst import read_first
-    from replay import measure_findings, without_repro
+    from focus import risk_focus
+    from replay import adopt_backfill, load_backfill, measure_findings, model_written, without_repro
+    from escalate import not_tested_line as escalation_not_tested
     from reports import read_report
     from profile import RISK_CLASSES, ProfileError, gates_from, hygiene_filing_from, contract_rule_from, repro_rule_from, risk_paths_from, assertion_gaps_from, risk_class_from
     from profile import load as load_profile
@@ -1933,6 +1937,15 @@ def _apply_replay(entry: dict, prior: dict | None, replays: dict,
         sha7 = str(rec.get("previous_sha") or "")[:7]
         line = (f"replay (measured): the repro reproduces at {sha7} and not at HEAD, on fresh "
                 "worktrees of each")
+        if model_written(entry.get("repro") or (prior or {}).get("repro")):
+            # A model wrote this repro (verdict-backfill), and one checked by hand on 2026-10-18
+            # tested something near its finding rather than the finding itself. When it stops
+            # reproducing, an unrelated change may be why: the finding stays open and is named
+            # for a run with judgment, and nothing is verified on its word (0.92.0).
+            if not resolving:
+                entry["fix_suspected"] = (f"its model-written repro reproduces at {sha7} and not at "
+                                          "HEAD — read it, then resolve or keep it")
+            return
         if not resolving:
             entry["status"] = "resolved"
             entry["delta"] = "RESOLVED"
@@ -3038,14 +3051,24 @@ def facts_main(argv=None) -> int:
                                      "globs": risk_paths_from(config, [])} if gaps_on else None))
     if archived:
         facts["findings_archived"] = archived
-    # Where to read first (0.91.0): the changed code no test executes, risk paths first.
+    # The scope the profile names (0.92.0): the files under the paths its risk-focus section
+    # mentions, or defining the functions it names. The local tier reads these after the census
+    # survivors, where it used to read the largest files on a project with no coverage map.
+    try:
+        profile_text = (qa_root / "profile.md").read_text(encoding="utf-8")
+    except OSError:
+        profile_text = ""
+    if focus := risk_focus(repo, profile_text, is_test_file):
+        facts["risk_focus"] = focus
+    # Where to read first (0.91.0): the changed code no test executes, risk paths first — the
+    # risk-focus files count as risk paths when the profile sets no `risk_paths` (0.92.0).
     head_range = (facts.get("last_run") or {}).get("sha_range")
     cov = facts.get("coverage") if isinstance(facts.get("coverage"), dict) else {}
     ranked = read_first(repo, cov, facts.get("reading_map"),
                         changed=(_changed_lines(repo, head_range)
                                  if head_range and cov.get("status") != "measured" else None),
                         globs=risk_paths_from(config, profile_notes), is_test=is_test_file,
-                        gaps=facts.get("assertion_gaps"))
+                        gaps=facts.get("assertion_gaps"), focus=(focus or {}).get("files") or ())
     if ranked:
         facts["read_first"] = ranked
     if declared_authorship:
@@ -3420,6 +3443,10 @@ def _record_bill(qa_root: Path, state: dict, bill: dict | None) -> None:
             row["entrypoint"] = os.environ[ENTRYPOINT_ENV]
         if os.environ.get("CLAUDE_EFFORT"):
             row["effort"] = os.environ["CLAUDE_EFFORT"]
+        if isinstance(last.get("escalation"), dict):
+            esc = last["escalation"]
+            row["escalation"] = {k: esc.get(k) for k in ("leads", "local_model", "local_calls",
+                                                          "functions_read", "budget_usd")}
         if state.get("run_type") == "sweep":
             row["usage"] = {"requests": 0, **{k: 0 for k in USAGE_FIELDS}}
             row["note"] = "model-free sweep: no model was called"
@@ -3552,6 +3579,13 @@ def finalize_main(argv=None) -> int:
     state = merge(facts, judgment, previous, ledger=load_outcomes(qa_root),
                   accepted=load_accepted(qa_root), qa_root=qa_root)
     state.pop("verdict_rule", None)              # this run's rule or none, never the last one's
+    # An escalation run says, in the harness's voice, what its tester was handed and that it read
+    # nothing else (0.92.0): a short run must not read like a full one in the record.
+    escalation = (state.get("last_run") or {}).get("escalation")
+    if isinstance(escalation, dict):
+        line = escalation_not_tested(escalation)
+        if line not in state.setdefault("not_tested", []):
+            state["not_tested"].append(line)
     try:
         profile_config, profile_notes = load_profile(qa_root)
     except ProfileError as exc:
@@ -3577,6 +3611,13 @@ def finalize_main(argv=None) -> int:
               "did not reproduce on a fresh worktree at HEAD - fix the repro, or file the "
               "finding as `probable`:\n  " + "\n  ".join(repro_problems), file=sys.stderr)
         return 2
+    # An old finding with no repro gets the one verdict-backfill drafted, when that draft reproduced
+    # at HEAD on a fresh checkout (0.92.0). Marked as model-written, so every later replay runs it
+    # in the sandbox; after the check above, so this run is never refused over a draft it did not file.
+    if adopted := adopt_backfill(state.get("findings"), load_backfill(qa_root)):
+        print(f"verdict-finalize: {len(adopted)} open finding(s) now carry a model-written repro from "
+              f"verdict-backfill ({', '.join(adopted)}); later runs replay it in the sandbox",
+              file=sys.stderr)
     # The census's survivors are measured facts about the suite (0.91.1): a line its tests run
     # and do not check, and the place a defect hides behind a green suite. A run
     # that turned the census on accounts for each survivor function — a finding cites it, or
