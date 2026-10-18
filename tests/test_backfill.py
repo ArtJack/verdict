@@ -265,3 +265,61 @@ def test_the_gate_names_a_suspected_fix_with_the_findings_that_look_fixed(tmp_pa
     gate._backfill_overlay(out, tmp_path)
     assert gate.backfill_line(out).startswith("backfill: 1 open finding(s) look fixed since the commit "
                                               "they were anchored on (F-1)")
+
+
+def test_the_sandbox_is_sandbox_exec_on_macos_and_nothing_elsewhere(tmp_path, monkeypatch):
+    monkeypatch.setattr(replay.sys, "platform", "darwin")
+    monkeypatch.setattr(replay.shutil, "which", lambda name: "/usr/bin/sandbox-exec")
+    prefix = replay.sandbox_prefix(tmp_path)
+    assert prefix[:2] == ["sandbox-exec", "-p"] and "(deny network*)" in prefix[2]
+    assert f'(allow file-write* (subpath "{tmp_path.resolve()}")' in prefix[2]
+    monkeypatch.setattr(replay.sys, "platform", "linux")
+    assert replay.sandbox_prefix(tmp_path) is None
+    monkeypatch.setattr(replay.sys, "platform", "darwin")
+    monkeypatch.setattr(replay.shutil, "which", lambda name: None)
+    assert replay.sandbox_prefix(tmp_path) is None
+
+
+def _record(repo, home):
+    qa = home / "widget"
+    qa.mkdir(parents=True)
+    (qa / "profile.md").write_text(
+        f"---\ntest_one_cmd: {PY} -m pytest {{id}} -q\n---\n\n# QA Profile — widget\n\nProject-Key: widget\n"
+        f"Repo-Path: {repo}\n", encoding="utf-8")
+    old = dict(_old(), priority="P1", failure_classification="REAL_DEFECT")
+    (qa / "state.json").write_text(json.dumps({"project": "widget", "run_number": 1,
+                                               "last_run": {"git_sha": _sha(repo)},
+                                               "findings": [old]}), encoding="utf-8")
+    return qa
+
+
+def test_the_command_drafts_runs_and_writes_one_row_per_finding(repo, tmp_path, monkeypatch, capsys):
+    home = tmp_path / "home"
+    qa = _record(repo, home)
+    monkeypatch.setenv("VERDICT_HOME", str(home))
+    monkeypatch.setenv("ANTHROPIC_BASE_URL", "http://gateway.invalid")
+    monkeypatch.setenv("ANTHROPIC_AUTH_TOKEN", "t")
+    monkeypatch.setattr(backfill, "sandbox_prefix", PASS_THROUGH)
+    monkeypatch.setattr(backfill, "Model", lambda name, url, token: FakeModel(GOOD))
+    original = backfill.backfill_one
+    monkeypatch.setattr(backfill, "backfill_one",
+                        lambda *a, **k: original(*a, **dict(k, sandbox=PASS_THROUGH)))
+    assert backfill.main(["widget", "--model", "fake-120b"]) == 0
+    out, err = capsys.readouterr()
+    (row,) = [json.loads(line) for line in (qa / replay.BACKFILL_FILE).read_text(encoding="utf-8").splitlines()]
+    assert row["id"] == "W-F-1" and row["verdict"].startswith(replay.STILL_BROKEN)
+    assert "1 still broken" in out and "no Claude tokens" in out
+    assert f"at {_sha(repo)[:12]} (the record's last tested commit)" in err
+
+
+def test_the_command_refuses_without_a_gateway_or_a_sandbox(repo, tmp_path, monkeypatch, capsys):
+    home = tmp_path / "home"
+    _record(repo, home)
+    monkeypatch.setenv("VERDICT_HOME", str(home))
+    monkeypatch.delenv("ANTHROPIC_BASE_URL", raising=False)
+    monkeypatch.delenv("ANTHROPIC_AUTH_TOKEN", raising=False)
+    assert backfill.main(["widget"]) == 2 and "ANTHROPIC_BASE_URL" in capsys.readouterr().err
+    monkeypatch.setenv("ANTHROPIC_BASE_URL", "http://gateway.invalid")
+    monkeypatch.setenv("ANTHROPIC_AUTH_TOKEN", "t")
+    monkeypatch.setattr(backfill, "sandbox_prefix", NO_SANDBOX)
+    assert backfill.main(["widget"]) == 2 and "nothing was drafted" in capsys.readouterr().err
