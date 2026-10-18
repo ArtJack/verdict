@@ -360,6 +360,62 @@ stranger records (2026-10-17, chat-120b, ~1¢): 4 leads, 1 pointing at a site th
 listing missed; a severity question was measured and dropped (13 of 18 flagged, every one an
 upgrade along the standard's "financial error → Critical" line — a constant, not a calibration).
 
+## A cheaper asked run — `verdict-run --escalate` → `escalation.md`, `last_run.escalation` (0.92.0)
+
+An asked Opus run spends most of its bill re-reading its own context: one baseline took 63
+requests for $3.90. `verdict-run --escalate` measures first, as every asked run does, then runs
+`verdict-local` in a scratch copy of the QA root on those facts, at zero Claude tokens, and
+launches the tester with a packet instead of an open brief. The packet lists, most promising
+first: claims the local tier proved by counterfactual, every census survivor function, the head
+of the risk-ranked reading map, the small model's unproven readings and unfiled leads (from
+`leads.json`, which every local run now writes beside its report), and the reasons a model run is
+owed. The tester proves or drops each item, covers the scope its instructions name where the list
+does not reach, and says in `not_tested` what it did not read.
+
+- The packet is kept as `<qa-root>/escalation.md`; its summary goes into facts.json as
+  `last_run.escalation` (`leads`, `proven_local`, `survivor_functions`, `local_model`,
+  `local_calls`, `functions_read`, `budget_usd`, `packet_sha`), which finalize carries into the
+  state and into the run's `usage.jsonl` row.
+- Finalize adds one line to `not_tested`, in the harness's voice: how many items the tester was
+  handed, by which model, and that Claude read nothing else.
+- The run's dollar cap defaults to $2.50 and is named in the packet; `--max-budget-usd`, or the
+  same flag after `--`, sets another. The run closes with its bill.
+- Nothing starts, and never a full run in its place, when the gateway is down, the measurement
+  before the tester failed, or the breadth pass exited without finishing.
+- A session stopped at its dollar cap is not retried, escalation or not: a second attempt would
+  spend the cap again.
+
+## A repro for an old finding — `verdict-backfill` → `<qa-root>/backfill.jsonl` (0.92.0)
+
+Findings filed before 0.90.12 carry prose and no `repro` block, so nothing can replay them.
+`verdict-backfill <key> [ID …]` asks the local model, one open, proven, Major-or-worse finding at
+a time, for a standalone script whose assertion fails, with a message starting `DEFECT:`, while the
+defect is there. A draft that imports a network or process module, calls a destructive `os` or
+`shutil` function, raises the mark itself or asserts nothing real is refused before it runs.
+Each kept draft is written to `scratch/backfill/<ID>.py` and runs on a fresh checkout of the
+record's last tested commit; when it does not reproduce there, also at the commit the finding was
+anchored on. One row per finding goes to `backfill.jsonl`, and its `verdict` says one of three
+things:
+
+- **still broken**: the repro reproduces at the record's commit. The next finalize attaches it to
+  the finding, with `repro.origin` naming the model and the date, and every later run replays it.
+  A model-written repro never closes its finding: when it stops reproducing between two runs, the
+  finding stays open with `fix_suspected` saying so, and the gate's `backfill:` line names it. Of
+  four kept on one record on 2026-10-18, two tested the finding and two tested something near it,
+  and an unrelated change can make the second kind pass.
+- **looks fixed since `<sha>`**: it reproduces at the anchored commit and not at the record's.
+  `verdict-gate` names these on a `backfill:` line. Said, never resolved: a run with judgment
+  closes a finding.
+- **no working repro**: the draft was discarded.
+
+A repro whose `origin` starts with `backfill` was written by a model, so wherever it runs (the
+backfill, finalize's replay, the nightly's in-run replay, `verdict-replay`) it runs only inside a
+sandbox: no network, including localhost, and no writes outside its fresh checkout (macOS
+`sandbox-exec`). It also runs with a scrubbed environment and a scratch `HOME`, so nothing the
+caller's shell holds is there to read. On a machine with no such sandbox it is not run at all.
+That is what lets it run on a project whose profile says `probes: off`: those functions reach live
+accounts and money, and with no network they reach neither.
+
 ## What a run cost — `<qa-root>/usage.jsonl`, and who started it
 
 One JSON line per finalized run, appended by `verdict-finalize` (0.89.0): `run_number`,

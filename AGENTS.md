@@ -17,7 +17,11 @@
   either file. A third checks the tester: `verdict-replay` runs each proven finding's
   `repro` command on a fresh detached checkout and writes `replays.jsonl`; `verdict-dupes`
   searches the tracker for each finding and writes `related.jsonl`; `verdict-check` asks a
-  cheap model which other sites share each defect and writes leads to `reviews.jsonl`.
+  cheap model which other sites share each defect and writes leads to `reviews.jsonl`;
+  `verdict-backfill` has the local model draft a repro for each old proven finding that has
+  none, runs each draft in a sandbox, and keeps the ones that reproduce (`backfill.jsonl`).
+- A cheaper asked run: `verdict-run --escalate` lets the local tier read first, at zero
+  Claude tokens, and hands the tester only what it passed on, under a dollar cap.
 
 ## If you are here to change Verdict
 
@@ -35,7 +39,7 @@
   `src/verdict_mcp/harness.py` (facts, finalize, report), `validate.py` (the state
   contract, also the PostToolUse hook), `anchors.py` (cited lines, hashed; drift),
   `filed.py` (findings as files), `questions.py` (the questions ledger and
-  `verdict-answer`), `accept.py`, `replay.py` (`verdict-replay`), `dupes.py` (`verdict-dupes`), `check.py` (`verdict-check`), `readfirst.py`, `gate.py`, `runner.py` (headless runs), `server.py`
+  `verdict-answer`), `accept.py`, `replay.py` (`verdict-replay`), `dupes.py` (`verdict-dupes`), `check.py` (`verdict-check`), `backfill.py` (`verdict-backfill`), `escalate.py` (`--escalate` packets), `readfirst.py`, `gate.py`, `runner.py` (headless runs), `server.py`
   (MCP); the guards `hooks/`; the state schema `docs/state-schema.md`; the evals
   `eval/`; the release notes `CHANGELOG.md` (one version line, three manifests).
 - **A release** is a tag: `release.yml` builds, publishes to PyPI and the MCP registry,

@@ -1397,8 +1397,8 @@
  {
   "label": "0.87.0 O2 runner: a weekly limit spends the retry instead of stopping",
   "path": "src/verdict_mcp/runner.py",
-  "old": "        if limit_kind(output) == \"weekly\":",
-  "new": "        if False:"
+  "old": "    if limit_kind(output) == \"weekly\":",
+  "new": "    if False:"
  },
  {
   "label": "0.87.0 O3 runner: seconds_until_reset waits out any limit, weekly included",
@@ -2237,8 +2237,8 @@
  {
   "label": "0.90.8 agent launch 6: the session that is the tester is told to go and find one",
   "path": "src/verdict_mcp/runner.py",
-  "old": "        text = prompt if told else (AGENT_PROMPT if tester else DEFAULT_PROMPT)",
-  "new": "        text = prompt if told else DEFAULT_PROMPT"
+  "old": "    text = prompt if told else (AGENT_PROMPT if tester else DEFAULT_PROMPT)",
+  "new": "    text = prompt if told else DEFAULT_PROMPT"
  },
  {
   "label": "0.90.8 stop rule 1: the tester's own Stop is not seen",
@@ -2761,5 +2761,71 @@
   "path": "src/verdict_mcp/profile.py",
   "old": "         \"assertion_gaps_budget_s\", \"repro_rule\", \"contract_rule\")\n",
   "new": "         \"assertion_gaps_budget_s\", \"contract_rule\")\n"
+ },
+ {
+  "label": "escalate 1: a session stopped at its dollar cap is tried again, spending the cap twice",
+  "path": "src/verdict_mcp/runner.py",
+  "old": "    if budget_exhausted(output):\n",
+  "new": "    if False:\n"
+ },
+ {
+  "label": "escalate 2: the tester is started although the breadth pass failed",
+  "path": "src/verdict_mcp/runner.py",
+  "old": "        code = local_main(argv)\n        if code != 0:\n",
+  "new": "        code = local_main(argv)\n        if False:\n"
+ },
+ {
+  "label": "escalate 3: census survivors are left out of the tester's packet",
+  "path": "src/verdict_mcp/escalate.py",
+  "old": "    for path, fn, found in grouped[:MAX_SURVIVOR_FUNCTIONS]:\n",
+  "new": "    for path, fn, found in grouped[:0]:\n"
+ },
+ {
+  "label": "escalate 4: an escalation run's record does not say what its tester was handed",
+  "path": "src/verdict_mcp/harness.py",
+  "old": "    if isinstance(escalation, dict):\n        line = escalation_not_tested(escalation)\n",
+  "new": "    if False:\n        line = escalation_not_tested(escalation)\n"
+ },
+ {
+  "label": "escalate 5: an escalation run with no gateway starts anyway",
+  "path": "src/verdict_mcp/runner.py",
+  "old": "    base_url, token = local_endpoint(args.local_env_file, dict(os.environ))\n    if not base_url or not token:\n",
+  "new": "    base_url, token = local_endpoint(args.local_env_file, dict(os.environ))\n    if False:\n"
+ },
+ {
+  "label": "backfill 1: a model-written repro runs without the sandbox",
+  "path": "src/verdict_mcp/replay.py",
+  "old": "        if not wrap:\n            row.update(result=\"could not run\", exit=None, output_tail=\"\",\n",
+  "new": "        if False:\n            row.update(result=\"could not run\", exit=None, output_tail=\"\",\n"
+ },
+ {
+  "label": "backfill 2: a model-written repro inherits the caller's environment",
+  "path": "src/verdict_mcp/replay.py",
+  "old": "        env = {k: v for k, v in env.items() if k in keep}\n",
+  "new": "        env = dict(env)\n"
+ },
+ {
+  "label": "backfill 3: a draft that reproduces nowhere is kept as proof",
+  "path": "src/verdict_mcp/backfill.py",
+  "old": "    if head.get(\"result\") == \"reproduced\":\n        return f\"{STILL_BROKEN}",
+  "new": "    if True:\n        return f\"{STILL_BROKEN}"
+ },
+ {
+  "label": "backfill 4: finalize attaches the repro of a finding that only looks fixed",
+  "path": "src/verdict_mcp/replay.py",
+  "old": "                or not str(row.get(\"verdict\") or \"\").startswith(STILL_BROKEN)\n",
+  "new": ""
+ },
+ {
+  "label": "backfill 5: a draft that raises the mark itself passes the check",
+  "path": "src/verdict_mcp/backfill.py",
+  "old": "        if isinstance(node, ast.Raise) and node.exc is not None and MARK in ast.unparse(node.exc):\n",
+  "new": "        if False:\n"
+ },
+ {
+  "label": "backfill 6: a model-written repro that stopped reproducing resolves its finding",
+  "path": "src/verdict_mcp/harness.py",
+  "old": "        if model_written(entry.get(\"repro\") or (prior or {}).get(\"repro\")):\n",
+  "new": "        if False:\n"
  }
 ]

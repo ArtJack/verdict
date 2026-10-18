@@ -1802,6 +1802,7 @@ def needs_claude(facts: dict, filed: list, refiled: list, touched: list,
     return out
 
 
+LEADS_FILE = "leads.json"
 NO_CODE_READ = ("No code was read this run: the range contains no parseable Python, and this "
                 "engine reads Python only. A green gate here means the suite did not fail; it "
                 "is not a QA pass.")
@@ -2729,6 +2730,11 @@ def run(repo: Path, qa_root: Path, model: Model, limit: int, gate: str | None,
     if owed:
         facts["needs_claude"] = owed
     (qa_root / "facts.json").write_text(json.dumps(facts, indent=1), encoding="utf-8")
+    # The report's leads as data, for the run that judges them next: `verdict-run --escalate`
+    # hands them to the tester with the census survivors and this engine's own filings.
+    (qa_root / LEADS_FILE).write_text(json.dumps({"engine": ENGINE, "model": model.name,
+                                                  "leads": leads or []}, indent=1),
+                                      encoding="utf-8")
 
     code = finalize_main(["--qa-root", str(qa_root),
                           "--judgment", str(qa_root / "judgment.json")])

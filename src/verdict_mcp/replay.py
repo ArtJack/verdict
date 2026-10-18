@@ -113,6 +113,66 @@ CANNOT_START = (126, 127, 9009)
 NOT_RECOGNIZED = "is not recognized as an internal or external command"   # cmd.exe, exit 1
 SEVERITIES_ASKED = ("Blocker", "Critical", "Major")
 TAIL = 1200
+# A repro a model wrote rather than a tester (`verdict-backfill`, 0.92.0) runs only inside a
+# sandbox with no network and no writes outside its fresh checkout, wherever it runs: the
+# backfill, finalize's replay, the nightly's in-run replay, `verdict-replay`. A project with
+# `probes: off` turned the local model's calls into its own code off because those functions
+# reach live accounts and money; with no network they reach neither. Where no sandbox exists,
+# such a repro is not run at all.
+MODEL_WRITTEN = "backfill"
+SANDBOX_PROFILE = ('(version 1)(allow default)(deny network*)(deny file-write* (subpath "/"))'
+                   '(allow file-write* (subpath "{writable}") (literal "/dev/null") '
+                   '(literal "/dev/stdout") (literal "/dev/stderr") (literal "/dev/tty"))')
+
+
+BACKFILL_FILE = "backfill.jsonl"
+STILL_BROKEN = "still broken"
+LOOKS_FIXED = "looks fixed"
+
+
+def load_backfill(qa_root) -> dict:
+    """The latest `verdict-backfill` row per finding id, from `<qa_root>/backfill.jsonl`."""
+    out: dict = {}
+    try:
+        text = (Path(qa_root) / BACKFILL_FILE).read_text(encoding="utf-8")
+    except OSError:
+        return out
+    for line in text.splitlines():
+        try:
+            row = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if isinstance(row, dict) and row.get("id"):
+            out[str(row["id"])] = row
+    return out
+
+
+def adopt_backfill(findings, rows: dict) -> list:
+    """Attach a still-broken row's repro to its open finding when that finding has none → the ids
+    adopted. Finalize calls it; from then on every run replays the repro, in the sandbox."""
+    adopted = []
+    for f in findings or []:
+        row = rows.get(str(f.get("id")))
+        if (not row or f.get("repro") or not is_open(f)
+                or not str(row.get("verdict") or "").startswith(STILL_BROKEN)
+                or not model_written(row.get("repro"))):
+            continue
+        f["repro"] = dict(row["repro"])
+        adopted.append(str(f.get("id")))
+    return adopted
+
+
+def model_written(repro) -> bool:
+    """The repro was drafted by a model and kept because it reproduced, not written by a tester."""
+    return isinstance(repro, dict) and str(repro.get("origin") or "").startswith(MODEL_WRITTEN)
+
+
+def sandbox_prefix(writable: Path) -> list | None:
+    """The argv prefix that runs a command with no network and writes only under `writable`,
+    or None where this machine has no such sandbox (macOS's sandbox-exec is the one used)."""
+    if sys.platform != "darwin" or not shutil.which("sandbox-exec"):
+        return None
+    return ["sandbox-exec", "-p", SANDBOX_PROFILE.format(writable=str(Path(writable).resolve()))]
 
 
 def repro_of(finding: dict) -> dict | None:
@@ -332,7 +392,7 @@ def unattended_argv(command: str, scratch: Path, qa_root: Path, cwd: Path):
 
 
 def replay_one(finding: dict, repo: Path, scratch: Path, qa_root: Path, timeout: int,
-               unattended: bool = False) -> dict:
+               unattended: bool = False, sandbox=sandbox_prefix) -> dict:
     r = repro_of(finding)
     if r is None:
         return {"id": str(finding.get("id")), "command": "", "cwd": "", "expect": {},
@@ -348,6 +408,16 @@ def replay_one(finding: dict, repo: Path, scratch: Path, qa_root: Path, timeout:
     row = {"id": str(finding.get("id")), "command": command, "cwd": str(cwd),
            "expect": r.get("expect") if isinstance(r.get("expect"), dict) else {"exit": 0}}
     argv, own_env = command, {}
+    wrap = None
+    if model_written(r):
+        # Unattended shape and the sandbox, whoever asked: a model chose this code.
+        unattended = True
+        wrap = sandbox(scratch.parent) if sandbox else None
+        if not wrap:
+            row.update(result="could not run", exit=None, output_tail="",
+                       checks=["a model-written repro runs only inside a sandbox with no network "
+                               "and no writes outside its checkout, and this machine has none"])
+            return row
     if unattended:
         argv, own_env, refusal = unattended_argv(command, scratch, qa_root, cwd)
         if argv is None:
@@ -366,6 +436,17 @@ def replay_one(finding: dict, repo: Path, scratch: Path, qa_root: Path, timeout:
     env[ORIGINAL_ENV] = os.pathsep.join(dict.fromkeys([str(repo.resolve()), str(repo)]))
     env["PYTHONDONTWRITEBYTECODE"] = "1"
     env["GIT_NO_LAZY_FETCH"] = "1"
+    if wrap:
+        # A scrubbed environment as well: nothing the caller's shell holds (a token, a password,
+        # a gateway key) is there for a script a model wrote to read or print, and `~` is the
+        # checkout's own scratch, not the owner's home.
+        tmp = scratch.parent / "tmp"
+        tmp.mkdir(exist_ok=True)
+        keep = ("PATH", "LANG", "LC_ALL", "SYSTEMROOT", "PYTHONPATH", "PYTHONDONTWRITEBYTECODE",
+                ORIGINAL_ENV, *own_env)
+        env = {k: v for k, v in env.items() if k in keep}
+        env.update(TMPDIR=str(tmp), HOME=str(tmp))
+        argv = [*wrap, *argv]
     try:
         proc = subprocess.run(argv, shell=not unattended, cwd=str(cwd), env=env,
                               capture_output=True, text=True, errors="replace", timeout=timeout)
