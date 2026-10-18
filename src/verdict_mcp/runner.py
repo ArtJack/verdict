@@ -1133,20 +1133,29 @@ def tester_prompt(prompt, told, tester, packet) -> str:
     return f"{text}\n\n{packet}" if packet else text
 
 
-def print_bill(args, qa_root) -> None:
+def print_bill(args, qa_root, before=0) -> None:
     """An escalation run closes with what it cost; a full run's bill is in usage.jsonl as before."""
-    bill = bill_line(qa_root) if args.escalate else None
+    bill = bill_line(qa_root, before) if args.escalate else None
     if bill:
         print(f"verdict-run: escalation run bill — {bill}")
 
 
-def bill_line(qa_root) -> str | None:
-    """The last run's bill from usage.jsonl, priced when the model is Opus 5.5."""
+def bill_line(qa_root, before=0) -> str | None:
+    """The bill of every run this invocation wrote (run_number above `before`), summed from
+    usage.jsonl and priced when the model is Opus 5.5: a session that finalized twice spent twice."""
     try:
-        rows = (Path(qa_root) / "usage.jsonl").read_text(encoding="utf-8").splitlines()
-        usage = (json.loads(rows[-1]) if rows else {}).get("usage") or {}
-    except (OSError, json.JSONDecodeError, IndexError):
+        rows = [json.loads(line) for line in
+                (Path(qa_root) / "usage.jsonl").read_text(encoding="utf-8").splitlines() if line.strip()]
+    except (OSError, json.JSONDecodeError):
         return None
+    usage: dict = {}
+    for row in rows:
+        if isinstance(row.get("run_number"), int) and row["run_number"] > before:
+            for key, value in (row.get("usage") or {}).items():
+                if isinstance(value, (int, float)) and not isinstance(value, bool):
+                    usage[key] = usage.get(key, 0) + value
+                elif key == "model":
+                    usage[key] = value
     if not usage.get("requests"):
         return None
     line = (f"{usage['requests']} request(s), {usage.get('output_tokens', 0):,} output and "
@@ -1463,13 +1472,18 @@ def main(argv=None) -> int:
             # the cap again: either way a second attempt only spends the retry.
             print(stop, file=sys.stderr)
             break
+        if _read_run_number(qa_root) > before:
+            # A run that wrote its state is finished, whatever its output says. On 2026-10-18 a
+            # tester finalized, the CLI then printed a session-limit notice, and the runner slept
+            # an hour and paid for a second session that wrote a second run of the same commit.
+            break
         wait = seconds_until_reset(output, args.reset_ceiling_s)
         if wait and attempt == 1:
             print(f"verdict-run: session limit; waiting {wait}s for the window to reset",
                   file=sys.stderr)
             time.sleep(wait)
             continue
-        if _read_run_number(qa_root) <= before and attempt == 1:
+        if attempt == 1:
             # The known headless failure: the session ends its turn while the
             # delegated agent is still working — exit 0, no state. That is a
             # lost run, not a verdict; one retry before the gate says so.
@@ -1487,7 +1501,7 @@ def main(argv=None) -> int:
         print(f"verdict-run: {news}")
     if result.get("report"):
         print(f"verdict-run: report {result['report']}")
-    print_bill(args, qa_root)
+    print_bill(args, qa_root, before)
     return result["exit_code"]
 
 

@@ -2827,5 +2827,11 @@
   "path": "src/verdict_mcp/harness.py",
   "old": "        if model_written(entry.get(\"repro\") or (prior or {}).get(\"repro\")):\n",
   "new": "        if False:\n"
+ },
+ {
+  "label": "runner 1: a run that wrote its state is retried over a session-limit notice",
+  "path": "src/verdict_mcp/runner.py",
+  "old": "        if _read_run_number(qa_root) > before:\n            # A run that wrote its state is finished",
+  "new": "        if False:\n            # A run that wrote its state is finished"
  }
 ]

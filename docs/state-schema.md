@@ -383,7 +383,23 @@ does not reach, and says in `not_tested` what it did not read.
 - Nothing starts, and never a full run in its place, when the gateway is down, the measurement
   before the tester failed, or the breadth pass exited without finishing.
 - A session stopped at its dollar cap is not retried, escalation or not: a second attempt would
-  spend the cap again.
+  spend the cap again. Nor is a run that wrote its state, whatever its output says afterwards: on
+  2026-10-18 a session-limit notice printed after finalize cost an hour's wait and a second session.
+
+Measured 2026-10-18 on the recall benchmark: four stranger repositories, 13 known defects, one
+baseline each, Opus 5.5 at the agent's `xhigh`, scored by `eval/recall/score_recall.py`.
+
+| | located | proven | cost |
+|---|---|---|---|
+| full asked runs | 10 of 13 | 8 of 13 | $15.55 |
+| escalation, first instructions | 2 of 13 | 2 of 13 | $4.17 |
+| escalation, as shipped | 8 of 13 | 5 of 13 | $6.37 |
+
+The first instructions kept the tester inside the list, and with no coverage map the list was
+thin. As shipped, the tester also covers the scope its instructions name. It matched the full
+runs where a defect sat inside that scope or behind a census survivor, and missed one outside the
+named scope and one that needed the open-ended reading a full run does. One run per case: read
+these as a direction, not a rate.
 
 ## A repro for an old finding — `verdict-backfill` → `<qa-root>/backfill.jsonl` (0.92.0)
 

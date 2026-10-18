@@ -243,3 +243,17 @@ def test_a_session_ending_without_state_is_still_retried_once(wired):
     wired["cli"] = (0, "looked around, wrote nothing")
     runner.main(wired["argv"])
     assert len(wired["launches"]) == 2
+
+
+
+def test_the_bill_sums_every_run_the_invocation_wrote(tmp_path):
+    qa = tmp_path / "qa"
+    qa.mkdir()
+    rows = [{"run_number": 1, "usage": {"requests": 9, "output_tokens": 1000, "model": "claude-opus-5-5"}},
+            {"run_number": 2, "usage": {"requests": 31, "output_tokens": 10000, "cache_read_input_tokens": 100000,
+                                        "model": "claude-opus-5-5"}},
+            {"run_number": 3, "usage": {"requests": 26, "output_tokens": 20000, "model": "claude-opus-5-5"}}]
+    (qa / "usage.jsonl").write_text("\n".join(json.dumps(r) for r in rows) + "\n", encoding="utf-8")
+    line = runner.bill_line(qa, before=1)
+    assert line.startswith("57 request(s), 30,000 output and 100,000 cache-read token(s)")
+    assert line.endswith("about $0.62 at list price")
