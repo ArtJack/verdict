@@ -358,6 +358,10 @@ def unattended_argv(command: str, scratch: Path, qa_root: Path, cwd: Path):
     except ValueError as exc:
         return None, {}, f"the command cannot be split into words ({exc})"
     env: dict = {}
+    if len(words) > 1 and Path(words[0]).name == "env" and not words[1].startswith("-"):
+        # `env A=1 python x.py` says what `A=1 python x.py` says; a tester writes it that way often
+        # (2026-10-18: a proven Major's repro went unreplayed over the word). `env -i` is not that.
+        words = words[1:]
     while words and _ENV_ASSIGN.match(words[0]):
         name, _, value = words.pop(0).partition("=")
         if name.startswith(_REFUSED_ENV):

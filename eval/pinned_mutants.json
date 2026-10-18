@@ -2959,5 +2959,11 @@
   "path": "src/verdict_mcp/focus.py",
   "old": "            found = [f for f in found if any(f.startswith(d + \"/\") for d in dirs)]\n",
   "new": "            found = found\n"
+ },
+ {
+  "label": "replay 0.92.0: a repro that starts with `env` and only sets variables is not run unattended",
+  "path": "src/verdict_mcp/replay.py",
+  "old": "    if len(words) > 1 and Path(words[0]).name == \"env\" and not words[1].startswith(\"-\"):\n",
+  "new": "    if False:\n"
  }
 ]
