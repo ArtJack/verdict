@@ -25,6 +25,8 @@ from pathlib import Path
 LEADS_FILE = "leads.json"
 PACKET_FILE = "escalation.md"
 BUDGET_DEFAULT_USD = 2.5
+# The tool calls the packet asks the tester to aim for; `verdict-run --escalate-calls` names another.
+CALLS_DEFAULT = 35
 # Caps for the breadth pass: the local gate's, which the 2026-10-14 measurements sized.
 LOCAL_CAPS = ("--max-functions", "24", "--max-probes", "6", "--max-model-s", "600")
 MAX_ITEMS = 25
@@ -196,7 +198,7 @@ def named_functions(facts: dict, skip=()) -> list:
     return out
 
 
-def compose(scratch: Path, facts: dict, budget_usd: float) -> tuple:
+def compose(scratch: Path, facts: dict, budget_usd: float, calls: int = CALLS_DEFAULT) -> tuple:
     """The packet the tester is handed, and the summary recorded beside the run → (text, summary).
 
     Order is priority: a claim the local tier proved by counterfactual, then every census
@@ -250,7 +252,7 @@ def compose(scratch: Path, facts: dict, budget_usd: float) -> tuple:
                       "model run is owed. Confirm the gates, account for the reading map, and stop")
     model = local.get("model") or "the local model"
     functions = local.get("functions_read") or 0
-    text = ESCALATION_SECTION.format(model=model, functions=functions, cap=budget_usd,
+    text = ESCALATION_SECTION.format(model=model, functions=functions, cap=budget_usd, calls=calls,
                                      items="\n".join(listed))
     summary = {
         "leads": min(len(items), MAX_ITEMS), "not_listed": max(0, len(items) - MAX_ITEMS),
@@ -259,7 +261,7 @@ def compose(scratch: Path, facts: dict, budget_usd: float) -> tuple:
         "named_functions": len(named),
         "local_model": model, "local_calls": local.get("calls"),
         "local_seconds": local.get("seconds"), "functions_read": functions,
-        "budget_usd": budget_usd,
+        "budget_usd": budget_usd, "calls_aim": calls,
         "packet_sha": hashlib.sha256(text.encode("utf-8")).hexdigest()[:12],
     }
     return text, summary
@@ -282,7 +284,7 @@ be anywhere in it. Then cite it in a finding, or name it in not_tested as \
 instructions name. Cover that scope as well, preferring what the list does not reach, and \
 follow each item's evidence into its callers, callees and tests. Say in not_tested what you \
 did not read.
-4. Aim for about 35 tool calls. The run stops at ${cap:g}.
+4. Aim for about {calls} tool calls. The run stops at ${cap:g}.
 
 {items}
 """

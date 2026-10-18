@@ -2965,5 +2965,11 @@
   "path": "src/verdict_mcp/replay.py",
   "old": "    if len(words) > 1 and Path(words[0]).name == \"env\" and not words[1].startswith(\"-\"):\n",
   "new": "    if False:\n"
+ },
+ {
+  "label": "escalate 12: the packet asks for 35 calls whatever the operator names",
+  "path": "src/verdict_mcp/runner.py",
+  "old": "                                         args.escalate_calls or escalate.CALLS_DEFAULT)\n",
+  "new": "                                         escalate.CALLS_DEFAULT)\n"
  }
 ]

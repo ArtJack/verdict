@@ -301,3 +301,21 @@ def test_a_module_in_the_reading_map_is_shown_as_a_module_with_its_coverage(tmp_
     assert "- **Read first** · `pkg/fees.py::Fees.total` (risk: fees)" in text
     assert "- **Read first** · `pkg/_babel.py` (0% of its lines covered)" in text
     assert "None" not in text and "(risk: )" not in text
+
+
+def test_an_operator_names_the_tool_calls_the_packet_asks_for(wired):
+    assert runner.main(wired["argv"] + ["--escalate-calls", "60"]) == 0
+    (cmd,) = wired["launches"]
+    assert "Aim for about 60 tool calls" in _prompt(cmd) and "about 35" not in _prompt(cmd)
+    facts = json.loads((wired["qa"] / "facts.json").read_text(encoding="utf-8"))
+    assert facts["last_run"]["escalation"]["calls_aim"] == 60
+
+
+def test_the_packet_asks_for_35_calls_unless_told_otherwise_and_the_number_needs_escalate(wired, capsys):
+    assert runner.main(wired["argv"]) == 0
+    (cmd,) = wired["launches"]
+    assert "Aim for about 35 tool calls" in _prompt(cmd)
+    argv = [a for a in wired["argv"] if a != "--escalate"] + ["--escalate-calls", "60"]
+    with pytest.raises(SystemExit):
+        runner.main(argv)
+    assert "--escalate-calls takes a positive number and goes with --escalate" in capsys.readouterr().err

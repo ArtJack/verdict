@@ -377,12 +377,13 @@ does not reach, and says in `not_tested` what it did not read.
 
 - The packet is kept as `<qa-root>/escalation.md`; its summary goes into facts.json as
   `last_run.escalation` (`leads`, `proven_local`, `survivor_functions`, `local_model`,
-  `local_calls`, `functions_read`, `budget_usd`, `packet_sha`), which finalize carries into the
+  `local_calls`, `functions_read`, `budget_usd`, `calls_aim`, `packet_sha`), which finalize carries into the
   state and into the run's `usage.jsonl` row.
 - Finalize adds one line to `not_tested`, in the harness's voice: how many items the tester was
   handed, by which model, and that Claude read nothing else.
 - The run's dollar cap defaults to $2.50 and is named in the packet; `--max-budget-usd`, or the
-  same flag after `--`, sets another. The run closes with its bill.
+  same flag after `--`, sets another. The packet asks the tester to aim for about 35 tool calls;
+  `--escalate-calls N` names another (`last_run.escalation.calls_aim`). The run closes with its bill.
 - Nothing starts, and never a full run in its place, when the gateway is down, the measurement
   before the tester failed, or the breadth pass exited without finishing.
 - A session stopped at its dollar cap is not retried, escalation or not: a second attempt would

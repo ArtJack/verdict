@@ -1035,7 +1035,8 @@ def escalation_packet(repo, qa_root, args, budget_usd, local_main=None) -> tuple
                   "was started; run without --escalate for a full asked run", file=sys.stderr)
             return None, 5
         facts = json.loads((Path(qa_root) / "facts.json").read_text(encoding="utf-8"))
-        text, summary = escalate.compose(scratch, facts, budget_usd)
+        text, summary = escalate.compose(scratch, facts, budget_usd,
+                                         args.escalate_calls or escalate.CALLS_DEFAULT)
         escalate.record(qa_root, text, summary)
         print(f"verdict-run: escalation — {summary['leads']} item(s) for the tester from "
               f"{summary['local_model']} ({summary['functions_read']} function(s) read, "
@@ -1106,6 +1107,8 @@ def start_escalation(repo, qa_root, args, env, base_url, token, cap) -> tuple:
 def escalate_preflight(args, ap) -> tuple:
     """(base_url, token, exit code or None) for `--escalate`, before anything runs; without
     the flag, (None, None, None)."""
+    if args.escalate_calls is not None and (not args.escalate or args.escalate_calls < 1):
+        ap.error("--escalate-calls takes a positive number and goes with --escalate")
     if not args.escalate:
         return None, None, None
     if args.on_drift != "model" or args.no_premeasure:
@@ -1203,6 +1206,9 @@ def main(argv=None) -> int:
                          "on (claims it proved, census survivors, unproven readings, reasons a model "
                          "run is owed) and a dollar cap, $2.50 unless --max-budget-usd says "
                          "otherwise. Needs the local gateway (--local-env-file)")
+    ap.add_argument("--escalate-calls", type=int, default=None, metavar="N",
+                    help="with --escalate: the tool calls the packet asks the tester to aim for "
+                         f"(default {escalate.CALLS_DEFAULT}); the dollar cap still stops the run")
     ap.add_argument("--no-premeasure", action="store_true",
                     help="let the tester run verdict-facts itself instead of measuring before it "
                          "starts (default: measure first, so a long census is not cut by the "
@@ -1276,11 +1282,9 @@ def main(argv=None) -> int:
     spends_claude = args.on_drift == "model"
     if args.on_drift in ("local", "none"):
         args.skip_unless_drift = True
-    base_url = token = None
-    if args.escalate:
-        base_url, token, refused = escalate_preflight(args, ap)
-        if refused is not None:
-            return refused
+    base_url, token, refused = escalate_preflight(args, ap)
+    if refused is not None:
+        return refused
     if args.on_drift == "local":
         base_url, token = local_endpoint(args.local_env_file, dict(os.environ))
         if not base_url or not token:
