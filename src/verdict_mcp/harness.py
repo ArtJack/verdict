@@ -67,6 +67,7 @@ try:
     from .gaps import BUDGET_S as GAPS_BUDGET_S
     from .gaps import census as gap_census_of
     from .readfirst import read_first
+    from .focus import risk_focus
     from .replay import adopt_backfill, load_backfill, measure_findings, model_written, without_repro
     from .escalate import not_tested_line as escalation_not_tested
     from .reports import read_report
@@ -100,6 +101,7 @@ except ImportError:  # bare-script execution
     from gaps import BUDGET_S as GAPS_BUDGET_S
     from gaps import census as gap_census_of
     from readfirst import read_first
+    from focus import risk_focus
     from replay import adopt_backfill, load_backfill, measure_findings, model_written, without_repro
     from escalate import not_tested_line as escalation_not_tested
     from reports import read_report
@@ -3049,14 +3051,24 @@ def facts_main(argv=None) -> int:
                                      "globs": risk_paths_from(config, [])} if gaps_on else None))
     if archived:
         facts["findings_archived"] = archived
-    # Where to read first (0.91.0): the changed code no test executes, risk paths first.
+    # The scope the profile names (0.92.0): the files under the paths its risk-focus section
+    # mentions, or defining the functions it names. The local tier reads these after the census
+    # survivors, where it used to read the largest files on a project with no coverage map.
+    try:
+        profile_text = (qa_root / "profile.md").read_text(encoding="utf-8")
+    except OSError:
+        profile_text = ""
+    if focus := risk_focus(repo, profile_text, is_test_file):
+        facts["risk_focus"] = focus
+    # Where to read first (0.91.0): the changed code no test executes, risk paths first — the
+    # risk-focus files count as risk paths when the profile sets no `risk_paths` (0.92.0).
     head_range = (facts.get("last_run") or {}).get("sha_range")
     cov = facts.get("coverage") if isinstance(facts.get("coverage"), dict) else {}
     ranked = read_first(repo, cov, facts.get("reading_map"),
                         changed=(_changed_lines(repo, head_range)
                                  if head_range and cov.get("status") != "measured" else None),
                         globs=risk_paths_from(config, profile_notes), is_test=is_test_file,
-                        gaps=facts.get("assertion_gaps"))
+                        gaps=facts.get("assertion_gaps"), focus=(focus or {}).get("files") or ())
     if ranked:
         facts["read_first"] = ranked
     if declared_authorship:

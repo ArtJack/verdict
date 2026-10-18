@@ -68,6 +68,9 @@ there; do not copy or reimplement it.
 - Exactly one `assert` checks the defect: it fails while the defect is present and passes once it \
 is fixed, and only its message starts with "{mark}". Any other check (a precondition, a setup \
 step) uses a plain assert whose message does not carry that word.
+- That assertion states what must not happen, in the finding's own terms (the payment is not \
+confirmed, the card is charged once, the total is not doubled), so that any correct fix passes it. \
+Do not assert the value one particular fix would produce.
 - It never touches the network, a database server, a payment provider or a mail server: replace \
 any client that would with unittest.mock. It runs in a sandbox with no network, so a real call fails.
 - No subprocess, no sockets, no file writes outside tempfile. At most 80 lines.
@@ -80,6 +83,9 @@ The finding:
 
 The cited code at HEAD:
 {code}
+
+How the project's own tests run (a fresh interpreter needs the same setup):
+{setup}
 """
 
 REPAIR = """Your script for {fid} did not run: it failed before reaching its assertion. Fix it, keeping \
@@ -170,7 +176,97 @@ def outline(source: str) -> list:
 
 def cited_code(repo: Path, finding: dict, ref: str = "HEAD", roots=()) -> str:
     """Numbered excerpts of the cited files at `ref`, capped — what the model reads."""
-    parts, tree = [], None
+    return cited(repo, finding, ref, roots)[0]
+
+
+def reaches(repo, qa_root, python, prefix, script_path, spans, head_ref, timeout, sandbox) -> bool | None:
+    """Does the repro run any line of a cited function? True, False, or None when the trace could
+    not run. Measured 2026-10-18: of six repros kept for defects with a known fix, half did not stop
+    reproducing under the fix; one never reached the guard it claimed to test."""
+    tracer = Path(qa_root).joinpath(*SCRIPT_DIR, "_trace.py")
+    tracer.parent.mkdir(parents=True, exist_ok=True)
+    tracer.write_text(TRACER, encoding="utf-8")
+    for rel, lo, hi in spans:
+        shadow = {"id": "trace", "repro": {
+            "command": f"{prefix}{python} {tracer} {rel} {lo} {hi} {script_path}", "cwd": "repo",
+            "expect": {"exit": 0}, "origin": f"{MODEL_WRITTEN} trace"}}
+        row = run_at(repo, qa_root, shadow, head_ref, timeout, sandbox)
+        m = TRACE_MARK.search(str(row.get("output_tail") or ""))
+        if m is None:
+            return None
+        if int(m.group(1)) > 0:
+            return True
+    return False
+
+
+TEST_LINES = 70
+# A reasoning model spends part of its output budget thinking: at 3,000 tokens one draft in three
+# came back cut off mid-line, its assertion never written (2026-10-18).
+DRAFT_TOKENS = 8000
+
+
+def django_settings(repo: Path) -> str | None:
+    """The settings module the project's own test runner uses, when it is a Django project."""
+    import configparser
+    for name, section in (("pytest.ini", "pytest"), ("tox.ini", "pytest"), ("setup.cfg", "tool:pytest")):
+        cfg = Path(repo) / name
+        if cfg.is_file():
+            parser = configparser.ConfigParser(interpolation=None)
+            try:
+                parser.read(cfg, encoding="utf-8")
+                if parser.has_option(section, "DJANGO_SETTINGS_MODULE"):
+                    return parser.get(section, "DJANGO_SETTINGS_MODULE").strip()
+            except (configparser.Error, OSError, UnicodeDecodeError):
+                continue
+    pyproject = Path(repo) / "pyproject.toml"
+    if pyproject.is_file():
+        try:
+            import tomllib
+            doc = tomllib.loads(pyproject.read_text(encoding="utf-8"))
+        except Exception:  # noqa: BLE001 — a config we cannot read adds nothing
+            return None
+        opts = ((doc.get("tool") or {}).get("pytest") or {}).get("ini_options") or {}
+        value = opts.get("DJANGO_SETTINGS_MODULE")
+        return str(value) if value else None
+    return None
+
+
+def test_excerpt(repo: Path, ref: str, rels, names) -> str:
+    """The head of the test file nearest the cited code: one beside it, else one that names what
+    it defines. The draft copies its setup: measured 2026-10-18, drafts for a Django project kept
+    nothing while they could not see how its tests build their objects."""
+    files = [f for f in _tree(repo, ref) if f.endswith(".py")
+             and (Path(f).name.startswith("test") or Path(f).name.endswith("_test.py"))]
+    beside = [f for f in files for r in rels if Path(f).parent == Path(r).parent]
+    chosen = beside[:1]
+    if not chosen:
+        for f in files:
+            text = _git_show(repo, ref, f) or ""
+            if any(re.search(rf"\b{re.escape(n)}\b", text) for n in names if len(n) >= 4):
+                chosen = [f]
+                break
+    if not chosen:
+        return ""
+    head = "\n".join((_git_show(repo, ref, chosen[0]) or "").splitlines()[:TEST_LINES])
+    return f"# {chosen[0]} (its first {TEST_LINES} lines)\n{head}"
+
+
+def setup_hint(repo: Path, ref: str, rels, names) -> str:
+    lines = []
+    if settings := django_settings(repo):
+        lines.append(f"This is a Django project; its tests run with DJANGO_SETTINGS_MODULE={settings}. "
+                     f"Before importing its models: os.environ.setdefault('DJANGO_SETTINGS_MODULE', "
+                     f"'{settings}'), then django.setup(). A model whose table does not exist needs it "
+                     "created first (django.db.connection.schema_editor().create_model(Model)), or use "
+                     "a model the test settings already install.")
+    if excerpt := test_excerpt(repo, ref, rels, names):
+        lines.append("How one of the project's own tests sets up:\n" + excerpt)
+    return "\n\n".join(lines) or "(no test setup found)"
+
+
+def cited(repo: Path, finding: dict, ref: str = "HEAD", roots=()) -> tuple:
+    """(the excerpts the model reads, the cited modules' import paths, the names they define)."""
+    parts, tree, modules, defined, rels, spans = [], None, [], [], [], []
     for cited, line in citations(finding):
         rel = resolve_path(repo, ref, cited, tree)
         if rel is None and tree is None:
@@ -183,11 +279,70 @@ def cited_code(repo: Path, finding: dict, ref: str = "HEAD", roots=()) -> str:
         lo, hi = max(1, line - AROUND), min(len(lines), line + AROUND)
         body = "\n".join(f"{n:>5}  {lines[n - 1]}" for n in range(lo, hi + 1))
         names = outline(text)
-        head = f"# {rel} — import it as `{module_of(rel, roots)}`"
+        modules.append(module_of(rel, roots))
+        rels.append(rel)
+        spans.append((rel, *span(text, line)))
+        defined += [n.split(":")[0].split("(")[0].replace("class ", "").replace("def ", "").strip()
+                    for n in names]
+        head = f"# {rel} — import it as `{modules[-1]}`"
         if names:
             head += "; it defines: " + "; ".join(names)
         parts.append(f"{head}\n# (lines {lo}-{hi})\n{body}")
-    return "\n\n".join(parts)[:MAX_CODE]
+    return "\n\n".join(parts)[:MAX_CODE], modules, [d for d in defined if d], rels, spans
+
+
+TRACER = """import runpy, sys
+target, lo, hi, script = sys.argv[1], int(sys.argv[2]), int(sys.argv[3]), sys.argv[4]
+hits = set()
+
+
+def local(frame, event, arg):
+    if event == "line" and lo <= frame.f_lineno <= hi:
+        hits.add(frame.f_lineno)
+    return local
+
+
+def call(frame, event, arg):
+    return local if frame.f_code.co_filename.replace("\\\\", "/").endswith(target) else None
+
+
+sys.argv = [script]
+sys.settrace(call)
+try:
+    runpy.run_path(script, run_name="__main__")
+except BaseException:
+    pass
+finally:
+    sys.settrace(None)
+    print("VERDICT-TRACE hits=%d" % len(hits))
+"""
+TRACE_MARK = re.compile(r"VERDICT-TRACE hits=(\d+)")
+
+
+def span(source: str, line: int) -> tuple:
+    """(first, last) line of the innermost function holding `line`, else a few lines around it."""
+    try:
+        tree = ast.parse(source)
+    except SyntaxError:
+        return max(1, line - 3), line + 3
+    best = None
+    for node in ast.walk(tree):
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) \
+                and node.lineno <= line <= getattr(node, "end_lineno", node.lineno):
+            # The body, not the `def` line: an import executes that, and the tracer would read a
+            # script that only imports the module as one that ran the function.
+            first = node.body[0].lineno if node.body else node.lineno
+            if best is None or first >= best[0]:
+                best = (first, getattr(node, "end_lineno", node.lineno))
+    return best or (max(1, line - 3), line + 3)
+
+
+def touches(script: str, modules, names) -> bool:
+    """The draft imports a cited module or names something a cited file defines: a script that
+    touches none of the cited code cannot be showing the finding's defect."""
+    if any(m and re.search(rf"(?<![\w.]){re.escape(m)}(?![\w])", script) for m in modules):
+        return True
+    return any(re.search(rf"\b{re.escape(n)}\b", script) for n in names if len(n) >= 3)
 
 
 def finding_text(finding: dict) -> str:
@@ -219,7 +374,11 @@ def check_script(script) -> str | None:
     try:
         tree = ast.parse(script)
     except SyntaxError as exc:
-        return f"does not parse ({exc.msg})"
+        # Where, so the next draft can mend it: two of nineteen findings ran out of drafts on
+        # "invalid syntax" alone (2026-10-18).
+        at = f" at line {exc.lineno}" if exc.lineno else ""
+        text = (exc.text or "").strip()
+        return f"does not parse ({exc.msg}{at}" + (f": `{text[:100]}`)" if text else ")")
     asserts = [n for n in ast.walk(tree) if isinstance(n, ast.Assert)
                and not isinstance(n.test, ast.Constant)
                and isinstance(n.msg, (ast.Constant, ast.JoinedStr)) and MARK in ast.unparse(n.msg)]
@@ -289,14 +448,18 @@ Write a different script."""
 
 
 def _attempt(model, repo, qa_root, finding, python, timeout, sandbox, head_ref, roots, prompt,
-             stamp) -> dict:
+             stamp, targets=((), ()), spans=()) -> dict:
     """One draft: ask, check, run at the record's commit (with one repair round on a crash before
     the assertion), and at the anchored commit when it did not reproduce there."""
     fid = str(finding.get("id"))
-    reply = model.ask_json(prompt, max_tokens=3000) or {}
+    reply = model.ask_json(prompt, max_tokens=DRAFT_TOKENS) or {}
     script = reply.get("script")
     if problem := check_script(script):
-        return {"verdict": f"no working repro: the draft {problem}", "why": f"the draft {problem}"}
+        return {"verdict": f"no working repro: the draft {problem}", "why": f"the draft {problem}",
+                "draft": str(script or "")[:400]}
+    if not touches(script, *targets):
+        why = "the draft imports none of the cited modules and names nothing the cited files define"
+        return {"verdict": f"no working repro: {why}", "why": why, "draft": str(script)[:400]}
     path = Path(qa_root).joinpath(*SCRIPT_DIR, f"{fid}.py")
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(script, encoding="utf-8")
@@ -312,11 +475,17 @@ def _attempt(model, repo, qa_root, finding, python, timeout, sandbox, head_ref, 
                and any(e in tail for e in REPAIRABLE) and "AssertionError" not in tail)
     if crashed:
         fixed = model.ask_json(REPAIR.format(fid=fid, script=script, tail=tail[-1500:]),
-                               max_tokens=3000) or {}
+                               max_tokens=DRAFT_TOKENS) or {}
         if not check_script(fixed.get("script")):
             path.write_text(fixed["script"], encoding="utf-8")
             reply, out["repaired"] = fixed, True
             head = run_at(repo, qa_root, shadow, head_ref, timeout, sandbox)
+    if head.get("result") == "reproduced" and spans \
+            and reaches(repo, qa_root, python, prefix, path, spans, head_ref, timeout, sandbox) is False:
+        where = ", ".join(f"{rel} lines {lo}-{hi}" for rel, lo, hi in spans)
+        why = (f"the script failed its assertion without running any line of the cited function "
+               f"({where}); it must call the code the finding is about")
+        return {"verdict": f"no working repro: {why}", "why": why, "draft": str(script)[:400]}
     ref = anchor_sha(qa_root, finding) if head.get("result") != "reproduced" else None
     anchor = run_at(repo, qa_root, shadow, ref, timeout, sandbox) if ref else None
     out.update(repro=repro, explains=str(reply.get("explains") or "")[:300], head=head,
@@ -335,19 +504,25 @@ def backfill_one(model, repo: Path, qa_root: Path, finding: dict, python: str, t
     fid = str(finding.get("id"))
     row = {"id": fid, "at": clock.stamp(), "model": getattr(model, "name", "?")}
     roots = import_roots(repo)
-    code = cited_code(repo, finding, head_ref, roots)
+    code, modules, names, rels, spans = cited(repo, finding, head_ref, roots)
     if not code:
         row["verdict"] = "no working repro: the finding cites no Python file that exists at HEAD"
         return row
     shown = ", ".join(f"`{r}/`" for r in roots) + (", and " if roots else "") + "the repository root"
-    prompt = PROMPT.format(mark=MARK, roots=shown, finding=finding_text(finding), code=code)
+    prompt = PROMPT.format(mark=MARK, roots=shown, finding=finding_text(finding), code=code,
+                           setup=setup_hint(repo, head_ref, rels, names)[:4000])
     result, used = {}, 0
     for used in range(1, max(1, attempts) + 1):
         result = _attempt(model, repo, qa_root, finding, python, timeout, sandbox, head_ref, roots,
-                          prompt + (RETRY.format(why=result["why"]) if result else ""), row["at"])
+                          prompt + (RETRY.format(why=result["why"]) if result else ""), row["at"],
+                          (modules, names), spans)
         if result["verdict"].startswith((STILL_BROKEN, LOOKS_FIXED)):
             break
     row.update({k: v for k, v in result.items() if k != "why"}, attempts=used)
+    if not row["verdict"].startswith((STILL_BROKEN, LOOKS_FIXED)):
+        # What the last draft ran into, so a miss can be told from a fix: "the draft was discarded"
+        # alone says neither whether the assertion held nor whether the script ever ran.
+        row["last_why"] = str(result.get("why") or "")[-400:]
     return row
 
 

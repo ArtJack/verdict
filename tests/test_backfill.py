@@ -47,7 +47,7 @@ def _old(fid="W-F-1", anchored_at_run=1):
     ("import a\nassert a.x == 2, a.x\n", "no `assert` whose message carries"),
     ("assert False, 'DEFECT: always'\n", "no `assert` whose message carries"),
     ("import a\nif a.x:\n    raise AssertionError('DEFECT: x')\nassert a.x, 'DEFECT: y'\n", "raises the mark itself"),
-    ("def (:\n", "does not parse"),
+    ("def (:\n", "at line 1: `def (:`"),
     ("import a\nassert a is not None, 'DEFECT: no module'\nassert a.x == 2, 'DEFECT: x'\n", "2 assertions carry"),
     (GOOD, None),
 ])
@@ -323,3 +323,58 @@ def test_the_command_refuses_without_a_gateway_or_a_sandbox(repo, tmp_path, monk
     monkeypatch.setenv("ANTHROPIC_AUTH_TOKEN", "t")
     monkeypatch.setattr(backfill, "sandbox_prefix", NO_SANDBOX)
     assert backfill.main(["widget"]) == 2 and "nothing was drafted" in capsys.readouterr().err
+
+
+def test_a_draft_that_never_touches_the_cited_code_is_refused_and_redrafted(repo, tmp_path):
+    qa = tmp_path / "qa"
+    qa.mkdir()
+    unrelated = "import os\nassert os.sep == '|', 'DEFECT: separator'\n"
+    model = FakeModel(unrelated, then=GOOD)
+    row = backfill.backfill_one(model, repo, qa, _old(), PY, 60, sandbox=PASS_THROUGH, attempts=3)
+    assert row["verdict"].startswith(backfill.STILL_BROKEN) and row["attempts"] == 2, row
+    assert "imports none of the cited modules" in model.prompts[1]
+
+
+def test_the_draft_is_shown_how_the_projects_own_tests_set_up(repo, tmp_path):
+    (repo / "pyproject.toml").write_text('[tool.pytest.ini_options]\nDJANGO_SETTINGS_MODULE = "test_settings"\n',
+                                         encoding="utf-8")
+    (repo / "test_a.py").write_text("import a\n\n\ndef test_x():\n    assert a.x\n", encoding="utf-8")
+    git(["add", "-A"], repo)
+    git(["commit", "-qm", "tests"], repo)
+    hint = backfill.setup_hint(repo, "HEAD", ["a.py"], ["x"])
+    assert "DJANGO_SETTINGS_MODULE=test_settings" in hint and "django.setup()" in hint
+    assert "# test_a.py (its first 70 lines)" in hint and "def test_x" in hint
+    assert backfill.django_settings(repo) == "test_settings"
+    qa = tmp_path / "qa"
+    qa.mkdir()
+    model = FakeModel(GOOD)
+    backfill.backfill_one(model, repo, qa, _old(), PY, 60, sandbox=PASS_THROUGH, attempts=1)
+    assert "# test_a.py (its first 70 lines)" in model.prompts[0], "the hint reaches the model"
+
+
+def test_a_repro_that_never_runs_the_cited_function_is_refused(repo, tmp_path):
+    (repo / "fees.py").write_text("def fee(x):\n    if x > 10:\n        return x * 2\n    return x\n\n\ndef other():\n    return 3\n",
+                                  encoding="utf-8")
+    git(["add", "-A"], repo)
+    git(["commit", "-qm", "fees"], repo)
+    qa = tmp_path / "qa"
+    qa.mkdir()
+    finding = {"id": "W-F-7", "title": "fee doubles above ten", "severity": "Major", "status": "open",
+               "confidence": "proven", "anchors": [{"path": "fees.py", "line": 3}], "evidence": ["fees.py:3 — doubles"]}
+    beside = "import fees\nassert fees.other() == 4, 'DEFECT: fee doubles above ten'\n"
+    reaching = "import fees\nassert fees.fee(20) == 20, 'DEFECT: fee doubles above ten'\n"
+    model = FakeModel(beside, then=reaching)
+    row = backfill.backfill_one(model, repo, qa, finding, PY, 60, sandbox=PASS_THROUGH, attempts=3)
+    assert row["verdict"].startswith(backfill.STILL_BROKEN) and row["attempts"] == 2, row
+    assert "without running any line of the cited function (fees.py lines 2-4)" in model.prompts[1]
+
+
+def test_a_finding_left_without_a_repro_keeps_what_the_last_draft_ran_into(repo, tmp_path):
+    qa = tmp_path / "qa"
+    qa.mkdir()
+    holds = "import a\nassert a.x == 1, 'DEFECT: x is not one'\n"
+    row = backfill.backfill_one(FakeModel(holds), repo, qa, _old(), PY, 60, sandbox=PASS_THROUGH, attempts=2)
+    assert row["verdict"] == "no working repro: the draft was discarded" and row["attempts"] == 2, row
+    assert row["last_why"], row
+    kept = backfill.backfill_one(FakeModel(GOOD), repo, qa, _old(), PY, 60, sandbox=PASS_THROUGH, attempts=1)
+    assert kept["verdict"].startswith(backfill.STILL_BROKEN) and "last_why" not in kept

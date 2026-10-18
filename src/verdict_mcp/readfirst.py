@@ -37,14 +37,17 @@ def _words(text: str) -> list[str]:
     return [w.lower() for w in re.split(r"[^A-Za-z0-9]+", spaced) if w]
 
 
-def risk_of(path: str, function: str = "", globs=None) -> str:
+def risk_of(path: str, function: str = "", globs=None, focus=()) -> str:
     """Why this path or function is a risk path ('' when it is not): the profile's
-    `risk_paths` glob that matched, or the stem a word of its name begins with."""
+    `risk_paths` glob that matched; else a file its risk-focus section points at (0.92.0); else
+    the stem a word of its name begins with."""
     if globs:
         for glob in globs:
             if fnmatch.fnmatch(path, glob):
                 return f"risk_paths: {glob}"
         return ""
+    if path in focus:
+        return "risk focus"
     for word in _words(path) + _words(function):
         for stem in RISK_STEMS:
             if word == stem or (len(stem) >= 4 and word.startswith(stem)):
@@ -105,10 +108,14 @@ def _gap_items(gaps: dict | None) -> list[dict]:
 
 
 def read_first(repo: Path, coverage: dict | None, reading_map: dict | None, changed=None,
-               globs=None, is_test=lambda p: False, cap: int = CAP, gaps: dict | None = None) -> dict | None:
+               globs=None, is_test=lambda p: False, cap: int = CAP, gaps: dict | None = None,
+               focus=()) -> dict | None:
     """The ranking, or None when there is nothing to rank. Assertion-gap survivors, when a
-    census ran, come first: they are concrete lines the suite executes without checking."""
-    ranked = _read_first(repo, coverage, reading_map, changed, globs, is_test, cap)
+    census ran, come first: they are concrete lines the suite executes without checking.
+    `focus` is the files the profile's risk-focus section points at, a risk signal when the
+    profile sets no `risk_paths`: on 2026-10-18 a project with neither ranked its least covered
+    modules alphabetically, and the named scope sat below the cap."""
+    ranked = _read_first(repo, coverage, reading_map, changed, globs, is_test, cap, set(focus or ()))
     gap_items = _gap_items(gaps)
     if not gap_items:
         return ranked
@@ -118,11 +125,19 @@ def read_first(repo: Path, coverage: dict | None, reading_map: dict | None, chan
         ((ranked or {}).get("basis") or "nothing else ranked")
     items = (gap_items + rest)[:cap]
     return {"basis": basis, "items": items, "of": len(gap_items) + (ranked or {}).get("of", 0),
-            "risk_from": (ranked or {}).get("risk_from") or ("profile risk_paths" if globs else "name stems")}
+            "risk_from": (ranked or {}).get("risk_from") or _risk_from(globs, focus)}
+
+
+def _risk_from(globs, focus) -> str:
+    if globs:
+        return "profile risk_paths"
+    if focus:
+        return "the profile's risk focus, then name stems"
+    return "name stems (set risk_paths in the profile to choose)"
 
 
 def _read_first(repo: Path, coverage: dict | None, reading_map: dict | None, changed=None,
-                globs=None, is_test=lambda p: False, cap: int = CAP) -> dict | None:
+                globs=None, is_test=lambda p: False, cap: int = CAP, focus=frozenset()) -> dict | None:
     cov = coverage if isinstance(coverage, dict) else {}
     items = []
     if cov.get("status") == "measured" and cov.get("per_file"):
@@ -135,7 +150,7 @@ def _read_first(repo: Path, coverage: dict | None, reading_map: dict | None, cha
             for name, hit in enclosing(repo, path, lines).items() if lines else ():
                 items.append({"path": path, "function": name, "unexercised_changed_lines": len(hit),
                               "lines": f"{hit[0]}-{hit[-1]}" if len(hit) > 1 else str(hit[0]),
-                              "risk": risk_of(path, name, globs)})
+                              "risk": risk_of(path, name, globs, focus)})
         items.sort(key=lambda i: (not i["risk"], -i["unexercised_changed_lines"], i["path"], i["function"]))
     elif changed:
         basis = "changed lines (coverage not measured: whether a test executes them is unknown), risk paths first"
@@ -146,23 +161,22 @@ def _read_first(repo: Path, coverage: dict | None, reading_map: dict | None, cha
             for name, hit in enclosing(repo, path, lines).items():
                 items.append({"path": path, "function": name, "changed_lines": len(hit),
                               "lines": f"{hit[0]}-{hit[-1]}" if len(hit) > 1 else str(hit[0]),
-                              "risk": risk_of(path, name, globs)})
+                              "risk": risk_of(path, name, globs, focus)})
         items.sort(key=lambda i: (not i["risk"], -i["changed_lines"], i["path"], i["function"]))
     elif isinstance(reading_map, dict) and reading_map.get("functions_never_entered"):
         basis = "no range: functions no test ever entered, risk paths first"
         for u in reading_map["functions_never_entered"]:
             items.append({"path": u["path"], "function": u["function"], "missed_lines": u["missed"],
-                          "risk": risk_of(u["path"], u["function"], globs)})
+                          "risk": risk_of(u["path"], u["function"], globs, focus)})
         items.sort(key=lambda i: (not i["risk"], -i["missed_lines"], i["path"], i["function"]))
     elif isinstance(reading_map, dict) and reading_map.get("lowest"):
         basis = "no range: the least covered modules, risk paths first"
         for m in reading_map["lowest"]:
             items.append({"path": m["path"], "percent": m.get("percent"),
-                          "open_findings": m.get("open_findings", 0), "risk": risk_of(m["path"], "", globs)})
+                          "open_findings": m.get("open_findings", 0), "risk": risk_of(m["path"], "", globs, focus)})
         items.sort(key=lambda i: (not i["risk"], i["percent"] if i["percent"] is not None else 101, i["path"]))
     else:
         return None
     if not items:
         return None
-    return {"basis": basis, "items": items[:cap], "of": len(items),
-            "risk_from": "profile risk_paths" if globs else "name stems (set risk_paths in the profile to choose)"}
+    return {"basis": basis, "items": items[:cap], "of": len(items), "risk_from": _risk_from(globs, focus)}

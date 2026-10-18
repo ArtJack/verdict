@@ -31,6 +31,9 @@ MAX_ITEMS = 25
 MAX_SURVIVOR_FUNCTIONS = 12
 SURVIVOR_LINES = 2
 MAX_READ_FIRST = 6
+MAX_NAMED = 12
+MAX_NAMED_FILES = 6
+PER_FILE = 2
 SEVERITY_ORDER = {"Blocker": 0, "Critical": 1, "Major": 2, "Minor": 3, "Trivial": 4}
 # Not copied into the scratch root: earlier runs' reports and probe scripts are history, and
 # the breadth pass needs only the record and the facts.
@@ -80,6 +83,16 @@ def _where(finding: dict) -> str:
     return first.split(" ", 1)[0] if first else "?"
 
 
+def _reading_item(item: dict) -> str:
+    """One reading-map entry: a function with its risk, or a whole module with its coverage (the
+    map ranks modules when no range and no function-level coverage exist)."""
+    where = f"{item.get('path')}::{item['function']}" if item.get("function") else str(item.get("path"))
+    notes = [f"risk: {item['risk']}"] if item.get("risk") else []
+    if not item.get("function") and item.get("percent") is not None:
+        notes.append(f"{item['percent']}% of its lines covered")
+    return f"- **Read first** · `{where}`" + (f" ({'; '.join(notes)})" if notes else "")
+
+
 def _one_line(text, width=200) -> str:
     text = " ".join(str(text or "").split())
     return text if len(text) <= width else text[:width - 1] + "…"
@@ -116,6 +129,73 @@ def survivors(facts: dict) -> list:
     return [(path, fn, items) for (path, fn), items in grouped.items()]
 
 
+def _is_stub(fn) -> bool:
+    """A body of only `...`, `pass`, a docstring or `raise NotImplementedError` (after at most a
+    message put in a name): a protocol or an abstract declaration. Measured 2026-10-18: two of
+    twelve named slots went to abstract `calc` methods that only raise."""
+    import ast
+
+    def not_implemented(exc):
+        target = exc.func if isinstance(exc, ast.Call) else exc
+        return (isinstance(target, ast.Name) and target.id == "NotImplementedError") or \
+            (isinstance(target, ast.Attribute) and target.attr == "NotImplementedError")
+
+    def idle(b):
+        return isinstance(b, ast.Pass) or \
+            (isinstance(b, ast.Expr) and isinstance(b.value, ast.Constant) and b.value.value is Ellipsis) or \
+            (isinstance(b, ast.Assign) and isinstance(b.value, (ast.Constant, ast.JoinedStr)))
+
+    body = [b for b in fn.body if not (isinstance(b, ast.Expr) and isinstance(b.value, ast.Constant)
+                                       and isinstance(b.value.value, str))]
+    if body and isinstance(body[-1], ast.Raise) and body[-1].exc is not None and not_implemented(body[-1].exc):
+        body = body[:-1]
+    return all(idle(b) for b in body)
+
+
+def named_functions(facts: dict, skip=()) -> list:
+    """(path, qualified function) pairs the profile's risk focus names: the functions the owner said
+    matter, whatever the small model made of them. Measured 2026-10-18: the breadth pass read the
+    right files on two projects with no coverage map and filed nothing in the functions that held
+    the defects. Generic names (`sum`, `clone`) filled the first cap from one file, so the slots
+    go round the focus files, two at most from each; stubs are skipped, and a name also matches
+    its `name_*` variants (`set_input` → `set_input_dispatch_by_period`)."""
+    import ast
+    focus = (facts or {}).get("risk_focus") or {}
+    names = [str(n) for n in focus.get("names") or []]
+    repo = Path(str((facts or {}).get("repo") or "."))
+
+    def named(name):
+        return any(name == n or (len(n) >= 5 and "_" in n and name.startswith(n + "_")) for n in names)
+
+    per_file: list = []
+    for rel in focus.get("files") or []:
+        try:
+            tree = ast.parse((repo / rel).read_text(encoding="utf-8", errors="replace"))
+        except (OSError, SyntaxError, ValueError):
+            continue
+        found: list = []
+
+        def walk(node, prefix):
+            for child in ast.iter_child_nodes(node):
+                if isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                    qual = f"{prefix}{child.name}"
+                    if named(child.name) and not _is_stub(child) and (rel, qual) not in skip:
+                        found.append((rel, qual))
+                    walk(child, qual + ".")
+                elif isinstance(child, ast.ClassDef):
+                    walk(child, f"{prefix}{child.name}.")
+
+        walk(tree, "")
+        if found:
+            per_file.append(found[:PER_FILE])
+    out: list = []
+    for turn in range(PER_FILE):
+        for found in per_file:
+            if turn < len(found) and len(out) < MAX_NAMED:
+                out.append(found[turn])
+    return out
+
+
 def compose(scratch: Path, facts: dict, budget_usd: float) -> tuple:
     """The packet the tester is handed, and the summary recorded beside the run → (text, summary).
 
@@ -144,8 +224,16 @@ def compose(scratch: Path, facts: dict, budget_usd: float) -> tuple:
                           f"`{_one_line(s.get('after'), 80)}`" for s in found[:SURVIVOR_LINES])
         items.append(f"- **Census survivor** · `{path}::{fn}` — its tests run it without checking "
                      f"what it does: they stay green when {shown}")
-    items += [f"- **Read first** · `{i.get('path')}::{i.get('function')}` (risk: {i.get('risk')})"
-              for i in reading_map]
+    items += [_reading_item(i) for i in reading_map]
+    shown = listed_functions.union((i.get("path"), i.get("function")) for i in reading_map)
+    named = named_functions(facts, shown)
+    items += [f"- **Named in the risk focus** · `{path}::{fn}` — the profile names it; read it "
+              "whatever the breadth pass made of it" for path, fn in named]
+    cited = {path for path, _ in named} | {path for path, _fn in shown if path}
+    files = [f for f in ((facts or {}).get("risk_focus") or {}).get("named_files") or []
+             if f not in cited]
+    items += [f"- **Named in the risk focus** · `{f}` — the profile names this file; read what in "
+              "it the scope is about" for f in files[:MAX_NAMED_FILES]]
     items += [f"- **Unproven reading** · `{_where(f)}` — {_one_line(f.get('title'))} "
               f"(read as {f.get('severity')})" for f in unproven]
     items += [f"- **Lead** · `{x.get('path')}:{x.get('line')}` `{x.get('function')}` — "
@@ -168,6 +256,7 @@ def compose(scratch: Path, facts: dict, budget_usd: float) -> tuple:
         "leads": min(len(items), MAX_ITEMS), "not_listed": max(0, len(items) - MAX_ITEMS),
         "proven_local": len(proven), "unproven_local": len(unproven),
         "unfiled_leads": len(leads), "survivor_functions": len(grouped), "owed": sorted(owed),
+        "named_functions": len(named),
         "local_model": model, "local_calls": local.get("calls"),
         "local_seconds": local.get("seconds"), "functions_read": functions,
         "budget_usd": budget_usd,

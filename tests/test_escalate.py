@@ -257,3 +257,47 @@ def test_the_bill_sums_every_run_the_invocation_wrote(tmp_path):
     line = runner.bill_line(qa, before=1)
     assert line.startswith("57 request(s), 30,000 output and 100,000 cache-read token(s)")
     assert line.endswith("about $0.62 at list price")
+
+
+def test_the_packet_names_the_functions_the_risk_focus_names(tmp_path):
+    repo = tmp_path / "repo"
+    (repo / "scales").mkdir(parents=True)
+    (repo / "scales" / "rate.py").write_text(
+        "class AverageRate:\n    def calc(self, base):\n        return 0\n\n    def other(self):\n        pass\n\n\n"
+        "def set_input(x):\n    return x\n", encoding="utf-8")
+    facts = {"repo": str(repo), "risk_focus": {"files": ["scales/rate.py"], "names": ["calc", "set_input"]}}
+    assert escalate.named_functions(facts) == [("scales/rate.py", "AverageRate.calc"), ("scales/rate.py", "set_input")]
+    assert escalate.named_functions(facts, skip={("scales/rate.py", "set_input")}) == [("scales/rate.py", "AverageRate.calc")]
+    text, summary = escalate.compose(_scratch(tmp_path), facts, 2.5)
+    assert "**Named in the risk focus** · `scales/rate.py::AverageRate.calc`" in text
+    assert summary["named_functions"] == 2
+
+
+def test_the_packet_lists_files_the_risk_focus_names(tmp_path):
+    facts = {"repo": str(tmp_path), "risk_focus": {"files": [], "names": [], "named_files": ["shop/offer/benefits.py"]}}
+    text, _ = escalate.compose(_scratch(tmp_path), facts, 2.5)
+    assert "**Named in the risk focus** · `shop/offer/benefits.py` — the profile names this file" in text
+
+
+def test_named_slots_go_round_the_files_skip_stubs_and_match_name_variants(tmp_path):
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    (repo / "a.py").write_text(
+        "class Port:\n    def settle(self):\n        ...\n\n\n"
+        "class Base:\n    def settle(self):\n        msg = f'not for {self}'\n        raise NotImplementedError(msg)\n\n\n"
+        "def set_input(x):\n    return x\n\n\ndef set_input_by_period(x):\n    return x\n\n\n"
+        "def set_input_divide(x):\n    return x\n", encoding="utf-8")
+    (repo / "b.py").write_text("def settle(x):\n    return x * 2\n", encoding="utf-8")
+    facts = {"repo": str(repo), "risk_focus": {"files": ["a.py", "b.py"], "names": ["set_input", "settle"]}}
+    assert escalate.named_functions(facts) == [("a.py", "set_input"), ("b.py", "settle"),
+                                               ("a.py", "set_input_by_period")]
+
+
+def test_a_module_in_the_reading_map_is_shown_as_a_module_with_its_coverage(tmp_path):
+    facts = {"repo": str(tmp_path), "read_first": {"items": [
+        {"path": "pkg/fees.py", "function": "Fees.total", "lines": "12", "risk": "fees"},
+        {"path": "pkg/_babel.py", "percent": 0, "open_findings": 0, "risk": ""}]}}
+    text, _ = escalate.compose(_scratch(tmp_path), facts, 2.5)
+    assert "- **Read first** · `pkg/fees.py::Fees.total` (risk: fees)" in text
+    assert "- **Read first** · `pkg/_babel.py` (0% of its lines covered)" in text
+    assert "None" not in text and "(risk: )" not in text

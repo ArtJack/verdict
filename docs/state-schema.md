@@ -239,7 +239,10 @@ or auth path (`refund`, `payment`, `auth`, …: a whole word, or a word beginnin
 four letters or more, so `rate` never matches `generate`). Risk paths first, then the most
 unexercised lines. A range without coverage ranks changed functions by `changed_lines`; a run
 with no range ranks the functions no test ever entered (`reading_map.functions_never_entered`, with `missed_lines`), or, without per-function coverage, the reading map's least covered modules. Top 15; `of` says how many there
-were. `risk_paths:` in the profile (globs, a list or comma-separated) replaces the stems.
+were. `risk_paths:` in the profile (globs, a list or comma-separated) replaces the stems. Without
+it, a file the profile's risk-focus section points at (`risk_focus.files`, below) is a risk path
+first, with `risk: risk focus`, and the stems come after (0.92.0): a project with neither ranked
+its least covered modules alphabetically, and the scope its profile named sat below the cap.
 
 ## Code the suite runs without checking — `facts.json` → `assertion_gaps` (0.91.0)
 
@@ -386,6 +389,38 @@ does not reach, and says in `not_tested` what it did not read.
   spend the cap again. Nor is a run that wrote its state, whatever its output says afterwards: on
   2026-10-18 a session-limit notice printed after finalize cost an hour's wait and a second session.
 
+The breadth pass and the packet start from what the profile's owner said matters.
+`verdict-facts` reads every profile section whose heading contains "risk", minus the lines that
+say what is out of scope, into facts.json as `risk_focus`: `paths` and `names` (what it names in
+backticks), `words` (its prose, less the words that name no part of a codebase), `named_files`
+(files named outright: a full path, or a bare `benefits.py` read in the directory its bullet named
+last; a bare name no bullet places counts only where it sits under a named directory, and not at
+all when that leaves more than two) and `files`, ranked: files named
+outright, then files that define the named functions and classes, then files under a named path,
+then files whose path carries a named word. A name defined once outranks one defined in a dozen
+files, and `set_input` also finds `set_input_dispatch_by_period`. Tests and migrations are never
+in it. The breadth pass reads those files after the census survivors' files and before the
+coverage order, the named functions first within each file; with no coverage map it used to read
+the largest files. After the reading map, the packet lists up to twelve named functions, two per
+file going round the files and skipping protocol stubs and abstract methods that only raise
+`NotImplementedError`, then up to six named files that nothing above it cites.
+
+`eval/recall/packet_recall.py` measures the packet's ceiling at zero Claude tokens: it composes
+each benchmark case's packet as `--escalate` does and counts a known defect as pointed at when the
+packet cites one of its files. Six stranger repositories, 17 known defects, one breadth pass each
+(2026-10-18):
+
+| packet | points at |
+|---|---|
+| before the risk focus | 6 of 17 |
+| the breadth pass reads the named scope | 9 of 17 |
+| + named functions, going round the files | 10 of 17 |
+| + files named outright first, specific names before generic ones | 12 of 17 |
+| + named files in the packet | 16 of 17 |
+
+The one left sits in code its profile never names. Pointed at is the ceiling, not the catch: the
+tester still has to read the item and prove it.
+
 Measured 2026-10-18 on the recall benchmark: four stranger repositories, 13 known defects, one
 baseline each, Opus 5.5 at the agent's `xhigh`, scored by `eval/recall/score_recall.py`.
 
@@ -416,13 +451,38 @@ things:
 - **still broken**: the repro reproduces at the record's commit. The next finalize attaches it to
   the finding, with `repro.origin` naming the model and the date, and every later run replays it.
   A model-written repro never closes its finding: when it stops reproducing between two runs, the
-  finding stays open with `fix_suspected` saying so, and the gate's `backfill:` line names it. Of
-  four kept on one record on 2026-10-18, two tested the finding and two tested something near it,
-  and an unrelated change can make the second kind pass.
+  finding stays open with `fix_suspected` saying so, and the gate's `backfill:` line names it. On
+  one record on 2026-10-18 (19 old findings), two trials kept four repros and then three, the
+  second with the checks below; read by hand, three of the seven test their finding and four test
+  something near it, and an unrelated change can make that kind pass.
 - **looks fixed since `<sha>`**: it reproduces at the anchored commit and not at the record's.
   `verdict-gate` names these on a `backfill:` line. Said, never resolved: a run with judgment
   closes a finding.
 - **no working repro**: the draft was discarded.
+
+The model is shown what a script needs in order to run: each cited file's import path and
+outline, and how the project's own tests set up (the Django settings module from pytest's
+configuration, the head of the test file nearest the cited code). A finding gets up to three
+drafts, each told why the last one failed. A draft that imports none of the cited modules and
+names nothing the cited files define is refused before it runs. A kept one must also execute the
+cited function: a tracer, run in the same sandbox, checks that a line of its body ran. Its one
+marked assertion states what must not happen, so that any correct fix passes it, not only the
+fix the model had in mind.
+
+Measured 2026-10-18 by `eval/backfill/faithful.py` on five defects with known minimal fixes. A
+kept repro is faithful when it reproduces at the defect's commit and stops reproducing once the
+fix is applied. Two trials per row:
+
+| drafts shown | kept | faithful |
+|---|---|---|
+| import paths and outlines | 0 of 5 (one trial) | — |
+| + the tests' setup; must touch the cited code | 6 of 10 | 3 |
+| + must run the cited function | 7 of 10 | 5 |
+| + an assertion any correct fix passes | 5 of 10 | 4 |
+
+Ten drafts a row: the difference between the last two rows is within noise. What the rows do say
+is that a kept repro can still test something beside its finding, which is why a model-written
+repro never closes one.
 
 A repro whose `origin` starts with `backfill` was written by a model, so wherever it runs (the
 backfill, finalize's replay, the nightly's in-run replay, `verdict-replay`) it runs only inside a

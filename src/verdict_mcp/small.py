@@ -329,6 +329,8 @@ def candidates(facts: dict, repo: Path) -> list:
     otherwise."""
     reading = facts.get("reading_map") or {}
     files = list(gap_functions(facts))
+    # The scope the profile names (0.92.0), before the coverage order and the largest files.
+    files += [f for f in ((facts.get("risk_focus") or {}).get("files") or []) if isinstance(f, str)]
     files += [m["path"] for m in (reading.get("lowest") or []) if m.get("path")]
     files += [m["path"] for m in (reading.get("never_imported") or []) if isinstance(m, dict)
               and m.get("path")]
@@ -1973,18 +1975,26 @@ def regressed_finding(prior: dict, claim_entry: dict, how: str) -> dict:
     return entry
 
 
-def ordered_chunks(repo: Path, rel: str, lines, gaps: dict | None) -> list:
-    """The functions to ask about, the ones holding an assertion-gap survivor first."""
+def focus_names(facts: dict) -> set:
+    """The function and class names the profile's risk-focus section names (0.92.0)."""
+    return {str(n) for n in ((facts.get("risk_focus") or {}).get("names") or [])}
+
+
+def ordered_chunks(repo: Path, rel: str, lines, gaps: dict | None, focus=()) -> list:
+    """The functions to ask about: the ones holding an assertion-gap survivor first, then the
+    ones the profile's risk focus names, then the rest in file order."""
     chunks = chunks_in_range(repo, rel, lines)
     named = (gaps or {}).get(rel) or {}
-    return sorted(chunks, key=lambda c: c.name not in named) if named else chunks
+    if not named and not focus:
+        return chunks
+    return sorted(chunks, key=lambda c: (c.name not in named, c.name.rsplit(".", 1)[-1] not in focus))
 
 
 def file_findings(model: Model, repo: Path, targets: list, mint, findings_dir: Path,
                   filed: list, python: str, prove: bool, budget: Budget,
                   prior_index: PriorIndex | None = None, already_open: list | None = None,
                   leads: list | None = None, probes: list | None = None,
-                  gaps: dict | None = None, asked: set | None = None) -> tuple:
+                  gaps: dict | None = None, asked: set | None = None, focus=()) -> tuple:
     """Read the source, one function at a time, and try to prove each claim by flipping
     the line in a scratch copy. Returns (examined, proven, disproven).
 
@@ -1999,7 +2009,7 @@ def file_findings(model: Model, repo: Path, targets: list, mint, findings_dir: P
     examined = proven = disproven = 0
     for rel, lines in targets:
         named = (gaps or {}).get(rel) or {}
-        for chunk in ordered_chunks(repo, rel, lines, gaps):
+        for chunk in ordered_chunks(repo, rel, lines, gaps, focus):
             if not budget.take_function():
                 continue
             examined += 1
@@ -2552,7 +2562,7 @@ def run(repo: Path, qa_root: Path, model: Model, limit: int, gate: str | None,
                                                 prior_index=PriorIndex(previous),
                                                 already_open=already_open, leads=leads,
                                                 probes=probe_ledger, gaps=gap_functions(facts),
-                                                asked=asked_functions)
+                                                asked=asked_functions, focus=focus_names(facts))
     # Beside `last_run`, not inside its `local` block: that block is copied into a
     # `usage.jsonl` row every run, and the ledger is a record, not a bill.
     facts["probes"] = probe_ledger
