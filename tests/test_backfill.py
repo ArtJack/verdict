@@ -335,7 +335,7 @@ def test_a_draft_that_never_touches_the_cited_code_is_refused_and_redrafted(repo
     assert "imports none of the cited modules" in model.prompts[1]
 
 
-def test_the_draft_is_shown_how_the_projects_own_tests_set_up(repo, tmp_path):
+def test_the_draft_is_shown_how_the_projects_own_tests_set_up(repo, tmp_path, monkeypatch):
     (repo / "pyproject.toml").write_text('[tool.pytest.ini_options]\nDJANGO_SETTINGS_MODULE = "test_settings"\n',
                                          encoding="utf-8")
     (repo / "test_a.py").write_text("import a\n\n\ndef test_x():\n    assert a.x\n", encoding="utf-8")
@@ -345,6 +345,9 @@ def test_the_draft_is_shown_how_the_projects_own_tests_set_up(repo, tmp_path):
     assert "DJANGO_SETTINGS_MODULE=test_settings" in hint and "django.setup()" in hint
     assert "# test_a.py (its first 70 lines)" in hint and "def test_x" in hint
     assert backfill.django_settings(repo) == "test_settings"
+    monkeypatch.setitem(sys.modules, "tomllib", None)       # as on Python 3.9 and 3.10
+    assert backfill.django_settings(repo) == "test_settings"
+    monkeypatch.delitem(sys.modules, "tomllib")
     qa = tmp_path / "qa"
     qa.mkdir()
     model = FakeModel(GOOD)

@@ -221,8 +221,16 @@ def django_settings(repo: Path) -> str | None:
     pyproject = Path(repo) / "pyproject.toml"
     if pyproject.is_file():
         try:
+            text = pyproject.read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError):
+            return None
+        try:
             import tomllib
-            doc = tomllib.loads(pyproject.read_text(encoding="utf-8"))
+        except ImportError:  # Python before 3.11: the one key, read off its line
+            m = re.search(r"""(?m)^\s*DJANGO_SETTINGS_MODULE\s*=\s*["']([^"'\n]+)["']""", text)
+            return m.group(1).strip() if m else None
+        try:
+            doc = tomllib.loads(text)
         except Exception:  # noqa: BLE001 — a config we cannot read adds nothing
             return None
         opts = ((doc.get("tool") or {}).get("pytest") or {}).get("ini_options") or {}
