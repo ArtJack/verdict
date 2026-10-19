@@ -44,7 +44,7 @@ try:
     from .project_key import derive_key
     from .questions import facts_view as questions_view
     from .dupes import describe as describe_related, load_related
-    from .replay import load_replays, wants_replay
+    from .replay import LOOKS_FIXED, STILL_BROKEN, load_backfill, load_replays, wants_replay
     from .state import (code_drift, fix_claims, fold_accepted, harness_signals, is_open, is_path_like,
                     load_accepted,
                     load_chain_anchor, load_runs, load_state, missing_durable,
@@ -58,7 +58,7 @@ except ImportError:  # executed as a bare script (GitHub Action gate mode)
     from project_key import derive_key
     from questions import facts_view as questions_view
     from dupes import describe as describe_related, load_related
-    from replay import load_replays, wants_replay
+    from replay import LOOKS_FIXED, STILL_BROKEN, load_backfill, load_replays, wants_replay
     from state import (code_drift, fix_claims, fold_accepted, harness_signals, is_open, is_path_like,
                    load_accepted,
                    load_chain_anchor, load_runs, load_state, missing_durable,
@@ -203,6 +203,7 @@ def evaluate(project, fail_on, max_age_hours, min_run_number, now=None,
     out["news"] = news_of(state, folded, rows, (qv or {}).get("parked"), out["fix_claims"])
     _replay_overlay(out, state.get("_qa_root") or ".")
     _tracker_overlay(out, state.get("_qa_root") or ".")
+    _backfill_overlay(out, state.get("_qa_root") or ".")
     if verdict not in ("pass", "pass with risks", "blocked", "fail"):
         out.update(exit_code=4, reason=f"state has no usable verdict: {verdict!r}")
         return out
@@ -391,6 +392,38 @@ def _tracker_overlay(out, qa_root) -> None:
     }
 
 
+def _backfill_overlay(out, qa_root) -> None:
+    """What `verdict-backfill` said about open findings: the ones whose drafted repro reproduces
+    at the commit they were anchored on and not at HEAD, and the ones whose proof the next run
+    attaches. A lead for a run with judgment, never a resolution."""
+    rows = load_backfill(qa_root)
+    fixed, pending = [], []
+    for f in out["findings_open"]:
+        verdict = str((rows.get(str(f.get("id"))) or {}).get("verdict") or "")
+        if verdict.startswith(LOOKS_FIXED) or f.get("fix_suspected"):
+            fixed.append(str(f.get("id")))
+        elif verdict.startswith(STILL_BROKEN) and not f.get("repro"):
+            pending.append(str(f.get("id")))
+    if fixed or pending:
+        out["backfill"] = {"looks_fixed": fixed, "proof_pending": pending}
+
+
+def backfill_line(r) -> str:
+    """One line on what verdict-backfill measured, or '' when it said nothing about open findings."""
+    b = r.get("backfill")
+    if not b:
+        return ""
+    parts = []
+    if b["looks_fixed"]:
+        parts.append(f"{len(b['looks_fixed'])} open finding(s) look fixed since the commit they were "
+                     f"anchored on ({', '.join(b['looks_fixed'])}) — said, not resolved: read each, "
+                     "then resolve or keep it")
+    if b["proof_pending"]:
+        parts.append(f"{len(b['proof_pending'])} still broken, repro attached at the next run "
+                     f"({', '.join(b['proof_pending'])})")
+    return "backfill: " + " · ".join(parts)
+
+
 def tracker_line(r) -> str:
     """One line on what the tracker holds, or '' when no finding was ever searched."""
     t = r.get("tracker")
@@ -438,6 +471,8 @@ def _fmt_text(r, n):
         lines.append(line)
     if line := tracker_line(r):
         lines.append(line)
+    if line := backfill_line(r):
+        lines.append(line)
     for f in (r.get("findings_open") or [])[:n]:
         lines.append(f"  {f.get('delta', '?'):<10} {f.get('id')} "
                      f"{f.get('severity')}/{f.get('priority')} {f.get('title', '')}"
@@ -484,6 +519,9 @@ def _fmt_comment(r, n):
         head.append("")
     if line := tracker_line(r):
         head.append(f"**Tracker:** {line[len('tracker: '):]}")
+        head.append("")
+    if line := backfill_line(r):
+        head.append(f"**Backfill:** {line[len('backfill: '):]}")
         head.append("")
     rows = (r.get("findings_open") or [])[:n]
     if rows:

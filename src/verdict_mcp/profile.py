@@ -52,10 +52,13 @@ from pathlib import Path
 FRONT_MATTER = re.compile(r"\A---[ \t]*\r?\n(.*?)\r?\n---[ \t]*(?:\r?\n|\Z)", re.S)
 _SCALAR = re.compile(r"^([A-Za-z_][A-Za-z0-9_-]*):[ \t]*(.*)$")
 _NESTED = re.compile(r"^[ \t]{2,}([A-Za-z_][A-Za-z0-9_-]*):[ \t]*(.*)$")
-# What `verdict-facts` actually reads. Anything else is carried through and
-# reported as unread rather than dropped in silence.
+# What the harness reads: verdict-facts, verdict-finalize and verdict-local. Anything else
+# is carried through and reported as unread rather than dropped in silence; a key the
+# harness reads and this list forgets is a false "unread" on every run (0.91.2:
+# `repro_rule`, `contract_rule`, `risk_paths` and `assertion_gaps` were all reported so).
 KNOWN = ("gates", "test_ids_cmd", "test_one_cmd", "coverage_suite_cmd", "coverage_cmd",
-         "authorship", "hygiene", "probes", "risk_class")
+         "authorship", "hygiene", "probes", "risk_class", "risk_paths", "assertion_gaps",
+         "assertion_gaps_budget_s", "repro_rule", "contract_rule")
 # The production an owner runs this gate for, when it is one where a proven defect must
 # not ship: money moves through the code, or access is decided by it.
 RISK_CLASSES = ("money", "security")
@@ -128,7 +131,7 @@ def load(qa_root) -> tuple[dict, list[str]]:
     notes = []
     unread = [k for k in config if k not in KNOWN]
     if unread:
-        notes.append("profile keys not read by verdict-facts: " + ", ".join(sorted(unread)))
+        notes.append("profile keys not read by the harness: " + ", ".join(sorted(unread)))
     return config, notes
 
 
