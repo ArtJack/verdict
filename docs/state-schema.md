@@ -396,9 +396,9 @@ say what is out of scope, into facts.json as `risk_focus`: `paths` and `names` (
 backticks), `words` (its prose, less the words that name no part of a codebase), `named_files`
 (files named outright: a full path, or a bare `benefits.py` read in the directory its bullet named
 last; a bare name no bullet places counts only where it sits under a named directory, and not at
-all when that leaves more than two) and `files`, ranked: files named
-outright, then files that define the named functions and classes, then files under a named path,
-then files whose path carries a named word. A name defined once outranks one defined in a dozen
+all when that leaves more than two) and `files`, ranked: files named outright, then files that
+define the named functions and classes, then files under a named path, then files whose path
+carries a named word. A name defined once outranks one defined in a dozen
 files, and `set_input` also finds `set_input_dispatch_by_period`. Tests and migrations are never
 in it. The breadth pass reads those files after the census survivors' files and before the
 coverage order, the named functions first within each file; with no coverage map it used to read
@@ -447,8 +447,8 @@ repositories, 15 known defects, the same prompts and profiles):
 
 Every number in both tables is scored with the benchmark key as rewritten on 2026-10-18. Its first
 naming words were domain words (`payment`, `rate`, `amount`, `confirmed`), and one of them plus the
-same file credited several findings to the wrong defect: the earlier tables read one higher in each
-row, and the 60-call row read 11. The rewritten words are mechanism terms taken from each defect's
+same file credited several findings to the wrong defect: the located counts read one higher in
+every other row, and the 60-call row read 11. The rewritten words are mechanism terms taken from each defect's
 own title, and they score these runs exactly as a defect-by-defect hand judgment does.
 
 Every packet pointed at every known defect, and the tester did not reach them all. At about 35
