@@ -72,3 +72,21 @@ def test_a_session_that_read_verdicts_records_is_flagged(tmp_path, monkeypatch):
     monkeypatch.setattr(plain_arm, "_project_dir", lambda cwd, config_dir=None: base)
     assert plain_arm.contamination(tmp_path, "s1") == [".claude/verdict"]
     assert plain_arm.contamination(tmp_path, None) is None
+
+
+def test_the_tree_is_a_standalone_clone_that_cannot_inherit_the_checkouts_local_settings(tmp_path):
+    from conftest import git
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    (repo / "a.py").write_text("x = 1\n", encoding="utf-8")
+    git(["init", "-qb", "main"], repo)
+    git(["add", "-A"], repo)
+    git(["commit", "-qm", "one"], repo)
+    (repo / ".claude").mkdir()                    # untracked, as verdict-run provisions it
+    (repo / ".claude" / "settings.local.json").write_text('{"hooks": {}}', encoding="utf-8")
+    sha = __import__("subprocess").run(["git", "-C", str(repo), "rev-parse", "HEAD"], capture_output=True,
+                                       text=True).stdout.strip()
+    tree = tmp_path / "out" / "tree"
+    assert plain_arm.isolated_tree(repo, tree, sha) is None
+    assert (tree / "a.py").is_file() and not (tree / ".claude").exists()
+    assert (tree / ".git").is_dir(), "its own git directory, not a worktree's pointer file"

@@ -4,7 +4,7 @@
 Every number on the recall benchmark so far measured Verdict against earlier Verdicts. This
 arm asks the question the benchmark exists for: does Verdict find and prove more than plain
 Claude Code given the same scope, model, effort and dollar cap? For one case it checks out the
-case's commit in a fresh worktree outside the home directory (so no instruction file reaches
+case's commit in a standalone clone outside the home directory (so no instruction file reaches
 the session), launches the claude CLI the way `eval/swebench.py`'s control arm does (no user
 settings, no MCP servers, no VERDICT_* variable) and without web tools (some known defects are
 described in upstream trackers), with a prompt carrying what an escalation run's tester gets
@@ -29,6 +29,7 @@ import argparse
 import json
 import os
 import re
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -185,7 +186,27 @@ def usage_rows(result: dict) -> list:
 # the scratch roots earlier runs of either arm left. A hit does not stop the run; it is reported,
 # and a contaminated row is not a control.
 FORBIDDEN = (".claude/verdict", "verdict-bench", "verdict-branches", "verdict-ops", "Projects/verdict",
-             "verdict-qa-mcp", "verdict_mcp", "escalate-", "after-0.91", "packet-final")
+             "verdict-qa-mcp", "verdict_mcp", "escalate-", "after-0.91", "packet-final",
+             "enforce_bash_scope", "enforce_write_scope")
+
+
+def isolated_tree(repo: Path, tree: Path, sha: str) -> str | None:
+    """A standalone clone of `repo` at `sha` in `tree` → None, or why it cannot be one. Not a
+    linked worktree: Claude Code reads a linked worktree's `.claude/settings.local.json` from its
+    main checkout, and on 2026-10-19 four plain sessions inherited the hooks an earlier Verdict
+    run had installed there, which refused every Bash and Write call."""
+    for cmd in (["git", "clone", "-q", "--no-checkout", "--local", str(repo), str(tree)],
+                ["git", "-C", str(tree), "checkout", "-q", "--detach", sha]):
+        proc = subprocess.run(cmd, capture_output=True, text=True)
+        if proc.returncode != 0:
+            return f"{' '.join(cmd[:3])} failed: {proc.stderr.strip()[:200]}"
+    common = subprocess.run(["git", "-C", str(tree), "rev-parse", "--path-format=absolute", "--git-common-dir"],
+                            capture_output=True, text=True).stdout.strip()
+    if Path(common).resolve() != (tree / ".git").resolve():
+        return f"the tree shares its git directory with {common}"
+    if (tree / ".claude").exists():
+        return "the tree carries a .claude directory (its commit tracks one)"
+    return None
 
 
 def contamination(cwd: Path, session_id, config_dir=None) -> list:
@@ -254,10 +275,10 @@ def main(argv=None) -> int:
         print(f"plain_arm: {qa} names Verdict or sits under the home directory", file=sys.stderr)
         return 2
     scratch.mkdir(parents=True, exist_ok=True)
-    proc = subprocess.run(["git", "-C", str(repo), "worktree", "add", "-q", "--detach", str(tree), case["sha"]],
-                          capture_output=True, text=True)
-    if proc.returncode != 0:
-        print(f"plain_arm: worktree failed: {proc.stderr.strip()}", file=sys.stderr)
+    problem = isolated_tree(repo, tree, case["sha"])
+    if problem:
+        print(f"plain_arm: {problem}", file=sys.stderr)
+        shutil.rmtree(tree, ignore_errors=True)
         return 2
     try:
         prompt = build_prompt(args.key, case["sha"], args.brief.read_text(encoding="utf-8"),
@@ -293,8 +314,7 @@ def main(argv=None) -> int:
         print(json.dumps(summary))
         return 0
     finally:
-        subprocess.run(["git", "-C", str(repo), "worktree", "remove", "--force", str(tree)],
-                       capture_output=True, text=True)
+        shutil.rmtree(tree, ignore_errors=True)
 
 
 if __name__ == "__main__":
