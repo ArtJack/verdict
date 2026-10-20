@@ -1036,7 +1036,7 @@ def escalation_packet(repo, qa_root, args, budget_usd, local_main=None) -> tuple
             return None, 5
         facts = json.loads((Path(qa_root) / "facts.json").read_text(encoding="utf-8"))
         text, summary = escalate.compose(scratch, facts, budget_usd,
-                                         args.escalate_calls or escalate.CALLS_DEFAULT)
+                                         args.calls or escalate.CALLS_DEFAULT)
         escalate.record(qa_root, text, summary)
         print(f"verdict-run: escalation — {summary['leads']} item(s) for the tester from "
               f"{summary['local_model']} ({summary['functions_read']} function(s) read, "
@@ -1069,7 +1069,7 @@ def resolve_cap(args, passthrough) -> tuple:
             cap = float(passthrough[given[-1] + 1])
         except ValueError:
             pass
-    elif cap is None and args.escalate:
+    elif cap is None and (args.escalate or args.lite):
         cap = escalate.BUDGET_DEFAULT_USD
     flags = ["--max-budget-usd", f"{cap:g}"] if cap is not None and not given else []
     return cap, flags, None
@@ -1104,11 +1104,20 @@ def start_escalation(repo, qa_root, args, env, base_url, token, cap) -> tuple:
     return packet, None
 
 
+def asked_preflight(args, ap) -> None:
+    """`--lite`, `--escalate` and `--calls` shape an asked run, a model run; a local or
+    model-free night has no tester to tell. One cheap mode at a time."""
+    if args.lite and args.escalate:
+        ap.error("--lite and --escalate are two cheap asked runs: pick one")
+    if (args.lite or args.calls is not None) and args.on_drift != "model":
+        ap.error("--lite and --calls shape an asked run's tester; --on-drift local/none runs none")
+    if args.calls is not None and args.calls < 1:
+        ap.error("--calls takes a positive number")
+
+
 def escalate_preflight(args, ap) -> tuple:
     """(base_url, token, exit code or None) for `--escalate`, before anything runs; without
     the flag, (None, None, None)."""
-    if args.escalate_calls is not None and (not args.escalate or args.escalate_calls < 1):
-        ap.error("--escalate-calls takes a positive number and goes with --escalate")
     if not args.escalate:
         return None, None, None
     if args.on_drift != "model" or args.no_premeasure:
@@ -1129,18 +1138,30 @@ OPUS_RATES = {"input_tokens": 4.0, "output_tokens": 20.0, "cache_read_input_toke
               "cache_creation_input_tokens": 5.0}
 
 
-def tester_prompt(prompt, told, tester, packet) -> str:
+def budget_line(cap, calls) -> str:
+    """What a capped asked run's tester is told about its budget (0.93.0). A session stopped at its
+    dollar cap writes no state, so the tester paces itself and keeps room to finalize; the
+    2026-10-19 runs that were told so all finalized under the cap."""
+    if cap is None:
+        return ""
+    aim = f"Aim for about {calls} tool calls. " if calls else ""
+    return f"{aim}The run stops at ${cap:g}: keep enough of it to finalize."
+
+
+def tester_prompt(prompt, told, tester, packet, budget="") -> str:
     """The words the session is launched with: the operator's, else the agent's or the
-    delegating prompt, and an escalation run's packet after them."""
+    delegating prompt, then an escalation run's packet or a capped run's budget line."""
     text = prompt if told else (AGENT_PROMPT if tester else DEFAULT_PROMPT)
-    return f"{text}\n\n{packet}" if packet else text
+    tail = packet or budget
+    return f"{text}\n\n{tail}" if tail else text
 
 
-def print_bill(args, qa_root, before=0) -> None:
-    """An escalation run closes with what it cost; a full run's bill is in usage.jsonl as before."""
-    bill = bill_line(qa_root, before) if args.escalate else None
+def print_bill(args, qa_root, before=0, capped=False) -> None:
+    """A capped asked run (--lite, --escalate, --max-budget-usd) closes with what it cost; every
+    run's bill is in usage.jsonl as before."""
+    bill = bill_line(qa_root, before) if (args.escalate or capped) else None
     if bill:
-        print(f"verdict-run: escalation run bill — {bill}")
+        print(f"verdict-run: {'escalation run' if args.escalate else 'run'} bill — {bill}")
 
 
 def bill_line(qa_root, before=0) -> str | None:
@@ -1206,9 +1227,15 @@ def main(argv=None) -> int:
                          "on (claims it proved, census survivors, unproven readings, reasons a model "
                          "run is owed) and a dollar cap, $2.50 unless --max-budget-usd says "
                          "otherwise. Needs the local gateway (--local-env-file)")
-    ap.add_argument("--escalate-calls", type=int, default=None, metavar="N",
-                    help="with --escalate: the tool calls the packet asks the tester to aim for "
-                         f"(default {escalate.CALLS_DEFAULT}); the dollar cap still stops the run")
+    ap.add_argument("--lite", action="store_true",
+                    help="the cheap asked run: a normal run (the tester, verdict-facts, verdict-finalize, "
+                         f"the in-run replay) with a ${escalate.BUDGET_DEFAULT_USD:g} cap unless "
+                         "--max-budget-usd says otherwise, the tester told the cap and an aim of about "
+                         f"{escalate.CALLS_DEFAULT} tool calls (--calls N). Measured 2026-10-19 against plain "
+                         "Claude Code at the same budget: as many known defects located; --escalate located fewer")
+    ap.add_argument("--calls", "--escalate-calls", dest="calls", type=int, default=None, metavar="N",
+                    help="the tool calls an asked run's tester is asked to aim for (default "
+                         f"{escalate.CALLS_DEFAULT} with --lite or --escalate); the dollar cap still stops the run")
     ap.add_argument("--no-premeasure", action="store_true",
                     help="let the tester run verdict-facts itself instead of measuring before it "
                          "starts (default: measure first, so a long census is not cut by the "
@@ -1282,6 +1309,7 @@ def main(argv=None) -> int:
     spends_claude = args.on_drift == "model"
     if args.on_drift in ("local", "none"):
         args.skip_unless_drift = True
+    asked_preflight(args, ap)
     base_url, token, refused = escalate_preflight(args, ap)
     if refused is not None:
         return refused
@@ -1443,7 +1471,8 @@ def main(argv=None) -> int:
     packet = ""
 
     def launch(tester):
-        text = tester_prompt(prompt, told, tester, packet)
+        text = tester_prompt(prompt, told, tester, packet,
+                             budget_line(cap, args.calls or (escalate.CALLS_DEFAULT if args.lite else None)))
         return [args.claude_cmd, "-p", text, "--model", args.model, *tester,
                 "--setting-sources", "project,local", *strict, *mcp, *budget, *passthrough]
 
@@ -1505,7 +1534,7 @@ def main(argv=None) -> int:
         print(f"verdict-run: {news}")
     if result.get("report"):
         print(f"verdict-run: report {result['report']}")
-    print_bill(args, qa_root, before)
+    print_bill(args, qa_root, before, capped=cap is not None)
     return result["exit_code"]
 
 

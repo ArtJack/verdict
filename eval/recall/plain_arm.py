@@ -16,8 +16,8 @@ replay (a fresh checkout, the unattended rules an in-run replay follows), and `s
 reads, so both arms are scored by one scorer.
 
     op-agent run --env-file ~/.config/op-env/verdict-run.env -- \\
-        python3 eval/recall/plain_arm.py ~/.claude/verdict-bench/recall-cases.json openfisca-core \\
-            --brief packet-openfisca-core.md --profile profile.md --out /tmp/plain/openfisca-core
+        python3 eval/recall/plain_arm.py ~/.claude/verdict-bench/recall-cases.json <key> \\
+            --brief brief-<key>.md --profile profile.md --out /tmp/plain/<key>
 
 The session's own figure (`total_cost_usd`) is kept beside the token counts; the scorer prices
 the tokens at Opus rates, as it prices the Verdict arm.

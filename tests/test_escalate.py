@@ -311,11 +311,54 @@ def test_an_operator_names_the_tool_calls_the_packet_asks_for(wired):
     assert facts["last_run"]["escalation"]["calls_aim"] == 60
 
 
-def test_the_packet_asks_for_35_calls_unless_told_otherwise_and_the_number_needs_escalate(wired, capsys):
+def test_the_packet_asks_for_35_calls_unless_told_otherwise_and_the_number_must_be_positive(wired, capsys):
     assert runner.main(wired["argv"]) == 0
     (cmd,) = wired["launches"]
     assert "Aim for about 35 tool calls" in _prompt(cmd)
-    argv = [a for a in wired["argv"] if a != "--escalate"] + ["--escalate-calls", "60"]
     with pytest.raises(SystemExit):
-        runner.main(argv)
-    assert "--escalate-calls takes a positive number and goes with --escalate" in capsys.readouterr().err
+        runner.main(wired["argv"] + ["--escalate-calls", "0"])
+    assert "--calls takes a positive number" in capsys.readouterr().err
+    with pytest.raises(SystemExit):
+        runner.main(wired["argv"] + ["--lite"])
+    assert "--lite and --escalate are two cheap asked runs: pick one" in capsys.readouterr().err
+
+
+# ── --lite (0.93.0): the capped normal run, told its budget ─────────────────────
+
+def _lite(wired):
+    return [a for a in wired["argv"] if a != "--escalate"] + ["--lite"]
+
+
+def test_a_lite_run_is_a_capped_normal_run_told_its_budget_and_billed(wired, capsys):
+    (wired["qa"] / "usage.jsonl").write_text(json.dumps(
+        {"run_number": 1, "usage": {"requests": 9, "output_tokens": 1000, "model": "claude-opus-5-5"}}) + "\n",
+        encoding="utf-8")
+    assert runner.main(_lite(wired)) == 0
+    (cmd,) = wired["launches"]
+    assert cmd[cmd.index("--max-budget-usd") + 1] == "2.5"
+    assert _prompt(cmd).endswith("Aim for about 35 tool calls. The run stops at $2.5: keep enough of it to finalize.")
+    assert "This is an escalation run" not in _prompt(cmd) and not wired["local"], "no breadth pass, no packet"
+    assert "verdict-run: run bill — 9 request(s)" in capsys.readouterr().out
+
+
+def test_calls_and_an_operators_cap_shape_the_budget_line(wired):
+    assert runner.main(_lite(wired) + ["--calls", "50", "--max-budget-usd", "4"]) == 0
+    (cmd,) = wired["launches"]
+    assert cmd.count("--max-budget-usd") == 1 and cmd[cmd.index("--max-budget-usd") + 1] == "4"
+    assert "Aim for about 50 tool calls. The run stops at $4: keep enough of it to finalize." in _prompt(cmd)
+
+
+def test_a_capped_normal_run_is_told_its_cap_and_an_uncapped_one_nothing(wired):
+    base = [a for a in wired["argv"] if a != "--escalate"]
+    assert runner.main(base + ["--max-budget-usd", "3"]) == 0
+    assert runner.main(base) == 0
+    capped, uncapped = wired["launches"][0], wired["launches"][-1]
+    assert _prompt(capped).endswith("The run stops at $3: keep enough of it to finalize.")
+    assert "Aim for" not in _prompt(capped)
+    assert "The run stops at" not in _prompt(uncapped) and "--max-budget-usd" not in uncapped
+
+
+def test_lite_and_calls_shape_an_asked_run_and_a_local_night_has_none(wired, capsys):
+    with pytest.raises(SystemExit):
+        runner.main(_lite(wired) + ["--on-drift", "local"])
+    assert "--lite and --calls shape an asked run's tester; --on-drift local/none runs none" in capsys.readouterr().err

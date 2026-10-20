@@ -200,18 +200,21 @@ def test_cwd_is_a_directory_inside_the_fresh_checkout_or_the_command_does_not_ru
     assert by_id["PRICER-F-11"]["result"] == "could not run" and "not a directory" in by_id["PRICER-F-11"]["checks"][0]
 
 
-def test_default_scope_is_open_major_plus_and_named_ids_replay_anything(tmp_path, capsys):
+def test_default_scope_is_every_open_repro_major_first_and_named_ids_replay_anything(tmp_path, capsys):
     repo = _repo(tmp_path)
-    _state(repo, [_finding("PRICER-F-3", TRUNCATES),
-                  _finding("PRICER-F-12", {"command": "true"}, severity="Minor", priority="P3"),
+    _state(repo, [_finding("PRICER-F-12", {"command": "true"}, severity="Minor", priority="P3"),
+                  _finding("PRICER-F-3", TRUNCATES),
                   _finding("PRICER-F-13", {"command": "false"}, status="resolved"),
-                  _finding("PRICER-F-14")])
+                  _finding("PRICER-F-14"),
+                  _finding("PRICER-F-15", severity="Minor", priority="P3")])
     assert replay.main([str(repo)]) == 0
-    assert [r["id"] for r in _rows(repo)] == ["PRICER-F-3"]
+    # 0.93.0: a Minor's repro runs too, after the Major+ ones; a Minor without one is not named.
+    assert [r["id"] for r in _rows(repo)] == ["PRICER-F-3", "PRICER-F-12"]
     err = capsys.readouterr().err
     assert "PRICER-F-14 has no structured repro" in err and "1 without a repro" in err
+    assert "PRICER-F-15" not in err
     assert replay.main([str(repo), "PRICER-F-12", "PRICER-F-13"]) == 1
-    assert [(r["id"], r["result"]) for r in _rows(repo)[1:]] == [("PRICER-F-12", "reproduced"),
+    assert [(r["id"], r["result"]) for r in _rows(repo)[2:]] == [("PRICER-F-12", "reproduced"),
                                                                  ("PRICER-F-13", "not reproduced")]
 
 
@@ -514,6 +517,32 @@ def _baseline_with_defect(repo, qa_root, capsys):
     return state
 
 
+REPRO_HOLDS = {"command": f'{PY} -c "import a; assert a.x == 1, a.x"', "cwd": "repo",
+               "expect": {"exit": 1, "stderr_contains": "AssertionError"}}
+
+
+def test_a_minors_repro_runs_at_finalize_and_a_failed_proof_is_stamped_not_refused(repo, qa_root, capsys):
+    _facts(repo, qa_root)
+    _finding_file(qa_root, "W-F-2", severity="Minor", priority="P3")
+    _finding_file(qa_root, "W-F-3", severity="Minor", priority="P3", repro=REPRO_HOLDS,
+                  title="W-F-3: x is read once more in a.py", evidence=["a.py:1 — read again"])
+    rc, state = _finalize(qa_root, judgment(findings=[]))
+    err = capsys.readouterr().err
+    assert rc == 0, err
+    by = {f["id"]: f for f in state["findings"]}
+    assert by["W-F-2"]["replay"]["at_head"] == "reproduced"
+    assert by["W-F-3"]["replay"]["at_head"] == "not reproduced"
+    assert "1 Minor-or-lower finding(s) filed `proven` did not reproduce" in err and "W-F-3" in err
+
+
+def test_the_replay_cap_cuts_minors_first(repo, qa_root):
+    minor = {"id": "W-F-2", "severity": "Minor", "status": "open", "repro": REPRO_X_IS_1}
+    major = {"id": "W-F-1", "severity": "Major", "status": "open", "repro": REPRO_X_IS_1}
+    records, notes = replay.measure_findings(repo, [minor, major], None, qa_root, "t", refs=("HEAD",), cap=1)
+    assert list(records) == ["W-F-1"]
+    assert any("replay capped at 1 of 2 open findings with a repro (Major+ first)" in n for n in notes)
+
+
 def test_facts_measures_a_carried_repro_at_head_and_the_previous_commit(repo, qa_root, capsys):
     sha1, sha2 = _two_commits(repo)
     git(["checkout", "-q", sha1], repo)
@@ -524,7 +553,7 @@ def test_facts_measures_a_carried_repro_at_head_and_the_previous_commit(repo, qa
     assert rec["at_previous"] == "reproduced" and rec["at_head"] == "not reproduced"
     assert rec["previous_sha"] == sha1
     assert rec["checks_head"] == ["exit 0 (expected 1)", "stderr_contains MISSING: 'AssertionError: 1'"]
-    assert any("1 open Major+ finding(s) measured at HEAD and " + sha1[:7] in n for n in facts["replay_notes"])
+    assert any("1 open finding(s) measured at HEAD and " + sha1[:7] in n for n in facts["replay_notes"])
     rows = replay.load_replays(qa_root)
     assert rows["W-F-1"]["ref"] == "HEAD" and rows["W-F-1"]["source"] == "facts", "the gate reads the HEAD row"
 
