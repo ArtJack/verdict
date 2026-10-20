@@ -1152,8 +1152,11 @@ def tester_prompt(prompt, told, tester, packet, budget="") -> str:
     """The words the session is launched with: the operator's, else the agent's or the
     delegating prompt, then an escalation run's packet or a capped run's budget line."""
     text = prompt if told else (AGENT_PROMPT if tester else DEFAULT_PROMPT)
-    tail = packet or budget
-    return f"{text}\n\n{tail}" if tail else text
+    if packet:
+        return f"{text}\n\n{packet}"
+    # The budget joins on the same line: a `.cmd` shim on Windows (an npm-installed `claude`)
+    # ends an argument at its first newline, and every flag after the prompt would be lost.
+    return f"{text} {budget}" if budget else text
 
 
 def print_bill(args, qa_root, before=0, capped=False) -> None:

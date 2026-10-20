@@ -362,3 +362,11 @@ def test_lite_and_calls_shape_an_asked_run_and_a_local_night_has_none(wired, cap
     with pytest.raises(SystemExit):
         runner.main(_lite(wired) + ["--on-drift", "local"])
     assert "--lite and --calls shape an asked run's tester; --on-drift local/none runs none" in capsys.readouterr().err
+
+
+def test_the_default_prompt_stays_one_line_with_its_budget(wired):
+    """A `.cmd` shim on Windows ends an argument at its first newline (CI, 2026-10-20)."""
+    base = [a for a in wired["argv"] if a != "--escalate"]
+    assert runner.main(base + ["--max-budget-usd", "3"]) == 0
+    (cmd, *_rest) = wired["launches"]
+    assert "\n" not in _prompt(cmd) and _prompt(cmd).endswith("The run stops at $3: keep enough of it to finalize.")
