@@ -39,6 +39,7 @@ sys.path.insert(0, str(HERE.parents[1] / "src"))
 sys.path.insert(0, str(HERE.parent))
 from swebench import _project_dir, instruction_files, plain_argv, plain_env  # noqa: E402
 from verdict_mcp import backfill, replay  # noqa: E402
+from verdict_mcp.profile import gates_from, parse  # noqa: E402
 
 BLOCKING = ("Blocker", "Critical", "Major")
 SEVERITIES = ("Blocker", "Critical", "Major", "Minor", "Trivial")
@@ -98,12 +99,19 @@ def risk_sections(profile_text: str) -> str:
 
 
 def suite_command(profile_text: str) -> str:
-    m = re.search(r"(?m)^\s+suite:\s*(.+?)\s*$", profile_text or "")
-    return m.group(1) if m else ""
+    """The profile's test command as the harness reads it: its `suite` gate, else its first gate,
+    else '' (a profile the harness refuses gives the plain arm no command)."""
+    try:
+        gates = dict(gates_from(parse(profile_text or "")))
+    except Exception:  # noqa: BLE001
+        gates = {}
+    return gates.get("suite") or next(iter(gates.values()), "")
 
 
 def interpreter(command: str) -> str:
-    m = re.search(r"(\S*/python[0-9.]*)(?=\s|$)", command or "")
+    """The Python interpreter a test command names, by path (`/x/.venv/bin/python3.12`,
+    `C:\\v\\Scripts\\python.exe`), else `python3`."""
+    m = re.search(r"(\S*[/\\]python[0-9.]*(?:\.exe)?)(?=\s|$)", command or "", re.IGNORECASE)
     return m.group(1) if m else "python3"
 
 
@@ -266,8 +274,8 @@ def main(argv=None) -> int:
         return 2
     repo, qa = args.repos / args.key, args.out.resolve()
     tree, scratch = qa / "tree", qa / "scratch"
-    if qa.exists() and any(qa.iterdir()):
-        print(f"plain_arm: {qa} is not empty", file=sys.stderr)
+    if qa.exists() and (not qa.is_dir() or any(qa.iterdir())):
+        print(f"plain_arm: {qa} is not an empty directory", file=sys.stderr)
         return 2
     if "verdict" in str(qa).lower() or str(qa).startswith(str(Path.home())):
         # The session sees its paths, and a checkout under the home directory is handed

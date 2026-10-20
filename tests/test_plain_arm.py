@@ -90,3 +90,21 @@ def test_the_tree_is_a_standalone_clone_that_cannot_inherit_the_checkouts_local_
     assert plain_arm.isolated_tree(repo, tree, sha) is None
     assert (tree / "a.py").is_file() and not (tree / ".claude").exists()
     assert (tree / ".git").is_dir(), "its own git directory, not a worktree's pointer file"
+
+
+def test_the_test_command_is_read_as_the_harness_reads_it_and_any_interpreter_path_is_found(tmp_path, capsys):
+    assert plain_arm.suite_command(PROFILE) == "/x/.venv/bin/python -m pytest -q"
+    assert plain_arm.suite_command("---\ngates:\n  tests: tox -e py\n---\n") == "tox -e py"
+    assert plain_arm.suite_command("no front matter at all") == ""
+    assert plain_arm.interpreter("/x/.venv/bin/python3.12 -m pytest") == "/x/.venv/bin/python3.12"
+    assert plain_arm.interpreter(r"C:\v\Scripts\Python.exe -m pytest") == r"C:\v\Scripts\Python.exe"
+    assert plain_arm.interpreter("tox -e py") == "python3"
+    cases = tmp_path / "cases.json"
+    cases.write_text(json.dumps({"cases": [{"key": "shop", "sha": "abc"}]}), encoding="utf-8")
+    (tmp_path / "b.md").write_text(BRIEF, encoding="utf-8")
+    (tmp_path / "p.md").write_text(PROFILE, encoding="utf-8")
+    a_file = tmp_path / "out-is-a-file"
+    a_file.write_text("x", encoding="utf-8")
+    assert plain_arm.main([str(cases), "shop", "--brief", str(tmp_path / "b.md"), "--profile",
+                           str(tmp_path / "p.md"), "--out", str(a_file)]) == 2
+    assert "is not an empty directory" in capsys.readouterr().err
