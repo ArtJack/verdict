@@ -6,6 +6,16 @@ facts.json
 judgment.json
 state.json.prev
 run-in-progress.json
+# Last run's finding files, which verdict-facts moves aside before this run writes its
+# own. A finalized run's findings are in its state.json; an abandoned run's never
+# became the record.
+findings.prev/
+# The bill: one line per run of what that run spent, read from the transcript on the
+# machine that ran it, with the launching session's entrypoint and effort and, for the
+# local tier, the host of the gateway it called. Telemetry, not the record: nothing
+# reads it back, and the model that signed each run is in state.json and runs.jsonl.
+# Committed, it would publish each machine's usage and network address with the code.
+usage.jsonl
 # Coverage intermediates. The harness writes these to a temp directory since
 # 0.58.0; the names stay listed so a root that ran 0.53–0.57 cannot commit the
 # 95 MB one it was left with (VERDICT-F-29).

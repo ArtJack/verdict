@@ -12,7 +12,12 @@ Required flow:
 1. Resolve the QA root per the agent's §0: `team` → create `<repo>/.qa/` (committed, shared
    baseline); `solo` or unspecified → `$VERDICT_HOME/<project-key>/` (default
    `~/.claude/verdict`), with `<project-key>` derived mechanically per §0 — main-worktree
-   basename, never the current directory name.
+   basename, never the current directory name. A team root also gets `.qa/.gitignore`, one
+   name per line, for what a run leaves there that is not the record: `facts.json`,
+   `judgment.json`, `state.json.prev`, `run-in-progress.json`, `findings.prev/`, and
+   `usage.jsonl` — the bill, which carries one machine's usage and, for the local tier, the
+   gateway's address. If the file is already there, add only the names it lacks and change
+   nothing else.
 2. Create `profile.md` in the QA root, **starting with the front-matter block** — the
    machine-readable half that `verdict-facts` reads, so no future run has to retype a
    command into a flag:
