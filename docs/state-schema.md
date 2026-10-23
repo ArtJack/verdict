@@ -106,7 +106,7 @@ here.
 | `calibration` | computed | The track record block: `by_confidence` and `by_proof_method` counts over every finding the project ever filed, with `precision` present only once a bucket reaches `min_sample` (30) settled outcomes. Rendered into the report as **Track record** |
 | `findings[].fix_breaks_tests` | no | How many tests that pass at HEAD fail under the counterfactual fix (0.90.11). Above 0, finalize marks the finding `contract_dispute: true`, caps Blocker/Critical at Major (`severity_was` keeps the filed level), drops it from the release blockers and parks a question for the maintainer; a `fail` that rested on it alone becomes `pass with risks` with `verdict_rule.rule: contract dispute`. Inside a money or security gate's own range the money rule keeps precedence. `contract_rule: off` in the profile disables it |
 | `findings[].repro` | no | `{command, cwd?, expect?}` — the finding as a command a stranger can run (0.90.12). `verdict-replay <key>` runs it on a detached worktree at HEAD with the fresh tree first on `PYTHONPATH`, `cwd` is `repo` (default), `qa_root` or a relative path inside the checkout, and `expect` is any of `exit` (int), `stdout_contains`, `stderr_contains` — what the defect produces; absent, exit 0 is the bar. Malformed is refused by the validator; absent on a proven Major+ finding is said once by finalize. Results live in `replays.jsonl`, never in this file |
-| `findings[].replay` | computed | The harness's own run of the finding's `repro` (0.91.0): `{command, previous_sha, at_head, at_previous, checks_head, checks_previous, isolated?}`, each reading `reproduced` · `not reproduced` · `could not run` · `unavailable` (`at_previous` is `null` for a finding first filed this run). `verdict-facts` measures every open Major+ finding the previous record carried, at HEAD and at the previous commit; `verdict-finalize` measures the ones filed this run, at HEAD. `at_head: reproduced` refuses a resolution, claimed or by silence; `at_previous: reproduced` with `at_head: not reproduced` verifies a claimed fix and resolves a finding nobody re-reported (`resolved_by: measurement (repro)`, `fix_verified`, `fixed_at`, an evidence line, outcome `confirmed`/`measured`). A new finding filed `proven` whose repro did not reproduce is refused with the check that failed; `isolated: false` or `could not run` is silence |
+| `findings[].replay` | computed | The harness's own run of the finding's `repro` (0.91.0): `{command, previous_sha, at_head, at_previous, checks_head, checks_previous, isolated?}`, each reading `reproduced` · `not reproduced` · `could not run` · `unavailable` (`at_previous` is `null` for a finding first filed this run). `verdict-facts` measures every open finding the previous record carried that has a `repro`, Major+ first (0.93.0; before, Major+ only), at HEAD and at the previous commit; `verdict-finalize` measures the ones filed this run, at HEAD. `at_head: reproduced` refuses a resolution, claimed or by silence; `at_previous: reproduced` with `at_head: not reproduced` verifies a claimed fix and resolves a finding nobody re-reported (`resolved_by: measurement (repro)`, `fix_verified`, `fixed_at`, an evidence line, outcome `confirmed`/`measured`). A new Major+ finding filed `proven` whose repro did not reproduce is refused with the check that failed; a Minor-or-lower one is stamped and named, and the run stands (a capped run refused near its cap writes no state); `isolated: false` or `could not run` is silence |
 | `findings[].resolved_by` | computed | `measurement (repro)` when the harness, not the tester, resolved it |
 | `read_first` | computed | facts' ranking (top 10) and how the run accounted for it (0.91.0): `{basis, items, cited, declared_untested, unaccounted}` — a ranked function is `cited` when an open or resolved finding names its file (anchors or evidence) and its function name, `declared_untested` when `not_tested` names it, else `unaccounted`. finalize prints the unaccounted ones; the report renders **Read first**. The third question of the Opus check, answered without a model |
 | `assertion_gaps_accounting` | computed | When the census found survivors (0.91.1): `{functions, cited, declared_untested, unaccounted}` over the survivor functions, accounted like `read_first`. finalize prints the unaccounted ones, and under `repro_rule: on` refuses an agent's run until each is cited by a finding or named in `not_tested` (the local engine's runs are told, never refused) |
@@ -273,8 +273,8 @@ where to read, never a finding: an equivalent mutant survives too.
 
 ## A finding replayed on a fresh checkout — `<qa-root>/replays.jsonl`
 
-`verdict-replay <key> [ID …]` takes every open Major+ finding with a `repro` block (or the ids
-named), checks the repository out again as a detached git worktree at HEAD — the same tree the
+`verdict-replay <key> [ID …]` takes every open finding with a `repro` block, Major+ first (0.93.0; or the
+ids named), checks the repository out again as a detached git worktree at HEAD — the same tree the
 run saw, in a place the run's scratch never touched — runs each `repro.command` there with
 `PYTHONPATH` pointing at the fresh tree, `PYTHONDONTWRITEBYTECODE=1` and `GIT_NO_LAZY_FETCH=1`,
 and compares what happened with `repro.expect`. Any spelling of the original checkout's path in
@@ -459,6 +459,31 @@ known list (one of them confirmed by a hand replay, found at both budgets) and c
 So the default stays at about 35. Three proofs at 35 calls could not be replayed in the run: one
 because the command began with `env` (it now runs), two because the fresh checkout lacks the
 package's compiled extension. One run per case throughout: read these as a direction, not a rate.
+
+## The cheap asked run — `verdict-run --lite` (0.93.0)
+
+A normal asked run under a dollar cap: the tester, `verdict-facts` before it and `verdict-finalize`
+after, the in-run replay, questions on the ledger, all as in any asked run, and no breadth pass and
+no packet. `--lite` sets a $2.50 cap unless `--max-budget-usd` names another, and tells the tester
+its budget: about 35 tool calls (`--calls N` names another) and the dollar stop, with room kept to
+finalize, because a session stopped at its cap writes no state. Any capped asked run is told its
+cap and closes with its bill; `--lite` and `--escalate` are refused together.
+
+Measured 2026-10-19 on four of the benchmark's repositories (15 known defects), against plain Claude
+Code given the same scope, model, effort and cap and no Verdict (`eval/recall/plain_arm.py`: a
+standalone clone outside the home directory, no user settings, no MCP servers, no web tools, its
+repros replayed by Verdict's replay), located and proven judged by hand:
+
+| | located | proven | cost |
+|---|---|---|---|
+| plain Claude Code, run 1 | 11 of 15 | 10 of 15 | $6.51 |
+| plain Claude Code, run 2 | 10 of 15 | 9 of 15 | $6.24 |
+| `--lite` (as measured, before 0.93.0's replay of every repro) | 10 of 15 | 7 of 15 | $6.45 |
+| `--escalate` | 8 of 15 | 6 of 15 | $6.16 |
+
+The packet is what cost recall: its "work the list in order" kept the tester on the list. The
+proof gap was mostly findings filed at Minor with a repro that no replay ran; 0.93.0 replays them.
+`--escalate` stays for comparison. One or two runs per arm: a direction, not a rate.
 
 ## A repro for an old finding — `verdict-backfill` → `<qa-root>/backfill.jsonl` (0.92.0)
 

@@ -68,7 +68,7 @@ try:
     from .gaps import census as gap_census_of
     from .readfirst import read_first
     from .focus import risk_focus
-    from .replay import adopt_backfill, load_backfill, measure_findings, model_written, without_repro
+    from .replay import adopt_backfill, load_backfill, major_first, measure_findings, model_written, without_repro
     from .escalate import not_tested_line as escalation_not_tested
     from .reports import read_report
     from .profile import RISK_CLASSES, ProfileError, gates_from, hygiene_filing_from, contract_rule_from, repro_rule_from, risk_class_from, risk_paths_from, assertion_gaps_from
@@ -102,7 +102,7 @@ except ImportError:  # bare-script execution
     from gaps import census as gap_census_of
     from readfirst import read_first
     from focus import risk_focus
-    from replay import adopt_backfill, load_backfill, measure_findings, model_written, without_repro
+    from replay import adopt_backfill, load_backfill, major_first, measure_findings, model_written, without_repro
     from escalate import not_tested_line as escalation_not_tested
     from reports import read_report
     from profile import RISK_CLASSES, ProfileError, gates_from, hygiene_filing_from, contract_rule_from, repro_rule_from, risk_paths_from, assertion_gaps_from, risk_class_from
@@ -1865,9 +1865,11 @@ SEVERITIES_ASKED = ("Blocker", "Critical", "Major")
 
 
 def _replay_fresh_findings(state: dict, facts: dict, qa_root: Path) -> list[str]:
-    """Run the repro of every open Major+ finding this run filed - new, regressed, or
-    carrying a repro the previous record lacked - on a fresh worktree at HEAD, stamp the
-    reading, and name the ones filed `proven` that did not reproduce."""
+    """Run the repro of every open finding this run filed - new, regressed, or carrying a repro
+    the previous record lacked - on a fresh worktree at HEAD, Major+ first, stamp the reading,
+    and name the Major+ ones filed `proven` that did not reproduce. A Minor's repro runs too
+    (0.93.0) and its reading is stamped, but only a Major+ claim refuses the run: a capped run
+    refused over a Minor near its cap would write no state at all."""
     repo_dir = facts.get("repo")
     repo = Path(repo_dir) if repo_dir and Path(repo_dir).is_dir() else None
     if repo is None:
@@ -1876,10 +1878,9 @@ def _replay_fresh_findings(state: dict, facts: dict, qa_root: Path) -> list[str]
     def unmeasured(f):
         rec = measured.get(str(f.get("id")))
         return not rec or rec.get("command") != f["repro"].get("command")   # re-filed with a new repro
-    fresh = [f for f in state.get("findings") or []
-             if isinstance(f.get("repro"), dict) and unmeasured(f) and is_open(f)
-             and f.get("severity") in SEVERITIES_ASKED
-             and isinstance(f.get("repro"), dict) and str(f["repro"].get("command") or "").strip()]
+    fresh = major_first(f for f in state.get("findings") or []
+                        if isinstance(f.get("repro"), dict) and unmeasured(f) and is_open(f)
+                        and str(f["repro"].get("command") or "").strip())
     if not fresh:
         return []
     records, notes = measure_findings(repo, fresh, None, qa_root,
@@ -1887,7 +1888,7 @@ def _replay_fresh_findings(state: dict, facts: dict, qa_root: Path) -> list[str]
                                       source="finalize")
     for note in notes:
         print(f"verdict-finalize: {note}", file=sys.stderr)
-    problems = []
+    problems, minor = [], []
     for f in fresh:
         rec = records.get(str(f.get("id")))
         if not rec:
@@ -1895,7 +1896,12 @@ def _replay_fresh_findings(state: dict, facts: dict, qa_root: Path) -> list[str]
         f["replay"] = rec
         if rec.get("at_head") == "not reproduced" and f.get("confidence") == "proven" \
                 and rec.get("isolated") is not False:
-            problems.append(f"{f.get('id')}: {'; '.join(rec.get('checks_head') or [])}")
+            (problems if f.get("severity") in SEVERITIES_ASKED else minor).append(
+                f"{f.get('id')}: {'; '.join(rec.get('checks_head') or [])}")
+    if minor:
+        print(f"verdict-finalize: {len(minor)} Minor-or-lower finding(s) filed `proven` did not reproduce "
+              "on a fresh worktree at HEAD; the reading is on each, the run stands:\n  " + "\n  ".join(minor),
+              file=sys.stderr)
     return problems
 
 

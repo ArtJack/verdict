@@ -2969,7 +2969,55 @@
  {
   "label": "escalate 12: the packet asks for 35 calls whatever the operator names",
   "path": "src/verdict_mcp/runner.py",
-  "old": "                                         args.escalate_calls or escalate.CALLS_DEFAULT)\n",
+  "old": "                                         args.calls or escalate.CALLS_DEFAULT)\n",
   "new": "                                         escalate.CALLS_DEFAULT)\n"
+ },
+ {
+  "label": "lite 1: a --lite run carries no dollar cap",
+  "path": "src/verdict_mcp/runner.py",
+  "old": "    elif cap is None and (args.escalate or args.lite):\n",
+  "new": "    elif cap is None and args.escalate:\n"
+ },
+ {
+  "label": "lite 2: a capped asked run's tester is never told its budget",
+  "path": "src/verdict_mcp/runner.py",
+  "old": "    if cap is None:\n        return \"\"\n    aim = ",
+  "new": "    if True:\n        return \"\"\n    aim = "
+ },
+ {
+  "label": "lite 3: a --lite tester gets no call aim",
+  "path": "src/verdict_mcp/runner.py",
+  "old": "budget_line(cap, args.calls or (escalate.CALLS_DEFAULT if args.lite else None))",
+  "new": "budget_line(cap, args.calls)"
+ },
+ {
+  "label": "lite 4: --lite and --escalate run together",
+  "path": "src/verdict_mcp/runner.py",
+  "old": "    if args.lite and args.escalate:\n",
+  "new": "    if False:\n"
+ },
+ {
+  "label": "lite 5: a capped normal run closes without its bill",
+  "path": "src/verdict_mcp/runner.py",
+  "old": "    bill = bill_line(qa_root, before) if (args.escalate or capped) else None\n",
+  "new": "    bill = bill_line(qa_root, before) if args.escalate else None\n"
+ },
+ {
+  "label": "replay 0.93.0 1: a Minor's repro never runs",
+  "path": "src/verdict_mcp/replay.py",
+  "old": "    return is_open(finding) and repro_of(finding) is not None\n",
+  "new": "    return wants_replay(finding) and repro_of(finding) is not None\n"
+ },
+ {
+  "label": "replay 0.93.0 2: the replay cap cuts Majors before Minors",
+  "path": "src/verdict_mcp/replay.py",
+  "old": "    return [f for f in findings if wants_replay(f)] + [f for f in findings if not wants_replay(f)]\n",
+  "new": "    return findings\n"
+ },
+ {
+  "label": "replay 0.93.0 3: a Minor's failed proof refuses the run",
+  "path": "src/verdict_mcp/harness.py",
+  "old": "            (problems if f.get(\"severity\") in SEVERITIES_ASKED else minor).append(\n",
+  "new": "            problems.append(\n"
  }
 ]
