@@ -20,8 +20,9 @@
   cheap model which other sites share each defect and writes leads to `reviews.jsonl`;
   `verdict-backfill` has the local model draft a repro for each old proven finding that has
   none, runs each draft in a sandbox, and keeps the ones that reproduce (`backfill.jsonl`).
-- A cheaper asked run: `verdict-run --escalate` lets the local tier read first, at zero
-  Claude tokens, and hands the tester only what it passed on, under a dollar cap.
+- The cheap asked run: `verdict-run --lite`, a normal asked run under a $2.50 cap with the tester
+  told its budget; measured level with plain Claude Code at the same budget on known defects.
+  `verdict-run --escalate` (the local tier reads first and the tester works its list) located fewer.
 
 ## If you are here to change Verdict
 

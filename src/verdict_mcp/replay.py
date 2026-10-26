@@ -184,7 +184,23 @@ def repro_of(finding: dict) -> dict | None:
 
 
 def wants_replay(finding: dict) -> bool:
+    """An open Major-or-worse finding: the ones a repro is asked of (`repro_rule`), and named
+    when they carry none."""
     return is_open(finding) and str(finding.get("severity") or "") in SEVERITIES_ASKED
+
+
+def replayable(finding: dict) -> bool:
+    """An open finding that carries a repro, whatever its severity (0.93.0): a Minor with a
+    command that shows its defect is evidence too. Measured 2026-10-19: a capped asked run filed
+    a third of what it found at Minor, and no repro of those ever ran."""
+    return is_open(finding) and repro_of(finding) is not None
+
+
+def major_first(findings) -> list:
+    """Major-or-worse first, the rest after, each group in its own order: a cap or a budget that
+    cuts the list cuts Minors first."""
+    findings = list(findings or [])
+    return [f for f in findings if wants_replay(f)] + [f for f in findings if not wants_replay(f)]
 
 
 def without_repro(findings) -> list[str]:
@@ -495,8 +511,8 @@ def measure_findings(repo: Path, findings, previous_sha: str | None, qa_root: Pa
                      cap: int = MEASURE_MAX_FINDINGS, source: str = "facts",
                      refs: tuple = ("HEAD", "previous"),
                      budget: int = MEASURE_BUDGET_S) -> tuple[dict, list[str]]:
-    """Run each open Major+ finding's `repro` on a fresh worktree at HEAD and, when the
-    record names one, at the previous commit → ({finding id: record}, notes).
+    """Run each open finding's `repro` (Major+ first, 0.93.0) on a fresh worktree at HEAD and,
+    when the record names one, at the previous commit → ({finding id: record}, notes).
 
     The `verification_test` shape, applied to the command a finding carries: a
     reproduction at the previous commit and none at HEAD is a fix the harness watched;
@@ -504,11 +520,11 @@ def measure_findings(repo: Path, findings, previous_sha: str | None, qa_root: Pa
     also goes to `replays.jsonl`, so the gate shows the latest reading per finding.
     """
     notes: list[str] = []
-    todo = [f for f in findings or [] if wants_replay(f) and repro_of(f) is not None]
+    todo = major_first(f for f in findings or [] if replayable(f))
     if not todo:
         return {}, notes
     if len(todo) > cap:
-        notes.append(f"replay capped at {cap} of {len(todo)} open Major+ findings with a repro")
+        notes.append(f"replay capped at {cap} of {len(todo)} open findings with a repro (Major+ first)")
         todo = todo[:cap]
     want_previous = "previous" in refs and bool(previous_sha)
     records: dict = {str(f.get("id")): {"command": repro_of(f)["command"],
@@ -549,7 +565,7 @@ def measure_findings(repo: Path, findings, previous_sha: str | None, qa_root: Pa
         notes.append(f"replay stopped at its {budget}s budget: {len(over_budget)} finding(s) "
                      f"not measured at every commit ({', '.join(sorted(over_budget)[:5])})")
     heads = [r["at_head"] for r in records.values()]
-    notes.append(f"replay: {len(records)} open Major+ finding(s) measured at HEAD"
+    notes.append(f"replay: {len(records)} open finding(s) measured at HEAD"
                  + (f" and {previous_sha[:7]}" if want_previous else "")
                  + f" — {heads.count('reproduced')} reproduced, "
                  f"{heads.count('not reproduced')} not reproduced, "
@@ -582,8 +598,8 @@ def main(argv=None) -> int:
             pass
     ap = argparse.ArgumentParser(prog="verdict-replay", description=__doc__.split("\n\n")[0])
     ap.add_argument("project", help="project key or a repo path whose .qa/ holds state.json")
-    ap.add_argument("ids", nargs="*", help="finding ids to replay (default: every open Major+ "
-                                           "finding with a structured repro)")
+    ap.add_argument("ids", nargs="*", help="finding ids to replay (default: every open finding "
+                                           "with a structured repro, Major+ first)")
     ap.add_argument("--show", action="store_true",
                     help="print each finding's repro command and expectation; run nothing")
     ap.add_argument("--keep", action="store_true", help="keep the fresh worktree afterwards")
@@ -602,9 +618,9 @@ def main(argv=None) -> int:
         return 2
     wanted = {i for i in args.ids}
     findings = [f for f in state.get("findings") or []
-                if (str(f.get("id")) in wanted if wanted else wants_replay(f))]
+                if (str(f.get("id")) in wanted if wanted else (wants_replay(f) or replayable(f)))]
     skipped = [str(f.get("id")) for f in findings if repro_of(f) is None]
-    todo = [f for f in findings if repro_of(f) is not None]
+    todo = major_first(f for f in findings if repro_of(f) is not None)
     for fid in skipped:
         print(f"verdict-replay: {fid} has no structured repro (`repro.command`) — nothing to "
               "replay; the run's evidence is prose", file=sys.stderr)
