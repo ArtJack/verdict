@@ -9,6 +9,33 @@ They moved there on 2026-10-03, when this file outgrew what the Claude directory
 will read: at 250 KB it was read, at 267 KB it held 0.90.3 for "Files or downloads the
 validator couldn't inspect". The limit is most likely 256 KiB.
 
+## 0.93.0 — 2026-10-23 · "the cheap run is a normal run, capped"
+
+- **`verdict-run --lite`: the cheap asked run.** A normal asked run (the tester, `verdict-facts` before
+  it and `verdict-finalize` after, the in-run replay, questions on the ledger) under a $2.50 cap unless
+  `--max-budget-usd` names another, with the tester told its budget: about 35 tool calls (`--calls N`
+  names another) and the dollar stop, with room kept to finalize, since a session stopped at its cap
+  writes no state. No breadth pass, no packet. Measured on four of the recall benchmark's repositories
+  (15 known defects) against plain Claude Code given the same scope, model, effort and cap and no
+  Verdict: plain located 11 and 10 in two runs and proved 10 and 9 for about $6.40; `--lite` located 10
+  and proved 7 for $6.45; `--escalate` located 8 and proved 6 for $6.16. The packet's "work the list in
+  order" is what cost recall. `--escalate` stays, for comparison; `--lite` and `--escalate` are refused
+  together. One or two runs per arm: a direction, not a rate.
+- **Every open finding with a repro is replayed, Major+ first:** before the tester (the previous
+  record's findings), at finalize (this run's), and by `verdict-replay` by default. The proof gap above
+  was mostly findings filed at Minor with a repro no replay ran. A Minor's failed `proven` claim is
+  stamped on it and named, and the run stands; only a Major+ claim refuses a run, so a capped run is
+  never refused near its cap over a Minor. A cap or a time budget on the replay cuts Minors first.
+- **Any capped asked run is told its cap and closes with its bill**, not only an escalation run.
+  `--calls N` names the call aim on any asked run; `--escalate-calls` still works.
+- **`eval/recall/plain_arm.py`, the standing control arm:** the same case, scope, model, effort and cap
+  without Verdict. It runs in a standalone clone outside the home directory: a linked worktree reads its
+  checkout's `.claude/settings.local.json`, and in the first measured round an earlier Verdict run's
+  hooks there refused every Bash and Write. No user settings, MCP servers or web tools. The session's
+  findings are scored by `score_recall.py`, its repros replayed by Verdict's own replay, and a scan of
+  its transcript flags any read of Verdict's records or harness.
+- Pinned mutants: 8 new (lite 1–5, replay 0.93.0 1–3), escalate 12 re-anchored; badge 501/501.
+
 ## 0.92.0 — 2026-10-18 · "breadth for a cent, judgment from a list"
 
 - **`verdict-run --escalate`: a cheaper asked run.** It measures first, as every asked run does,
