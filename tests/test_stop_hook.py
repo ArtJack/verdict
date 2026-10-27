@@ -258,7 +258,8 @@ def test_a_first_run_that_never_finalized_has_no_state_at_all(tmp_path, repo):
     ("a marker written by a harness that recorded no session", {"session": None}, {}),
     ("a marker too old to be the run that is ending now", {"minutes_ago": 7 * 60}, {}),
     ("a marker from the future — a clock, not a run", {"minutes_ago": -30}, {}),
-    ("already continuing because of this hook", {}, {"stop_hook_active": True}),
+    ("already told, and continuing because of this hook",
+     {"stop_told": "2026-10-27T00:00:00Z"}, {"stop_hook_active": True}),
 ])
 def test_everything_short_of_identity_says_nothing(tmp_path, repo, why, marker_kw, event_kw):
     root = qa_root(tmp_path, harnessed=True, fresh=False)
@@ -297,3 +298,80 @@ def test_a_finalized_run_leaves_no_marker_and_the_old_rule_still_speaks(tmp_path
     home = qa_root(tmp_path, harnessed=False).parent
     proc = fire(_tester_stops(repo), home=home)
     assert proc.returncode == 2 and "without going through the harness" in proc.stderr
+
+
+# ── whose continuation (0.93.1) ───────────────────────────────────────────
+
+def _records(home: Path) -> list:
+    return sorted(p.name for p in (home / ".hooks" / "stop-told").glob("*.json"))
+
+
+def test_a_continuation_another_hook_asked_for_does_not_silence_it(tmp_path, repo):
+    """`stop_hook_active` says *a* Stop hook blocked, not which one. A loop plugin that
+    blocks every stop keeps it true for the rest of the session, and a tester that
+    starts a run inside that continuation and never finalizes it was never told. The
+    same hole was closed in project-memory's Stop hook (its F3-03/F3-04)."""
+    root = qa_root(tmp_path, harnessed=True, fresh=False)
+    marker = _marker(root)
+    proc = fire(_tester_stops(repo, stop_hook_active=True), home=root.parent)
+    assert proc.returncode == 2 and "never did" in proc.stderr, proc.stderr
+    assert json.loads(marker.read_text(encoding="utf-8")).get("stop_told")
+    again = fire(_tester_stops(repo, stop_hook_active=True), home=root.parent)
+    assert again.returncode == 0 and again.stderr == "", "its own continuation: told once"
+
+
+def test_a_hand_written_state_is_told_once_per_session_whoever_keeps_the_turn_going(
+        tmp_path, repo):
+    home = qa_root(tmp_path, harnessed=False).parent
+    before = sorted(p.name for p in (home / "widget").iterdir())
+    stop = {"cwd": str(repo), "session_id": "sess-9", "hook_event_name": "Stop"}
+    first = fire(dict(stop, stop_hook_active=True), home=home)
+    assert first.returncode == 2 and "without going through the harness" in first.stderr, (
+        "a continuation another hook asked for is not this hook's own")
+    assert fire(dict(stop, stop_hook_active=True), home=home).returncode == 0, (
+        "its own continuation stays silent — never a loop")
+    later = fire(stop, home=home)
+    assert later.returncode == 0 and later.stderr == "", "said once for this state"
+    assert fire(dict(stop, session_id="sess-10"), home=home).returncode == 2, (
+        "another session has not been told")
+    assert len(_records(home)) == 2, "one record per session and root"
+    assert sorted(p.name for p in (home / "widget").iterdir()) == before, (
+        "the record lives under Verdict's home, never in the QA root")
+
+
+def test_when_nothing_can_be_remembered_a_continuation_is_read_as_its_own(tmp_path, repo):
+    """No record, no new behaviour: a home the hook cannot write keeps the old rule, so
+    the change cannot become a loop."""
+    home = qa_root(tmp_path, harnessed=False).parent
+    (home / ".hooks").write_text("a file where the directory would go\n", encoding="utf-8")
+    stop = {"cwd": str(repo), "session_id": "sess-9", "hook_event_name": "Stop"}
+    assert fire(dict(stop, stop_hook_active=True), home=home).returncode == 0
+    assert fire(stop, home=home).returncode == 2, "a fresh stop is still told"
+    assert fire(dict(stop, stop_hook_active=True), home=home).returncode == 0
+
+
+@pytest.mark.skipif(os.name == "nt", reason="creating symlinks needs privileges on Windows")
+def test_the_record_is_never_written_through_a_link(tmp_path, repo):
+    home = qa_root(tmp_path, harnessed=False).parent
+    elsewhere = tmp_path / "elsewhere"
+    elsewhere.mkdir()
+    (home / ".hooks").symlink_to(elsewhere, target_is_directory=True)
+    stop = {"cwd": str(repo), "session_id": "sess-9", "hook_event_name": "Stop"}
+    assert fire(stop, home=home).returncode == 2
+    assert list(elsewhere.rglob("*")) == [], "nothing is written where the link points"
+    assert fire(dict(stop, stop_hook_active=True), home=home).returncode == 0, (
+        "with no record, its own continuation is silent as before")
+
+
+@pytest.mark.skipif(hasattr(os, "geteuid") and os.geteuid() == 0,
+                    reason="a read-only file is still writable to root")
+def test_a_marker_it_cannot_write_keeps_the_old_rule(tmp_path, repo):
+    root = qa_root(tmp_path, harnessed=True, fresh=False)
+    marker = _marker(root)
+    marker.chmod(0o444)
+    try:
+        assert fire(_tester_stops(repo, stop_hook_active=True), home=root.parent).returncode == 0
+        told = fire(_tester_stops(repo), home=root.parent)
+        assert told.returncode == 2 and "never did" in told.stderr
+    finally:
+        marker.chmod(0o644)

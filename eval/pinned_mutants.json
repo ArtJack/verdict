@@ -3019,5 +3019,137 @@
   "path": "src/verdict_mcp/harness.py",
   "old": "            (problems if f.get(\"severity\") in SEVERITIES_ASKED else minor).append(\n",
   "new": "            problems.append(\n"
+ },
+ {
+  "label": "0.93.1 stop hook: a continuation another hook asked for silences every check again",
+  "path": "hooks/enforce_run_contract.py",
+  "old": "        if event.get(\"stop_hook_active\") and told_path is None:\n            return _silent()\n",
+  "new": "        if event.get(\"stop_hook_active\"):\n            return _silent()\n"
+ },
+ {
+  "label": "0.93.1 stop hook: a hand-written state is told at every stop of a continuation",
+  "path": "hooks/enforce_run_contract.py",
+  "old": "        if subject in told:\n            return _silent()\n",
+  "new": "        if False:\n            return _silent()\n"
+ },
+ {
+  "label": "0.93.1 stop hook: one record for every session, so a second session is never told",
+  "path": "hooks/enforce_run_contract.py",
+  "old": "    digest = hashlib.sha256(f\"{session}\\0{root}\"",
+  "new": "    digest = hashlib.sha256(f\"{root}\""
+ },
+ {
+  "label": "0.93.1 stop hook: a record it could not write is taken as written — its own continuation loops",
+  "path": "hooks/enforce_run_contract.py",
+  "old": "        if not _remember(told_path, home, told, subject) and event.get(\"stop_hook_active\"):\n",
+  "new": "        if False:\n"
+ },
+ {
+  "label": "0.93.1 stop hook: a marker it cannot write loops under its own continuation",
+  "path": "hooks/enforce_run_contract.py",
+  "old": "        if event.get(\"stop_hook_active\"):\n            return None\n",
+  "new": "        if False:\n            return None\n"
+ },
+ {
+  "label": "0.93.1 stop hook: the record is written through a link below Verdict's home",
+  "path": "hooks/enforce_run_contract.py",
+  "old": "        if p.is_symlink():\n            return True\n",
+  "new": "        if False:\n            return True\n"
+ },
+ {
+  "label": "0.93.1 hygiene: any value formatted into SQL is a lead, a table name in a value's slot or not",
+  "path": "src/verdict_mcp/hygiene.py",
+  "old": "                    if _sql_slot(before) and not _sql_safe_value(v.value):\n",
+  "new": "                    if not _sql_safe_value(v.value):\n"
+ },
+ {
+  "label": "0.93.1 hygiene: an ALL_CAPS constant in SQL is taken as outside text",
+  "path": "src/verdict_mcp/hygiene.py",
+  "old": "    if isinstance(node, ast.Name):\n        return bool(_CONSTANT_NAME.match(node.id))\n",
+  "new": "    if isinstance(node, ast.Name):\n        return False\n"
+ },
+ {
+  "label": "0.93.1 hygiene: the SQL lead points where a multi-line string starts, not where the value goes in",
+  "path": "src/verdict_mcp/hygiene.py",
+  "old": "                        lead(_sql_line(lines, node))\n",
+  "new": "                        lead(node.lineno)\n"
+ },
+ {
+  "label": "0.93.1 hygiene: a `+` chain is a lead once per link",
+  "path": "src/verdict_mcp/hygiene.py",
+  "old": "        elif isinstance(node, ast.BinOp) and isinstance(node.op, ast.Add) and id(node) not in inner:\n",
+  "new": "        elif isinstance(node, ast.BinOp) and isinstance(node.op, ast.Add):\n"
+ },
+ {
+  "label": "0.93.1 hygiene: a tagged template's bound values are taken as formatted SQL",
+  "path": "src/verdict_mcp/hygiene.py",
+  "old": "            if (m.start() and re.match(r\"[\\w$]\", line[m.start() - 1])) or not _SQL_SHAPE.search(body):\n",
+  "new": "            if not _SQL_SHAPE.search(body):\n"
+ },
+ {
+  "label": "0.93.1 hygiene: the Python SQL check is never called",
+  "path": "src/verdict_mcp/hygiene.py",
+  "old": "            leads.extend(_sql_py(rel, tree, lines))\n",
+  "new": "            leads.extend([])\n"
+ },
+ {
+  "label": "0.93.1 hygiene: the JS/TS SQL check is never called",
+  "path": "src/verdict_mcp/hygiene.py",
+  "old": "leads += _sql_js(rel, lines) + _paid_api_from_browser(",
+  "new": "leads += _paid_api_from_browser("
+ },
+ {
+  "label": "0.93.1 hygiene: the browser-code check is never called",
+  "path": "src/verdict_mcp/hygiene.py",
+  "old": " + _paid_api_from_browser(rel, suffix, lines)\n",
+  "new": "\n"
+ },
+ {
+  "label": "0.93.1 hygiene: every module counts as browser code",
+  "path": "src/verdict_mcp/hygiene.py",
+  "old": "            return bool(_USE_CLIENT.match(s))\n",
+  "new": "            return True\n"
+ },
+ {
+  "label": "0.93.1 hygiene: a port under expose: counts as published",
+  "path": "src/verdict_mcp/hygiene.py",
+  "old": "        if ports_at is not None and (indent < ports_at\n                                     or (indent == ports_at and not stripped.startswith(\"-\"))):\n",
+  "new": "        if ports_at is not None and indent < ports_at:\n"
+ },
+ {
+  "label": "0.93.1 hygiene: a dash level with its ports: key ends the list",
+  "path": "src/verdict_mcp/hygiene.py",
+  "old": "        if ports_at is not None and (indent < ports_at\n                                     or (indent == ports_at and not stripped.startswith(\"-\"))):\n",
+  "new": "        if ports_at is not None and indent <= ports_at:\n"
+ },
+ {
+  "label": "0.93.1 hygiene: a database port bound to loopback counts as published",
+  "path": "src/verdict_mcp/hygiene.py",
+  "old": "            loopback = ip.startswith(\"127.\") or ip in (\"localhost\", \"[::1]\")\n",
+  "new": "            loopback = False\n"
+ },
+ {
+  "label": "0.93.1 hygiene: a compose password read from the environment counts as a default",
+  "path": "src/verdict_mcp/hygiene.py",
+  "old": "        if pw and pw.group(\"value\").lower() in _DEFAULT_PASSWORDS:\n",
+  "new": "        if pw:\n"
+ },
+ {
+  "label": "0.93.1 hygiene: compose files are never read",
+  "path": "src/verdict_mcp/hygiene.py",
+  "old": "        if _COMPOSE_FILE.match(name):\n            leads += _compose(rel, lines)\n",
+  "new": "        if False:\n            leads += _compose(rel, lines)\n"
+ },
+ {
+  "label": "0.93.1 hygiene: a JWT read with verification off is not a lead",
+  "path": "src/verdict_mcp/hygiene.py",
+  "old": "        r\"|[\\\"']verify_(?:signature|exp)[\\\"']\\s*:\\s*False|ignoreExpiration\\s*:\\s*true\"),\n",
+  "new": "        r\"|ignoreExpiration\\s*:\\s*true\"),\n"
+ },
+ {
+  "label": "0.93.1 hygiene: an AI SDK allowed into the browser is not a lead",
+  "path": "src/verdict_mcp/hygiene.py",
+  "old": "    (\"ai_key_in_browser\", re.compile(r\"dangerouslyAllowBrowser\\s*:\\s*true\"),\n",
+  "new": "    (\"ai_key_in_browser\", re.compile(r\"(?!x)x\"),\n"
  }
 ]

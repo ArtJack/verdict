@@ -1152,3 +1152,125 @@ def test_terraform_make_just_and_procfile_comments_name_no_client_variable(tmp_p
     found = sorted((i["path"], i["line"], i["excerpt"]) for i in hygiene_census(r)["items"]
                    if i["kind"] == "public_env_secret")
     assert found == [("Makefile", 2, "NEXT_PUBLIC_M_SECRET"), ("infra/main.tf", 2, "NEXT_PUBLIC_REAL_SECRET")]
+
+
+# ── leads from the vibe-audit comparison (0.93.1) ─────────────────────────
+
+def _leads(out, kind):
+    return sorted((lead["path"], lead["line"]) for lead in out["leads"] if lead["kind"] == kind)
+
+
+PY_SQL = '''\
+def find(cur, user_id, name, uid, email, term, a, b, table, col, col_type, n, where):
+    cur.execute(f"SELECT * FROM users WHERE id = {user_id}")
+    cur.execute(f'DELETE FROM t WHERE name = "{name}"')
+    cur.execute("SELECT * FROM t WHERE id = %s" % uid)
+    cur.execute("SELECT * FROM t WHERE id = '{}'".format(uid))
+    q = "SELECT * FROM t WHERE email = '" + email + "'"
+    sql = f"""
+        SELECT a FROM t
+        WHERE owner = '{name}'
+    """
+    cur.execute(f"INSERT INTO t (a, b) VALUES ({a}, '{b}')")
+    cur.execute("UPDATE c SET u = ? WHERE name LIKE ?", (a, f"%{term}%"))
+    cur.execute(f"ALTER TABLE s ADD COLUMN {col} {col_type}")
+    cur.execute(f"SELECT x FROM log WHERE action = '{ACTION}'")
+    cur.execute(f"SELECT count(*) FROM m WHERE {where}")
+    cur.execute("SELECT * FROM t WHERE id = %s", (uid,))
+    cur.execute(f"SELECT * FROM t WHERE id = {int(n)}")
+    q2 = "SELECT * FROM " + table
+    print(f"selected {n} rows from the list")
+'''
+TS_SQL = '''\
+await pool.query(`SELECT * FROM users WHERE email = '${email}'`);
+await knex.raw(`DELETE FROM t WHERE id = ${id}`);
+const q = 'SELECT * FROM t WHERE id = ' + req.params.id;
+await sql`SELECT * FROM users WHERE email = ${email}`;
+await db.query('SELECT * FROM t WHERE id = $1', [id]);
+const msg = `selected ${n} items from the list`;
+'''
+
+
+def test_a_value_formatted_into_sql_is_a_lead_and_an_identifier_or_a_bound_value_is_not(tmp_path):
+    """A value in a value's place — after `=`, LIKE, IN (, VALUES (, inside quotes — is
+    the injection; a table name in DDL, a clause built from fixed parts, a bound
+    parameter, a constant and a cast are not, and they were most of what the first
+    version of this rule flagged on our own repositories."""
+    r = make_repo(tmp_path, {"app/db.py": PY_SQL, "web/db.ts": TS_SQL,
+                             "tests/test_db.py": 'cur.execute(f"SELECT * FROM t WHERE id = {x}")\n'})
+    out = hygiene_census(r)
+    assert _leads(out, "sql_from_string") == (
+        [("app/db.py", n) for n in (2, 3, 4, 5, 6, 9, 11)] + [("web/db.ts", n) for n in (1, 2, 3)])
+
+
+def test_an_unverified_jwt_and_an_ai_key_in_the_browser_are_leads(tmp_path):
+    r = make_repo(tmp_path, {
+        "app/auth.py": ('import jwt\n'
+                        'claims = jwt.decode(token, options={"verify_signature": False})\n'
+                        'ok = jwt.decode(token, key, algorithms=["HS256"])\n'
+                        'if header["alg"] == "none":\n'
+                        '    raise ValueError("unsigned")\n'),
+        "web/auth.ts": ("jwt.verify(token, key, { algorithms: ['none'] });\n"
+                        "jwt.verify(token, key, { ignoreExpiration: true });\n"
+                        "const ai = new OpenAI({ apiKey, dangerouslyAllowBrowser: true });\n"),
+    })
+    out = hygiene_census(r)
+    assert _leads(out, "jwt_unverified") == [("app/auth.py", 2), ("web/auth.ts", 1), ("web/auth.ts", 2)]
+    assert _leads(out, "ai_key_in_browser") == [("web/auth.ts", 3)]
+
+
+def test_a_paid_api_called_from_browser_code_is_a_lead_and_from_the_server_is_not(tmp_path):
+    r = make_repo(tmp_path, {
+        "app/chat/page.tsx": ("'use client';\n"
+                              "const r = await fetch('https://api.openai.com/v1/chat/completions');\n"),
+        "src/Chat.vue": "<script setup>\nfetch('https://api.anthropic.com/v1/messages')\n</script>\n",
+        "public/widget.js": "fetch('https://api.stripe.com/v1/charges');\n",
+        "app/api/chat/route.ts": ("export async function POST() {\n"
+                                  "  return fetch('https://api.openai.com/v1/chat/completions');\n}\n"),
+        "server/pay.py": "requests.post('https://api.stripe.com/v1/charges')\n",
+    })
+    out = hygiene_census(r)
+    assert _leads(out, "paid_api_from_browser") == [
+        ("app/chat/page.tsx", 2), ("public/widget.js", 1), ("src/Chat.vue", 2)]
+
+
+COMPOSE = '''\
+services:
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+  cache:
+    image: redis
+    ports:
+    - "127.0.0.1:6379:6379"
+    - 6380:6379
+  web:
+    ports:
+      - "80:80"
+    expose:
+      - "5432"
+'''
+COMPOSE_PROD = '''\
+services:
+  db:
+    environment:
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - MYSQL_ROOT_PASSWORD=root
+    ports:
+      - "0.0.0.0:3306:3306"
+'''
+
+
+def test_a_compose_file_publishing_a_database_or_keeping_its_default_password_is_a_lead(tmp_path):
+    """A port counts only under `ports:` (an `expose:` publishes nothing), a dash level
+    with its key is still one of its items, and loopback is not every interface."""
+    r = make_repo(tmp_path, {"docker-compose.yml": COMPOSE, "deploy/compose.prod.yaml": COMPOSE_PROD,
+                             "tests/docker-compose.yml": 'services:\n  db:\n    ports:\n      - "5432:5432"\n'})
+    out = hygiene_census(r)
+    assert _leads(out, "compose_db_port_published") == [
+        ("deploy/compose.prod.yaml", 7), ("docker-compose.yml", 7), ("docker-compose.yml", 12)]
+    assert _leads(out, "compose_default_password") == [
+        ("deploy/compose.prod.yaml", 5), ("docker-compose.yml", 5)]

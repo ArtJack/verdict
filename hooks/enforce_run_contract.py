@@ -16,7 +16,7 @@ hand-written state on disk?* If so it blocks the stop once and says what to do.
 The bar for speaking is deliberately high, because this runs at the end of every
 turn in every session where the plugin is enabled:
 
-  1. the turn is not already continuing because of this hook (never loop);
+  1. it has not already said this, in this session (never loop);
   2. the event names a cwd, and a QA root resolves from it;
   3. the state's own recorded `last_run.timestamp_utc` is minutes old — a QA
      run happened *in this session*, not last night;
@@ -46,8 +46,19 @@ was written by *this* session (`verdict-facts` records `CLAUDE_CODE_SESSION_ID`;
 event carries `session_id`). A marker some other night left behind, or a parallel
 agent finishing while the tester is still at work, matches none of that. Said once
 per marker — the marker remembers it was told.
+
+**Whose continuation (0.93.1).** `stop_hook_active` says the turn goes on because *a*
+Stop hook blocked, not which one. Read as "because of this hook", it silenced every
+check for as long as another plugin kept the agent working — a loop plugin that blocks
+each stop, a reminder that sends the agent back to its notes — so a run started inside
+such a continuation and left unfinished was never told. The same hole was found and
+closed in another author's Stop hook (project-memory, its F3-03/F3-04). The hook now
+goes by its own record of what it said, per session and QA root, kept under Verdict's
+home rather than in the project. Where it cannot keep one — no session id, a record it
+cannot write, a link on the way — a continuation is read as its own, as before.
 """
 
+import hashlib
 import json
 import os
 import sys
@@ -67,10 +78,68 @@ MARKER = "run-in-progress.json"
 # A marker older than this is not the run that is ending now, whoever wrote it. Long:
 # a full suite, a coverage pass and an investigation fit inside one run.
 UNFINISHED_S = 6 * 3600
+# What the hook said, per session and QA root (0.93.1): under Verdict's home, so a
+# team-mode `.qa/` never gains an untracked file, and pruned after two days.
+TOLD_DIR = (".hooks", "stop-told")
+TOLD_KEEP_S = 2 * 86400
 
 
 def _silent(code: int = 0) -> int:
     return code
+
+
+def _told_path(event: dict, root: Path, home: Path):
+    """This session's record for this QA root, or None when the event does not say
+    which session it is — and then nothing can be remembered."""
+    session = event.get("session_id")
+    if not isinstance(session, str) or not session:
+        return None
+    digest = hashlib.sha256(f"{session}\0{root}".encode("utf-8", "replace")).hexdigest()[:24]
+    return home.joinpath(*TOLD_DIR, f"{digest}.json")
+
+
+def _linked(path: Path, home: Path) -> bool:
+    """A link anywhere below Verdict's home on the way to the record: not ours to
+    read or write through."""
+    p = path
+    while p != home and p != p.parent:
+        if p.is_symlink():
+            return True
+        p = p.parent
+    return False
+
+
+def _told(path, home: Path) -> set:
+    if path is None or _linked(path, home):
+        return set()
+    try:
+        doc = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return set()
+    told = doc.get("told") if isinstance(doc, dict) else None
+    return {t for t in told if isinstance(t, str)} if isinstance(told, list) else set()
+
+
+def _remember(path, home: Path, told: set, subject: str) -> bool:
+    """Record that `subject` was said; False when it could not be, which the caller
+    treats as "nothing remembers" and falls back to the old rule."""
+    if path is None or _linked(path, home):
+        return False
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        if _linked(path, home):
+            return False
+        now = datetime.now(timezone.utc).timestamp()
+        for old in path.parent.glob("*.json"):
+            try:
+                if old != path and now - old.lstat().st_mtime > TOLD_KEEP_S:
+                    old.unlink()
+            except OSError:
+                pass
+        path.write_text(json.dumps({"told": sorted(told | {subject})}) + "\n", encoding="utf-8")
+    except OSError:
+        return False
+    return True
 
 
 def _unfinished_run(event: dict, root: Path):
@@ -106,12 +175,15 @@ def _unfinished_run(event: dict, root: Path):
     if not 0 <= (datetime.now(timezone.utc) - started).total_seconds() <= UNFINISHED_S:
         return None
     try:
-        # Told once. `stop_hook_active` covers the immediate retry; this covers the
-        # tester's *next* stop, and any later agent of the same session.
+        # Told once, by the marker: the retry this block causes, the tester's next stop
+        # and any later agent of the same session all find it.
         marker["stop_told"] = datetime.now(timezone.utc).strftime(_ISO_Z)
         marker_path.write_text(json.dumps(marker, indent=2) + "\n", encoding="utf-8")
     except OSError:
-        pass
+        # Nothing remembers it was said. A continuation is then read as this hook's
+        # own, as before 0.93.1, so a root it cannot write cannot make it loop.
+        if event.get("stop_hook_active"):
+            return None
     return (
         "verdict: this agent started a QA run and is stopping without finishing it — "
         f"`verdict-facts` ran at {marker.get('started_utc')} and `verdict-finalize` never did.\n"
@@ -131,14 +203,11 @@ def main() -> int:
         return _silent()
     if not isinstance(event, dict):
         return _silent()
-    # Already continuing because we blocked once. Saying it twice is a loop,
-    # and a loop is worse than a miss.
-    if event.get("stop_hook_active"):
-        return _silent()
 
     try:
         sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src" / "verdict_mcp"))
         from state import harness_signals, missing_durable, resolve_root
+        from state import home as state_home
     except Exception:
         return _silent()  # not installed the way we expect; say nothing
 
@@ -153,7 +222,6 @@ def main() -> int:
         root = resolve_root(str(cwd))
         if root is None:
             from project_key import derive_key
-            from state import home as state_home
             key, _ = derive_key(Path(cwd))
             # A first run that never finalized has a marker and no state at all.
             for candidate in (state_home() / key, Path(cwd) / ".qa"):
@@ -161,6 +229,13 @@ def main() -> int:
                     root = candidate
                     break
         if root is None:
+            return _silent()
+        home = state_home()
+        told_path = _told_path(event, Path(root), home)
+        # Continuing because *a* Stop hook blocked. Only where this session cannot be
+        # told apart is that read as this hook's own block: saying it twice is a loop,
+        # and a loop is worse than a miss.
+        if event.get("stop_hook_active") and told_path is None:
             return _silent()
 
         unfinished = _unfinished_run(event, Path(root))
@@ -193,6 +268,14 @@ def main() -> int:
         # hook, which then predicted a gate failure that did not happen. Seen on
         # this repository's own run-4 state, copied from the clone that ran it.
         durable = missing_durable(signals)
+        # Said once per state in a session, by the hook's own record — so a turn another
+        # hook keeps going neither silences it nor hears it twice.
+        subject = f"{stamp}#{state.get('run_number')}"
+        told = _told(told_path, home)
+        if subject in told:
+            return _silent()
+        if not _remember(told_path, home, told, subject) and event.get("stop_hook_active"):
+            return _silent()    # nothing remembers it: read the continuation as its own
     except Exception:
         return _silent()
 
