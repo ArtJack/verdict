@@ -9,6 +9,38 @@ They moved there on 2026-10-03, when this file outgrew what the Claude directory
 will read: at 250 KB it was read, at 267 KB it held 0.90.3 for "Files or downloads the
 validator couldn't inspect". The limit is most likely 256 KiB.
 
+## 0.93.1 — 2026-10-30 · "what a team commits is the record"
+
+- **The local tier no longer writes its gateway's address into the record.** `verdict-local` put the
+  gateway's host in `last_run.local`, finalize copied it into `state.json`, and the report's Judge
+  line printed it. In team mode both are committed with the code, so every local run committed the
+  address, and the whole base URL when it parsed to no hostname. Now the host goes only to the bill
+  (`usage.jsonl`), as a bare hostname, never the URL around it. A facts.json written by 0.90.10 or
+  earlier has its host taken out, and billed, before the state is composed. The Judge line prints no
+  host, even from a state written before. A team record written by an earlier local run still
+  carries `last_run.local.host`; delete that key by hand. The signed chain row does not carry it.
+  This repository's own run-16 state and report no longer name it.
+- **Team mode keeps the bill and one run's scratch out of git.** The `.qa/.gitignore` that
+  `/verdict:baseline team` writes now lists `usage.jsonl` and `findings.prev/` beside the per-run
+  intermediates. `usage.jsonl` is each machine's spend and, for the local tier, the gateway it
+  called; nothing reads it back. A `.qa/` made by an earlier version needs both lines added by hand.
+- **The Stop hook keeps its own record of what it said.** `stop_hook_active` says a Stop hook
+  blocked, not which one, so another plugin's continuation silenced every check. The hook now
+  records what it said per session and QA root, says a hand-written state once per session, and
+  keeps the old rule wherever no record can be kept.
+- **Six new hygiene leads, tier 3:**
+  - `sql_from_string`: a value spliced into SQL. DDL identifiers, bound parameters, constants,
+    casts and tagged templates are not leads.
+  - `jwt_unverified`
+  - `ai_key_in_browser`
+  - `paid_api_from_browser`
+  - `compose_db_port_published`
+  - `compose_default_password`
+
+  Found by comparing this scan with another author's MIT plugins (haraldalder-vibemogger's
+  vibe-audit). Each was re-measured here; none of their code was copied.
+- Pinned mutants: 26 new (22 for the Stop hook and the leads, "gateway host 1–4"); badge 527/527.
+
 ## 0.93.0 — 2026-10-23 · "the cheap run is a normal run, capped"
 
 - **`verdict-run --lite`: the cheap asked run.** A normal asked run (the tester, `verdict-facts` before
