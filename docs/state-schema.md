@@ -563,6 +563,12 @@ names — measured — instead of absent. An operator's own label still wins (`o
 `verdict-run --model` stays `opus`), and the bill keeps what actually answered under
 `usage.models`, so a label and the truth can disagree on the record rather than in private.
 
+In team mode the bill stays out of git (`.qa/.gitignore`). It describes the machine that ran
+each run — the transcript it read exists only there, `entrypoint` and `effort` are that
+session's, and a local-tier row carries the gateway's `host` under `local` — and nothing
+reads it back: what the team needs from it, the model that signed each run, is in
+`state.json` and `runs.jsonl`. A team that wants a shared bill can drop the line.
+
 The run marker `run-in-progress.json` — written by `verdict-facts` before the gates,
 removed only by `verdict-finalize` — now also carries `session_id` and `entrypoint` when
 the CLI exports `CLAUDE_CODE_SESSION_ID` / `CLAUDE_CODE_ENTRYPOINT`. That is what lets the
@@ -889,7 +895,9 @@ and may still carry `findings[]` inline — but files **and** inline findings in
 refused, never merged. `verdict-facts` moves the previous run's `findings/` to
 `findings.prev/` before the run starts (`findings_archived` says so); a retry of the same
 run — a marker at this commit, minutes old — keeps the files, because they are this
-attempt's own. Nothing is deleted.
+attempt's own. Nothing is deleted. `findings.prev/` is scratch, and a team-mode
+`.qa/.gitignore` lists it: a finalized run's findings are in its `state.json`, and an
+abandoned run's never became the record.
 
 **The two cheap verbs.** `still_open: [ids]` — looked at, still there, nothing new to say:
 finalize copies the finding from the previous state (title, severity, evidence, root
