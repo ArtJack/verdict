@@ -3151,5 +3151,29 @@
   "path": "src/verdict_mcp/hygiene.py",
   "old": "    (\"ai_key_in_browser\", re.compile(r\"dangerouslyAllowBrowser\\s*:\\s*true\"),\n",
   "new": "    (\"ai_key_in_browser\", re.compile(r\"(?!x)x\"),\n"
+ },
+ {
+  "label": "gateway host 1: the local tier writes its gateway into last_run.local, so the state a team commits carries the address",
+  "path": "src/verdict_mcp/small.py",
+  "old": "        \"model\": model.name,\n        \"calls\": model.calls,",
+  "new": "        \"model\": model.name, \"host\": model.base_url,\n        \"calls\": model.calls,"
+ },
+ {
+  "label": "gateway host 2: finalize leaves the host an older facts.json kept in last_run.local, and the state carries it",
+  "path": "src/verdict_mcp/harness.py",
+  "old": "        stray = local.pop(\"host\")\n",
+  "new": "        stray = local.get(\"host\")\n"
+ },
+ {
+  "label": "gateway host 3: the bill writes the gateway's whole URL, userinfo, path and query, where a hostname was promised",
+  "path": "src/verdict_mcp/harness.py",
+  "old": "        return urllib.parse.urlsplit(text if \"//\" in text else \"//\" + text).hostname or None\n",
+  "new": "        return text\n"
+ },
+ {
+  "label": "gateway host 4: the Judge line prints the host an older state kept",
+  "path": "src/verdict_mcp/harness.py",
+  "old": "    parts = [f\"- Judge: {engine} \u00b7 model `{last.get('model') or '?'}`\"]\n",
+  "new": "    parts = [f\"- Judge: {engine} \u00b7 model `{last.get('model') or '?'}`\"]\n    parts += [f\"host `{local['host']}`\"] if local.get(\"host\") else []\n"
  }
 ]

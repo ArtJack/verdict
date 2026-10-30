@@ -18,7 +18,6 @@
     "engine": "verdict-local",
     "local": {
       "model": "chat-120b",
-      "host": "100.82.62.40",
       "calls": 40,
       "tokens": 41700,
       "input_tokens": 18451,

@@ -7,7 +7,7 @@
 - Range: `4a918d8b4b786991cdbe45bde13bd9f3a8e9dc7e..1e8fd9d7edd5a4c2c9c32906ff97ae37f8b83038` · 133 files changed, 30487 insertions(+), 3838 deletions(-)
 - Branch: `claude/verdict-azure-migration-d0f6ac` · measured 2026-10-15T05:00:39Z
 - Harness: verdict-qa-mcp 0.90.5 · prompt 8365d3aefd6f · `/Users/artjack/Projects/verdict/.claude/worktrees/verdict-azure-migration-d0f6ac/src/verdict_mcp/harness.py`
-- Judge: verdict-local · model `local:chat-120b` · host `100.82.62.40` · 40 call(s), 41700 token(s) · 1 question(s) unanswered · no Claude tokens spent
+- Judge: verdict-local · model `local:chat-120b` · 40 call(s), 41700 token(s) · 1 question(s) unanswered · no Claude tokens spent
 - Evidence drift: 1 of 1 anchored open findings cite code that moved or changed since the evidence was written (VERDICT-F-74)
 - Isolation check: **pass** — local mode reads the checkout and runs the suite gate; it writes nothing outside the QA root
 

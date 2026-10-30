@@ -52,6 +52,7 @@ import subprocess
 import sys
 import tempfile
 import time
+import urllib.parse
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
@@ -3433,13 +3434,33 @@ def _contract_dispute(state: dict, in_change, judgment: dict | None) -> list[str
             f"blockers; the verdict stands at {was!r}"]
 
 
-def _record_bill(qa_root: Path, state: dict, bill: dict | None) -> None:
+def _gateway_host(value) -> str | None:
+    """The hostname in a gateway's base URL → or None. Never the URL itself.
+
+    The local tier wrote `urlparse(base_url).hostname or base_url`, so a URL that parses
+    to no hostname — one written without a scheme — went in whole, with whatever userinfo,
+    path or query it carried. A bare hostname is read as one: that is what a facts.json
+    written by 0.90.10 or earlier holds in `last_run.local.host`."""
+    text = value.strip() if isinstance(value, str) else ""
+    if not text:
+        return None
+    try:
+        return urllib.parse.urlsplit(text if "//" in text else "//" + text).hostname or None
+    except ValueError:
+        return None
+
+
+def _record_bill(qa_root: Path, state: dict, bill: dict | None,
+                 gateway_host: str | None = None) -> None:
     """One line per run in `usage.jsonl`, beside the state and outside the signed row.
 
     Outside, because a bill is telemetry: signing it would make every state written
     before this file existed re-derive to a different row, the reason `gate_durations`
     is kept out of the chain body. A run with no readable transcript still gets its
     line — `usage: null` and why — so an absent bill is not mistaken for a free run.
+    `gateway_host` is the host a local run called, which the state no longer carries
+    (`finalize_main`): the bill is the paying machine's own telemetry, not the record a
+    team commits, so it may name it.
     Never raises, and never changes the exit code: the state is already on disk."""
     try:
         last = state.get("last_run") or {}
@@ -3463,7 +3484,8 @@ def _record_bill(qa_root: Path, state: dict, bill: dict | None) -> None:
             # beside the number of calls it took to cost nothing.
             row["engine"] = last["engine"]
             row["usage"] = {"requests": 0, **{k: 0 for k in USAGE_FIELDS}}
-            row["local"] = last.get("local") or {}
+            row["local"] = {**(last.get("local") or {}),
+                            **({"host": gateway_host} if gateway_host else {})}
             row["note"] = (f"judged by {last['engine']}: no Claude request was made; the "
                            "`local` object carries that engine's own calls and tokens")
         elif bill:
@@ -3481,7 +3503,9 @@ def _record_bill(qa_root: Path, state: dict, bill: dict | None) -> None:
               "written and valid", file=sys.stderr)
 
 
-def finalize_main(argv=None) -> int:
+def finalize_main(argv=None, *, gateway: str | None = None) -> int:
+    """`gateway` is the base URL a local run called, handed in by `verdict-local` so
+    that it reaches the bill and nothing else; the command line has no such flag."""
     ap = argparse.ArgumentParser(
         prog="verdict-finalize",
         description="Merge measured facts with the agent's judgment into state.json.")
@@ -3581,6 +3605,18 @@ def finalize_main(argv=None) -> int:
         src = sources.get(str(f.get("id")))
         if src:
             f["filed_at"] = src["filed_at"]
+
+    # The gateway a local run called is not the record's business. merge() copies
+    # `last_run` into the state whole, the report's Judge line read it from there, and in
+    # team mode both are committed with the code — so every local run there committed the
+    # gateway's network address (found 2026-10-15). Its host goes to the bill alone:
+    # handed in by `verdict-local`, or taken out of a facts.json written by 0.90.10 or
+    # earlier, which kept it in `last_run.local`.
+    local = (facts.get("last_run") or {}).get("local")
+    if isinstance(local, dict) and "host" in local:
+        stray = local.pop("host")
+        gateway = gateway or stray
+    gateway_host = _gateway_host(gateway)
 
     state = merge(facts, judgment, previous, ledger=load_outcomes(qa_root),
                   accepted=load_accepted(qa_root), qa_root=qa_root)
@@ -3729,7 +3765,7 @@ def finalize_main(argv=None) -> int:
     questions.save(qa_root, qledger)
     marker = qa_root / "run-in-progress.json"
     marker.unlink(missing_ok=True)
-    _record_bill(qa_root, state, bill)
+    _record_bill(qa_root, state, bill, gateway_host)
     disagreements = check_artifacts(qa_root, state)
     if disagreements:
         # Loud, on the stream the agent reads, and not a refusal: the run is
@@ -3984,6 +4020,10 @@ def _judge_line(state: dict, last: dict) -> list:
     difference is exactly what a reader weighing the verdict needs first. A
     sweep says so too: "none" is a judge, and a run nobody judged must not look
     like a run somebody did.
+
+    The model names the judge; the gateway it answered through is not on the line,
+    even for a state written before the host left `last_run.local`. A team commits
+    this report, and a network address is the payer's, not the reader's.
     """
     engine = last.get("engine")
     if not engine:
@@ -3991,8 +4031,6 @@ def _judge_line(state: dict, last: dict) -> list:
                  "was judged this run"] if state.get("run_type") == "sweep" else [])
     local = last.get("local") if isinstance(last.get("local"), dict) else {}
     parts = [f"- Judge: {engine} · model `{last.get('model') or '?'}`"]
-    if local.get("host"):
-        parts.append(f"host `{local['host']}`")
     parts.append(f"{local.get('calls', 0)} call(s), {local.get('tokens', 0)} token(s)")
     if local.get("errors"):
         parts.append(f"{local['errors']} transport error(s)")

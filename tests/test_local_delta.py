@@ -414,7 +414,7 @@ def test_the_engine_and_its_counters_land_in_last_run_and_in_the_report(tmp_path
     assert delta(repo, qa, model) == 0
     last = state_of(qa)["last_run"]
     assert last["engine"] == "verdict-local"
-    assert last["local"]["host"] == "gateway.test"
+    assert "host" not in last["local"], "the gateway is the bill's, not the record's"
     assert last["local"]["model"] == "fake-8b"
     assert last["local"]["calls"] == model.calls
     report = (qa / last["report"]).read_text(encoding="utf-8")
@@ -424,6 +424,90 @@ def test_the_engine_and_its_counters_land_in_last_run_and_in_the_report(tmp_path
     assert row["engine"] == "verdict-local"
     assert row["usage"]["requests"] == 0, "a measured zero, not an unknown"
     assert row["local"]["calls"] == model.calls
+
+
+# Pieces of a gateway URL no committed file may hold: the host, the userinfo, the path and
+# the query. Distinctive, so a hit is the URL and nothing else.
+GATEWAY_URL = "http://op:pw-7q2@gateway.test:4000/relay-x7q?key=k-9z3"
+GATEWAY_PIECES = ("gateway.test", "pw-7q2", "relay-x7q", "k-9z3")
+
+
+def _carrying(qa, pieces, skip=()):
+    """Every file under the QA root that holds one of `pieces` → `[(file, piece)]`."""
+    out = []
+    for path in sorted(p for p in qa.rglob("*") if p.is_file() and p.name not in skip):
+        text = path.read_text(encoding="utf-8", errors="replace")
+        out += [(path.relative_to(qa).as_posix(), x) for x in pieces if x in text]
+    return out
+
+
+def test_the_gateway_reaches_the_bill_and_nothing_a_team_commits(tmp_path):
+    """In team mode the state and the report are committed with the code, and through
+    0.90.10 both named the gateway — `last_run.local.host`, and `host` on the Judge line —
+    so a local run committed its gateway's network address (found 2026-10-15). The
+    address is the payer's: the bill keeps the hostname, never the URL around it, and no
+    other file the run leaves in the QA root holds any piece of it."""
+    repo, qa = project(tmp_path)
+    (repo / "other.py").write_text("def other(x):\n    return x  # c\n", encoding="utf-8")
+    git(repo, "commit", "-qam", "touch an uncited file")
+
+    model = ScriptedModel()
+    model.base_url = GATEWAY_URL
+    assert delta(repo, qa, model) == 0
+    state = state_of(qa)
+    assert state["last_run"]["engine"] == "verdict-local"
+    assert "host" not in state["last_run"]["local"]
+    report = (qa / state["last_run"]["report"]).read_text(encoding="utf-8")
+    judge = next(line for line in report.splitlines() if line.startswith("- Judge:"))
+    assert "host" not in judge and f"{model.calls} call(s)" in judge
+    assert _carrying(qa, GATEWAY_PIECES, skip={"usage.jsonl"}) == []
+
+    bill = (qa / "usage.jsonl").read_text(encoding="utf-8")
+    assert json.loads(bill.splitlines()[-1])["local"]["host"] == "gateway.test"
+    assert [x for x in GATEWAY_PIECES[1:] if x in bill] == [], \
+        "the bill keeps the hostname, never the URL"
+
+
+def test_a_host_left_in_older_facts_reaches_the_bill_not_the_record(tmp_path):
+    """A facts.json written by 0.90.10 or earlier keeps the gateway in
+    `last_run.local.host` — the whole base URL when it parsed to no hostname. Finalized
+    by this harness, it is taken out before the state is composed, and only the hostname
+    is billed."""
+    from verdict_mcp.harness import facts_main, finalize_main
+    repo, qa = project(tmp_path, findings=[])
+    assert facts_main(["--repo", str(repo), "--qa-root", str(qa)]) == 0
+    facts = json.loads((qa / "facts.json").read_text(encoding="utf-8"))
+    facts["last_run"].update(engine="verdict-local", model="local:fake-8b", local={
+        "model": "fake-8b", "host": "gateway.test:4000/relay-x7q?key=k-9z3", "calls": 3,
+        "tokens": 360, "answered": 3, "unanswered": 0, "errors": 0})
+    (qa / "facts.json").write_text(json.dumps(facts), encoding="utf-8")
+    (qa / "judgment.json").write_text(json.dumps({
+        "verdict": "pass with risks", "isolation_check": {"result": "pass"},
+        "release_blockers": [], "not_tested": ["everything"], "findings": []}),
+        encoding="utf-8")
+    assert finalize_main(["--qa-root", str(qa), "--judgment", str(qa / "judgment.json")]) == 0
+
+    assert "host" not in state_of(qa)["last_run"]["local"]
+    # facts.json is the old version's own output, read and left as it was written.
+    assert _carrying(qa, GATEWAY_PIECES, skip={"usage.jsonl", "facts.json"}) == []
+    bill = (qa / "usage.jsonl").read_text(encoding="utf-8")
+    assert json.loads(bill.splitlines()[-1])["local"]["host"] == "gateway.test"
+    assert [x for x in GATEWAY_PIECES[1:] if x in bill] == []
+
+
+def test_the_judge_line_names_no_host_even_for_an_older_state():
+    """A state written through 0.90.10 still holds `last_run.local.host`; a report
+    rendered from it says who judged, and not where the judge was reached."""
+    state = {"run_type": "delta", "project": "p", "run_number": 16, "verdict": "pass with risks",
+             "last_run": {"timestamp_utc": "2026-10-15T00:00:00Z", "report": "r.md",
+                          "engine": "verdict-local", "model": "local:chat-120b",
+                          "local": {"model": "chat-120b", "host": "gateway.test", "calls": 39,
+                                    "tokens": 4200, "unanswered": 0}},
+             "findings": [], "not_tested": ["x"]}
+    report = render_report(state)
+    judge = next(line for line in report.splitlines() if line.startswith("- Judge:"))
+    assert "39 call(s)" in judge and "local:chat-120b" in judge
+    assert "gateway.test" not in report and "host" not in judge
 
 
 def test_a_sweep_still_says_none_where_the_judge_would_be():
