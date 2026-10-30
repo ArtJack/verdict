@@ -13,8 +13,10 @@ someone who never read it. Three tiers, and the tier decides who acts:
      commented-out code, debug logging, copied functions: tracked in a ledger,
      never a finding
   3  leads — a swallow around a secret write, a security read that fails open, a
-     placeholder secret default, a forwarded header, a wildcard CORS rule: handed
-     to the tester to read first, never filed here
+     placeholder secret default, a forwarded header, a wildcard CORS rule, a value
+     formatted into SQL, a JWT accepted unverified, an AI key sent to the browser, a
+     compose file publishing a database port: handed to the tester to read first,
+     never filed here
 
 Tier 1 is filed with no model in the loop, so it takes only what is certain. An
 encrypted file, a key that is public by design, a value that is not a credential,
@@ -107,10 +109,12 @@ TITLE = {
 TIER2_KINDS = ("broad_swallow", "unused_import", "oversized_file", "todo_comment",
                "commented_out_code", "console_debug", "duplicate_function")
 _LEAD_ORDER = {k: n for n, k in enumerate((
-    "swallow_around_sensitive_write", "security_read_fails_open", "google_api_key",
+    "swallow_around_sensitive_write", "security_read_fails_open", "jwt_unverified",
+    "sql_from_string", "ai_key_in_browser", "paid_api_from_browser", "google_api_key",
     "placeholder_security_default", "forwarded_header_trust", "wildcard_cors",
     "raw_html_injection", "shell_or_eval", "tls_verify_off", "public_env_key_name",
-    "public_database_rule", "rls_policy_using_true", "env_file_committed", "module_never_imported"))}
+    "public_database_rule", "rls_policy_using_true", "compose_db_port_published",
+    "compose_default_password", "env_file_committed", "module_never_imported"))}
 
 _TEST_DIRS = {"test", "tests", "__tests__", "spec", "specs", "fixtures", "__fixtures__",
               "testdata", "e2e", "__mocks__", "mocks", "cypress", "testing"}
@@ -298,7 +302,55 @@ _LINE_LEADS = (
     ("public_env_key_name", re.compile(
         r"\b(?:NEXT_PUBLIC|VITE|EXPO_PUBLIC|REACT_APP|NUXT_PUBLIC)_[A-Z0-9_]*(?:KEY|TOKEN)[A-Z0-9_]*"),
      "a client-side variable named like a credential — publishable and anon keys are fine, secret keys are not"),
+    # These two, the SQL, browser and compose leads below came from comparing this scan
+    # with vibe-audit (github.com/haraldalder-vibemogger/vibe-audit, MIT) on 2026-10-27:
+    # the checks it had and this scan did not, each narrowed until our own repositories
+    # gave it nothing to say that was not worth a look.
+    ("jwt_unverified", re.compile(
+        r"[\"']alg[\"']\s*:\s*[\"']none[\"']|algorithms\s*[=:]\s*\[[^\]]*[\"']none[\"']"
+        r"|[\"']verify_(?:signature|exp)[\"']\s*:\s*False|ignoreExpiration\s*:\s*true"),
+     "a JWT is accepted without its signature or its expiry checked — check this path never "
+     "decides who the caller is"),
+    ("ai_key_in_browser", re.compile(r"dangerouslyAllowBrowser\s*:\s*true"),
+     "an AI SDK is allowed to run in the browser — the key it holds ships to every visitor"),
 )
+# A value formatted into SQL text. Only DML, and only a value in a value's place — after
+# `=`, a comparison, LIKE, IN ( or VALUES (, or inside quotes — so a table or column name
+# in DDL, a clause assembled from fixed parts, a bound parameter and an ALL_CAPS constant
+# all say nothing: identifiers cannot be bound, and those were most of what the first
+# version flagged on our own repositories.
+_SQL_SHAPE = re.compile(r"\b(?:select\b[\s\S]{0,400}?\bfrom|insert\s+into|update\s+[\w.\"`\[\]]+\s+set"
+                        r"|delete\s+from)\b", re.IGNORECASE)
+_SQL_SLOT = re.compile(r"(?:=|<>|!=|<|>|\blike|\bin\s*\(|\bvalues\s*\()\s*['\"%]*$|['\"]%?$", re.IGNORECASE)
+_SQL_IN_VALUES = re.compile(r"\bvalues\s*\([^)]*,\s*['\"]?$", re.IGNORECASE)
+_SQL_SLOT_LINE = re.compile(r"(?:(?:=|<>|!=|<|>|\blike|\bin\s*\(|\bvalues\s*\()\s*['\"%]*|['\"]%?)\{(?!\{)",
+                            re.IGNORECASE)
+_SQL_PERCENT = re.compile(r"%(?:\([^)]*\))?[-#0 +]*\d*(?:\.\d+)?[sr]")
+_SQL_BRACES = re.compile(r"\{[^{}]*\}")
+_CONSTANT_NAME = re.compile(r"^[A-Z][A-Z0-9_]*$")
+_JS_TEMPLATE = re.compile(r"`([^`]*)`?")
+_JS_SQL_CONCAT = re.compile(r"([\"'])((?:(?!\1)[^\\]|\\.)*)\1\s*\+\s*[A-Za-z_$(]")
+_SQL_WHY = ("a value is formatted into SQL text — check whether it can come from outside; "
+            "pass it as a query parameter instead")
+# A call to a paid API from code that runs in the browser: whatever key it sends,
+# every visitor can read.
+_PAID_API = re.compile(r"https?://api\.(?:openai|anthropic|stripe)\.com")
+_USE_CLIENT = re.compile(r"""^(['"])use client\1;?$""")
+# Compose files: a database password left at a well-known default, and a database port
+# published on every interface (Docker's own rules sit ahead of the host's firewall).
+_COMPOSE_FILE = re.compile(r"^(?:docker-)?compose(?:[.-][\w.-]+)?\.ya?ml$", re.IGNORECASE)
+_COMPOSE_PASSWORD = re.compile(
+    r"^\s*-?\s*[\"']?(?:POSTGRES|MYSQL(?:_ROOT)?|MARIADB(?:_ROOT)?|MONGO_INITDB_ROOT|REDIS|RABBITMQ_DEFAULT"
+    r"|WORDPRESS_DB|PG)_?PASS(?:WORD)?[\"']?\s*[:=]\s*[\"']?(?P<value>[^\"'\s#]*)[\"']?\s*(?:#.*)?$")
+_DEFAULT_PASSWORDS = frozenset(("postgres", "password", "root", "admin", "secret", "example", "changeme",
+                                "test", "pass", "123456", "12345678", "mysql", "mongo", "guest",
+                                "wordpress"))
+_COMPOSE_PORTS = re.compile(r"^(?P<indent>\s*)ports\s*:\s*(?:#.*)?$")
+_COMPOSE_PORT = re.compile(
+    r"^\s*-\s*[\"']?(?:(?P<ip>[\d.]+|\[[0-9a-fA-F:]*\]|localhost):)?(?:\d+(?:-\d+)?:)?"
+    r"(?P<container>\d+)(?:-\d+)?(?:/(?:tcp|udp))?[\"']?\s*(?:#.*)?$")
+_DB_PORTS = frozenset((5432, 3306, 27017, 6379, 9200, 9300, 6333, 6334, 5672, 15672, 11211, 9042,
+                       8086, 1433, 5984, 7687, 26257, 28015, 8529))
 _COMMENT_MARKS = ("#", "//", "/*", "*", "--")
 _RLS_OPEN_POLICY = re.compile(r"using\s*\(\s*true\s*\)", re.IGNORECASE)
 _PLACEHOLDER_SECURITY_DEFAULT = re.compile(
@@ -1012,6 +1064,177 @@ def _line_leads(rel, lines):
     return out
 
 
+def _sql_slot(before: str) -> bool:
+    """Whether the SQL text before an interpolation leaves it in a value's place."""
+    return bool(_SQL_SLOT.search(before) or _SQL_IN_VALUES.search(before))
+
+
+def _sql_safe_value(node) -> bool:
+    """A value that cannot carry outside text: a literal, an ALL_CAPS constant, a cast."""
+    if isinstance(node, ast.Constant):
+        return True
+    if isinstance(node, ast.Name):
+        return bool(_CONSTANT_NAME.match(node.id))
+    if isinstance(node, ast.Attribute):
+        return bool(_CONSTANT_NAME.match(node.attr))
+    return (isinstance(node, ast.Call) and isinstance(node.func, ast.Name)
+            and node.func.id in ("int", "float", "len"))
+
+
+def _sql_line(lines, node) -> int:
+    """The line of a multi-line SQL string where the value goes in, else where it starts."""
+    end = min(getattr(node, "end_lineno", None) or node.lineno, len(lines))
+    for n in range(node.lineno, end + 1):
+        if _SQL_SLOT_LINE.search(lines[n - 1]):
+            return n
+    return node.lineno
+
+
+def _sql_py(rel, tree, lines):
+    """Python: an f-string, a `%` or `.format()` on a SQL literal, or a `+` chain, that puts
+    a value in a value's place."""
+    out, inner = [], set()
+
+    def lead(line):
+        out.append(_item("sql_from_string", 3, rel, line,
+                         lines[line - 1] if 0 < line <= len(lines) else "", _SQL_WHY))
+
+    for node in ast.walk(tree):
+        if isinstance(node, ast.JoinedStr):
+            text = "".join(v.value for v in node.values
+                           if isinstance(v, ast.Constant) and isinstance(v.value, str))
+            if not _SQL_SHAPE.search(text):
+                continue
+            before = ""
+            for v in node.values:
+                if isinstance(v, ast.Constant) and isinstance(v.value, str):
+                    before += v.value
+                elif isinstance(v, ast.FormattedValue):
+                    if _sql_slot(before) and not _sql_safe_value(v.value):
+                        lead(_sql_line(lines, node))
+                        break
+                    before += "?"
+        elif (isinstance(node, ast.BinOp) and isinstance(node.op, ast.Mod)
+              and isinstance(node.left, ast.Constant) and isinstance(node.left.value, str)
+              and _SQL_SHAPE.search(node.left.value)):
+            s = node.left.value
+            if any(_sql_slot(s[:m.start()]) for m in _SQL_PERCENT.finditer(s)):
+                lead(node.lineno)
+        elif (isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
+              and node.func.attr == "format" and isinstance(node.func.value, ast.Constant)
+              and isinstance(node.func.value.value, str)
+              and _SQL_SHAPE.search(node.func.value.value)):
+            s = node.func.value.value
+            if any(_sql_slot(s[:m.start()]) for m in _SQL_BRACES.finditer(s)):
+                lead(node.lineno)
+        elif isinstance(node, ast.BinOp) and isinstance(node.op, ast.Add) and id(node) not in inner:
+            parts, stack = [], [node]
+            while stack:            # the whole `+` chain once, left to right
+                n = stack.pop()
+                if isinstance(n, ast.BinOp) and isinstance(n.op, ast.Add):
+                    inner.add(id(n))
+                    stack += [n.right, n.left]
+                else:
+                    parts.append(n)
+            text = "".join(p.value for p in parts if isinstance(p, ast.Constant) and isinstance(p.value, str))
+            if not _SQL_SHAPE.search(text):
+                continue
+            before = ""
+            for p in parts:
+                if isinstance(p, ast.Constant) and isinstance(p.value, str):
+                    before += p.value
+                elif _sql_slot(before) and not _sql_safe_value(p):
+                    lead(node.lineno)
+                    break
+                else:
+                    before += "?"
+    return out
+
+
+def _sql_js(rel, lines):
+    """JS/TS: a template literal or a `+` on a SQL literal that puts a value in a value's
+    place. A tagged template — sql`…`, Prisma.sql`…` — binds its values: nothing to say."""
+    out = []
+    for i, line in enumerate(lines, 1):
+        if len(line) > LONG_LINE or not _SQL_SHAPE.search(line):
+            continue
+        hit = False
+        for m in _JS_TEMPLATE.finditer(line):
+            body = m.group(1)
+            if (m.start() and re.match(r"[\w$]", line[m.start() - 1])) or not _SQL_SHAPE.search(body):
+                continue
+            if any(_sql_slot(body[:k.start()]) for k in re.finditer(r"\$\{", body)):
+                hit = True
+                break
+        if not hit:
+            hit = any(_SQL_SHAPE.search(m.group(2)) and _sql_slot(m.group(2))
+                      for m in _JS_SQL_CONCAT.finditer(line))
+        if hit:
+            out.append(_item("sql_from_string", 3, rel, i, line, _SQL_WHY))
+    return out
+
+
+def _browser_side(rel: str, suffix: str, lines) -> bool:
+    """Code that runs in the browser: a Vue or Svelte component, a file under public/ or
+    static/, or a module that opens with 'use client'."""
+    if suffix in (".vue", ".svelte"):
+        return True
+    if {"public", "static"} & set(rel.lower().split("/")[:-1]):
+        return True
+    for line in lines[:20]:
+        s = line.strip()
+        if s and not s.startswith(("//", "/*", "*")):
+            return bool(_USE_CLIENT.match(s))
+    return False
+
+
+def _paid_api_from_browser(rel, suffix, lines):
+    if not _browser_side(rel, suffix, lines):
+        return []
+    return [_item("paid_api_from_browser", 3, rel, i, line,
+                  "a paid API is called from code that runs in the browser — whatever key it "
+                  "sends, every visitor can read")
+            for i, line in enumerate(lines, 1)
+            if len(line) <= LONG_LINE and _PAID_API.search(line)]
+
+
+def _compose(rel, lines):
+    """A compose file's database password left at a default, and its database ports
+    published on every interface. A port counts only under a `ports:` key, read by
+    indentation: `expose:` publishes nothing."""
+    out, ports_at = [], None
+    for i, line in enumerate(lines, 1):
+        stripped = line.strip()
+        if not stripped or stripped.startswith("#"):
+            continue
+        indent = len(line) - len(line.lstrip())
+        # YAML lets a list sit level with its key, so a dash at the key's own depth is
+        # still one of its items.
+        if ports_at is not None and (indent < ports_at
+                                     or (indent == ports_at and not stripped.startswith("-"))):
+            ports_at = None
+        key = _COMPOSE_PORTS.match(line)
+        if key:
+            ports_at = len(key.group("indent"))
+            continue
+        if ports_at is not None:
+            p = _COMPOSE_PORT.match(line)
+            ip = (p.group("ip") or "") if p else ""
+            loopback = ip.startswith("127.") or ip in ("localhost", "[::1]")
+            if p and int(p.group("container")) in _DB_PORTS and not loopback:
+                out.append(_item("compose_db_port_published", 3, rel, i, line,
+                                 "a database port is published on every interface of the host — "
+                                 "Docker's rules sit ahead of its firewall; bind it to 127.0.0.1 "
+                                 "or leave it unpublished"))
+            continue
+        pw = _COMPOSE_PASSWORD.match(line)
+        if pw and pw.group("value").lower() in _DEFAULT_PASSWORDS:
+            out.append(_item("compose_default_password", 3, rel, i, line,
+                             "a database password left at a well-known default — check this "
+                             "file never runs anywhere but a laptop"))
+    return out
+
+
 def _comments_above(lines, i):
     """What the author wrote in the two lines above line i — comments only. Code is
     never carried: the line above a TLS switch is as likely the key it guards."""
@@ -1113,6 +1336,7 @@ def _python(rel, text, lines, test, items, leads, imported, generated=False):
     if not test:
         if not generated:       # a vendored module's imports are its authors' business
             _unused_imports(rel, tree, lines, items)
+            leads.extend(_sql_py(rel, tree, lines))
         _commented_out_python(rel, lines, items)
         _todo_python(rel, text, items)
     return tree
@@ -1355,6 +1579,8 @@ def _scan_file(rel, name, text, lines, found, tracked=False):
         if suffix not in _DOC_SUFFIXES:
             found["sites"] += _public_env_sites(rel, text, lines)
         _database_rules(rel, name.lower(), suffix, lines, found)
+        if _COMPOSE_FILE.match(name):
+            leads += _compose(rel, lines)
     if suffix in CODE_SUFFIXES:
         _scan_code(rel, suffix, text, lines, test, found)
 
@@ -1367,6 +1593,8 @@ def _scan_code(rel, suffix, text, lines, test, found):
             items += _js_debuggers(rel, text, lines)
         if not generated:
             leads += _line_leads(rel, lines)
+            if suffix != ".py":
+                leads += _sql_js(rel, lines) + _paid_api_from_browser(rel, suffix, lines)
         if len(lines) > OVERSIZED_LINES:
             items.append(_item("oversized_file", 2, rel, len(lines), "",
                                f"{len(lines)} lines in one file — past what anyone, or any model, reads whole",
