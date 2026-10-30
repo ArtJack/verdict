@@ -43,6 +43,15 @@ def test_the_eval_job_cannot_report_green_without_a_key():
     assert "ANTHROPIC_API_KEY is not set" in step
 
 
+def test_the_eval_job_runs_only_when_someone_asks_for_it():
+    """The weekly run went on 2026-10-29: with no key in the repository it failed every
+    Monday in a second and measured nothing, and a model run nobody asked for is not
+    one to bill on a timer. Manual dispatch stays."""
+    triggers = EVAL[EVAL.index("\non:"):EVAL.index("\njobs:")]
+    assert "workflow_dispatch:" in triggers
+    assert "schedule:" not in triggers and "cron:" not in triggers
+
+
 def test_the_readme_ci_snippet_names_a_ref_the_release_maintains():
     m = re.search(r"uses: ArtJack/verdict@(v\d+)", README)
     assert m, "the README shows a `uses:` line"

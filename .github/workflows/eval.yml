@@ -1,7 +1,13 @@
 name: eval
 
-# Model-run evals cost real tokens: manual dispatch plus a weekly run on the
-# canonical repo only. Results are artifacts — this workflow never gates a PR.
+# Model-run evals cost real tokens: manual dispatch only, on the canonical repo.
+# Results are artifacts — this workflow never gates a PR.
+#
+# The weekly run went on 2026-10-29. The repository holds no API key, so every
+# Monday since the 2026-10-02 audit made the missing key fail loudly (D-D-2) it
+# stopped in a second, measured nothing and mailed a failure; before that it
+# reported a green week. A model run nobody asked for is not something to bill
+# on a timer either: every measured series in eval/README.md was run by hand.
 
 on:
   workflow_dispatch:
@@ -12,8 +18,6 @@ on:
       model:
         description: "model for the run"
         default: "opus"
-  schedule:
-    - cron: "17 9 * * 1"
 
 jobs:
   model-eval:
