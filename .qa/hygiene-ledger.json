@@ -1,6 +1,6 @@
 {
  "schema": 1,
- "run_number": 16,
+ "run_number": 17,
  "rows": [
   {
    "fingerprint": "97ae9dc68fab0b10",
@@ -9,7 +9,7 @@
    "line": 253,
    "excerpt": "def is_gateway \u2014 2 identical copies",
    "status": "open",
-   "delta": "NEW",
+   "delta": "STILL_OPEN",
    "first_seen": "2026-10-15",
    "first_seen_run": 16,
    "sites": [
@@ -21,10 +21,10 @@
    "fingerprint": "6c64a551e262a9ef",
    "kind": "oversized_file",
    "path": "hooks/enforce_bash_scope.py",
-   "line": 2348,
-   "excerpt": "2348 lines",
+   "line": 2384,
+   "excerpt": "2384 lines",
    "status": "open",
-   "delta": "NEW",
+   "delta": "STILL_OPEN",
    "first_seen": "2026-10-15",
    "first_seen_run": 16
   },
@@ -32,21 +32,32 @@
    "fingerprint": "6580bd98599ea67b",
    "kind": "oversized_file",
    "path": "src/verdict_mcp/harness.py",
-   "line": 3591,
-   "excerpt": "3591 lines",
+   "line": 4312,
+   "excerpt": "4312 lines",
    "status": "open",
-   "delta": "NEW",
+   "delta": "STILL_OPEN",
    "first_seen": "2026-10-15",
    "first_seen_run": 16
+  },
+  {
+   "fingerprint": "65c3e52b1a4fc21c",
+   "kind": "oversized_file",
+   "path": "src/verdict_mcp/hygiene.py",
+   "line": 2217,
+   "excerpt": "2217 lines",
+   "status": "open",
+   "delta": "NEW",
+   "first_seen": "2026-10-30",
+   "first_seen_run": 17
   },
   {
    "fingerprint": "573591e6d3f3c5f0",
    "kind": "broad_swallow",
    "path": "src/verdict_mcp/small.py",
-   "line": 181,
+   "line": 182,
    "excerpt": "except Exception:       # noqa: BLE001 \u2014 the body is a courtesy, not evidence",
    "status": "open",
-   "delta": "NEW",
+   "delta": "STILL_OPEN",
    "first_seen": "2026-10-15",
    "first_seen_run": 16
   },
@@ -54,10 +65,10 @@
    "fingerprint": "1dd848b03506ddea",
    "kind": "oversized_file",
    "path": "src/verdict_mcp/small.py",
-   "line": 2785,
-   "excerpt": "2785 lines",
+   "line": 3035,
+   "excerpt": "3035 lines",
    "status": "open",
-   "delta": "NEW",
+   "delta": "STILL_OPEN",
    "first_seen": "2026-10-15",
    "first_seen_run": 16
   }
