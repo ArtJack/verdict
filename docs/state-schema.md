@@ -563,6 +563,12 @@ names — measured — instead of absent. An operator's own label still wins (`o
 `verdict-run --model` stays `opus`), and the bill keeps what actually answered under
 `usage.models`, so a label and the truth can disagree on the record rather than in private.
 
+In team mode the bill stays out of git (`.qa/.gitignore`). It describes the machine that ran
+each run — the transcript it read exists only there, `entrypoint` and `effort` are that
+session's, and a local-tier row carries the gateway's `host` under `local` — and nothing
+reads it back: what the team needs from it, the model that signed each run, is in
+`state.json` and `runs.jsonl`. A team that wants a shared bill can drop the line.
+
 The run marker `run-in-progress.json` — written by `verdict-facts` before the gates,
 removed only by `verdict-finalize` — now also carries `session_id` and `entrypoint` when
 the CLI exports `CLAUDE_CODE_SESSION_ID` / `CLAUDE_CODE_ENTRYPOINT`. That is what lets the
@@ -857,14 +863,18 @@ Claude session. The state says so rather than leaving a reader to infer it:
 |---|---|---|
 | `last_run.engine` | `state.json` | `verdict-local` when the harness drove the run and a small model answered its questions. Absent for an agent run, so an older state is unchanged |
 | `last_run.model` | `state.json` | `local:<name>` — `verdict-local` exports `VERDICT_MODEL` before `collect()`, so the model that signed the verdict is measured here exactly as it is for an agent run |
-| `last_run.local` | `state.json` | that engine's own counters: `model`, `host` (the gateway's hostname, never the credential), `calls`, `tokens`, `input_tokens`, `output_tokens`, `answered`, `unanswered`, `retries`, `errors` (transport failures, counted apart from a reply the parser refused), `functions_read`, `functions_skipped`, `seconds` |
+| `last_run.local` | `state.json` | that engine's own counters: `model`, `calls`, `tokens`, `input_tokens`, `output_tokens`, `answered`, `unanswered`, `retries`, `errors` (transport failures, counted apart from a reply the parser refused), `functions_read`, `functions_skipped`, `seconds`. Not the gateway: `last_run.model` names the judge, and the gateway's host goes to the bill alone (below). Through 0.90.10 a `host` key sat here, which in team mode committed the gateway's network address with the code; `verdict-finalize` now takes it out of a `facts.json` that still carries one |
 | `facts.needs_claude` | `facts.json` | the measured reasons a real model run is still owed — `unexercised_changed_lines: N`, `touches_open_finding: [ids]`, `unprovable_high_severity: [ids]`, `drift_unsettled: [ids]`, `non_python_diff`, `questions_parked: N`, `diff_over_limit`. Each entry is something the harness counted, and each one also becomes a `next_run_focus` line, which does reach the state |
 
-The report gains one **Judge** line beside the Harness line: the engine, the model, the host,
-the calls and tokens, the questions that went unanswered, and `no Claude tokens spent`. A
-sweep's Judge line reads `none (model-free sweep)`. The `usage.jsonl` row for such a run
-carries `engine`, a Claude bill of a measured zero, and the engine's counters under `local` —
-a night that cost nothing is only credible beside the number of calls it took to cost nothing.
+The report gains one **Judge** line beside the Harness line: the engine, the model, the calls
+and tokens, the questions that went unanswered, and `no Claude tokens spent` — no host, even
+when it renders a state written before the host left `last_run.local`. A sweep's Judge line
+reads `none (model-free sweep)`. The `usage.jsonl` row for such a run carries `engine`, a
+Claude bill of a measured zero, and the engine's counters under `local` — a night that cost
+nothing is only credible beside the number of calls it took to cost nothing. That `local`
+also carries `host`, the gateway's hostname: never the base URL, which can hold userinfo, a
+path or a query, and absent when the URL names no host. The bill is the paying machine's own
+telemetry; the state and the report are what a team commits.
 
 ## Findings as files — `<qa-root>/findings/<ID>.json`
 
@@ -885,7 +895,9 @@ and may still carry `findings[]` inline — but files **and** inline findings in
 refused, never merged. `verdict-facts` moves the previous run's `findings/` to
 `findings.prev/` before the run starts (`findings_archived` says so); a retry of the same
 run — a marker at this commit, minutes old — keeps the files, because they are this
-attempt's own. Nothing is deleted.
+attempt's own. Nothing is deleted. `findings.prev/` is scratch, and a team-mode
+`.qa/.gitignore` lists it: a finalized run's findings are in its `state.json`, and an
+abandoned run's never became the record.
 
 **The two cheap verbs.** `still_open: [ids]` — looked at, still there, nothing new to say:
 finalize copies the finding from the previous state (title, severity, evidence, root

@@ -62,7 +62,6 @@ import time
 import tokenize
 import unicodedata
 import urllib.error
-import urllib.parse
 import urllib.request
 from datetime import date, timedelta
 from pathlib import Path
@@ -2727,9 +2726,10 @@ def run(repo: Path, qa_root: Path, model: Model, limit: int, gate: str | None,
     }
     (qa_root / "judgment.json").write_text(json.dumps(judgment, indent=1), encoding="utf-8")
 
+    # No gateway in it: this block becomes the state's `last_run.local`, which a team
+    # commits. The address goes to finalize below, and from there to the bill only.
     facts["last_run"]["local"] = {
         "model": model.name,
-        "host": urllib.parse.urlparse(model.base_url).hostname or model.base_url,
         "calls": model.calls, "tokens": model.input_tokens + model.output_tokens,
         "input_tokens": model.input_tokens, "output_tokens": model.output_tokens,
         "answered": model.answered, "unanswered": model.unanswered,
@@ -2747,7 +2747,8 @@ def run(repo: Path, qa_root: Path, model: Model, limit: int, gate: str | None,
                                       encoding="utf-8")
 
     code = finalize_main(["--qa-root", str(qa_root),
-                          "--judgment", str(qa_root / "judgment.json")])
+                          "--judgment", str(qa_root / "judgment.json")],
+                         gateway=model.base_url)
     if proven or disproven:
         print(f"verdict-local: {proven} claim(s) proven by counterfactual, {disproven} "
               f"withdrawn before filing", file=sys.stderr)

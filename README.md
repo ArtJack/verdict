@@ -3,7 +3,7 @@
 [CI](https://github.com/ArtJack/verdict/actions/workflows/ci.yml) ·
 [verdict on itself](.qa/reports/INDEX.md) ·
 [eval: 8/8 seeded defects](eval/README.md#published-results) ·
-[pinned rules: 501/501 killed](eval/README.md#suite-fault-detection-power--mutation-testing-on-ourselves) ·
+[pinned rules: 527/527 killed](eval/README.md#suite-fault-detection-power--mutation-testing-on-ourselves) ·
 [PyPI: verdict-qa-mcp](https://pypi.org/project/verdict-qa-mcp/) ·
 [MIT license](LICENSE)
 
@@ -226,7 +226,12 @@ time, tokens and every miss are in the
 - **Solo (default):** state lives in `~/.claude/verdict/<repo-name>/` — nothing added to
   your repo.
 - **Team:** create `.qa/` in the repo (`/verdict:baseline team`) and commit it — your teammates
-  and CI share the same baseline, and QA reports travel with the code.
+  and CI share the same baseline, and QA reports travel with the code. Commit the record, not
+  what a single run passed through: `.qa/.gitignore` lists `facts.json`, `judgment.json`,
+  `state.json.prev`, `run-in-progress.json`, `findings.prev/` and `usage.jsonl`. The last is
+  the bill — what each run spent on the machine that ran it, and for the local tier the address
+  of the gateway it called. `/verdict:baseline team` writes the file; a `.qa/` created by an
+  earlier version needs it added by hand.
 
 The state schema is documented in [docs/state-schema.md](docs/state-schema.md) —
 versioned, forward-compatible, human-readable JSON.
