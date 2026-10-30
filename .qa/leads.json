@@ -1,0 +1,78 @@
+{
+ "engine": "verdict-local",
+ "model": "chat-120b",
+ "leads": [
+  {
+   "path": ".github/directory_branch.py",
+   "line": 95,
+   "function": "plugin_tree",
+   "title": "Extra NUL sent to git update-index creates invalid empty entry when no files are kept",
+   "severity": "Major",
+   "why": "probe failed on the original: SyntaxError: invalid syntax"
+  },
+  {
+   "path": "eval/backfill/faithful.py",
+   "line": 38,
+   "function": "finding_of",
+   "title": "ID type mismatch causes StopIteration when finding ID is integer",
+   "severity": "Critical",
+   "why": "the model did not answer with JSON"
+  },
+  {
+   "path": "eval/backfill/faithful.py",
+   "line": 76,
+   "function": "main",
+   "title": "`--only` empty list ignored due to falsy check, causing all cases to be processed",
+   "severity": "Minor",
+   "why": "the model did not answer with JSON"
+  },
+  {
+   "path": "eval/recall/build_cases.py",
+   "line": 53,
+   "function": "main",
+   "title": "Missing '=' validation lets malformed run specs create cases with empty root paths",
+   "severity": "Major",
+   "why": "the model did not answer with JSON"
+  },
+  {
+   "path": "eval/recall/packet_recall.py",
+   "line": 42,
+   "function": "_head",
+   "title": "Missing git error handling in _head leads to silent failure",
+   "severity": "Major",
+   "why": "the model did not answer with JSON"
+  },
+  {
+   "path": "eval/recall/plain_arm.py",
+   "line": 114,
+   "function": "interpreter",
+   "title": "Regex matches later python path instead of interpreter token, returning incorrect interpreter",
+   "severity": "Major",
+   "why": "the proof budget was spent"
+  },
+  {
+   "path": "eval/recall/plain_arm.py",
+   "line": 144,
+   "function": "read_findings",
+   "title": "Fallback to result_text even when findings file exists but is empty",
+   "severity": "Major",
+   "why": "the proof budget was spent"
+  },
+  {
+   "path": "eval/recall/plain_arm.py",
+   "line": 187,
+   "function": "usage_rows",
+   "title": "Fallback branch hard\u2011codes model name \"claude\u2011opus\" instead of using actual model",
+   "severity": "Major",
+   "why": "the proof budget was spent"
+  },
+  {
+   "path": "eval/recall/plain_arm.py",
+   "line": 211,
+   "function": "isolated_tree",
+   "title": "Missing git rev-parse return code check yields misleading shared\u2011git\u2011dir error",
+   "severity": "Major",
+   "why": "the proof budget was spent"
+  }
+ ]
+}
