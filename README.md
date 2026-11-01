@@ -5,6 +5,7 @@
 [eval: 8/8 seeded defects](eval/README.md#published-results) ·
 [pinned rules: 527/527 killed](eval/README.md#suite-fault-detection-power--mutation-testing-on-ourselves) ·
 [PyPI: verdict-qa-mcp](https://pypi.org/project/verdict-qa-mcp/) ·
+[OpenSSF Best Practices: passing](https://www.bestpractices.dev/projects/16149) ·
 [MIT license](LICENSE)
 
 **Your test suite is green. Verdict found a defect that had lived 4,595 days.**
