@@ -74,6 +74,10 @@ jobs:
 
   publish:
     needs: build
+    # The version check in `build` runs only on a tag, so a manual run from a branch
+    # skipped it and still published whatever that branch built. Such a run stops at
+    # the build now; a manual run from a tag goes on as a push of that tag would.
+    if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     # Must match the environment name in the PyPI trusted publisher exactly, or
     # the OIDC exchange is refused.
