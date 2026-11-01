@@ -98,3 +98,27 @@ def test_no_run_script_interpolates_what_a_caller_typed():
         for script in _run_scripts(path.read_text(encoding="utf-8")):
             assert not re.search(r"\$\{\{[^}]*(github\.event|inputs\.)", script), \
                 f"{path.name}: {script[:80]}"
+
+
+def test_nothing_that_can_publish_runs_off_a_tag():
+    """`workflow_dispatch` starts from any ref, and the version check in `build` runs only on a
+    tag. A job holding `id-token: write` with no tag condition would publish whatever a branch
+    builds, unchecked, with no tag or release notes to show for it."""
+    jobs = re.split(r"^  (?=[\w-]+:$)", RELEASE[RELEASE.index("\njobs:\n"):], flags=re.M)[1:]
+    publishing = {job.split(":")[0]: job for job in jobs if "id-token: write" in job}
+    assert {"publish", "mcp-registry"} <= publishing.keys()
+    for name, job in publishing.items():
+        assert "if: startsWith(github.ref, 'refs/tags/v')" in job, name
+
+
+def test_each_major_held_back_is_ignored_from_that_major_up():
+    """With no lockfile Dependabot has no current version to count a major from, so an
+    `update-types` rule ignores nothing and only a `versions` range holds (measured with its own
+    updater, 2026-11-01). The range moves with the cap: left behind after a port, it would
+    silently block every later update."""
+    pyproject = (ROOT / "pyproject.toml").read_text(encoding="utf-8")
+    dependabot = (ROOT / ".github" / "dependabot.yml").read_text(encoding="utf-8")
+    caps = dict(re.findall(r'"([a-z-]+)(?:\[\w+\])?>=[\d.]+,<(\d+)"', pyproject))
+    assert {"mcp", "mutmut"} <= caps.keys()
+    held = dict(re.findall(r'dependency-name: ([a-z-]+).*\n\s+versions: \[">=(\d+)"\]', dependabot))
+    assert held == caps

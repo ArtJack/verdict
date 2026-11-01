@@ -9,6 +9,15 @@ updates:
     groups:
       dependencies:
         patterns: ["*"]
+    # A new major of either of these is a port, and a person starts it. Written as version
+    # ranges because there is no lockfile: Dependabot then has no current version to count a
+    # major from, and `update-types: version-update:semver-major` ignores nothing (measured
+    # with its own updater, 2026-11-01). `mcp` also matches `mcp[cli]`.
+    ignore:
+      - dependency-name: mcp      # 2.x removed FastMCP, so verdict-mcp cannot import on it
+        versions: [">=2"]
+      - dependency-name: mutmut   # 3.x has no --paths-to-mutate or --runner, and skips constants
+        versions: [">=3"]
   - package-ecosystem: github-actions
     directory: /
     schedule:
