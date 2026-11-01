@@ -50,3 +50,51 @@ def test_the_readme_ci_snippet_names_a_ref_the_release_maintains():
                         re.M).group(1)
     assert m.group(1) == f"v{version}", "the snippet names the current major version"
     assert 'git push -f origin "$major"' in RELEASE, "release.yml moves the major tag"
+
+
+WORKFLOWS = sorted((ROOT / ".github" / "workflows").glob("*.yml"))
+
+
+def _run_scripts(text):
+    """Each `run:` script in a workflow file: the key's own line and everything indented under it."""
+    lines, scripts = text.splitlines(), []
+    for i, line in enumerate(lines):
+        m = re.match(r"( *)(- )?run:(.*)", line)
+        if not m:
+            continue
+        indent = len(m.group(1)) + len(m.group(2) or "")
+        body = [m.group(3)]
+        for following in lines[i + 1:]:
+            if following.strip() and len(following) - len(following.lstrip()) <= indent:
+                break
+            body.append(following)
+        scripts.append("\n".join(body))
+    return scripts
+
+
+def test_every_action_is_pinned_to_a_commit():
+    """A tag or a branch can move after it was read. `release.yml`'s publish step holds the
+    project's PyPI identity, and the same reasoning already pinned `mcp-publisher` to a
+    checksum (VERDICT-F-73). Dependabot moves the pins, in a pull request someone reads."""
+    for path in [*WORKFLOWS, ROOT / "action.yml"]:
+        for ref in re.findall(r"^\s*(?:- )?uses:\s*(\S+)", path.read_text(encoding="utf-8"), re.M):
+            if not ref.startswith("./"):
+                assert re.fullmatch(r"[\w./-]+@[0-9a-f]{40}", ref), f"{path.name}: {ref}"
+
+
+def test_no_workflow_grants_write_at_the_top():
+    """Write access goes to the one job that needs it. A workflow with no `permissions:` block
+    takes whatever the repository's default happens to be."""
+    for path in WORKFLOWS:
+        top = re.search(r"^permissions:\n((?:  .*\n)+)", path.read_text(encoding="utf-8"), re.M)
+        assert top, f"{path.name} has no top-level permissions"
+        assert "write" not in top.group(1), f"{path.name} grants write to every job"
+
+
+def test_no_run_script_interpolates_what_a_caller_typed():
+    """`${{ inputs.x }}` in a `run:` is pasted into the script before the shell starts, so a
+    value with a quote in it is code. It reaches the script through `env:` instead."""
+    for path in [*WORKFLOWS, ROOT / "action.yml"]:
+        for script in _run_scripts(path.read_text(encoding="utf-8")):
+            assert not re.search(r"\$\{\{[^}]*(github\.event|inputs\.)", script), \
+                f"{path.name}: {script[:80]}"

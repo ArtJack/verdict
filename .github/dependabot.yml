@@ -1,0 +1,18 @@
+# Monthly and grouped: one pull request to read, not ten. Security updates are a
+# repository setting and arrive when an advisory does, not on this schedule.
+version: 2
+updates:
+  - package-ecosystem: uv
+    directory: /
+    schedule:
+      interval: monthly
+    groups:
+      dependencies:
+        patterns: ["*"]
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    groups:
+      actions:
+        patterns: ["*"]

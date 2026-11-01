@@ -1,0 +1,39 @@
+name: scorecard
+
+# OpenSSF Scorecard: supply-chain checks, published to scorecard.dev. With
+# `publish_results: true` the Scorecard API refuses a workflow with top-level
+# env or defaults, workflow-level write permissions, or steps outside its
+# approved list, so keep this file to what is here. Results stay out of the
+# code-scanning page: a solo project's accepted low scores (no second reviewer)
+# would sit there as open alerts beside the real ones.
+
+on:
+  push:
+    branches: [main]
+  schedule:
+    - cron: "23 5 * * 6"
+  branch_protection_rule:
+
+permissions:
+  contents: read
+
+jobs:
+  analysis:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - uses: ossf/scorecard-action@fa7117db83c52d787ae5a89f350999701505d78e # v2.5.0
+        with:
+          results_file: results.sarif
+          results_format: sarif
+          publish_results: true
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: scorecard
+          path: results.sarif
+          retention-days: 5
