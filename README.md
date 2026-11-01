@@ -50,7 +50,8 @@ Verdict is a Claude Code plugin built the way QA is actually practiced:
   patches what it judges isn't independent. The guard is a heuristic, not a sandbox, and
   [the README says so](#the-read-only-guarantee-honestly-stated).
 - **It is tested, and it tests itself.** A scored eval suite with the misses published, a
-  signed run history the model cannot forge, a track record the tester cannot edit — and an
+  hash-chained run history a copied or edited state fails, a track record the harness
+  computes rather than the tester — and an
   audit of its own releases: 78 findings filed against itself in its first 15 runs — 59
   fixed with the fix verified, one an accepted risk on the record, two still open, and 16
   closed without proof, which its own ledger counts as unknown, not as wins. Every fixed
@@ -178,7 +179,7 @@ Artifact: .qa/reports/2026-08-24-pricer-review.md
 | Requirements review | never — code only | `/verdict:spec` judges the spec before code exists (contradictions, unmeasurables, boundary ambiguities, history conflicts) — with its own scored eval fixture |
 | "No bugs found!" | frequently | never — coverage, gaps, and residual risk instead |
 | AI-authored code | same checklist as human code | provenance measured (trailer census over the range, profile `authorship`); a pattern catalog with a procedure and evidence bar per entry ([docs/ai-authored-code.md](docs/ai-authored-code.md)); deterministic censuses for hallucinated imports, placeholders and swallowed errors feed judgment — and a scored fixture proves the behaviours |
-| Its own accuracy | unmeasured, and unmeasurable after the fact | every finding states a confidence when filed; the outcome is computed from what the finding did, kept in a permanent ledger, and reported as a track record the tester cannot edit |
+| Its own accuracy | unmeasured, and unmeasurable after the fact | every finding states a confidence when filed; the outcome is computed from what the finding did, kept in a permanent ledger, and reported as a track record the harness computes rather than the tester |
 | Tested itself | — | scored eval suite: baseline + delta-memory + adversarial-honesty fixtures, deterministic scorer, published answer keys ([eval/](eval/)) |
 | State consumable by other tools | — | `verdict-mcp`: read-only MCP server over the state — works from Cursor, Codex, CI, any MCP client |
 

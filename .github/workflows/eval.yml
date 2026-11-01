@@ -15,12 +15,15 @@ on:
   schedule:
     - cron: "17 9 * * 1"
 
+permissions:
+  contents: read
+
 jobs:
   model-eval:
     if: github.repository == 'ArtJack/verdict'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
       - name: Install Claude Code
         run: npm install -g @anthropic-ai/claude-code
       - name: Run the eval
@@ -32,16 +35,18 @@ jobs:
         shell: bash
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          EVAL_MODE: ${{ github.event.inputs.mode || 'seeded' }}
+          EVAL_MODEL: ${{ github.event.inputs.model || 'opus' }}
         run: |
           if [ -z "$ANTHROPIC_API_KEY" ]; then
             echo "::error::ANTHROPIC_API_KEY is not set in this repository's secrets — no model can run, nothing was measured"
             exit 2
           fi
           python3 eval/run_eval.py \
-            --mode "${{ github.event.inputs.mode || 'seeded' }}" \
-            --model "${{ github.event.inputs.model || 'opus' }}" \
+            --mode "$EVAL_MODE" \
+            --model "$EVAL_MODEL" \
             | tee eval-results.json
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         if: always()
         with:
           name: eval-results

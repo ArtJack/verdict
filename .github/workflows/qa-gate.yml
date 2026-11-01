@@ -10,15 +10,18 @@ on:
   pull_request:
 
 permissions:
-  pull-requests: write
+  contents: read
 
 concurrency: verdict-${{ github.ref }}
 
 jobs:
   gate:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
       # The committed state is checked as a *file* before it is served as a
       # verdict. This repo shipped a v0.12-era `.qa/` for weeks — its gate

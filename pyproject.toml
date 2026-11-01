@@ -13,7 +13,7 @@ description = "Read-only MCP server and release gate over Verdict QA state: verd
 readme = "README-pypi.md"
 license = { file = "LICENSE" }
 requires-python = ">=3.10"
-dependencies = ["mcp[cli]>=1.27,<2"]
+dependencies = ["mcp[cli]>=1.30,<2"]
 authors = [{ name = "ArtJack" }]
 keywords = ["qa", "testing", "mcp", "release-gate", "regression", "flaky-tests", "claude-code"]
 classifiers = [
