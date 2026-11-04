@@ -72,9 +72,10 @@ try:
                           finalize_main, finding_hash, is_test_file, split_hygiene)
     from .filed import FINDINGS_DIR, archive_findings
     from .hygiene import _scrub as scrub_secrets
-    from .profile import assertion_gaps_from, risk_paths_from
+    from .profile import assertion_gaps_from, risk_paths_from, sandbox_from
     from .profile import ProfileError, gates_from, hygiene_filing_from
     from .profile import load as load_profile
+    from . import sandbox
     from .reports import read_report
     from .project_key import derive_key
     from .state import home as state_home
@@ -89,9 +90,10 @@ except ImportError:  # bare-script execution
                          finalize_main, finding_hash, is_test_file, split_hygiene)
     from filed import FINDINGS_DIR, archive_findings
     from hygiene import _scrub as scrub_secrets
-    from profile import assertion_gaps_from, risk_paths_from
+    from profile import assertion_gaps_from, risk_paths_from, sandbox_from
     from profile import ProfileError, gates_from, hygiene_filing_from
     from profile import load as load_profile
+    import sandbox
     from reports import read_report
     from project_key import derive_key
     from state import home as state_home
@@ -927,8 +929,10 @@ def run_probe(python: str, root: Path, module: str, expression: str,
         f"print('<<<' + json.dumps({call}, default=repr) + '>>>')\n")
     env = probe_env([root, *extra_paths])
     try:
-        proc = subprocess.run([python, "-c", script], cwd=str(root), env=env,
-                              capture_output=True, text=True, timeout=PROBE_TIMEOUT_S)
+        # The probe imports the project's code, so it also gets the OS box (`sandbox.py`). Its
+        # environment stays this allowlist, even under `sandbox: off`.
+        proc = sandbox.run([python, "-c", script], cwd=str(root), writable=[root],
+                           base_env=env, timeout=PROBE_TIMEOUT_S)
     except (OSError, subprocess.SubprocessError) as exc:
         return None, str(exc)[:200]
     out = proc.stdout
@@ -1062,9 +1066,9 @@ def rerun_failures(repo: Path, command: str, times: int) -> list:
         with tempfile.TemporaryDirectory(prefix="verdict-local-") as scratch:
             path = Path(scratch) / "report.xml"
             rendered = command.replace("{report}", str(path))
-            env = dict(os.environ, PYTHONDONTWRITEBYTECODE="1")
-            subprocess.run(rendered, cwd=repo, env=env, shell=True, capture_output=True,
-                           text=True, timeout=1800)
+            # The suite again: target code, in the box (`sandbox.py`).
+            sandbox.run(rendered, cwd=repo, shell=True, writable=[repo, scratch],
+                        extra_env={"PYTHONDONTWRITEBYTECODE": "1"}, timeout=1800)
             sets.append(ids_in_report(path))
     return sets
 
@@ -2155,9 +2159,11 @@ def runner_python(runner: str, repo) -> str | None:
     if key not in _RUNNER_PYTHON:
         found, why = None, None
         try:
-            proc = subprocess.run(
+            # `uv run` syncs the project first, and a sync builds it: the build backend is the
+            # project's code, so the question goes in the box like every other run of it.
+            proc = sandbox.run(
                 [runner, "run", "python", "-c", "import sys; print(sys.executable)"],
-                cwd=str(repo) if repo else None, capture_output=True, text=True,
+                cwd=str(repo) if repo else None, writable=[repo] if repo else [],
                 timeout=RUNNER_TIMEOUT_S)
             if proc.returncode == 0 and proc.stdout.strip():
                 found = proc.stdout.strip().splitlines()[-1].strip()
@@ -2340,6 +2346,8 @@ def measure(repo: Path, qa_root: Path, gates: list, config: dict, sha_range,
     # reading order and hints had nothing to steer by — measured 2026-10-17, a local run whose
     # profile said `assertion_gaps: on` carried no census at all.
     gaps_on, gaps_budget = assertion_gaps_from(config, profile_notes)
+    # The project's code runs in the box the profile sets (`sandbox.py`), here as in facts.
+    sandbox.configure(sandbox.policy_from(sandbox_from(config, profile_notes), qa_root, profile_notes))
     facts = collect(repo, qa_root, gates, config.get("test_ids_cmd"), abandoned=abandoned,
                     test_one_cmd=config.get("test_one_cmd"),
                     coverage_suite_cmd=config.get("coverage_suite_cmd"), sha_range=sha_range,
@@ -2355,6 +2363,7 @@ def measure(repo: Path, qa_root: Path, gates: list, config: dict, sha_range,
         facts["findings_archived"] = archived
     if profile_notes:
         facts["profile_notes"] = profile_notes
+    facts["sandbox"] = sandbox.current().as_fact()
     facts.setdefault("last_run", {})["engine"] = ENGINE
     return facts
 

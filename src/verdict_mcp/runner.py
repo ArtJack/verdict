@@ -70,10 +70,12 @@ try:
     from .state import is_path_like, norm_status, resolve_root
     from . import clock
     from . import escalate
+    from . import sandbox
 except ImportError:  # bare-script execution
     sys.path.insert(0, str(Path(__file__).resolve().parent))
     import clock
     import escalate
+    import sandbox
     from gate import evaluate, news_line
     from project_key import derive_key
     from state import home as state_home
@@ -543,6 +545,220 @@ def child_env(source, passthrough=()) -> dict:
     keep = set(_ENV_KEEP).union(name.strip() for name in passthrough if name and name.strip())
     return {k: v for k, v in source.items()
             if k in keep or k.startswith(_ENV_KEEP_PREFIXES)}
+
+
+# Verdict's own harness, as the tester calls it by name. These commands write the QA root, add
+# fresh worktrees in the repository's git directory and box the project's code themselves
+# (`sandbox.py`), which macOS will not do from inside another sandbox. So they run outside the
+# tester's, by name. A redirect, a `cd` or a `$(…)` keeps a call inside; the harness then finds
+# itself nested and leans on the outer box (`sandbox.nested`).
+HARNESS_COMMANDS = ("verdict-facts", "verdict-finalize", "verdict-gate", "verdict-validate",
+                    "verdict-replay")
+def env_files(home=None) -> list:
+    """The plaintext `.env` files under `~/.config`, one level down too. Claude Code's `denyRead`
+    takes paths, not globs, and this machine's unattended jobs keep their keys in such files
+    (`verdict-gateway.env`, `oracle-watch.env`)."""
+    base = Path(home or Path.home()) / ".config"
+    found = []
+    for pattern in ("*.env", "*.env.*", "*/*.env", "*/*.env.*"):
+        try:
+            found += [str(p) for p in base.glob(pattern) if p.is_file()]
+        except OSError:
+            pass
+    return sorted(set(found))
+
+
+def secret_names(env: dict) -> list:
+    """The variables the tester's Bash never sees: a name like a credential's, or a value that
+    carries one (`scheme://user:password@host`). The CLI that needs `ANTHROPIC_API_KEY` to
+    answer still has it."""
+    return sorted(n for n, v in env.items()
+                  if sandbox.SECRET_NAME.search(n) or sandbox.SECRET_VALUE.search(str(v)))
+
+
+def tester_sandbox(repo: Path, qa_root: Path, env: dict, mode: str) -> list:
+    """`--settings` that put the tester's own Bash in Claude Code's sandbox, or [] for `off`.
+
+    `sandbox.py` boxes the project's code when the harness runs it. This boxes everything else
+    the tester runs: its probes, its ad-hoc pytest, the scripts it writes. Before 0.94.0 those
+    ran with `--dangerously-skip-permissions` and the scope hooks as the only fence, and the
+    hooks are "a deny-heuristic, not a sandbox" (SECURITY.md).
+
+    Measured 2026-11-03, a headless `claude -p` launched as `verdict-paid` launches one:
+      * outside the sandbox, the tester's Bash saw `ANTHROPIC_API_KEY` and the network;
+      * inside it, with the key denied, it saw neither — but only with `strictAllowlist`.
+        In bypass mode, the mode this runner starts, the sandbox's proxy otherwise lets a
+        connection to an unlisted host through without asking.
+
+    `failIfUnavailable` only under `sandbox: required`. Elsewhere a machine with no sandbox
+    runs the tester as before, and the facts say what boxed the project's code.
+    """
+    if mode == "off":
+        return []
+
+    def real(path) -> str:
+        return os.path.realpath(str(path))
+
+    writable = {real(qa_root)}
+    common = subprocess.run(["git", "-C", str(repo), "rev-parse", "--git-common-dir"],
+                            capture_output=True, text=True)
+    if common.returncode == 0 and common.stdout.strip():
+        git_dir = Path(common.stdout.strip())
+        writable.add(real(git_dir if git_dir.is_absolute() else Path(repo) / git_dir))
+    deny_read = ["~/" + p for p in sandbox.SECRET_PATHS] + env_files()
+    if env.get("CLAUDE_CONFIG_DIR"):
+        deny_read.append(real(Path(env["CLAUDE_CONFIG_DIR"]).expanduser()))
+    secrets = secret_names(env)
+    settings = {"sandbox": {
+        "enabled": True,
+        "failIfUnavailable": mode == "required",
+        "allowUnsandboxedCommands": False,
+        "autoAllowBashIfSandboxed": True,
+        "excludedCommands": [*HARNESS_COMMANDS, *(f"{c} *" for c in HARNESS_COMMANDS)],
+        "network": {"strictAllowlist": True, "allowedDomains": []},
+        "filesystem": {"allowWrite": sorted(writable), "denyRead": deny_read,
+                       "allowRead": [real(qa_root)]},
+        "credentials": {"envVars": [{"name": n, "mode": "deny"} for n in secrets]},
+    }}
+    env[sandbox.OUTER_ENV] = "claude-code"   # a harness nested in this box knows it is ours
+    return ["--settings", json.dumps(settings)]
+
+
+def repo_claude_config(repo: Path) -> tuple:
+    """The Claude Code configuration the repository tracks in git → (paths, None), or
+    ([], why) when git cannot say. Case-insensitive: on APFS a tracked `.CLAUDE/settings.json`
+    loads as `.claude/settings.json` (measured by review, 2026-11-03)."""
+    proc = subprocess.run(["git", "-C", str(repo), "ls-files", "--", ":(icase).claude"],
+                          capture_output=True, text=True)
+    if proc.returncode != 0:
+        return [], (proc.stderr.strip().splitlines() or [f"git exit {proc.returncode}"])[-1][:160]
+    return [line.strip() for line in proc.stdout.splitlines() if line.strip()], None
+
+
+def claude_config_on_disk(repo: Path) -> tuple:
+    """Every entry of the checkout's Claude Code configuration on disk, whatever git says →
+    (paths, None), or ([], why) when the disk cannot be read. A `.claude` symlink is an entry
+    of its own, never followed; so is any symlink inside it."""
+    found = []
+    try:
+        names = os.listdir(repo)
+    except OSError as exc:
+        return [], f"the checkout could not be listed ({type(exc).__name__})"
+    for name in names:
+        if name.lower() != ".claude":
+            continue
+        top = Path(repo) / name
+        if top.is_symlink() or not top.is_dir():
+            found.append(name)
+            continue
+        try:
+            for root, dirs, files in os.walk(top, onerror=_raise):
+                for entry in [*files, *(d for d in dirs if (Path(root) / d).is_symlink())]:
+                    found.append((Path(root) / entry).relative_to(repo).as_posix())
+        except OSError as exc:
+            return [], f"{name} could not be read ({type(exc).__name__})"
+    return sorted(found), None
+
+
+def _raise(exc):
+    raise exc
+
+
+def provisioned(repo: Path, tracked=()) -> set:
+    """The entries `provision` wrote and nobody has changed since, never a tracked one: the
+    agent, a hooks file that holds nothing but its hooks, and the record itself."""
+    dot = Path(repo) / ".claude"
+    try:
+        record = json.loads((dot / PROVISION_RECORD).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return set()
+    mine = {f".claude/{PROVISION_RECORD}"}
+    agent = dot / "agents" / "verdict.md"
+    try:
+        if (record.get("agent") or {}).get("sha256") == _sha(agent.read_text(encoding="utf-8")):
+            mine.add(".claude/agents/verdict.md")
+    except OSError:
+        pass
+    try:
+        local = json.loads((dot / "settings.local.json").read_text(encoding="utf-8"))
+        if isinstance(local, dict) and set(local) == {"hooks"} and \
+                (record.get("hooks") or {}).get("sha256") == _sha(
+                    json.dumps(local["hooks"], sort_keys=True)):
+            mine.add(".claude/settings.local.json")
+    except (OSError, ValueError):
+        pass
+    return mine - {t for t in tracked}
+
+
+def shipped_config_allowed(repo: Path, box_mode: str, stage: str = "before provisioning") -> bool:
+    """Say what Claude Code configuration the checkout holds; False when the run must stop.
+
+    That configuration runs in the tester's session, outside every box. Measured 2026-11-03:
+    a tracked `.claude/settings.json` SessionStart hook ran before the tester's first turn and
+    saw `ANTHROPIC_API_KEY`. A tracked agent file would be kept by `provision` as the
+    operator's, and would replace the contract. Agent front matter carries hooks too.
+
+    In a repository the owner trusts, these files are the owner's: they are named, and the run
+    goes on. Under `sandbox: required` they are a stranger's. Then anything under `.claude`
+    that `provision` did not write stops the run: tracked or not, whatever its case or
+    symlink. The check fails closed when git or the disk cannot be read. It runs again after
+    premeasure, which ran the project's code."""
+    tracked, why_git = repo_claude_config(repo)
+    if box_mode != "required":
+        if tracked:
+            print(f"verdict-run: the repository ships {', '.join(tracked)}; the tester's session "
+                  "loads it as the project's own. For a repository you do not trust, set "
+                  "`sandbox: required`.", file=sys.stderr)
+        return True
+    on_disk, why_disk = claude_config_on_disk(repo)
+    foreign = sorted(set(on_disk) - provisioned(repo, tracked)) + sorted(
+        t for t in tracked if t not in on_disk)
+    problem = why_git or why_disk
+    if problem or foreign:
+        what = problem or ", ".join(foreign)
+        print("verdict-run: `sandbox: required`, and the checkout's Claude Code configuration "
+              f"is not only Verdict's own ({stage}: {what}). The tester's session would load it "
+              "and run it outside the sandbox, so nothing was started. Run on a checkout "
+              "without it.", file=sys.stderr)
+        return False
+    return True
+
+
+def measure_first(repo: Path, qa_root: Path, env: dict, sha_range, harness_mode: str) -> bool:
+    """Premeasure, started with no credential in its environment: on macOS the project's code
+    it runs can read the start-up environment of any process of the same user (`sandbox.py`).
+    Then the checkout's Claude Code configuration is read again, since that code just ran.
+    False when the run must stop."""
+    hidden = set(secret_names(env))
+    head = premeasure(repo, qa_root, {k: v for k, v in env.items() if k not in hidden}, sha_range)
+    if head:
+        env[PREMEASURED_ENV] = head
+    return shipped_config_allowed(repo, harness_mode, stage="after premeasure")
+
+
+def pin_box_floor(args, qa_root) -> str:
+    """The box the project's code gets for this whole run, pinned before anything runs.
+
+    `--sandbox` is the floor. The profile, as it reads now, can only tighten it. The result goes
+    to every process this run starts as `VERDICT_SANDBOX`, so a `profile.md` edited later in
+    the run cannot loosen it. The tester's Bash can write the QA root, and the harness commands
+    it runs read the profile again (review, 2026-11-03)."""
+    if args.sandbox:
+        os.environ[sandbox.FLOOR_ENV] = args.sandbox
+    mode = sandbox.from_profile(qa_root).mode
+    os.environ[sandbox.FLOOR_ENV] = mode
+    return mode
+
+
+def tester_box_mode(args, qa_root) -> str:
+    """The tester's sandbox mode: `off` under `--no-sandbox`, else the profile's held to the
+    floor `--sandbox` set. Says so when off."""
+    mode = "off" if args.no_sandbox else sandbox.from_profile(qa_root).mode
+    if mode == "off":
+        why = "--no-sandbox" if args.no_sandbox else "the profile says `sandbox: off`"
+        print(f"verdict-run: the tester's Bash runs outside Claude Code's sandbox ({why})",
+              file=sys.stderr)
+    return mode
 
 
 def passthrough_names(args) -> list:
@@ -1239,6 +1455,15 @@ def main(argv=None) -> int:
     ap.add_argument("--calls", "--escalate-calls", dest="calls", type=int, default=None, metavar="N",
                     help="the tool calls an asked run's tester is asked to aim for (default "
                          f"{escalate.CALLS_DEFAULT} with --lite or --escalate); the dollar cap still stops the run")
+    ap.add_argument("--sandbox", choices=("auto", "required"), default=None,
+                    help="the least box the project's code runs in, for this run and every "
+                         "process it starts; a profile can only tighten it, and under `required` "
+                         "a profile's sandbox_network, sandbox_write and test_env are ignored — "
+                         "the setting for a repository you do not trust")
+    ap.add_argument("--no-sandbox", action="store_true",
+                    help="run the tester's Bash outside Claude Code's sandbox (default: inside it, "
+                         "with no network, the caller's secrets hidden and writes kept to the "
+                         "checkout, the QA root and temp; the profile's `sandbox: off` does the same)")
     ap.add_argument("--no-premeasure", action="store_true",
                     help="let the tester run verdict-facts itself instead of measuring before it "
                          "starts (default: measure first, so a long census is not cut by the "
@@ -1402,6 +1627,11 @@ def main(argv=None) -> int:
             print(f"verdict-run: report {result['report']}")
         return result["exit_code"]
 
+    harness_mode = pin_box_floor(args, qa_root)
+    box_mode = tester_box_mode(args, qa_root)
+    if not shipped_config_allowed(repo, harness_mode):
+        return 2
+
     if args.provision:
         problem, notes = provision(repo, plugin_root(args.plugin_root))
         for note in notes:
@@ -1470,6 +1700,7 @@ def main(argv=None) -> int:
     strict = [] if "--strict-mcp-config" in passthrough else ["--strict-mcp-config"]
     tester = agent_flags(repo, passthrough)
     told = bool(args.prompt_file or args.prompt)    # the operator's words, in either mode
+    box = tester_sandbox(repo, qa_root, env, box_mode)
 
     packet = ""
 
@@ -1477,12 +1708,11 @@ def main(argv=None) -> int:
         text = tester_prompt(prompt, told, tester, packet,
                              budget_line(cap, args.calls or (escalate.CALLS_DEFAULT if args.lite else None)))
         return [args.claude_cmd, "-p", text, "--model", args.model, *tester,
-                "--setting-sources", "project,local", *strict, *mcp, *budget, *passthrough]
+                "--setting-sources", "project,local", *strict, *mcp, *box, *budget, *passthrough]
 
-    if not args.no_premeasure:
-        head = premeasure(repo, qa_root, env, args.sha_range)
-        if head:
-            env[PREMEASURED_ENV] = head
+    if not args.no_premeasure and not measure_first(repo, qa_root, env, args.sha_range,
+                                                    harness_mode):
+        return 2
     packet, refused = start_escalation(repo, qa_root, args, env, base_url, token, cap)
     if refused is not None:
         return refused

@@ -506,8 +506,8 @@
  {
   "label": "H8 F-50: verification subprocesses write bytecode again",
   "path": "src/verdict_mcp/harness.py",
-  "old": "    env = dict(os.environ, PYTHONDONTWRITEBYTECODE=\"1\")\n    if pythonpath:",
-  "new": "    env = dict(os.environ)\n    if pythonpath:"
+  "old": "    extra = {\"PYTHONDONTWRITEBYTECODE\": \"1\"}\n    if pythonpath:",
+  "new": "    extra = {}\n    if pythonpath:"
  },
  {
   "label": "P1 the guard loses its lazy annotations (the 3.9 import death)",
@@ -2759,8 +2759,8 @@
  {
   "label": "0.91.2 profile 1: a key the harness reads is announced as unread on every run",
   "path": "src/verdict_mcp/profile.py",
-  "old": "         \"assertion_gaps_budget_s\", \"repro_rule\", \"contract_rule\")\n",
-  "new": "         \"assertion_gaps_budget_s\", \"contract_rule\")\n"
+  "old": "         \"assertion_gaps_budget_s\", \"repro_rule\", \"contract_rule\",\n",
+  "new": "         \"assertion_gaps_budget_s\", \"contract_rule\",\n"
  },
  {
   "label": "escalate 1: a session stopped at its dollar cap is tried again, spending the cap twice",
@@ -2801,8 +2801,8 @@
  {
   "label": "backfill 2: a model-written repro inherits the caller's environment",
   "path": "src/verdict_mcp/replay.py",
-  "old": "        env = {k: v for k, v in env.items() if k in keep}\n",
-  "new": "        env = dict(env)\n"
+  "old": "            env = {k: v for k, v in {**os.environ, **extra}.items() if k in keep}\n",
+  "new": "            env = {**os.environ, **extra}\n"
  },
  {
   "label": "backfill 3: a draft that reproduces nowhere is kept as proof",
@@ -3175,5 +3175,149 @@
   "path": "src/verdict_mcp/harness.py",
   "old": "    parts = [f\"- Judge: {engine} \u00b7 model `{last.get('model') or '?'}`\"]\n",
   "new": "    parts = [f\"- Judge: {engine} \u00b7 model `{last.get('model') or '?'}`\"]\n    parts += [f\"host `{local['host']}`\"] if local.get(\"host\") else []\n"
+ },
+ {
+  "label": "0.94.0 box 1: target code gets the caller's whole environment again",
+  "path": "src/verdict_mcp/sandbox.py",
+  "old": "    env = {k: v for k, v in src.items()\n           if k in KEEP or k.startswith(KEEP_PREFIXES) or k in wanted}\n",
+  "new": "    env = dict(src)\n"
+ },
+ {
+  "label": "0.94.0 box 2: the box lets the network out",
+  "path": "src/verdict_mcp/sandbox.py",
+  "old": "        rules.append(\"(deny network*)\")\n",
+  "new": "        rules.append(\"(allow network*)\")\n"
+ },
+ {
+  "label": "0.94.0 box 3: loopback allowed on the local end opens every connection (measured 2026-11-03)",
+  "path": "src/verdict_mcp/sandbox.py",
+  "old": "            rules += ['(allow network-outbound (remote ip \"localhost:*\"))',\n",
+  "new": "            rules += ['(allow network* (local ip \"localhost:*\") (remote ip \"localhost:*\"))',\n"
+ },
+ {
+  "label": "0.94.0 box 4: the credential stores are readable from the box",
+  "path": "src/verdict_mcp/sandbox.py",
+  "old": "    rules.append(f\"(deny file-read* {stores} {regexes})\")\n",
+  "new": "    rules.append(f\"(allow file-read* {stores} {regexes})\")\n"
+ },
+ {
+  "label": "0.94.0 call site 1: a gate runs outside the box",
+  "path": "src/verdict_mcp/harness.py",
+  "old": "        proc = sandbox.run(rendered, cwd=repo, shell=True,\n                           writable=[repo, *([reports_dir] if reports_dir else [])],\n                           network=name in sandbox.current().network_gates)\n",
+  "new": "        proc = _run(rendered, cwd=repo, shell=True)\n"
+ },
+ {
+  "label": "0.94.0 call site 2: a fix-verification test gets the caller's environment",
+  "path": "src/verdict_mcp/harness.py",
+  "old": "        proc = sandbox.run(cmd, cwd=str(cwd), shell=True, writable=[cwd], extra_env=extra,\n                           timeout=timeout)\n",
+  "new": "        proc = subprocess.run(cmd, cwd=str(cwd), shell=True, capture_output=True, text=True,\n                              timeout=timeout, env={**os.environ, **extra})\n"
+ },
+ {
+  "label": "0.94.0 call site 3: a census mutant's tests get the caller's environment",
+  "path": "src/verdict_mcp/gaps.py",
+  "old": "        proc = sandbox.run(command, shell=True, cwd=str(scratch), writable=[scratch.parent],\n                           extra_env=env, errors=\"replace\", timeout=RUN_TIMEOUT_S)\n",
+  "new": "        proc = subprocess.run(command, shell=True, cwd=str(scratch), env={**os.environ, **env},\n                              capture_output=True, text=True, errors=\"replace\",\n                              timeout=RUN_TIMEOUT_S)\n"
+ },
+ {
+  "label": "0.94.0 call site 4: a tester's repro gets the caller's environment",
+  "path": "src/verdict_mcp/replay.py",
+  "old": "            proc = box.run(argv, shell=not unattended, cwd=str(cwd), writable=[scratch.parent],\n                           extra_env=extra, errors=\"replace\", timeout=timeout)\n",
+  "new": "            proc = subprocess.run(argv, shell=not unattended, cwd=str(cwd),\n                                  env={**os.environ, **extra}, capture_output=True, text=True,\n                                  errors=\"replace\", timeout=timeout)\n"
+ },
+ {
+  "label": "0.94.0 runner 1: in bypass mode the tester's sandbox lets unlisted hosts through",
+  "path": "src/verdict_mcp/runner.py",
+  "old": "        \"network\": {\"strictAllowlist\": True, \"allowedDomains\": []},\n",
+  "new": "        \"network\": {\"allowedDomains\": []},\n"
+ },
+ {
+  "label": "0.94.0 runner 2: the tester's Bash is launched outside the sandbox",
+  "path": "src/verdict_mcp/runner.py",
+  "old": "\"--setting-sources\", \"project,local\", *strict, *mcp, *box, *budget, *passthrough]",
+  "new": "\"--setting-sources\", \"project,local\", *strict, *mcp, *budget, *passthrough]"
+ },
+ {
+  "label": "0.94.0 runner 3: the tester's Bash sees the API key",
+  "path": "src/verdict_mcp/runner.py",
+  "old": "        \"credentials\": {\"envVars\": [{\"name\": n, \"mode\": \"deny\"} for n in secrets]},\n",
+  "new": "        \"credentials\": {\"envVars\": []},\n"
+ },
+ {
+  "label": "0.94.0 profile 2: a value the profile cannot read turns the box off",
+  "path": "src/verdict_mcp/profile.py",
+  "old": "    mode = \"auto\"\n    if word in SANDBOX_MODES:",
+  "new": "    mode = \"off\"\n    if word in SANDBOX_MODES:"
+ },
+ {
+  "label": "0.94.0 box 5: the box lets code write a checkout's .git, .claude and .mcp.json",
+  "path": "src/verdict_mcp/sandbox.py",
+  "old": "        rules.append(\"(deny file-write* \" + \" \".join(kept) + \")\")\n",
+  "new": "        rules.append(\"(allow file-write* \" + \" \".join(kept) + \")\")\n"
+ },
+ {
+  "label": "0.94.0 box 6: a writable path reopens the credential stores (review, 2026-11-03)",
+  "path": "src/verdict_mcp/sandbox.py",
+  "old": "        rules.append(f\"(deny file-read* {creds} {regexes})\")\n",
+  "new": "        rules.append(\"\")\n"
+ },
+ {
+  "label": "0.94.0 box 7: a daemon a run starts outlives it",
+  "path": "src/verdict_mcp/sandbox.py",
+  "old": "        finally:\n            if posix:\n                _killpg(proc.pid)\n",
+  "new": "        finally:\n            pass\n"
+ },
+ {
+  "label": "0.94.0 box 8: a nested harness under `required` trusts any outer sandbox",
+  "path": "src/verdict_mcp/sandbox.py",
+  "old": "    if mode == \"required\" and inner and not os.environ.get(OUTER_ENV):\n",
+  "new": "    if False:\n"
+ },
+ {
+  "label": "0.94.0 floor 1: a profile below the floor loosens the box",
+  "path": "src/verdict_mcp/sandbox.py",
+  "old": "        if floor in MODES and _rank(mode) < _rank(floor):\n",
+  "new": "        if False:\n"
+ },
+ {
+  "label": "0.94.0 floor 2: under a `required` floor a shipped profile's loosening keys take",
+  "path": "src/verdict_mcp/sandbox.py",
+  "old": "        if floor == \"required\" and loosening:\n",
+  "new": "        if False:\n"
+ },
+ {
+  "label": "0.94.0 profile 3: test_env passes a credential",
+  "path": "src/verdict_mcp/sandbox.py",
+  "old": "        self.env_names = frozenset(n for n in env_names if not SECRET_NAME.search(str(n)))\n",
+  "new": "        self.env_names = frozenset(env_names)\n"
+ },
+ {
+  "label": "0.94.0 profile 4: sandbox_write reaches a credential store",
+  "path": "src/verdict_mcp/sandbox.py",
+  "old": "            if _inside(home, p) or any(_inside(s, p) or _inside(p, s) for s in stores):\n",
+  "new": "            if False:\n"
+ },
+ {
+  "label": "0.94.0 runner 4: required starts a checkout that carries foreign Claude Code configuration",
+  "path": "src/verdict_mcp/runner.py",
+  "old": "    if problem or foreign:\n",
+  "new": "    if False:\n"
+ },
+ {
+  "label": "0.94.0 runner 5: premeasure starts with the caller's credentials",
+  "path": "src/verdict_mcp/runner.py",
+  "old": "    head = premeasure(repo, qa_root, {k: v for k, v in env.items() if k not in hidden}, sha_range)\n",
+  "new": "    head = premeasure(repo, qa_root, env, sha_range)\n"
+ },
+ {
+  "label": "0.94.0 git 1: the harness's own git runs a repository's hooks",
+  "path": "src/verdict_mcp/sandbox.py",
+  "old": "    harden_git(os.environ)\n",
+  "new": "    pass\n"
+ },
+ {
+  "label": "0.94.0 backfill 3: a model-written repro gets loopback",
+  "path": "src/verdict_mcp/replay.py",
+  "old": "            box.profile([writable], loopback=False, guarded=box._checkouts([writable]),\n",
+  "new": "            box.profile([writable], loopback=True, guarded=box._checkouts([writable]),\n"
  }
 ]

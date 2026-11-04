@@ -9,6 +9,105 @@ They moved there on 2026-10-03, when this file outgrew what the Claude directory
 will read: at 250 KB it was read, at 267 KB it held 0.90.3 for "Files or downloads the
 validator couldn't inspect". The limit is most likely 256 KiB.
 
+## 0.94.0 — 2026-11-04 · "the project's code runs in a box"
+
+- **Every command the harness runs from the project runs in a box (`sandbox.py`).** That
+  covers:
+  - the gates and the test-id collection;
+  - one-test fix verification;
+  - the coverage run and its render;
+  - the census's mutants;
+  - a tester's or a model's repro;
+  - the local tier's probes, flake re-runs and its `<runner> run python` question.
+
+  On macOS the box is `/usr/bin/sandbox-exec`:
+  - no network but loopback (none at all for a model-written repro), and no DNS;
+  - writes only to the checkout, a private temp dir and uv cache, and what `sandbox_write:`
+    adds. Never to the checkout's `.git`, `.claude` or `.mcp.json`, or to the QA root;
+  - no reads of the owner's credential stores, the caller's Claude login, or other projects'
+    QA records. The credential stores are denied again after every read-back;
+  - a 4 GiB file-size ceiling;
+  - the whole process group killed when the run returns, with its output written to files, so
+    a daemon holding a pipe cannot hold the harness.
+
+  Everywhere, the environment is built from an allowlist.
+
+  Measured 2026-11-03 before it, under `verdict-paid`, these commands ran with:
+  - `ANTHROPIC_API_KEY` in their environment;
+  - the network open;
+  - every file the owner can read within reach.
+
+  The class had been fixed twice before, for one caller each: the local tier's probes (O-S-1,
+  2026-10-02) and backfill's repros (0.92.0).
+- **What the box does not close, said.** On macOS a process can read the start-up environment
+  of any process of the same user (`sysctl(KERN_PROCARGS2)`, measured). No sandbox rule tried
+  stops it. So `verdict-run` now starts premeasure with no credential in its environment. A key
+  the Claude CLI itself is started with stays readable from inside the box, which only denies
+  it the network. SECURITY.md and the README say so.
+- **The profile decides, and a floor outranks it.**
+  - `sandbox:` is `auto` (unset), `required` or `off`. Under `required`, where there is no box
+    nothing runs.
+  - `sandbox_network:` names the gates that keep the network.
+  - `sandbox_write:` adds writable paths, and one that reaches a credential store is ignored.
+  - `test_env:` names the variables a suite needs, and never a credential-like one.
+
+  `verdict-run --sandbox auto|required` sets the floor for every process it starts
+  (`VERDICT_SANDBOX`). The floor is pinned to the profile's own setting before the tester
+  starts, so an edited `profile.md` changes nothing mid-run. Under a `required` floor, a
+  profile's loosening keys are ignored. A value the profile cannot read keeps the box on.
+  `facts.json` → `sandbox` says what boxed the run.
+- **The tester's own Bash runs in Claude Code's sandbox.** `verdict-run` passes `--settings`:
+  - `network.strictAllowlist` with no domains;
+  - every variable named like a credential, or whose value carries one, denied;
+  - the credential stores and every `.env` under `~/.config` unreadable;
+  - writes to the checkout, the QA root and the repository's git directory;
+  - the harness commands excluded. They box the project's code themselves, and macOS will not
+    stack two sandboxes: `sandbox-exec` inside one exits 71. A harness that finds itself
+    inside one anyway leans on it only when `verdict-run` set it up (`VERDICT_OUTER_BOX`).
+
+  Measured with a headless session launched as `verdict-paid` launches one. Before, its Bash
+  saw the key and the network. After, it saw neither, and `verdict-gate` still ran outside.
+  Without `strictAllowlist`, bypass mode let an unlisted host through.
+- **A checkout's own Claude Code configuration.** A session started with
+  `--setting-sources project,local` ran a tracked `.claude/settings.json` SessionStart hook
+  before the tester's first turn, outside the sandbox, and the hook saw `ANTHROPIC_API_KEY`
+  (measured). Dropping `project` also drops the provisioned agent (measured).
+  - Under `required`, `verdict-run` refuses a checkout with anything under `.claude` that
+    `provision` did not write. That holds tracked or not, `.CLAUDE` included, and a symlink is
+    never followed. The check fails closed when git or the disk cannot be read, and reads
+    again after premeasure.
+  - Under `auto` it names what the repository tracks there.
+- **The harness's own git** runs no hook and no fsmonitor a repository names
+  (`GIT_CONFIG_*`).
+- **Found by an independent review of this release before it shipped**, each now a test or a
+  pinned mutant:
+  - a boxed gate planting a git hook and `.claude` settings that ran outside the box;
+  - the start-up environment above;
+  - a shipped `profile.md` turning the box off;
+  - a writable `~` reopening `~/.ssh`;
+  - `.CLAUDE` and a symlinked `.claude` passing the check;
+  - `uv run` gates failing in the box, until each run got its own uv cache;
+  - the model-written repro still on the older profile.
+- **What the box costs on a real suite: nothing measurable.** The same `verdict-facts` on a
+  money project's checkout (origin/main `cf2f893d`), boxed and under `sandbox: off`:
+
+  | | boxed | `sandbox: off` |
+  |---|---|---|
+  | Suite: 5,578 passed, 1 skipped, 3 xfailed | 229.6 s | 232.3 s |
+  | Type ratchet: `OK: 64 errors in 34 files`, warm cache, alternating | 6.1–6.3 s | 6.0–6.3 s |
+  | Test ids | 5,581 | 5,581 |
+
+  Measured on the first cut; the later fixes add read and write denies and the process-group
+  kill.
+- **The measured mistake, pinned.** `(allow network* (local ip "localhost:*"))` let a TCP
+  connection to 1.1.1.1 through. Loopback is now allowed only on the remote end of an
+  outbound connection, and for bind and inbound on the local end.
+- Pinned mutants:
+  - 24 new: box 1–8, call site 1–4, runner 1–5, profile 2–4, floor 1–2, git 1,
+    backfill 3;
+  - 3 re-anchored on the code that moved: H8 F-50, 0.91.2 profile 1, backfill 2;
+  - 27 of 27 killed; badge 551/551.
+
 ## 0.93.1 — 2026-10-30 · "what a team commits is the record"
 
 - **The local tier no longer writes its gateway's address into the record.** `verdict-local` put the

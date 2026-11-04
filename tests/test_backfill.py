@@ -268,15 +268,16 @@ def test_the_gate_names_a_suspected_fix_with_the_findings_that_look_fixed(tmp_pa
 
 
 def test_the_sandbox_is_sandbox_exec_on_macos_and_nothing_elsewhere(tmp_path, monkeypatch):
-    monkeypatch.setattr(replay.sys, "platform", "darwin")
-    monkeypatch.setattr(replay.shutil, "which", lambda name: "/usr/bin/sandbox-exec")
+    """0.94.0: the same SBPL every run of the project's code gets (`sandbox.profile`), from
+    `/usr/bin/sandbox-exec` only, minus loopback: a model-written repro has no network at all."""
+    from verdict_mcp import sandbox
+    monkeypatch.setattr(sandbox, "available", lambda: True)
     prefix = replay.sandbox_prefix(tmp_path)
-    assert prefix[:2] == ["sandbox-exec", "-p"] and "(deny network*)" in prefix[2]
+    assert prefix[:2] == ["/usr/bin/sandbox-exec", "-p"] and "(deny network*)" in prefix[2]
+    assert "(allow network-outbound" not in prefix[2]
     assert f'(allow file-write* (subpath "{tmp_path.resolve()}")' in prefix[2]
-    monkeypatch.setattr(replay.sys, "platform", "linux")
-    assert replay.sandbox_prefix(tmp_path) is None
-    monkeypatch.setattr(replay.sys, "platform", "darwin")
-    monkeypatch.setattr(replay.shutil, "which", lambda name: None)
+    assert "(deny file-read* " in prefix[2]
+    monkeypatch.setattr(sandbox, "available", lambda: False)
     assert replay.sandbox_prefix(tmp_path) is None
 
 

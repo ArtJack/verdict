@@ -3,7 +3,7 @@
 [CI](https://github.com/ArtJack/verdict/actions/workflows/ci.yml) ·
 [verdict on itself](.qa/reports/INDEX.md) ·
 [eval: 8/8 seeded defects](eval/README.md#published-results) ·
-[pinned rules: 527/527 killed](eval/README.md#suite-fault-detection-power--mutation-testing-on-ourselves) ·
+[pinned rules: 551/551 killed](eval/README.md#suite-fault-detection-power--mutation-testing-on-ourselves) ·
 [PyPI: verdict-qa-mcp](https://pypi.org/project/verdict-qa-mcp/) ·
 [OpenSSF Best Practices: passing](https://www.bestpractices.dev/projects/16149) ·
 [MIT license](LICENSE)
@@ -655,6 +655,29 @@ interpreter (`python3 -c`, `node -e`), a build or package step (`pip`, `npm`, `c
 read from a file or a pipe, a shell function or alias. Unknown commands run, because a QA
 pass needs pytest, coverage and linters. The real boundary is OS-level sandboxing or running
 the tester against a throwaway copy; the guard raises the cost of the *accidental* mutation.
+
+From 0.94.0 that OS boundary is in place in two places.
+- **The project's own code**, wherever the harness runs it: gates, test collection, fix
+  verification, coverage, the census and repros, through `src/verdict_mcp/sandbox.py`. On
+  macOS it gets:
+  - no network but loopback;
+  - writes only to its checkout and a private temp dir, never to the checkout's `.git` or
+    `.claude`;
+  - no reads of the owner's credential stores;
+  - an environment built from an allowlist.
+- **The tester's Bash under `verdict-run`**, which runs inside Claude Code's own sandbox
+  (strict network allowlist, credential-like variables denied).
+
+`verdict-run --sandbox required` is the setting for a repository you do not trust. The
+project's code then runs only inside a box, and a profile the repository ships cannot loosen
+it. A checkout carrying its own Claude Code configuration is refused.
+
+What the box does not close: on macOS a process can read the start-up environment of another
+process of the same user, so a key the Claude CLI holds in its environment stays readable from
+inside, with no network to send it on. In an interactive `/verdict:run`, the tester's Bash runs
+under your own Claude Code sandbox setting: turn it on for a repository you do not trust.
+
+
 Malformed hook input fails open; once armed, a command the guard cannot read is refused
 rather than waved through. Tested in CI on Python 3.9, the `python3` a stock Mac starts them with
 ([tests/test_hooks.py](tests/test_hooks.py), [tests/test_hooks_0903.py](tests/test_hooks_0903.py),
