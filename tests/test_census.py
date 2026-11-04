@@ -14,8 +14,8 @@ import subprocess
 import pytest
 
 from verdict_mcp.census import (
-    code_census, dependencies_census, imports_census, placeholders_census,
-    provenance_census)
+    _DIST_CAP, code_census, dependencies_census, imports_census,
+    placeholders_census, provenance_census)
 
 
 def git(args, cwd, message_env=None):
@@ -355,3 +355,74 @@ def test_the_census_block_carries_dependencies(repo):
     git(["commit", "-qm", "api"], repo)
     block = code_census(repo, "HEAD~1..HEAD")
     assert block["dependencies"]["resolved"]["httpx"]["version"] == "0.27.0"
+
+
+# ── dependencies: the paths that only run when something is wrong ─────────
+
+def test_a_dist_info_with_no_version_in_its_name_is_skipped(repo):
+    sp = site_packages(repo)
+    (sp / "brokendistinfo.dist-info").mkdir()
+    (sp / "httpx-0.27.0.dist-info").mkdir()
+    (sp / "httpx").mkdir()
+    (sp / "httpx" / "__init__.py").write_text("", encoding="utf-8")
+    out = dependencies_census(repo, [("api.py", 1, "import httpx")])
+    assert out["resolved"]["httpx"]["version"] == "0.27.0"
+
+
+def test_the_first_distribution_to_claim_an_import_root_keeps_it(repo):
+    install(repo, "httpx", "0.27.0", top_level="httpx")
+    install(repo, "zzz_shadow", "9.9.9", top_level="httpx", module=False)
+    out = dependencies_census(repo, [("api.py", 1, "import httpx")])
+    assert out["resolved"]["httpx"]["distribution"] == "httpx"
+
+
+def test_the_dist_info_scan_is_capped(repo):
+    sp = site_packages(repo)
+    for i in range(_DIST_CAP + 1):
+        (sp / f"pkg{i:04d}-1.0.0.dist-info").mkdir()
+    out = dependencies_census(
+        repo, [("a.py", 1, f"import pkg{_DIST_CAP:04d}")])
+    assert out["resolved"] == {}
+    assert f"pkg{_DIST_CAP:04d}" in out["unresolved"]
+
+
+@pytest.mark.skipif(os.geteuid() == 0, reason="root reads unreadable files")
+def test_an_unreadable_top_level_falls_back_to_the_distribution_name(repo):
+    info = install(repo, "httpx", "0.27.0", top_level="httpx")
+    (info / "top_level.txt").chmod(0o000)
+    try:
+        out = dependencies_census(repo, [("api.py", 1, "import httpx")])
+    finally:
+        (info / "top_level.txt").chmod(0o644)
+    assert out["resolved"]["httpx"]["version"] == "0.27.0"
+
+
+def test_a_node_package_without_a_manifest_is_unresolved(repo):
+    (repo / "node_modules" / "thing").mkdir(parents=True)
+    out = dependencies_census(repo, [("web.ts", 1, 'require("thing")')])
+    assert out["unresolved"] == {"thing": ["web.ts:1"]}
+
+
+def test_an_unparseable_manifest_is_unresolved_not_a_crash(repo):
+    package = repo / "node_modules" / "thing"
+    package.mkdir(parents=True)
+    (package / "package.json").write_text("{not json", encoding="utf-8")
+    out = dependencies_census(repo, [("web.ts", 1, 'require("thing")')])
+    assert out["unresolved"] == {"thing": ["web.ts:1"]}
+
+
+def test_a_manifest_that_is_not_an_object_is_unresolved(repo):
+    package = repo / "node_modules" / "thing"
+    package.mkdir(parents=True)
+    (package / "package.json").write_text("[1, 2]", encoding="utf-8")
+    out = dependencies_census(repo, [("web.ts", 1, 'require("thing")')])
+    assert out["unresolved"] == {"thing": ["web.ts:1"]}
+
+
+def test_a_manifest_missing_name_and_version_still_resolves_to_its_path(repo):
+    package = repo / "node_modules" / "thing"
+    package.mkdir(parents=True)
+    (package / "package.json").write_text("{}", encoding="utf-8")
+    out = dependencies_census(repo, [("web.ts", 1, 'require("thing")')])
+    assert out["resolved"]["thing"]["version"] == "unknown"
+    assert out["resolved"]["thing"]["distribution"] == "thing"
