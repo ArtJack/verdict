@@ -58,7 +58,9 @@ _NESTED = re.compile(r"^[ \t]{2,}([A-Za-z_][A-Za-z0-9_-]*):[ \t]*(.*)$")
 # `repro_rule`, `contract_rule`, `risk_paths` and `assertion_gaps` were all reported so).
 KNOWN = ("gates", "test_ids_cmd", "test_one_cmd", "coverage_suite_cmd", "coverage_cmd",
          "authorship", "hygiene", "probes", "risk_class", "risk_paths", "assertion_gaps",
-         "assertion_gaps_budget_s", "repro_rule", "contract_rule")
+         "assertion_gaps_budget_s", "repro_rule", "contract_rule",
+         "sandbox", "sandbox_network", "sandbox_write", "test_env")
+SANDBOX_MODES = ("auto", "required", "off")
 # The production an owner runs this gate for, when it is one where a proven defect must
 # not ship: money moves through the code, or access is decided by it.
 RISK_CLASSES = ("money", "security")
@@ -249,6 +251,44 @@ def repro_rule_from(config: dict, notes: list) -> bool:
     if word not in on | off:
         notes.append(f"repro_rule: '{value}' is not understood (on, off) — the rule stays off")
     return word in on
+
+
+def _listed(config: dict, key: str) -> list[str]:
+    """A comma-separated value or a list → its non-empty items."""
+    value = config.get(key)
+    if value is None or value == "":
+        return []
+    items = value if isinstance(value, list) else str(value).split(",")
+    return [str(i).strip() for i in items if str(i).strip()]
+
+
+def sandbox_from(config: dict, notes: list) -> dict:
+    """The box the project's own code runs in (`sandbox.py`), as `sandbox.Policy` takes it.
+
+    The settings:
+      * `sandbox:` — `auto` (unset), `required` or `off`.
+      * `sandbox_network:` — the gates that may use the network, such as an `npm ci` gate.
+      * `sandbox_write:` — paths besides the checkout that the code may write, such as
+        `~/.cache/uv` for a suite run by `uv run`.
+      * `test_env:` — the variables the code may see beyond the allowlist, such as
+        `DJANGO_SETTINGS_MODULE`. Values come from the caller's environment.
+
+    A value it cannot read leaves the box on and says so. A typo must never be what turns
+    the box off, and must not pass for a setting that took."""
+    raw = config.get("sandbox")
+    word = str(raw).strip().lower() if raw not in (None, "") else ""
+    mode = "auto"
+    if word in SANDBOX_MODES:
+        mode = word
+    elif word in ("on", "true", "yes", "1"):
+        mode = "auto"
+    elif word:
+        notes.append(f"sandbox: '{raw}' is not understood (auto, required, off) — auto")
+    if mode == "off":
+        notes.append("sandbox: off — the project's code runs with the caller's environment, "
+                     "network and files")
+    return {"mode": mode, "network_gates": _listed(config, "sandbox_network"),
+            "write": _listed(config, "sandbox_write"), "env_names": _listed(config, "test_env")}
 
 
 def contract_rule_from(config: dict, notes: list) -> bool:

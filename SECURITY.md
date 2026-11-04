@@ -12,6 +12,44 @@ deny-heuristic over a command string, not a sandbox — it has been bypassed bef
 be again (the 2026-10-02 audit measured 150 strings that got through; 0.90.3 closed the 86
 that were a spelling rather than a program, and says which remain); the OS is the boundary.
 
+The code under test is the other half. From 0.94.0 every command the harness runs from the
+project goes through `src/verdict_mcp/sandbox.py`:
+- the gates and the test collection;
+- one-test fix verification and coverage;
+- the census's mutants and a tester's repro;
+- the local tier's probes.
+
+On macOS it runs inside `sandbox-exec`:
+- no network but loopback, and no DNS;
+- writes only to its checkout and a private temp dir, never to the checkout's `.git`,
+  `.claude` or `.mcp.json` or to the QA root;
+- no reads of the owner's credential stores or other projects' QA records;
+- its process group killed when it returns;
+- an environment built from an allowlist, never the caller's.
+
+Elsewhere only the environment half applies, and `facts.json` says so. `verdict-run` puts the
+tester's own Bash in Claude Code's sandbox:
+- no network: the allowlist is strict, because in bypass mode an unlisted host otherwise goes
+  through;
+- every variable that looks like a credential denied;
+- writes kept to the checkout, the QA root and the repository's git directory.
+
+Before 0.94.0 a stranger's `conftest.py` ran with whatever the caller held: the API key under
+`verdict-paid`, the network, `~/.ssh`.
+
+For a repository you do not trust, run `verdict-run --sandbox required`:
+- the project's code runs only inside a box;
+- a profile the repository ships cannot loosen it;
+- a checkout carrying Claude Code configuration of its own is refused. Its hooks would run in
+  the tester's session, outside every box.
+
+**What the box does not close.** On macOS any process can read the start-up environment of
+another process of the same user, and no sandbox rule stops it. A key the Claude CLI holds in
+its environment (`ANTHROPIC_API_KEY`) is therefore readable from inside the box, which only
+denies it the network. Authenticate the CLI without an environment key for an untrusted
+repository. Prompt injection through a repository's `CLAUDE.md` is contained by the box, not
+removed.
+
 Nothing routes through the author. No telemetry, no network calls from the plugin; the
 optional MCP server is read-only over local files; the GitHub Action's run mode uses your
 key in your repository.
