@@ -219,7 +219,7 @@ def test_the_profile_text_denies_the_network_but_loopback_and_the_secret_stores(
     assert '(allow network* (local ip' not in text
     assert text.index("(deny network*)") < text.index("(allow network-outbound")
     for store in (".ssh", ".aws", ".config/op-agent", ".claude/verdict"):
-        assert os.path.realpath(str(tmp_path / "home" / store)) in text
+        assert sandbox._quote(os.path.realpath(str(tmp_path / "home" / store))) in text
     assert r"\.config/.*\.env$" in text
     assert text.index('(deny file-write* (subpath "/"))') < text.index("(allow file-write*")
     assert "(deny file-read* " in text
@@ -228,8 +228,8 @@ def test_the_profile_text_denies_the_network_but_loopback_and_the_secret_stores(
     # contains one cannot reopen it; other projects' records are not re-denied (the run's own
     # QA root lives among them).
     tail = text[text.rindex("(allow file-read* "):]
-    assert os.path.realpath(str(tmp_path / "home" / ".ssh")) in tail
-    assert os.path.realpath(str(tmp_path / "home" / ".claude" / "verdict")) not in tail
+    assert sandbox._quote(os.path.realpath(str(tmp_path / "home" / ".ssh"))) in tail
+    assert sandbox._quote(os.path.realpath(str(tmp_path / "home" / ".claude" / "verdict"))) not in tail
     assert "(allow network-outbound" not in sandbox.profile([tmp_path], loopback=False,
                                                            home=tmp_path, source={})
     assert "(deny network*)" not in sandbox.profile([tmp_path], network=True, home=tmp_path,
@@ -242,8 +242,8 @@ def test_the_profile_text_keeps_git_claude_and_the_qa_root_unwritable(tmp_path):
     allow = text.index("(allow file-write* ")
     deny = text.index("(deny file-write* ", allow)
     for name in (".git", ".claude", ".mcp.json"):
-        assert f'(subpath "{os.path.realpath(str(repo / name))}")' in text[deny:]
-    assert f'(subpath "{os.path.realpath(str(qa))}")' in text[deny:]
+        assert f"(subpath {sandbox._quote(os.path.realpath(str(repo / name)))})" in text[deny:]
+    assert f"(subpath {sandbox._quote(os.path.realpath(str(qa)))})" in text[deny:]
 
 
 def test_the_claude_login_the_caller_runs_under_is_a_secret_store(tmp_path):
@@ -408,6 +408,17 @@ def test_a_daemon_does_not_outlive_its_run(tmp_path):
     else:
         os.kill(pid, 9)
         pytest.fail("the daemon a run started was still alive after it returned")
+
+
+def test_output_reads_as_text_mode_read_it(tmp_path):
+    """`_call` writes the run's output to files, so it decodes them itself, as `text=True` did,
+    with universal newlines. Without that, a Windows repro's `stdout_contains "[]\\nFalse"`
+    never matched `[]\\r\\nFalse` (CI, 2026-11-04)."""
+    repo = _repo(tmp_path)
+    proc = sandbox.run([sys.executable, "-c",
+                        "import sys; sys.stdout.buffer.write(b'a\\r\\nb\\rc\\n')"],
+                       cwd=repo, writable=[repo], timeout=60)
+    assert proc.stdout == "a\nb\nc\n"
 
 
 def test_a_shell_gate_keeps_its_pipes(tmp_path):

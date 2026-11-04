@@ -3239,7 +3239,7 @@
  {
   "label": "0.94.0 runner 3: the tester's Bash sees the API key",
   "path": "src/verdict_mcp/runner.py",
-  "old": "        \"credentials\": {\"envVars\": [{\"name\": n, \"mode\": \"deny\"} for n in secrets]},\n",
+  "old": "        \"credentials\": {\"envVars\": [{\"name\": n, \"mode\": \"deny\"} for n in hidden]},\n",
   "new": "        \"credentials\": {\"envVars\": []},\n"
  },
  {
@@ -3319,5 +3319,11 @@
   "path": "src/verdict_mcp/replay.py",
   "old": "            box.profile([writable], loopback=False, guarded=box._checkouts([writable]),\n",
   "new": "            box.profile([writable], loopback=True, guarded=box._checkouts([writable]),\n"
+ },
+ {
+  "label": "0.94.0 box 9: boxed output keeps Windows line endings, so `stdout_contains` never matches",
+  "path": "src/verdict_mcp/sandbox.py",
+  "old": "        stdout, stderr = (s.decode(encoding, errors=errors).replace(\"\\r\\n\", \"\\n\").replace(\"\\r\", \"\\n\")\n",
+  "new": "        stdout, stderr = (s.decode(encoding, errors=errors)\n"
  }
 ]

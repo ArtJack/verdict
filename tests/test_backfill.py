@@ -1,6 +1,7 @@
 """verdict-backfill: a repro for an old finding, drafted by the local model, kept only if it reproduces (0.92.0)."""
 
 import json
+import os
 import subprocess
 import sys
 
@@ -275,7 +276,7 @@ def test_the_sandbox_is_sandbox_exec_on_macos_and_nothing_elsewhere(tmp_path, mo
     prefix = replay.sandbox_prefix(tmp_path)
     assert prefix[:2] == ["/usr/bin/sandbox-exec", "-p"] and "(deny network*)" in prefix[2]
     assert "(allow network-outbound" not in prefix[2]
-    assert f'(allow file-write* (subpath "{tmp_path.resolve()}")' in prefix[2]
+    assert f"(allow file-write* (subpath {sandbox._quote(os.path.realpath(str(tmp_path)))})" in prefix[2]
     assert "(deny file-read* " in prefix[2]
     monkeypatch.setattr(sandbox, "available", lambda: False)
     assert replay.sandbox_prefix(tmp_path) is None

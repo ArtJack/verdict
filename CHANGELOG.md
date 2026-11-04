@@ -88,6 +88,10 @@ validator couldn't inspect". The limit is most likely 256 KiB.
   - `.CLAUDE` and a symlinked `.claude` passing the check;
   - `uv run` gates failing in the box, until each run got its own uv cache;
   - the model-written repro still on the older profile.
+- **Output reads as `text=True` read it.** A run's output goes to files, so it is decoded in
+  the locale's encoding with universal newlines. The first push failed on Windows CI: a
+  repro's `stdout_contains "[]\nFalse"` against `[]\r\nFalse`, and an em dash as cp1252
+  0x97 read as UTF-8.
 - **What the box costs on a real suite: nothing measurable.** The same `verdict-facts` on a
   money project's checkout (origin/main `cf2f893d`), boxed and under `sandbox: off`:
 
@@ -103,10 +107,10 @@ validator couldn't inspect". The limit is most likely 256 KiB.
   connection to 1.1.1.1 through. Loopback is now allowed only on the remote end of an
   outbound connection, and for bind and inbound on the local end.
 - Pinned mutants:
-  - 24 new: box 1–8, call site 1–4, runner 1–5, profile 2–4, floor 1–2, git 1,
+  - 25 new: box 1–9, call site 1–4, runner 1–5, profile 2–4, floor 1–2, git 1,
     backfill 3;
   - 3 re-anchored on the code that moved: H8 F-50, 0.91.2 profile 1, backfill 2;
-  - 27 of 27 killed; badge 551/551.
+  - 28 of 28 killed; badge 552/552.
 
 ## 0.93.1 — 2026-10-30 · "what a team commits is the record"
 

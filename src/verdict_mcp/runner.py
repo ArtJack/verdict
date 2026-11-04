@@ -558,7 +558,7 @@ def env_files(home=None) -> list:
     """The plaintext `.env` files under `~/.config`, one level down too. Claude Code's `denyRead`
     takes paths, not globs, and this machine's unattended jobs keep their keys in such files
     (`verdict-gateway.env`, `oracle-watch.env`)."""
-    base = Path(home or Path.home()) / ".config"
+    base = Path(home or os.environ.get("HOME") or Path.home()) / ".config"
     found = []
     for pattern in ("*.env", "*.env.*", "*/*.env", "*/*.env.*"):
         try:
@@ -568,7 +568,7 @@ def env_files(home=None) -> list:
     return sorted(set(found))
 
 
-def secret_names(env: dict) -> list:
+def hidden_names(env: dict) -> list:
     """The variables the tester's Bash never sees: a name like a credential's, or a value that
     carries one (`scheme://user:password@host`). The CLI that needs `ANTHROPIC_API_KEY` to
     answer still has it."""
@@ -608,7 +608,7 @@ def tester_sandbox(repo: Path, qa_root: Path, env: dict, mode: str) -> list:
     deny_read = ["~/" + p for p in sandbox.SECRET_PATHS] + env_files()
     if env.get("CLAUDE_CONFIG_DIR"):
         deny_read.append(real(Path(env["CLAUDE_CONFIG_DIR"]).expanduser()))
-    secrets = secret_names(env)
+    hidden = hidden_names(env)
     settings = {"sandbox": {
         "enabled": True,
         "failIfUnavailable": mode == "required",
@@ -618,7 +618,7 @@ def tester_sandbox(repo: Path, qa_root: Path, env: dict, mode: str) -> list:
         "network": {"strictAllowlist": True, "allowedDomains": []},
         "filesystem": {"allowWrite": sorted(writable), "denyRead": deny_read,
                        "allowRead": [real(qa_root)]},
-        "credentials": {"envVars": [{"name": n, "mode": "deny"} for n in secrets]},
+        "credentials": {"envVars": [{"name": n, "mode": "deny"} for n in hidden]},
     }}
     env[sandbox.OUTER_ENV] = "claude-code"   # a harness nested in this box knows it is ours
     return ["--settings", json.dumps(settings)]
@@ -729,7 +729,7 @@ def measure_first(repo: Path, qa_root: Path, env: dict, sha_range, harness_mode:
     it runs can read the start-up environment of any process of the same user (`sandbox.py`).
     Then the checkout's Claude Code configuration is read again, since that code just ran.
     False when the run must stop."""
-    hidden = set(secret_names(env))
+    hidden = set(hidden_names(env))
     head = premeasure(repo, qa_root, {k: v for k, v in env.items() if k not in hidden}, sha_range)
     if head:
         env[PREMEASURED_ENV] = head

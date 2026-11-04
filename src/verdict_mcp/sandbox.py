@@ -59,6 +59,7 @@ process it starts. A profile can only tighten it. Under a `required` floor a pro
 # 3.9 on a stock Mac), where `str | None` would raise at definition time (VERDICT-F-55).
 from __future__ import annotations
 
+import locale
 import os
 import re
 import shutil
@@ -166,10 +167,10 @@ class Policy:
             notes.append("sandbox: under a `required` floor the profile's sandbox_network, "
                          "sandbox_write and test_env are ignored")
             network_gates, write, env_names = (), (), ()
-        secret_names = [n for n in env_names if SECRET_NAME.search(str(n))]
-        if secret_names:
+        refused = [n for n in env_names if SECRET_NAME.search(str(n))]
+        if refused:
             notes.append("test_env: names that look like credentials are never passed: "
-                         + ", ".join(sorted(secret_names)))
+                         + ", ".join(sorted(refused)))
         home = Path(os.path.realpath(str(_home())))
         stores = [home / p for p in CREDENTIAL_PATHS]
         kept_write = []
@@ -432,7 +433,12 @@ def _call(argv, *, cwd, env, shell: bool, timeout, text=True, errors="replace",
         err.seek(0)
         stdout, stderr = out.read(), err.read()
     if text:
-        stdout, stderr = stdout.decode(errors=errors), stderr.decode(errors=errors)
+        # What `text=True` did: the locale's encoding (cp1252 on a Windows runner, where a child
+        # prints an em dash as 0x97) and universal newlines (a `stdout_contains "[]\nFalse"`
+        # expectation must match `[]\r\nFalse`).
+        encoding = locale.getpreferredencoding(False)
+        stdout, stderr = (s.decode(encoding, errors=errors).replace("\r\n", "\n").replace("\r", "\n")
+                          for s in (stdout, stderr))
     if timed_out:
         raise subprocess.TimeoutExpired(argv, timeout, output=stdout, stderr=stderr)
     return subprocess.CompletedProcess(argv, proc.returncode, stdout, stderr)
