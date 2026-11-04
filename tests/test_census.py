@@ -14,7 +14,8 @@ import subprocess
 import pytest
 
 from verdict_mcp.census import (
-    code_census, imports_census, placeholders_census, provenance_census)
+    code_census, dependencies_census, imports_census, placeholders_census,
+    provenance_census)
 
 
 def git(args, cwd, message_env=None):
@@ -256,3 +257,101 @@ def test_the_tree_and_the_diff_number_a_line_alike(repo):
     sha_range = _range_adding(repo, {"f.py": b"a = 1\rb = 2\n"}, {"f.py": b"a = 1\rb = 2\nc = 3\n"})
     assert [(p, n) for p, n, t in _added_lines(repo, sha_range) if t == "c = 3"] == [("f.py", 2)]
     assert [(p, n) for p, n, t in _tree_lines(repo)[0] if t == "c = 3"] == [("f.py", 2)]
+
+
+# ── dependencies: the version actually installed, not the one recalled ────
+
+def site_packages(repo):
+    sp = repo / ".venv" / "lib" / "python3.13" / "site-packages"
+    sp.mkdir(parents=True, exist_ok=True)
+    return sp
+
+
+def install(repo, distribution, version, top_level=None, module=True):
+    """Lay down a dist-info the way pip does, without pip."""
+    sp = site_packages(repo)
+    info = sp / f"{distribution}-{version}.dist-info"
+    info.mkdir(parents=True, exist_ok=True)
+    (info / "METADATA").write_text(f"Name: {distribution}\n", encoding="utf-8")
+    if top_level is not None:
+        (info / "top_level.txt").write_text(top_level + "\n", encoding="utf-8")
+    if module:
+        package = sp / (top_level or distribution)
+        package.mkdir(parents=True, exist_ok=True)
+        (package / "__init__.py").write_text("", encoding="utf-8")
+    return info
+
+
+def test_a_resolved_dependency_carries_its_installed_version_and_path(repo):
+    install(repo, "httpx", "0.27.0")
+    out = dependencies_census(repo, [("api.py", 4, "import httpx")])
+    assert out["resolved"]["httpx"]["version"] == "0.27.0"
+    assert out["resolved"]["httpx"]["path"] == (
+        ".venv/lib/python3.13/site-packages/httpx")
+    assert out["resolved"]["httpx"]["cited_at"] == ["api.py:4"]
+
+
+def test_the_path_it_reports_is_one_a_reader_can_actually_open(repo):
+    install(repo, "httpx", "0.27.0")
+    out = dependencies_census(repo, [("api.py", 4, "import httpx")])
+    assert (repo / out["resolved"]["httpx"]["path"]).is_dir()
+
+
+def test_top_level_maps_an_import_root_to_the_distribution_that_owns_it(repo):
+    install(repo, "PyYAML", "6.0.1", top_level="yaml")
+    out = dependencies_census(repo, [("conf.py", 1, "import yaml")])
+    assert out["resolved"]["yaml"]["distribution"] == "PyYAML"
+    assert out["resolved"]["yaml"]["version"] == "6.0.1"
+
+
+def test_an_import_with_nothing_installed_is_unresolved_not_invented(repo):
+    site_packages(repo)
+    out = dependencies_census(repo, [("api.py", 2, "import httpx")])
+    assert out["resolved"] == {}
+    assert out["unresolved"] == {"httpx": ["api.py:2"]}
+
+
+def test_stdlib_and_local_modules_are_not_dependencies(repo):
+    site_packages(repo)
+    out = dependencies_census(
+        repo, [("a.py", 1, "import json"), ("b.py", 2, "import app")])
+    assert out["resolved"] == {}
+    assert out["unresolved"] == {}
+
+
+def test_a_node_package_resolves_through_its_manifest_scope_included(repo):
+    package = repo / "node_modules" / "@scope" / "thing"
+    package.mkdir(parents=True)
+    (package / "package.json").write_text(
+        '{"name": "@scope/thing", "version": "2.1.0"}', encoding="utf-8")
+    out = dependencies_census(
+        repo, [("web.ts", 1, 'import t from "@scope/thing"')])
+    assert out["resolved"]["@scope/thing"]["version"] == "2.1.0"
+    assert out["resolved"]["@scope/thing"]["path"] == "node_modules/@scope/thing"
+
+
+def test_a_specifier_cannot_walk_out_of_node_modules(repo):
+    out = dependencies_census(repo, [("web.ts", 1, 'require("@a/..")')])
+    assert out["resolved"] == {}
+
+
+def test_with_no_environment_it_says_so_rather_than_guessing(repo):
+    out = dependencies_census(repo, [("api.py", 2, "import httpx")])
+    assert out["environments"] == []
+    assert "httpx" in out["unresolved"]
+    assert "hypothesis" in out["reading"]
+
+
+def test_one_environment_is_reported_once_whatever_the_filesystem_case(repo):
+    install(repo, "httpx", "0.27.0")
+    out = dependencies_census(repo, [("api.py", 1, "import httpx")])
+    assert len(out["environments"]) == 1
+
+
+def test_the_census_block_carries_dependencies(repo):
+    install(repo, "httpx", "0.27.0")
+    (repo / "api.py").write_text("import httpx\n", encoding="utf-8")
+    git(["add", "api.py"], repo)
+    git(["commit", "-qm", "api"], repo)
+    block = code_census(repo, "HEAD~1..HEAD")
+    assert block["dependencies"]["resolved"]["httpx"]["version"] == "0.27.0"
