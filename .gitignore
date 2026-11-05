@@ -14,3 +14,8 @@ node_modules/
 
 # pin_check holds this while it is mutating the working tree.
 .pin_check.lock
+
+# The profile's coverage_suite_cmd writes this when run by hand. verdict-facts
+# points COVERAGE_FILE at its own scratch path (harness.py), so a harness run
+# leaves nothing here — a contributor reproducing the diff-coverage figure does.
+.coverage
