@@ -8,6 +8,7 @@ success with no API key, never producing a score (D-D-2); the README's
 `uses: ArtJack/verdict@v0` named a ref that did not exist (D-D-1).
 """
 
+import ast
 import re
 from pathlib import Path
 
@@ -16,6 +17,7 @@ ACTION = (ROOT / "action.yml").read_text(encoding="utf-8")
 EVAL = (ROOT / ".github" / "workflows" / "eval.yml").read_text(encoding="utf-8")
 RELEASE = (ROOT / ".github" / "workflows" / "release.yml").read_text(encoding="utf-8")
 README = (ROOT / "README.md").read_text(encoding="utf-8")
+CI = (ROOT / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")
 
 
 def test_the_actions_run_mode_loads_the_whole_plugin_and_runs_the_tester_directly():
@@ -98,3 +100,64 @@ def test_no_run_script_interpolates_what_a_caller_typed():
         for script in _run_scripts(path.read_text(encoding="utf-8")):
             assert not re.search(r"\$\{\{[^}]*(github\.event|inputs\.)", script), \
                 f"{path.name}: {script[:80]}"
+
+
+# ── what the suite may evaluate before a test starts ──────────────────────
+
+# Absent from the `os` module on Windows. Touching one of these where it is
+# evaluated at import time raises AttributeError, which is a collection error:
+# the whole module fails, not one test.
+_UNIX_ONLY = frozenset({
+    "geteuid", "getuid", "getegid", "getgid", "getgroups", "getlogin",
+    "fork", "forkpty", "uname", "setuid", "seteuid", "setgid", "chown",
+    "getpgid", "getsid", "nice", "getpriority", "setpriority",
+})
+
+
+def _import_time_expressions(tree):
+    """Every expression the interpreter evaluates while importing the module.
+
+    A decorator runs when its `def` is reached, and a module-level statement when
+    the line is reached. A function body does not.
+    """
+    for node in tree.body:
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+            yield from node.decorator_list
+        else:
+            yield node
+
+
+def _unguarded_unix_only(expr):
+    """Unix-only `os.<name>` calls in `expr` that nothing in `expr` guards."""
+    names = {n.attr for n in ast.walk(expr)
+             if isinstance(n, ast.Attribute) and n.attr in _UNIX_ONLY
+             and isinstance(n.value, ast.Name) and n.value.id == "os"}
+    if not names:
+        return set()
+    flat = ast.unparse(expr).replace(" ", "")
+    guarded = "hasattr(os," in flat or "os.name" in flat or "sys.platform" in flat
+    return set() if guarded else names
+
+
+def test_nothing_the_suite_evaluates_at_import_is_absent_on_windows():
+    """`ci.yml` runs the suite on `windows-latest`, and a `skipif` condition is evaluated
+    when the decorator is reached, not when the test runs. So
+
+        @pytest.mark.skipif(os.geteuid() == 0, reason="root reads unreadable files")
+
+    is not a skip on Windows — it is an AttributeError that fails the module's whole
+    collection. It shipped in `tests/test_census.py` on 2026-11-04 and took both Windows
+    jobs of PR #180 down in 28 seconds, while every gate on the author's mac was green:
+    the species `docs/silent-failures.md` files as "code that only runs on the interpreter
+    you tested with". Guard the call — `hasattr(os, "geteuid") and os.geteuid() == 0`, as
+    `tests/test_stop_hook.py` does, or an `os.name` test — or move it inside the body.
+    """
+    assert "windows-latest" in CI, "the premise of this test is gone; re-read it"
+    offenders = {}
+    for path in sorted([*(ROOT / "tests").glob("*.py"),
+                        *(ROOT / "src" / "verdict_mcp").glob("*.py")]):
+        tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+        for expr in _import_time_expressions(tree):
+            for name in _unguarded_unix_only(expr):
+                offenders.setdefault(path.name, set()).add(f"os.{name}")
+    assert not offenders, f"evaluated at import and missing on Windows: {offenders}"

@@ -386,7 +386,10 @@ def test_the_dist_info_scan_is_capped(repo):
     assert f"pkg{_DIST_CAP:04d}" in out["unresolved"]
 
 
-@pytest.mark.skipif(os.geteuid() == 0, reason="root reads unreadable files")
+@pytest.mark.skipif(
+    os.name == "nt" or os.geteuid() == 0,
+    reason="chmod does not deny the owner a read on Windows, and root reads anything",
+)
 def test_an_unreadable_top_level_falls_back_to_the_distribution_name(repo):
     info = install(repo, "httpx", "0.27.0", top_level="httpx")
     (info / "top_level.txt").chmod(0o000)
