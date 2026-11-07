@@ -1619,7 +1619,7 @@
  {
   "label": "0.90.0 P15 local gate: a non-Python diff finalizes an unqualified pass",
   "path": "src/verdict_mcp/small.py",
-  "old": "    non_python = bool(ranged and changed and not python_in(changed))",
+  "old": "    non_python = bool(ranged and changed and not readable_in(changed))",
   "new": "    non_python = False"
  },
  {
@@ -1769,8 +1769,8 @@
  {
   "label": "0.90.0 P40 local: a range with nothing in it falls back to the whole repository's reading map",
   "path": "src/verdict_mcp/small.py",
-  "old": "        ranked = delta_candidates(facts, repo, changed) if changed else []\n",
-  "new": "        ranked = delta_candidates(facts, repo, changed)\n"
+  "old": "        ranked = delta_candidates(facts, repo, changed, sizes) if changed else []\n",
+  "new": "        ranked = delta_candidates(facts, repo, changed, sizes)\n"
  },
  {
   "label": "0.90.0 P41 runner: the harness child is left to find the package itself, and a runner started from source cannot sweep",
@@ -2675,8 +2675,8 @@
  {
   "label": "0.91.1 local 2: the census hint never reaches the reader",
   "path": "src/verdict_mcp/small.py",
-  "old": "                           + (f\"\\n\\n{hint}\" if hint else \"\"))\n",
-  "new": "                           )\n"
+  "old": "    first = model.ask_json(contract_question(chunk) + (f\"\\n\\n{hint}\" if hint else \"\"))\n",
+  "new": "    first = model.ask_json(contract_question(chunk))\n"
  },
  {
   "label": "0.91.1 gaps 7: a set that fails on the clean tree is not retried test by test",
