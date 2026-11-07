@@ -681,8 +681,13 @@ measured fail→pass on a test somebody chose, carried by id, or re-filed under 
 the drift that moved it — never left unmentioned, because the harness reads silence as
 resolution. Its verdict is monotone: it can make a verdict worse or leave it alone, and both a
 `fail` and a `blocked` stand until something with judgment looks at them. `--range`/`--base` with a
-throwaway `--qa-root` judge a branch without touching the project's own state, and a range with
-no Python in it reads nothing and says so rather than reporting a clean pass. Wire it into a
+throwaway `--qa-root` judge a branch without touching the project's own state. It reads Python,
+and C#, TypeScript and JavaScript one function at a time, cut by a reader with no parser
+dependency ([src/verdict_mcp/braces.py](src/verdict_mcp/braces.py)): the function each changed line
+sits in, with the file's own line numbers and the head of the type around it. Counterfactuals run
+in Python only, so a reading in any other language stays unproven, and the verdict over that code
+stays below `pass`. A range with nothing it reads reads nothing and says so rather than reporting a
+clean pass. Wire it into a
 night with `verdict-run --on-drift local`, which can never reach the `claude` CLI at all.
 **The full agent through a gateway** (`verdict-run --env-file`, `ANTHROPIC_BASE_URL` → LiteLLM →
 your model server, [docs/nightly.md](docs/nightly.md)) needs a model with the window for a
