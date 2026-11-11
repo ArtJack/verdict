@@ -36,10 +36,12 @@ from pathlib import Path
 
 try:
     from . import clock
+    from . import sandbox as box
     from .state import is_open, load_state, repo_for_root
 except ImportError:  # executed as a bare script
     sys.path.insert(0, str(Path(__file__).resolve().parent))
     import clock
+    import sandbox as box
     from state import is_open, load_state, repo_for_root
 
 REPLAYS_FILE = "replays.jsonl"
@@ -120,9 +122,6 @@ TAIL = 1200
 # reach live accounts and money; with no network they reach neither. Where no sandbox exists,
 # such a repro is not run at all.
 MODEL_WRITTEN = "backfill"
-SANDBOX_PROFILE = ('(version 1)(allow default)(deny network*)(deny file-write* (subpath "/"))'
-                   '(allow file-write* (subpath "{writable}") (literal "/dev/null") '
-                   '(literal "/dev/stdout") (literal "/dev/stderr") (literal "/dev/tty"))')
 
 
 BACKFILL_FILE = "backfill.jsonl"
@@ -168,11 +167,20 @@ def model_written(repro) -> bool:
 
 
 def sandbox_prefix(writable: Path) -> list | None:
-    """The argv prefix that runs a command with no network and writes only under `writable`,
-    or None where this machine has no such sandbox (macOS's sandbox-exec is the one used)."""
-    if sys.platform != "darwin" or not shutil.which("sandbox-exec"):
+    """The argv prefix that runs a model-written command in the box, or None where this machine
+    has no sandbox.
+
+    The box is `sandbox.profile`, the same SBPL every run of the project's code gets (0.94.0),
+    minus loopback: no network at all. Writes go only under `writable`, never into a checkout's
+    `.git` or `.claude`. The owner's credential stores cannot be read; the QA root is read
+    back in."""
+    if not box.available():
         return None
-    return ["sandbox-exec", "-p", SANDBOX_PROFILE.format(writable=str(Path(writable).resolve()))]
+    qa_root = box.current().qa_root
+    return [box.SANDBOX_EXEC, "-p",
+            box.profile([writable], loopback=False, guarded=box._checkouts([writable]),
+                        read_back=[qa_root] if qa_root else [],
+                        no_write=[qa_root] if qa_root else [])]
 
 
 def repro_of(finding: dict) -> dict | None:
@@ -446,30 +454,34 @@ def replay_one(finding: dict, repo: Path, scratch: Path, qa_root: Path, timeout:
                                "on a script in the QA root or the fresh tree, a `-c` string, or "
                                "pytest; `verdict-replay` runs any command when a person asks"])
             return row
-    env = dict(os.environ)
-    own_path = own_env.pop("PYTHONPATH", "")
-    env.update(own_env)
-    env["PYTHONPATH"] = os.pathsep.join(
+    extra = dict(own_env)
+    own_path = extra.pop("PYTHONPATH", "")
+    extra["PYTHONPATH"] = os.pathsep.join(
         [str(_guard_dir(scratch.parent)), str(scratch / "src"), str(scratch)]
         + ([own_path] if own_path else [])
         + ([os.environ["PYTHONPATH"]] if os.environ.get("PYTHONPATH") else []))
-    env[ORIGINAL_ENV] = os.pathsep.join(dict.fromkeys([str(repo.resolve()), str(repo)]))
-    env["PYTHONDONTWRITEBYTECODE"] = "1"
-    env["GIT_NO_LAZY_FETCH"] = "1"
-    if wrap:
-        # A scrubbed environment as well: nothing the caller's shell holds (a token, a password,
-        # a gateway key) is there for a script a model wrote to read or print, and `~` is the
-        # checkout's own scratch, not the owner's home.
-        tmp = scratch.parent / "tmp"
-        tmp.mkdir(exist_ok=True)
-        keep = ("PATH", "LANG", "LC_ALL", "SYSTEMROOT", "PYTHONPATH", "PYTHONDONTWRITEBYTECODE",
-                ORIGINAL_ENV, *own_env)
-        env = {k: v for k, v in env.items() if k in keep}
-        env.update(TMPDIR=str(tmp), HOME=str(tmp))
-        argv = [*wrap, *argv]
+    extra[ORIGINAL_ENV] = os.pathsep.join(dict.fromkeys([str(repo.resolve()), str(repo)]))
+    extra["PYTHONDONTWRITEBYTECODE"] = "1"
+    extra["GIT_NO_LAZY_FETCH"] = "1"
     try:
-        proc = subprocess.run(argv, shell=not unattended, cwd=str(cwd), env=env,
-                              capture_output=True, text=True, errors="replace", timeout=timeout)
+        if wrap:
+            # A scrubbed environment as well: nothing the caller's shell holds (a token, a
+            # password, a gateway key) is there for a script a model wrote to read or print,
+            # and `~` is the checkout's own scratch, not the owner's home.
+            tmp = scratch.parent / "tmp"
+            tmp.mkdir(exist_ok=True)
+            keep = ("PATH", "LANG", "LC_ALL", "SYSTEMROOT", "PYTHONPATH",
+                    "PYTHONDONTWRITEBYTECODE", ORIGINAL_ENV, *own_env)
+            env = {k: v for k, v in {**os.environ, **extra}.items() if k in keep}
+            env.update(TMPDIR=str(tmp), HOME=str(tmp))
+            # Its own session, killed whole on return, under the file-size ceiling (`sandbox._call`).
+            proc = box._call([*wrap, *argv], shell=not unattended, cwd=str(cwd), env=env,
+                             text=True, errors="replace", timeout=timeout)
+        else:
+            # A tester's repro runs the project's code: the box every target run gets
+            # (`sandbox.py`). Its fresh tree's parent holds the checkout, the guard and tmp.
+            proc = box.run(argv, shell=not unattended, cwd=str(cwd), writable=[scratch.parent],
+                           extra_env=extra, errors="replace", timeout=timeout)
     except subprocess.TimeoutExpired:
         row.update(result="could not run", exit=None, checks=[f"timed out after {timeout}s"],
                    output_tail="")
@@ -616,6 +628,8 @@ def main(argv=None) -> int:
         print("verdict-replay: the QA root names no repository (team mode needs <repo>/.qa; "
               "solo mode needs Repo-Path in profile.md)", file=sys.stderr)
         return 2
+    # A person's replay runs the project's code too: the box the profile sets (`sandbox.py`).
+    box.configure(box.from_profile(qa_root))
     wanted = {i for i in args.ids}
     findings = [f for f in state.get("findings") or []
                 if (str(f.get("id")) in wanted if wanted else (wants_replay(f) or replayable(f)))]

@@ -39,7 +39,8 @@
 - **Where things live:** the contract `agents/verdict.md`; the harness
   `src/verdict_mcp/harness.py` (facts, finalize, report), `validate.py` (the state
   contract, also the PostToolUse hook), `anchors.py` (cited lines, hashed; drift),
-  `filed.py` (findings as files), `questions.py` (the questions ledger and
+  `filed.py` (findings as files), `sandbox.py` (the box every run of the project's own code
+  goes through), `questions.py` (the questions ledger and
   `verdict-answer`), `accept.py`, `replay.py` (`verdict-replay`), `dupes.py` (`verdict-dupes`), `check.py` (`verdict-check`), `backfill.py` (`verdict-backfill`), `escalate.py` (`--escalate` packets), `readfirst.py`, `gate.py`, `runner.py` (headless runs), `server.py`
   (MCP); the guards `hooks/`; the state schema `docs/state-schema.md`; the evals
   `eval/`; the release notes `CHANGELOG.md` (one version line, three manifests).
