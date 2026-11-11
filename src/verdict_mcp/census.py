@@ -7,7 +7,7 @@ revisited, errors swallowed to make a demo work. Some of those signatures are
 *mechanically countable*, and this project's standing rule applies: what can be
 measured is never left to the model to notice.
 
-Three censuses, attached to facts.json as `code_census`:
+Four censuses, attached to facts.json as `code_census`:
 
   imports       import roots that match no declared dependency, no stdlib
                 module, and no local module — the hallucinated-dependency
@@ -17,6 +17,10 @@ Three censuses, attached to facts.json as `code_census`:
                 exceptions (`except: pass`, empty `catch {}`).
   provenance    how much of the range under review is AI-attributed, from
                 commit trailers — measured, not assumed.
+  dependencies  for every third-party import in the range, the version actually
+                installed in this checkout and the path to read it at — so a
+                claim about a library's behaviour can cite the artifact instead
+                of the model's recollection of it.
 
 A census is a **lead, not a finding**. Ten TODOs may all be legitimate; one
 `except: pass` may be load-bearing. The counts and locations tell judgment
@@ -312,6 +316,177 @@ def provenance_census(repo: Path, sha_range: str | None) -> dict:
     }
 
 
+# A package specifier as the dependency census needs it, which is not the same
+# question `_JS_IMPORT` asks: that one wants the root to compare against declared
+# names, this one wants the thing you can actually open on disk, scope included
+# (`@scope/name` lives at `node_modules/@scope/name`, not `node_modules/@scope`).
+_JS_PACKAGE = re.compile(
+    r"""(?:from\s+|require\(\s*)['"](@[^'"/]+/[^'"/]+|[^'"./][^'"/]*)""")
+
+_DIST_CAP = 500  # dist-info dirs read per environment; a venv has far fewer
+
+
+def _site_packages(repo: Path) -> list[Path]:
+    """Every site-packages under a venv inside the checkout. Nothing outside it:
+    the interpreter running this census is the harness's, not the project's, and
+    its own site-packages would answer a different question entirely."""
+    out, seen = [], set()
+
+    def keep(sp: Path) -> None:
+        # A case-insensitive filesystem answers to both "lib" and "Lib", so the
+        # two spellings below reach one directory twice on a Mac — and
+        # `resolve()` does not fold case there, so the identity has to come from
+        # the inode. Without this the census reports two environments where a
+        # reader can only open one.
+        if not sp.is_dir():
+            return
+        try:
+            info = sp.stat()
+        except OSError:
+            return
+        key = (info.st_dev, info.st_ino)
+        if key not in seen:
+            seen.add(key)
+            out.append(sp)
+
+    for venv in (".venv", "venv"):
+        for lib in ("lib", "Lib"):
+            base = repo / venv / lib
+            if not base.is_dir():
+                continue
+            keep(base / "site-packages")             # Windows layout
+            for py in sorted(base.glob("python*")):  # posix layout
+                keep(py / "site-packages")
+    return out
+
+
+def _python_installed(repo: Path) -> dict:
+    """import root -> {distribution, version, path}, read from `*.dist-info`.
+
+    `top_level.txt` is what maps an import root to the distribution that owns it
+    (`yaml` -> PyYAML); where it is absent the normalized distribution name is the
+    best available guess. Nothing here imports the package: resolving a dependency
+    by importing it would execute the code under test, which §0 forbids outright.
+    """
+    index: dict[str, dict] = {}
+    for sp in _site_packages(repo):
+        for i, info in enumerate(sorted(sp.glob("*.dist-info"))):
+            if i >= _DIST_CAP:
+                break
+            dist, _, version = info.name[: -len(".dist-info")].rpartition("-")
+            if not dist or not version:
+                continue
+            tops: list[str] = []
+            top_file = info / "top_level.txt"
+            if top_file.is_file():
+                try:
+                    tops = [ln.strip() for ln
+                            in top_file.read_text(encoding="utf-8",
+                                                  errors="replace").splitlines()
+                            if ln.strip()]
+                except OSError:
+                    tops = []
+            for top in tops or [_normalize(dist)]:
+                key = top.lower().replace("-", "_")
+                if key in index:
+                    continue
+                package_dir, module = sp / top, sp / f"{top}.py"
+                where = (package_dir if package_dir.is_dir()
+                         else module if module.is_file() else info)
+                index[key] = {"distribution": dist, "version": version,
+                              "path": where.relative_to(repo).as_posix()}
+    return index
+
+
+def _node_installed(repo: Path, spec: str) -> dict | None:
+    """Resolve one specifier under `node_modules`, read lazily — a crawl of
+    node_modules costs more than every other census put together."""
+    parts = spec.split("/")
+    if any(p in ("", ".", "..") for p in parts):
+        return None
+    package = repo.joinpath("node_modules", *parts)
+    manifest = package / "package.json"
+    if not manifest.is_file():
+        return None
+    import json
+    try:
+        data = json.loads(manifest.read_text(encoding="utf-8", errors="replace"))
+    except (ValueError, OSError):
+        return None
+    if not isinstance(data, dict):
+        return None
+    return {"distribution": str(data.get("name") or spec),
+            "version": str(data.get("version") or "unknown"),
+            "path": package.relative_to(repo).as_posix()}
+
+
+def _iter_import_specs(lines):
+    for path, lineno, text in lines:
+        suffix = Path(path).suffix
+        if suffix == ".py":
+            m = _PY_IMPORT.match(text)
+            if m:
+                yield m.group(1), path, lineno, suffix
+        elif suffix in _SOURCE_SUFFIXES:
+            for m in _JS_PACKAGE.finditer(text):
+                yield m.group(1), path, lineno, suffix
+
+
+def dependencies_census(repo: Path, lines) -> dict:
+    """What this checkout would actually import, at the version it would import.
+
+    A finding about a library's behaviour is only as good as the version it was
+    checked against, and the model's recollection is of neither this project nor
+    this pin. `resolved` gives judgment the file to open; `unresolved` says the
+    contract cannot be read here, which caps such a finding at `hypothesis`
+    rather than licensing a guess.
+    """
+    repo = Path(repo)
+    stdlib = {m.lower() for m in getattr(sys, "stdlib_module_names", ())}
+    local = _local_names(repo)
+    py_index: dict | None = None
+    node_seen: dict[str, dict | None] = {}
+    resolved: dict[str, dict] = {}
+    unresolved: dict[str, list[str]] = {}
+
+    for spec, path, lineno, suffix in _iter_import_specs(lines):
+        key = spec.lower().replace("-", "_")
+        if suffix == ".py":
+            if key in stdlib or key in local:
+                continue
+            if py_index is None:
+                py_index = _python_installed(repo)
+            hit = py_index.get(key) or py_index.get(
+                _normalize(_ALIASES.get(spec, key)))
+        else:
+            if spec not in node_seen:
+                node_seen[spec] = _node_installed(repo, spec)
+            hit = node_seen[spec]
+        location = f"{path}:{lineno}"
+        if hit:
+            entry = resolved.setdefault(spec, {**hit, "cited_at": []})
+            if location not in entry["cited_at"] and len(entry["cited_at"]) < _SAMPLE_CAP:
+                entry["cited_at"].append(location)
+        else:
+            seen = unresolved.setdefault(spec, [])
+            if location not in seen and len(seen) < _SAMPLE_CAP:
+                seen.append(location)
+
+    environments = [sp.relative_to(repo).as_posix() for sp in _site_packages(repo)]
+    if (repo / "node_modules").is_dir():
+        environments.append("node_modules")
+    return {
+        "environments": environments,
+        "resolved": dict(sorted(resolved.items())),
+        "unresolved": dict(sorted(unresolved.items())),
+        "reading": ("read the installed artifact before filing a finding about its "
+                    "behaviour — recollection of an API is not evidence, and does not "
+                    "know this project's pin. No environment here means the contract "
+                    "is unreadable from this checkout: say so, and file at most a "
+                    "hypothesis."),
+    }
+
+
 def code_census(repo: Path, sha_range: str | None) -> dict:
     """The full census block for facts.json."""
     if sha_range:
@@ -331,6 +506,7 @@ def code_census(repo: Path, sha_range: str | None) -> dict:
         "imports": imports_census(Path(repo), lines),
         "placeholders": placeholders_census(lines),
         "provenance": provenance_census(Path(repo), sha_range),
+        "dependencies": dependencies_census(Path(repo), lines),
         "reading": ("leads, not findings: counts tell judgment where to look; "
                     "judgment decides what they mean"),
     }
