@@ -1,6 +1,6 @@
 {
  "schema": 1,
- "run_number": 17,
+ "run_number": 18,
  "rows": [
   {
    "fingerprint": "97ae9dc68fab0b10",
@@ -46,7 +46,7 @@
    "line": 2217,
    "excerpt": "2217 lines",
    "status": "open",
-   "delta": "NEW",
+   "delta": "STILL_OPEN",
    "first_seen": "2026-10-30",
    "first_seen_run": 17
   },

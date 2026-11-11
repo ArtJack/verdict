@@ -1,7 +1,7 @@
 {
  "schema": 1,
- "git_sha": "863c6232a296463a4bdd53bd39d8c563a67fd3d7",
- "measured_at": "2026-10-30T08:04:17Z",
+ "git_sha": "97e3da38880f07ea31464e53d0cb878f7f20e4bd",
+ "measured_at": "2026-11-11T20:22:03Z",
  "items": [
   {
    "kind": "duplicate_function",
@@ -71,12 +71,15 @@
   ".github/ISSUE_TEMPLATE/bug_report.yml",
   ".github/ISSUE_TEMPLATE/config.yml",
   ".github/ISSUE_TEMPLATE/eval_result.yml",
+  ".github/dependabot.yml",
   ".github/directory_branch.py",
   ".github/release_notes.py",
   ".github/workflows/ci.yml",
+  ".github/workflows/codeql.yml",
   ".github/workflows/eval.yml",
   ".github/workflows/qa-gate.yml",
   ".github/workflows/release.yml",
+  ".github/workflows/scorecard.yml",
   ".gitignore",
   "AGENTS.md",
   "CHANGELOG.md",

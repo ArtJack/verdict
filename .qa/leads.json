@@ -3,76 +3,44 @@
  "model": "chat-120b",
  "leads": [
   {
-   "path": ".github/directory_branch.py",
-   "line": 95,
-   "function": "plugin_tree",
-   "title": "Extra NUL sent to git update-index creates invalid empty entry when no files are kept",
-   "severity": "Major",
-   "why": "probe failed on the original: SyntaxError: invalid syntax"
-  },
-  {
-   "path": "eval/backfill/faithful.py",
-   "line": 38,
-   "function": "finding_of",
-   "title": "ID type mismatch causes StopIteration when finding ID is integer",
-   "severity": "Critical",
-   "why": "the model did not answer with JSON"
-  },
-  {
-   "path": "eval/backfill/faithful.py",
-   "line": 76,
-   "function": "main",
-   "title": "`--only` empty list ignored due to falsy check, causing all cases to be processed",
+   "path": "tests/test_ci_surfaces.py",
+   "line": 34,
+   "function": "test_ci_runs_the_hook_tests_on_the_interpreter_a_stock_mac_starts_them_with",
+   "title": "test_ci_runs_the_hook_tests_on_the_interpreter_a_stock_mac_starts_them_with may assert something incidental: It asserts the exact presence of \"--python 3.9\" and specific test file names in a CI YAML s",
    "severity": "Minor",
-   "why": "the model did not answer with JSON"
+   "why": "an opinion about a passing test"
   },
   {
-   "path": "eval/recall/build_cases.py",
-   "line": 53,
-   "function": "main",
-   "title": "Missing '=' validation lets malformed run specs create cases with empty root paths",
-   "severity": "Major",
-   "why": "the model did not answer with JSON"
-  },
-  {
-   "path": "eval/recall/packet_recall.py",
+   "path": "tests/test_ci_surfaces.py",
    "line": 42,
-   "function": "_head",
-   "title": "Missing git error handling in _head leads to silent failure",
-   "severity": "Major",
-   "why": "the model did not answer with JSON"
+   "function": "test_the_eval_job_cannot_report_green_without_a_key",
+   "title": "test_the_eval_job_cannot_report_green_without_a_key may assert something incidental: It asserts exact substrings ('shell: bash' before 'run: |' and 'ANTHROPIC_API_KEY is not set') which depend on spec",
+   "severity": "Minor",
+   "why": "an opinion about a passing test"
   },
   {
-   "path": "eval/recall/plain_arm.py",
-   "line": 114,
-   "function": "interpreter",
-   "title": "Regex matches later python path instead of interpreter token, returning incorrect interpreter",
-   "severity": "Major",
-   "why": "the proof budget was spent"
+   "path": "tests/test_ci_surfaces.py",
+   "line": 90,
+   "function": "test_no_workflow_grants_write_at_the_top",
+   "title": "test_no_workflow_grants_write_at_the_top may assert something incidental: The test relies on a strict regex that assumes a specific indentation and format for the top\u2011level permissions block, so harml",
+   "severity": "Minor",
+   "why": "an opinion about a passing test"
   },
   {
-   "path": "eval/recall/plain_arm.py",
-   "line": 144,
-   "function": "read_findings",
-   "title": "Fallback to result_text even when findings file exists but is empty",
-   "severity": "Major",
-   "why": "the proof budget was spent"
+   "path": "tests/test_ci_surfaces.py",
+   "line": 111,
+   "function": "test_nothing_that_can_publish_runs_off_a_tag",
+   "title": "test_nothing_that_can_publish_runs_off_a_tag may assert something incidental: asserts the exact string \"if: startsWith(github.ref, 'refs/tags/v')\" in the job definition, which depends on specific form",
+   "severity": "Minor",
+   "why": "an opinion about a passing test"
   },
   {
-   "path": "eval/recall/plain_arm.py",
-   "line": 187,
-   "function": "usage_rows",
-   "title": "Fallback branch hard\u2011codes model name \"claude\u2011opus\" instead of using actual model",
-   "severity": "Major",
-   "why": "the proof budget was spent"
-  },
-  {
-   "path": "eval/recall/plain_arm.py",
-   "line": 211,
-   "function": "isolated_tree",
-   "title": "Missing git rev-parse return code check yields misleading shared\u2011git\u2011dir error",
-   "severity": "Major",
-   "why": "the proof budget was spent"
+   "path": "tests/test_ci_surfaces.py",
+   "line": 124,
+   "function": "test_each_major_held_back_is_ignored_from_that_major_up",
+   "title": "test_each_major_held_back_is_ignored_from_that_major_up may assert something incidental: relies on exact string formatting of pyproject.toml and dependabot.yml via regex, so harmless changes break the",
+   "severity": "Minor",
+   "why": "an opinion about a passing test"
   }
  ]
 }
