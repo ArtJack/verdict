@@ -645,18 +645,31 @@ _LAMBDAS = {
     "go": re.compile(r"(?<![\w$])func\s*\(\)"),
     "php": re.compile(r"(?<![\w$])function\s*&?\s*\(\)"),
     "rust": re.compile(r"\|[^|]*\|\s*(?:->\s*[^{|]+)?$|\|\|\s*$"),
-    "cpp": re.compile(r"\[[^\]]*\]\s*(?:\(\))?\s*(?:mutable|constexpr|noexcept)?\s*"
-                      r"(?:->\s*[\w:<>,*&\s]+)?$"),
+    "cpp": re.compile(r"\[[^\]]*\]\s*(?:\(\))?\s*(?:constexpr)?$"),   # trailers already gone
 }
 # What follows a parameter list without ending the head of a method: `throws`, `const`, `async`.
+# Each pattern takes one thing off the end, and `_strip_trailers` repeats it: a repeated group of
+# overlapping alternatives (`&` or `&&`, `->` with spaces inside it) backtracks exponentially on a
+# long run of them, and the heads read here come from any file in any repository.
 _TRAILERS = {
-    "java": re.compile(r"\s+throws\s+[\w.<>,\s?]+$"),
-    "groovy": re.compile(r"\s+throws\s+[\w.<>,\s?]+$"),
-    "c": re.compile(r"(?:\s+(?:const|volatile))+$"),
-    "cpp": re.compile(r"(?:\s+(?:const|noexcept|override|final|volatile|mutable)|\s*&&?|"
-                      r"\s*noexcept\(\)|\s*->\s*[\w:<>,*&\s]+)+$"),
-    "dart": re.compile(r"\s+(?:async\*?|sync\*)$"),
+    "java": (re.compile(r"\s+throws\b[^{};()]*$"),),
+    "groovy": (re.compile(r"\s+throws\b[^{};()]*$"),),
+    "c": (re.compile(r"\s+(?:const|volatile)$"),),
+    "cpp": (re.compile(r"\s*->[^{};()]*$"),
+            re.compile(r"\s*(?:\b(?:const|noexcept|override|final|volatile|mutable)|noexcept\(\)|&&|&)$")),
+    "dart": (re.compile(r"\s+(?:async\*?|sync\*)$"),),
 }
+
+
+def _strip_trailers(bare: str, lang: str) -> str:
+    """`bare` without the qualifiers after its parameter list, one at a time from the end."""
+    for pattern in _TRAILERS.get(lang, ()):
+        for _ in range(16):                     # a head carries a handful, never more
+            stripped = pattern.sub("", bare)
+            if stripped == bare:
+                break
+            bare = stripped
+    return bare.strip()
 _ASSIGNED_TO = re.compile(r"(\$?[A-Za-z_][\w$]*)\s*(?::=|=)\s*(?:static\s+)?(?:async\s+)?"
                           r"(?:move\s+)?(?:func|function|fn|\||\[)")
 
@@ -667,8 +680,7 @@ def _classify_other(head: str, lang: str) -> tuple[str, str]:
     if lang == "rust" and _RUST_TESTS.search(head):
         return "tests", ""
     bare = _ANNOTATIONS.sub("", _flatten(head)).strip()
-    if lang in _TRAILERS:
-        bare = _TRAILERS[lang].sub("", bare).strip()
+    bare = _strip_trailers(bare, lang)
     if not bare:
         return "other", ""
     control = _OTHER_CONTROL.get(lang)

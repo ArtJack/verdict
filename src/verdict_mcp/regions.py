@@ -39,8 +39,9 @@ class Piece(NamedTuple):
 # Lines either side of a changed line in an excerpt: enough to see the statement and its guard.
 AROUND = 6
 
-_SCRIPT = re.compile(r"<script\b([^>]*)>(.*?)</script\s*>", re.S | re.I)
-_STYLE = re.compile(r"<style\b[^>]*>.*?</style\s*>", re.S | re.I)
+# An end tag ends at its `>` whatever comes between: browsers close a script on `</script foo>`.
+_SCRIPT = re.compile(r"<script\b([^>]*)>(.*?)</script\b[^>]*>", re.S | re.I)
+_STYLE = re.compile(r"<style\b[^>]*>.*?</style\b[^>]*>", re.S | re.I)
 _FRONT_MATTER = re.compile(r"\A(\s*---[ \t]*\r?\n)(.*?)(\r?\n---[ \t]*)(?:\r?\n|\Z)", re.S)
 _TEMPLATE_BLOCK = re.compile(r"<template\b[^>]*>", re.I)
 _RAZOR_CODE = re.compile(r"@(?:code|functions)\s*\{|@\{")
@@ -56,7 +57,7 @@ _SCRIPT_TYPES = {"", "module", "text/javascript", "application/javascript", "tex
 _TEMPLATE_SYNTAX = re.compile(r"\{%|\{\{|\*ng[A-Z]|\[\(?[\w.]+\)?\]=|\(\w+\)=|\bv-(?:if|for|bind|on|"
                               r"model|show|html)\b|\bx-(?:data|if|on|bind|show|html)\b|\bhx-[a-z]+=|"
                               r"\bth:[a-z]+=|@click")
-_COMMENT_ONLY = re.compile(r"^\s*(?:<!--.*-->|\{#.*#\}|\{\{!.*\}\}|<%#.*%>|@\*.*\*@)\s*$")
+_COMMENT_ONLY = re.compile(r"^\s*(?:<!--.*?-->|\{#.*?#\}|\{\{!.*?\}\}|<%#.*?%>|@\*.*?\*@)\s*$", re.S)
 
 
 def _view(text: str, spans) -> str:

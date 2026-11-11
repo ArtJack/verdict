@@ -455,3 +455,23 @@ def test_a_class_behind_a_decorator_with_arguments_is_still_a_type():
     (find,) = braces.functions(nest, "typescript", 120)
     assert find[0] == "find"
     assert find[4] == "@Controller('orders') @UseGuards(AuthGuard) export class OrdersController"
+
+
+@pytest.mark.parametrize("head", ["void f() &" + "&&" * 40 + "!",
+                                  "auto f() ->" + "\t\t->" * 40 + "{",
+                                  "int g() const" + " const" * 200 + " x"])
+def test_a_hostile_head_is_read_in_linear_time(head):
+    # CodeQL (2026-11-11): a repeated group of overlapping trailers backtracked exponentially on
+    # a long run of `&&` or `->`. The heads come from any file in any repository.
+    import time
+    began = time.perf_counter()
+    braces.classify(head, "cpp")
+    braces.classify(head, "c")
+    assert time.perf_counter() - began < 1.0
+
+
+def test_cpp_qualifiers_and_trailing_return_types_still_come_off():
+    assert braces.classify("int total() const noexcept", "cpp") == ("function", "total")
+    assert braces.classify("auto load() -> std::vector<int>", "cpp") == ("function", "load")
+    assert braces.classify("Cart& operator=(Cart&& other) &", "cpp")[0] in ("function", "other")
+    assert braces.classify("auto f = [&](int x) mutable -> int", "cpp") == ("lambda", "f")
