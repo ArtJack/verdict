@@ -8,8 +8,10 @@ key: pointed at the project's own state root, a judgment about a branch nobody
 merged would overwrite the record of the trunk.
 
 The third hazard is the quiet one. A range with no Python in it used to read
-nothing and report `pass`. Here it reads nothing, says so in one fixed sentence,
-and cannot rise above `pass with risks`.
+nothing and report `pass`. A range with nothing this engine reads still reads
+nothing, says so in one fixed sentence, and cannot rise above `pass with risks`.
+C#, TypeScript and JavaScript are read now, and held to the same ceiling: read is
+not run, and nothing read in them can be proven here.
 """
 
 import json
@@ -98,15 +100,15 @@ def test_a_range_run_reads_the_diff_not_the_reading_map(tmp_path):
         "no range at all: the reading map is the fallback, and it has no real files here"
     ranked = small.delta_candidates(facts, REPO, ["src/verdict_mcp/small.py"])
     assert ranked == ["src/verdict_mcp/small.py"]
-    assert small.delta_candidates(facts, REPO, ["app.ts", "README.md"]) == [], \
-        "a range with no Python reads nothing rather than falling back to the whole repo"
+    assert small.delta_candidates(facts, REPO, ["README.md", "pyproject.toml"]) == [], \
+        "a range with nothing readable reads nothing rather than falling back to the whole repo"
 
 
-def test_a_typescript_only_diff_reads_nothing_and_says_so(tmp_path):
+def test_a_diff_with_nothing_readable_reads_nothing_and_says_so(tmp_path):
     """A green gate over a diff this engine cannot read is not a QA pass, and the
     report has to be the one that says that out loud."""
     repo, sha_range = branch_repo(tmp_path, extra_files={
-        "app.ts": "export const rate = (w: number) => w * 2;\n"})
+        "README.md": "# Branchy\n", "settings.json": "{\"rate\": 2}\n"})
     qa = throwaway_root(tmp_path)
 
     model = ScriptedModel()
@@ -117,6 +119,27 @@ def test_a_typescript_only_diff_reads_nothing_and_says_so(tmp_path):
     assert model.calls == 0, "nothing was asked, because nothing was readable"
     facts = json.loads((qa / "facts.json").read_text(encoding="utf-8"))
     assert "non_python_diff" in facts["needs_claude"]
+
+
+def test_a_typescript_diff_is_read_and_held_below_pass(tmp_path):
+    """Until now a TypeScript-only diff read nothing. It is read now, one function to a
+    question, with the file's own line numbers and a fence the model reads as TypeScript;
+    and since nothing read in it can be executed here, a clean reading still is not a pass."""
+    repo, sha_range = branch_repo(tmp_path, extra_files={
+        "app.ts": "export function rate(w: number): number {\n  return w * 2;\n}\n"})
+    qa = throwaway_root(tmp_path)
+
+    model = ScriptedModel()
+    assert gate_run(repo, qa, sha_range, model) == 0
+    assert model.calls == 1, "one function changed, one question"
+    asked = model.prompts[0]
+    assert "one TypeScript function" in asked and "```ts\n   1| export function rate" in asked
+    state = state_of(qa)
+    assert state["verdict"] == "pass with risks", "read is not run"
+    assert small.READ_NOT_RUN in state["not_tested"]
+    assert not any(small.NO_CODE_READ in line for line in state["not_tested"])
+    facts = json.loads((qa / "facts.json").read_text(encoding="utf-8"))
+    assert "non_python_diff" not in facts.get("needs_claude", {})
 
 
 # ── the state root a branch may not touch ─────────────────────────────────────

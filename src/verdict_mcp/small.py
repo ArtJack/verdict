@@ -80,9 +80,10 @@ try:
     from .state import home as state_home
     from .state import norm_status, resolve_root, root_refusal
     from .validate import known_tests, validate_finding
-    from . import clock
+    from . import braces, clock
 except ImportError:  # bare-script execution
     sys.path.insert(0, str(Path(__file__).resolve().parent))
+    import braces
     import clock
     from anchors import line_sha, refs_in
     from harness import (RETRY_WINDOW_HOURS, _git, _parse_marker_time, _run_test, collect,
@@ -265,14 +266,84 @@ def extract_json(text: str) -> dict | None:
 # ── what to ask about: the harness decides, not the model ─────────────────────
 
 class Chunk:
-    """One function, with the line numbers it really occupies in its file."""
+    """One function, with the line numbers it really occupies in its file.
 
-    def __init__(self, path: str, name: str, start: int, end: int, source: str):
+    `lang` is the language it is written in, which picks the question's wording and whether a
+    counterfactual can run at all (Python only). `context` is the head of the type that holds a
+    C#, TypeScript or JavaScript function — the attributes on a whole controller are a guard
+    outside every method of it, and a question without them reads an unguarded method."""
+
+    def __init__(self, path: str, name: str, start: int, end: int, source: str,
+                 lang: str = "python", context: str | None = None, note: str = ""):
         self.path, self.name, self.start, self.end, self.source = path, name, start, end, source
+        self.lang, self.context, self.note = lang, context, note
 
     def numbered(self) -> str:
         return "\n".join(f"{self.start + i:4d}| {line}"
                          for i, line in enumerate(self.source.splitlines()))
+
+
+BRACE_LANGUAGES = ("csharp", "typescript", "javascript")
+
+
+def _brace_chunks(repo: Path, rel: str, lines) -> list | None:
+    """The questions a C#, TypeScript or JavaScript file raises — every outermost function when
+    `lines` is None, else the ones the changed `lines` sit in — or None for any other file."""
+    lang = braces.language_of(rel)
+    if lang not in BRACE_LANGUAGES:
+        return None
+    try:
+        text = (repo / rel).read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return []
+    found = (braces.functions(text, lang, MAX_SOURCE_LINES) if lines is None
+             else braces.around(text, lang, lines, MAX_SOURCE_LINES))
+    note = language_note(repo, rel, lang) if found else ""
+    return [Chunk(rel, name, start, end, source, lang, context, note)
+            for name, start, end, source, context in found]
+
+
+# What a project's own build settings declare about absent values. Measured on a .NET range
+# (2026-11-06): of the first C# claims a 120B reader made, most were a NullReferenceException on
+# a reference the project's nullable annotations already declare non-null. The settings are the
+# code's own statement, so the question carries them; a project that does not declare them gets
+# no sentence at all.
+_NULLABLE_NOTES = {
+    "csharp": (("*.csproj", "Directory.Build.props"), r"<Nullable>\s*enable\s*</Nullable>",
+               "The project enables nullable reference types: a reference type without `?` is "
+               "declared non-null, so report a null dereference only where this code shows the "
+               "value can be null (a `?` type, a `null` assigned, a lookup that can miss)."),
+    "typescript": (("tsconfig*.json",), r'"(?:strict|strictNullChecks)"\s*:\s*true',
+                   "The project compiles with strict null checks: a value whose type has no `?`, "
+                   "`| null` or `| undefined` is declared present, so report a missing null or "
+                   "undefined check only where this code shows the value can be absent."),
+}
+_NOTE_CACHE: dict = {}
+
+
+def language_note(repo: Path, rel: str, lang: str) -> str:
+    """The sentence about absent values the nearest project file declares for `rel`, or ""."""
+    if lang not in _NULLABLE_NOTES:
+        return ""
+    patterns, rule, sentence = _NULLABLE_NOTES[lang]
+    root = Path(repo).resolve()
+    here = (root / rel).parent
+    key = (str(here), lang)
+    if key not in _NOTE_CACHE:
+        said = False
+        while not said:
+            for pattern in patterns:
+                for found in sorted(here.glob(pattern)):
+                    try:
+                        said = said or bool(re.search(rule, found.read_text(encoding="utf-8",
+                                                                            errors="replace")))
+                    except OSError:
+                        continue
+            if here == root or here == here.parent or root not in here.parents:
+                break
+            here = here.parent
+        _NOTE_CACHE[key] = sentence if said else ""
+    return _NOTE_CACHE[key]
 
 
 def chunks_of(repo: Path, rel: str) -> list:
@@ -281,7 +352,12 @@ def chunks_of(repo: Path, rel: str) -> list:
     Line numbers come from the file, not from the excerpt: a model asked to point at a
     line in a pasted block counts from 1 and is wrong by the offset every time. Here the
     numbers are printed in the excerpt, so the answer is checkable against the file.
+    C#, TypeScript and JavaScript are read by `braces`, the same way: the file's own
+    line numbers, one function to a question.
     """
+    braced = _brace_chunks(repo, rel, None)
+    if braced is not None:
+        return braced
     try:
         text = (repo / rel).read_text(encoding="utf-8", errors="replace")
         tree = ast.parse(text)
@@ -400,7 +476,7 @@ def drifted_paths(facts: dict) -> list:
     return out
 
 
-def delta_candidates(facts: dict, repo: Path, changed: list) -> list:
+def delta_candidates(facts: dict, repo: Path, changed: list, sizes: dict | None = None) -> list:
     """What to read when the run is a delta: the change, ranked by what nothing ran.
 
     Coverage rank is the right question for a baseline and the wrong one for a
@@ -411,9 +487,16 @@ def delta_candidates(facts: dict, repo: Path, changed: list) -> list:
     the diff.
 
     The reading map is the fallback for a run with NO range at all, and only
-    then. A range that contains no Python must come back empty: falling through
-    to the whole repository would let a TypeScript-only diff be reported as a
-    Python audit of files the change never touched.
+    then. A range that contains nothing this engine reads must come back empty:
+    falling through to the whole repository would let a diff of YAML and Markdown
+    be reported as an audit of files the change never touched.
+
+    A diff that holds C#, TypeScript or JavaScript ranks the rest of the change by
+    how many lines each file added (`sizes`), whatever its language, after the
+    files the profile names outright. Python first would be the measured failure
+    this ordering exists to stop: a .NET range whose six changed Python helper
+    scripts took every question while the C# beside them went unread. A diff of
+    Python alone is ranked exactly as before.
     """
     if not changed:
         return candidates(facts, repo)
@@ -421,12 +504,23 @@ def delta_candidates(facts: dict, repo: Path, changed: list) -> list:
     drifted = drifted_paths(facts)
     gapped = gap_functions(facts)
     ranked, seen = [], set()
-    for group in ([p for p in changed if p in gapped],
+    if not any(braces.readable(p) for p in changed):
+        groups = ([p for p in changed if p in gapped],
                   [p for p in changed if p in cold],
                   [p for p in changed if p in drifted],
-                  list(changed)):
+                  list(changed))
+    else:
+        # The code before its tests: a Python test file is still read, after every source file,
+        # and a C#, TypeScript or JavaScript test is not read here at all.
+        named = {str(f) for f in ((facts.get("risk_focus") or {}).get("named_files") or [])}
+        groups = ([p for p in changed if p in gapped],
+                  [p for p in changed if p in cold],
+                  [p for p in changed if p in drifted],
+                  [p for p in changed if p in named],
+                  sorted(changed, key=lambda p: (is_test_file(p), -int((sizes or {}).get(p, 0)), p)))
+    for group in groups:
         for rel in group:
-            if rel in seen or not rel.endswith(".py"):
+            if rel in seen or not (rel.endswith(".py") or braces.readable(rel)):
                 continue
             if not (repo / rel).is_file():
                 continue
@@ -436,15 +530,67 @@ def delta_candidates(facts: dict, repo: Path, changed: list) -> list:
 
 
 def python_in(paths) -> list:
-    """The `.py` files of a set of paths. A diff with none of them is a diff this
-    engine cannot read at all, and that is a fact the run has to state rather than
-    a reason to report a clean pass."""
+    """The `.py` files of a set of paths."""
     return [p for p in paths if str(p).endswith(".py")]
+
+
+def readable_in(paths) -> list:
+    """The files of a set of paths this engine reads: Python, and C#, TypeScript and
+    JavaScript that is not a test, generated or vendored. A diff with none of them is
+    a diff this engine cannot read at all, and that is a fact the run has to state
+    rather than a reason to report a clean pass."""
+    return [p for p in paths if str(p).endswith(".py") or braces.readable(p)]
+
+
+def added_lines(repo: Path, sha_range: str | None) -> dict:
+    """`{path: lines added}` over the range, from `git diff --numstat` (binary files: 0)."""
+    if not sha_range:
+        return {}
+    proc = subprocess.run(["git", "-C", str(repo), "diff", "--numstat", "--no-color", sha_range],
+                          capture_output=True, text=True, encoding="utf-8", errors="replace")
+    out = {}
+    for line in proc.stdout.splitlines() if proc.returncode == 0 else []:
+        parts = line.split("\t")
+        if len(parts) == 3:
+            out[parts[2].replace("\\", "/")] = int(parts[0]) if parts[0].isdigit() else 0
+    return out
+
+
+_DIFF_HUNK = re.compile(r"^@@ -\d+(?:,\d+)? \+(\d+)(?:,(\d+))? @@")
+
+
+def changed_lines_in(repo: Path, sha_range: str | None, paths) -> dict:
+    """`{path: set(line)}`: the lines the range added or changed in `paths`, in the new file's
+    numbering. Where a hunk only deleted, the line after the deletion stands for it."""
+    paths = [str(p) for p in paths]
+    if not sha_range or not paths:
+        return {}
+    proc = subprocess.run(["git", "-C", str(repo), "diff", "-U0", "--no-color", "--diff-filter=AM",
+                           sha_range, "--", *paths],
+                          capture_output=True, text=True, encoding="utf-8", errors="replace")
+    out: dict = {}
+    current = None
+    for line in proc.stdout.splitlines() if proc.returncode == 0 else []:
+        if line.startswith("+++ "):
+            current = line[6:].replace("\\", "/") if line.startswith("+++ b/") else None
+            continue
+        m = _DIFF_HUNK.match(line)
+        if m and current:
+            start, count = int(m.group(1)), int(m.group(2) if m.group(2) is not None else 1)
+            out.setdefault(current, set()).update(range(start, start + count) if count
+                                                  else {max(start, 1)})
+    return out
 
 
 def chunks_in_range(repo: Path, rel: str, lines: set | None) -> list:
     """The functions of a file that intersect the changed lines — the whole file
-    when the range is not known at line granularity."""
+    when the range is not known at line granularity. A C#, TypeScript or JavaScript
+    file answers for its changed lines itself: the function each one sits in, or the
+    statement that holds it."""
+    if lines:
+        braced = _brace_chunks(repo, rel, lines)
+        if braced is not None:
+            return braced
     chunks = chunks_of(repo, rel)
     if not lines:
         return chunks
@@ -486,12 +632,73 @@ Answer with JSON only:
   "impact": "<one sentence: what a caller gets wrong because of it>"}}"""
 
 
+# The same two questions for C#, TypeScript and JavaScript. The Python wording above is kept
+# word for word: the evals that measured it would otherwise be measuring something else.
+BRACES_CONTRACT_Q = """You are a software tester reading one {language} function from a larger
+codebase. Its doc comment, or its name and the code, state what it must do.
+
+File: {path}{context}
+```{fence}
+{source}
+```
+
+Does the code do exactly what it claims? Look for: a boundary that is off by one (`>` where
+`>=` is meant), a condition that can never be true or is always true, an error or a failed
+result that is swallowed, a null or undefined value used without a check, an async call whose
+result is never awaited, a conversion or rounding that loses value, state changed in the wrong
+order or left half-written when a step fails.
+
+Judge only what this code shows. A check its callers make, or one an attribute, a filter or a
+middleware enforces, is not visible here: do not report a missing check unless this code is
+where outside input enters and nothing shown performs it.{note}
+
+Reply with JSON only:
+{{"verdict": "matches" or "mismatch",
+  "line": <the line number from the left margin above, or null>,
+  "mechanism": "<one sentence: what the code does, and what it should do instead>"}}"""
+
+BRACES_CLASSIFY_Q = """You are a software tester. A defect has been claimed in this {language} function.
+
+File: {path}{context}
+```{fence}
+{source}
+```
+
+Claim: {mechanism}
+
+Answer with JSON only:
+{{"is_real": true or false,
+  "severity": "Blocker" or "Critical" or "Major" or "Minor" or "Trivial",
+  "title": "<one sentence naming the defect and its consequence, under 120 characters>",
+  "impact": "<one sentence: what a caller gets wrong because of it>"}}"""
+
+
+def contract_question(chunk: Chunk) -> str:
+    """The first question about `chunk`, worded for its language."""
+    if chunk.lang not in BRACE_LANGUAGES:
+        return CONTRACT_Q.format(path=chunk.path, source=chunk.numbered())
+    return BRACES_CONTRACT_Q.format(**_brace_fields(chunk))
+
+
+def classify_question(chunk: Chunk, mechanism: str) -> str:
+    """The second question about `chunk`: is the claimed defect real, and how bad."""
+    if chunk.lang not in BRACE_LANGUAGES:
+        return CLASSIFY_Q.format(path=chunk.path, source=chunk.numbered(), mechanism=mechanism)
+    return BRACES_CLASSIFY_Q.format(mechanism=mechanism, **_brace_fields(chunk))
+
+
+def _brace_fields(chunk: Chunk) -> dict:
+    return {"language": braces.NAMES.get(chunk.lang, chunk.lang), "fence": braces.FENCES[chunk.lang],
+            "path": chunk.path, "source": chunk.numbered(),
+            "context": f"\nIt is declared inside: {chunk.context}" if chunk.context else "",
+            "note": f"\n{chunk.note}" if getattr(chunk, "note", "") else ""}
+
+
 def examine(model: Model, chunk: Chunk, hint: str | None = None) -> dict | None:
     """Two bounded calls: is it wrong, and if so how bad. Neither sees the other's
     context — the second is given the claim as text, not as history. `hint` is what the
     assertion-gap census measured about this function, appended to the first question."""
-    first = model.ask_json(CONTRACT_Q.format(path=chunk.path, source=chunk.numbered())
-                           + (f"\n\n{hint}" if hint else ""))
+    first = model.ask_json(contract_question(chunk) + (f"\n\n{hint}" if hint else ""))
     if not first or str(first.get("verdict")) != "mismatch":
         return None
     mechanism = str(first.get("mechanism") or "").strip()
@@ -500,8 +707,7 @@ def examine(model: Model, chunk: Chunk, hint: str | None = None) -> dict | None:
     line = first.get("line")
     line = int(line) if isinstance(line, (int, float)) and chunk.start <= line <= chunk.end \
         else chunk.start
-    second = model.ask_json(CLASSIFY_Q.format(path=chunk.path, source=chunk.numbered(),
-                                              mechanism=mechanism), max_tokens=600)
+    second = model.ask_json(classify_question(chunk, mechanism), max_tokens=600)
     if not second or second.get("is_real") is not True:
         return None
     severity = str(second.get("severity") or "Minor")
@@ -1793,8 +1999,10 @@ def needs_claude(facts: dict, filed: list, refiled: list, touched: list,
     if refiled:
         out["drift_unsettled"] = sorted(str(f.get("id")) for f in refiled)[:20]
     if non_python:
-        out["non_python_diff"] = ("no parseable Python in the range — this engine read no "
-                                  "code at all")
+        # The key keeps its name (state-schema.md documents it); since C#, TypeScript and
+        # JavaScript are read it means "nothing in the range this engine reads".
+        out["non_python_diff"] = ("no source this engine reads in the range (Python, C#, "
+                                  "TypeScript or JavaScript) — it read no code at all")
     if parked:
         out["questions_parked"] = parked
     if over_limit:
@@ -1804,9 +2012,18 @@ def needs_claude(facts: dict, filed: list, refiled: list, touched: list,
 
 
 LEADS_FILE = "leads.json"
-NO_CODE_READ = ("No code was read this run: the range contains no parseable Python, and this "
-                "engine reads Python only. A green gate here means the suite did not fail; it "
-                "is not a QA pass.")
+NO_CODE_READ = ("No code was read this run: the range contains no source this engine reads "
+                "(Python, C#, TypeScript, JavaScript). A green gate here means the suite did not "
+                "fail; it is not a QA pass.")
+# Why a reading of C#, TypeScript or JavaScript stays unproven: a counterfactual flips a line
+# and re-runs an expression in a Python interpreter, and there is no such seam for them here.
+NO_PROBE = "no counterfactual: this engine executes Python only, and this function is {language}"
+# The ceiling for a range whose C#, TypeScript or JavaScript was read. Read is not run: the
+# verdict over code no question could ever prove stays below `pass`, as it did when that code
+# was not read at all.
+READ_NOT_RUN = ("C#, TypeScript or JavaScript in the range was read one function at a time and "
+                "none of it was executed: this engine runs counterfactuals in Python only, so "
+                "every reading there is unproven, and a green gate is not a QA pass of that code.")
 # A focus list that only ever grows is a focus list nobody reads, which is the
 # same as not having one.
 FOCUS_LINES = 20
@@ -2017,8 +2234,12 @@ def file_findings(model: Model, repo: Path, targets: list, mint, findings_dir: P
             claim = examine(model, chunk, gap_hint(named[chunk.name]) if chunk.name in named else None)
             if not claim:
                 continue
+            # A counterfactual runs Python; for any other language none is attempted and none
+            # of the probe budget is spent.
+            unprovable = (NO_PROBE.format(language=braces.NAMES.get(chunk.lang, chunk.lang))
+                          if chunk.lang != "python" else None)
             proof = (counterfactual(model, repo, chunk, claim, python)
-                     if prove and budget.take_probe() else None)
+                     if prove and not unprovable and budget.take_probe() else None)
             if proof is not None and probes is not None:
                 probes.append({"path": chunk.path, "function": chunk.name,
                                "line": claim["line"], "expression": proof.get("expression", ""),
@@ -2046,7 +2267,7 @@ def file_findings(model: Model, repo: Path, targets: list, mint, findings_dir: P
                 # judge it — listed in the report, not added to the record.
                 leads.append({"path": chunk.path, "line": claim["line"], "function": chunk.name,
                               "title": claim["title"], "severity": claim["severity"],
-                              "why": (proof or {}).get("reason") or
+                              "why": (proof or {}).get("reason") or unprovable or
                               ("no counterfactual was attempted" if not prove
                                else "the proof budget was spent")})
             elif prior is None:
@@ -2423,14 +2644,21 @@ def run(repo: Path, qa_root: Path, model: Model, limit: int, gate: str | None,
         # read. Handing it an empty list fell through to the reading map: the second Sales
         # shadow night re-ranked the whole repository's least-covered files and reported
         # its empty range as too large for the caps.
-        ranked = delta_candidates(facts, repo, changed) if changed else []
-        targets = [(rel, cold_by_file.get(rel)) for rel in ranked[:limit]]
+        sizes = added_lines(repo, measured_range) if any(braces.readable(p) for p in changed) else None
+        ranked = delta_candidates(facts, repo, changed, sizes) if changed else []
+        # Coverage names the changed lines no test ran, for Python. For C#, TypeScript and
+        # JavaScript the diff itself names the changed lines: one question per function they
+        # sit in, never the whole file.
+        braced = [rel for rel in ranked[:limit] if braces.language_of(rel) in BRACE_LANGUAGES]
+        diff_lines = changed_lines_in(repo, measured_range, braced)
+        targets = [(rel, diff_lines.get(rel) if rel in braced else cold_by_file.get(rel))
+                   for rel in ranked[:limit]]
     else:
         ranked = candidates(facts, repo)
         targets = [(rel, None) for rel in ranked[:limit]]
     files = [rel for rel, _ in targets]
     over_limit = len(ranked) > limit
-    non_python = bool(ranged and changed and not python_in(changed))
+    non_python = bool(ranged and changed and not readable_in(changed))
 
     print(f"verdict-local: {len(files)} file(s) to read, model {model.name}"
           + (f", proving with {python}" if prove else f", {disabled}"), file=sys.stderr)
@@ -2634,8 +2862,10 @@ def run(repo: Path, qa_root: Path, model: Model, limit: int, gate: str | None,
     # A prior state with no verdict in it is unknown, not clean — and `None` here
     # means "baseline", which would hand this run the freedom a baseline has.
     prior_verdict = (previous.get("verdict") or "blocked") if previous else None
+    braced_read = examined > 0 and any(braces.language_of(rel) in BRACE_LANGUAGES for rel in files)
     verdict = local_verdict(prior_verdict, filed, carried_records, measured, cold_lines,
-                            ceiling=NO_CODE_READ if non_python else None,
+                            ceiling=(NO_CODE_READ if non_python
+                                     else READ_NOT_RUN if braced_read else None),
                             gates_failed=gate_failed(facts))
 
     touched = touches_findings(reference, changed) if reference else []
@@ -2669,6 +2899,8 @@ def run(repo: Path, qa_root: Path, model: Model, limit: int, gate: str | None,
     not_tested = not_tested_lines(model, files, examined, prior_open, still_open_ids,
                                   refiled, prove, budget, quarantine_notes, non_python,
                                   disabled=disabled, unread_survivors=unread)
+    if braced_read:
+        not_tested.append(READ_NOT_RUN)
     if leads:
         not_tested.append(
             f"{len(leads)} reading(s) this engine could not prove were listed as leads in the "
@@ -2705,7 +2937,8 @@ def run(repo: Path, qa_root: Path, model: Model, limit: int, gate: str | None,
             "risks": ("Every finding read here is a `hypothesis` unless a counterfactual "
                       "proved it. This mode cannot see a defect that spans two functions, and "
                       "it reads the suite only where the range touched it."
-                      + (" " + NO_CODE_READ if non_python else "")),
+                      + (" " + NO_CODE_READ if non_python else "")
+                      + (" " + READ_NOT_RUN if braced_read else "")),
             "notes": ("No Claude tokens were spent on this run. The verdict cannot improve on "
                       "its own: a previous `fail` stays `fail`, and a previous `blocked` "
                       "stays `blocked`, until something with judgment looks at it."
