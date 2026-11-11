@@ -39,7 +39,12 @@ import subprocess
 import sys
 from pathlib import Path
 
-_SOURCE_SUFFIXES = {".py", ".js", ".jsx", ".ts", ".tsx", ".mjs", ".cjs"}
+_JS_SUFFIXES = {".js", ".jsx", ".ts", ".tsx", ".mjs", ".cjs"}
+# What the tree sample reads for placeholders: source in the languages a website is built in.
+# Only Python and JavaScript have an import census; the rest are read for placeholders alone.
+_SOURCE_SUFFIXES = {".py", *_JS_SUFFIXES, ".vue", ".svelte", ".astro", ".cs", ".java", ".kt", ".go",
+                    ".rs", ".swift", ".dart", ".php", ".rb", ".ex", ".exs", ".lua", ".scala", ".sol",
+                    ".c", ".cc", ".cpp", ".h", ".hpp"}
 _SKIP_DIRS = {".git", ".venv", "venv", "node_modules", "__pycache__", ".qa",
               "dist", "build", ".mypy_cache", ".ruff_cache", ".pytest_cache"}
 _TREE_CAP = 300  # a baseline census is a sample, and says so, not a crawl
@@ -249,7 +254,7 @@ def imports_census(repo: Path, lines) -> dict:
     for path, lineno, text in lines:
         suffix = Path(path).suffix
         pattern = _PY_IMPORT if suffix == ".py" else (
-            _JS_IMPORT if suffix in _SOURCE_SUFFIXES else None)
+            _JS_IMPORT if suffix in _JS_SUFFIXES else None)
         if pattern is None:
             continue
         for m in pattern.finditer(text) if pattern is _JS_IMPORT else (

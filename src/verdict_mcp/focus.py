@@ -14,6 +14,11 @@ import re
 import subprocess
 from pathlib import Path
 
+try:
+    from . import languages
+except ImportError:  # imported as a plain module beside small.py
+    import languages
+
 HEADING = re.compile(r"^#{1,6}\s+(.*?)\s*$")
 TICKED = re.compile(r"`([^`\n]{2,160})`")
 IDENT = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)*(?:\(\))?$")
@@ -79,12 +84,12 @@ def terms(profile_text: str) -> tuple:
             context = ""
         for token in TICKED.findall(line):
             token = token.strip()
-            if "/" in token or token.endswith(".py"):
+            if "/" in token or _is_file(token):
                 path = token.strip("/").removeprefix("./")
                 if not path or " " in path:
                     continue
                 if "/" in path:
-                    context = path.rsplit("/", 1)[0] if path.endswith(".py") else path
+                    context = path.rsplit("/", 1)[0] if _is_file(path) else path
                 elif context:
                     path = f"{context}/{path}"
                 if path not in paths:
@@ -96,26 +101,56 @@ def terms(profile_text: str) -> tuple:
     return paths, names[:MAX_NAMES]
 
 
+def _is_file(token: str) -> bool:
+    """A token that names a source file — `benefits.py`, `route.ts`, `orders_controller.rb` —
+    rather than a directory or a code name."""
+    return languages.language_of(token) is not None
+
+
 def _tracked(repo: Path) -> list:
-    proc = subprocess.run(["git", "-C", str(repo), "ls-files", "*.py"], capture_output=True,
+    """The tracked source files, in every language this engine reads, that are not generated."""
+    proc = subprocess.run(["git", "-C", str(repo), "ls-files"], capture_output=True,
                           text=True, errors="replace")
-    return proc.stdout.splitlines() if proc.returncode == 0 else []
+    if proc.returncode != 0:
+        return []
+    return [f for f in proc.stdout.splitlines() if languages.source(f)]
+
+
+def _code_first(path: str) -> int:
+    """0 for code, 1 for a language read as excerpts, 2 for a template: a Python project's
+    scope keeps its Python files ahead of the HTML and SQL beside them."""
+    lang = languages.language_of(path)
+    if languages.family_of(lang) != "lines":
+        return 0
+    return 2 if languages.is_template(lang) else 1
+
+
+# The words that declare a named thing, in every language: `def`, `class`, `function`, Go's
+# `func (s *S) Name`, Rust's `fn`, Kotlin's `fun`, `struct`, `trait`, `module`, `defmodule`,
+# Ruby's `def self.name`, and `const name =` for a JavaScript function held in a constant.
+_DECLARING = (r"def|class|function|func|fn|fun|sub|module|struct|trait|interface|enum|record|"
+              r"object|protocol|extension|type|impl|contract|library|modifier|defp|defmodule|"
+              r"const|let|var|val")
 
 
 def _defining(repo: Path, names) -> dict:
-    """{file: the names it defines} for tracked Python files. A name with an underscore also
+    """{file: the names it defines} for tracked source files. A name with an underscore also
     matches its `name_*` variants: `set_input` finds `set_input_dispatch_by_period`."""
     if not names:
         return {}
     # POSIX classes, not \\s or \\b: git grep's extended syntax on macOS knows neither.
-    pattern = (r"^[[:space:]]*(async[[:space:]]+)?(def|class)[[:space:]]+("
+    pattern = (r"^[[:space:]]*([a-z]+[[:space:]]+)*(" + _DECLARING + r")[[:space:]]+"
+               r"(\([^)]*\)[[:space:]]*)?(self\.)?("
                + "|".join(re.escape(n) for n in names) + r")(_[A-Za-z0-9_]*)?([^A-Za-z0-9_]|$)")
-    proc = subprocess.run(["git", "-C", str(repo), "grep", "-o", "-E", pattern, "--", "*.py"],
+    proc = subprocess.run(["git", "-C", str(repo), "grep", "-o", "-E", pattern],
                           capture_output=True, text=True, errors="replace")
     out: dict = {}
     for line in proc.stdout.splitlines():
         path, _, match = line.partition(":")
-        m = re.search(r"(?:def|class)\s+([A-Za-z_][A-Za-z0-9_]*)", match)
+        if not languages.source(path):
+            continue
+        m = re.search(r"(?:" + _DECLARING + r")\s+(?:\([^)]*\)\s*)?(?:self\.)?"
+                      r"([A-Za-z_][A-Za-z0-9_]*)", match)
         if not path or not m:
             continue
         defined = m.group(1)
@@ -132,13 +167,14 @@ def risk_focus(repo: Path, profile_text: str, is_test=lambda p: False) -> dict |
     stems = words(profile_text)
     if not paths and not names and not stems:
         return None
-    tracked = [f for f in _tracked(Path(repo)) if not is_test(f) and "/migrations/" not in f"/{f}"]
+    tracked = [f for f in _tracked(Path(repo)) if not is_test(f) and not languages.is_test_path(f)
+               and "/migrations/" not in f"/{f}"]
     known = set(tracked)
     defining = {k: v for k, v in _defining(Path(repo), names).items() if k in known}
     # A file named outright (a full path, or a bare `benefits.py` next to its directory) is the
     # strongest signal a risk section gives; then files by how specific the names they define are:
     # `calculate_add`, defined once, says more than `sum`, defined in a dozen files.
-    dirs = [p.rstrip("/") for p in paths if not p.endswith(".py")]
+    dirs = [p.rstrip("/") for p in paths if not _is_file(p)]
 
     def named_by_path(p):
         found = [f for f in tracked if f == p or f.endswith("/" + p)]
@@ -146,7 +182,7 @@ def risk_focus(repo: Path, profile_text: str, is_test=lambda p: False) -> dict |
             found = [f for f in found if any(f.startswith(d + "/") for d in dirs)]
         return found if len(found) <= 2 else []
 
-    named_files = list(dict.fromkeys(f for p in paths if p.endswith(".py") for f in named_by_path(p)))
+    named_files = list(dict.fromkeys(f for p in paths if _is_file(p) for f in named_by_path(p)))
     df: dict = {}
     for found in defining.values():
         for n in found:
@@ -154,8 +190,9 @@ def risk_focus(repo: Path, profile_text: str, is_test=lambda p: False) -> dict |
     weight = {f: sum(1 / df[n] for n in found) for f, found in defining.items()}
     ranked = sorted((f for f in defining if f not in named_files), key=lambda f: (-weight[f], f))
     taken_now = set(named_files) | set(ranked)
-    under = [f for f in tracked if f not in taken_now
-             and any(f.startswith(p.rstrip("/") + "/") for p in paths if not p.endswith(".py"))]
+    under = sorted((f for f in tracked if f not in taken_now
+                    and any(f.startswith(p.rstrip("/") + "/") for p in paths if not _is_file(p))),
+                   key=_code_first)
 
     def named_by_words(f):
         parts = [_stem(x) for x in re.split(r"[/_.]", f.lower()) if len(x) >= 4]
@@ -163,6 +200,6 @@ def risk_focus(repo: Path, profile_text: str, is_test=lambda p: False) -> dict |
 
     taken = set(named_files) | set(ranked) | set(under)
     worded = sorted((f for f in tracked if f not in taken and named_by_words(f)),
-                    key=lambda f: (-named_by_words(f), f))
+                    key=lambda f: (-named_by_words(f), _code_first(f), f))
     return {"paths": paths, "names": names, "words": stems[:40], "named_files": named_files[:MAX_FILES],
             "files": (named_files + ranked + under + worded)[:MAX_FILES]}
