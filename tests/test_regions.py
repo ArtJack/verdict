@@ -1,0 +1,155 @@
+"""Code inside markup, and languages read as excerpts.
+
+A Vue component's `<script setup>` is TypeScript, its template is code of another kind, and its
+`<style>` is neither. A Razor view's `@code { }` is C#. An HTML page's `<script>` is JavaScript, its
+JSON-LD is not, and its markup is read only when a template language's tags are in it. Every line
+keeps its own number, whichever reader takes it.
+"""
+
+import sys
+from pathlib import Path
+
+REPO = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(REPO / "src"))
+from verdict_mcp import readers, regions  # noqa: E402
+
+
+def pieces(found):
+    return [(p.name, p.start, p.end, p.lang, p.unit) for p in found]
+
+
+VUE = '''<template>
+  <div>
+    <button @click="count++">{{ count }}</button>
+    <p v-if="isAdmin" v-html="note"></p>
+  </div>
+</template>
+
+<script setup lang="ts">
+import { ref } from 'vue'
+const count = ref(0)
+function reset(): void {
+  count.value = 0
+}
+</script>
+
+<style scoped>
+button { color: red; }
+</style>
+'''
+
+
+def test_a_vue_component_is_read_as_typescript_and_as_a_template():
+    assert pieces(readers.read("src/Counter.vue", VUE, None, 120)) == [
+        ("lines 1-5", 1, 5, "vue", "template"), ("reset", 11, 13, "typescript", "function")]
+    assert pieces(readers.read("src/Counter.vue", VUE, {10}, 120)) == [
+        ("count", 10, 10, "typescript", "function")]
+    assert pieces(readers.read("src/Counter.vue", VUE, {17}, 120)) == [], "a style is not read"
+
+
+def test_a_template_excerpt_prints_the_files_own_lines():
+    (piece,) = readers.read("src/Counter.vue", VUE, {4}, 120)
+    assert piece.unit == "template" and piece.start == 1
+    assert 'v-html="note"' in piece.source
+
+
+HTML = '''<!doctype html>
+<html>
+<head>
+<script type="application/ld+json">{ "@type": "Organization" }</script>
+<script src="/app.js"></script>
+<script>
+  function send(form) {
+    if (!form.email.value) { return false; }
+    fetch('/api', { method: 'POST' });
+  }
+</script>
+</head>
+<body><form onsubmit="return send(this)"></form></body>
+</html>
+'''
+
+
+def test_an_html_page_reads_its_scripts_and_not_its_json_or_plain_markup():
+    assert pieces(readers.read("public/index.html", HTML, None, 120)) == [
+        ("send", 7, 10, "javascript", "function")]
+    assert readers.read("public/index.html", HTML, {13}, 120) == [], "plain markup asks nothing"
+
+
+def test_an_html_template_reads_its_markup():
+    page = "<ul>\n{% for o in orders %}\n  <li>{{ o.total|safe }}</li>\n{% endfor %}\n</ul>\n"
+    assert pieces(readers.read("templates/orders.html", page, {3}, 120)) == [
+        ("lines 1-5", 1, 5, "html", "template")]
+
+
+RAZOR = '''@page
+@model IndexModel
+<h1>Orders</h1>
+@if (User.IsInRole("Admin"))
+{
+    <a href="/admin">Admin</a>
+}
+@code {
+    private int count;
+    private void Increment()
+    {
+        count++;
+    }
+}
+'''
+
+
+def test_a_razor_view_reads_its_code_block_as_csharp_and_its_markup_as_a_template():
+    assert pieces(readers.read("Pages/Index.cshtml", RAZOR, None, 120)) == [
+        ("lines 1-8", 1, 8, "razor", "template"), ("Increment", 10, 13, "csharp", "function")]
+    assert pieces(readers.read("Pages/Index.cshtml", RAZOR, {4}, 120)) == [
+        ("lines 1-8", 1, 8, "razor", "template")], "the window stops where the C# begins"
+
+
+ASTRO = '''---
+const posts = await getPosts();
+function title(p) {
+  return p.title.toUpperCase();
+}
+---
+<ul>{posts.map((p) => <li>{title(p)}</li>)}</ul>
+'''
+
+
+def test_an_astro_page_reads_its_front_matter_as_typescript():
+    assert pieces(readers.read("src/pages/index.astro", ASTRO, None, 120)) == [
+        ("title", 3, 5, "typescript", "function"), ("lines 7-7", 7, 7, "astro", "template")]
+
+
+SQL = '''-- orders
+CREATE TABLE orders (
+  id serial PRIMARY KEY,
+  total numeric NOT NULL
+);
+
+
+CREATE POLICY read_own ON orders FOR SELECT USING (true);
+'''
+
+
+def test_a_language_with_no_reader_of_its_own_is_read_as_excerpts():
+    assert pieces(readers.read("db/schema.sql", SQL, {8}, 120)) == [
+        ("lines 2-8", 2, 8, "sql", "excerpt")], "six lines either side: the table the policy reads"
+    assert pieces(readers.read("db/schema.sql", SQL, {1}, 120)) == [], "a comment asks nothing"
+    assert pieces(readers.read("db/schema.sql", SQL, None, 120)) == [
+        ("lines 1-5", 1, 5, "sql", "excerpt"), ("lines 8-8", 8, 8, "sql", "excerpt")]
+
+
+def test_excerpts_merge_while_they_fit_and_never_run_past_one_question():
+    text = "\n".join(f"echo {i}" for i in range(1, 301))
+    found = regions.windows(text, "shell", {10, 14, 200}, 120)
+    assert [(p.start, p.end) for p in found] == [(4, 20), (194, 206)]
+    long = regions.windows(text, "shell", set(range(1, 301)), 120)
+    assert all(p.end - p.start <= 120 for p in long)
+    assert {n for p in long for n in range(p.start, p.end + 1)} == set(range(1, 301))
+
+
+def test_a_generated_file_raises_no_question():
+    assert readers.read("api/client.ts", "// Code generated by openapi. DO NOT EDIT.\nexport function f() {}\n",
+                        None, 120) == []
+    assert readers.read("scripts/seed.py", "def f(): pass\n", None, 120) is None, "Python is read by ast"

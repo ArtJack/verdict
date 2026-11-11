@@ -681,12 +681,29 @@ measured fail→pass on a test somebody chose, carried by id, or re-filed under 
 the drift that moved it — never left unmentioned, because the harness reads silence as
 resolution. Its verdict is monotone: it can make a verdict worse or leave it alone, and both a
 `fail` and a `blocked` stand until something with judgment looks at them. `--range`/`--base` with a
-throwaway `--qa-root` judge a branch without touching the project's own state. It reads Python,
-and C#, TypeScript and JavaScript one function at a time, cut by a reader with no parser
-dependency ([src/verdict_mcp/braces.py](src/verdict_mcp/braces.py)): the function each changed line
-sits in, with the file's own line numbers and the head of the type around it. Counterfactuals run
-in Python only, so a reading in any other language stays unproven, and the verdict over that code
-stays below `pass`. A range with nothing it reads reads nothing and says so rather than reporting a
+throwaway `--qa-root` judge a branch without touching the project's own state. It reads every
+language a website is built in, one function at a time, with readers that need no parser
+dependency ([src/verdict_mcp/languages.py](src/verdict_mcp/languages.py) names them):
+
+- **Python** through `ast`.
+- **The brace languages** (C#, TypeScript, JavaScript, Java, Kotlin, Scala, Groovy, Go, Rust, Swift,
+  Dart, C, C++, PHP, Solidity) through [braces.py](src/verdict_mcp/braces.py).
+- **Ruby, Elixir and Lua** through [ends.py](src/verdict_mcp/ends.py), which reads their `end` blocks
+  by indentation. A Rails `before_action` and a Phoenix `plug` travel with the methods they guard.
+- **Vue, Svelte and Astro components, HTML pages and Razor views** through
+  [regions.py](src/verdict_mcp/regions.py): their scripts and `@code` blocks by their own language's
+  reader, their templates as templates.
+- **Every other language** (SQL, shell, PowerShell, Perl, Haskell and the rest) and every template
+  language (Blade, ERB, Jinja, Twig, Liquid, Handlebars) as excerpts: the changed lines with the
+  lines around them, and a question that says it shows lines, not a function.
+
+Each question carries the file's own line numbers and the head of the type around the function.
+Counterfactuals run in Python only, so a reading in any other language stays unproven, and the
+verdict over that code stays below `pass`. Skipped and focused tests are found in every framework
+a website is tested with (Jest, Vitest, Mocha, Playwright, Cypress, RSpec, JUnit, xUnit, NUnit,
+PHPUnit, Go, Rust, XCTest, ExUnit, Dart). A committed `it.only` is filed like a skip with no expiry,
+because it silently switches off the rest of its suite. A range with nothing it reads (only
+configuration, styles, documentation or tests) reads nothing and says so rather than reporting a
 clean pass. Wire it into a
 night with `verdict-run --on-drift local`, which can never reach the `claude` CLI at all.
 **The full agent through a gateway** (`verdict-run --env-file`, `ANTHROPIC_BASE_URL` → LiteLLM →

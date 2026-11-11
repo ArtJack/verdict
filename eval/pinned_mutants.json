@@ -2351,8 +2351,8 @@
  {
   "label": "0.90.10 skip scan 1: a test-looking file the suite never collects is scanned for skips",
   "path": "src/verdict_mcp/small.py",
-  "old": "    return collected_test_files(repo, qa_root) or test_files(repo)\n",
-  "new": "    return test_files(repo)\n"
+  "old": "    python = collected_test_files(repo, qa_root) or test_files(repo)\n",
+  "new": "    python = test_files(repo)\n"
  },
  {
   "label": "0.90.10 skip scan 2: a pytest.skip() under a condition reads as an abandoned test",
@@ -2855,7 +2855,7 @@
  {
   "label": "focus 4: tests and migrations are read as the scope the profile names",
   "path": "src/verdict_mcp/focus.py",
-  "old": "    tracked = [f for f in _tracked(Path(repo)) if not is_test(f) and \"/migrations/\" not in f\"/{f}\"]\n",
+  "old": "    tracked = [f for f in _tracked(Path(repo)) if not is_test(f) and not languages.is_test_path(f)\n               and \"/migrations/\" not in f\"/{f}\"]\n",
   "new": "    tracked = _tracked(Path(repo))\n"
  },
  {
