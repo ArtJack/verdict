@@ -80,12 +80,13 @@ try:
     from .state import home as state_home
     from .state import norm_status, resolve_root, root_refusal
     from .validate import known_tests, validate_finding
-    from . import braces, clock, languages, readers, testmarks
+    from . import braces, clock, languages, reach, readers, testmarks
 except ImportError:  # bare-script execution
     sys.path.insert(0, str(Path(__file__).resolve().parent))
     import braces
     import clock
     import languages
+    import reach
     import readers
     import testmarks
     from anchors import line_sha, refs_in
@@ -280,9 +281,10 @@ class Chunk:
 
     def __init__(self, path: str, name: str, start: int, end: int, source: str,
                  lang: str = "python", context: str | None = None, note: str = "",
-                 unit: str = "function"):
+                 unit: str = "function", reached: list | None = None):
         self.path, self.name, self.start, self.end, self.source = path, name, start, end, source
         self.lang, self.context, self.note, self.unit = lang, context, note, unit
+        self.reached = reached or []
 
     def numbered(self) -> str:
         return "\n".join(f"{self.start + i:4d}| {line}"
@@ -304,8 +306,13 @@ def _source_chunks(repo: Path, rel: str, lines) -> list | None:
     except OSError:
         return []
     found = readers.read(rel, text, lines, MAX_SOURCE_LINES) or []
+    # A function in a file its own language's reader cut is asked about with what it reaches for
+    # one step outside itself: the callee that checks, the state it shares, the type it names.
+    whole_file = languages.family_of(lang) in ("braces", "ends")
     return [Chunk(rel, p.name, p.start, p.end, p.source, p.lang, p.context,
-                  language_note(repo, rel, p.lang), p.unit) for p in found]
+                  language_note(repo, rel, p.lang), p.unit,
+                  reach.reached(repo, rel, text, p.lang, p.start, p.end)
+                  if whole_file and p.unit == "function" else None) for p in found]
 
 
 _brace_chunks = _source_chunks
@@ -720,7 +727,7 @@ codebase. Its doc comment, or its name and the code, state what it must do.
 File: {path}{context}
 ```{fence}
 {source}
-```
+```{relied}
 
 Does the code do exactly what it claims? Look for: a boundary that is off by one (`>` where
 `>=` is meant), a condition that can never be true or is always true, an error or a failed
@@ -742,7 +749,7 @@ BRACES_CLASSIFY_Q = """You are a software tester. A defect has been claimed in t
 File: {path}{context}
 ```{fence}
 {source}
-```
+```{relied}
 
 Claim: {mechanism}
 
@@ -843,10 +850,12 @@ def _brace_fields(chunk: Chunk) -> dict:
     language = languages.name_of(chunk.lang)
     if getattr(chunk, "unit", "function") == "template" and not language.endswith("template"):
         language += " template"                 # a Vue component's template, a Razor view's markup
-    return {"language": language, "fence": languages.fence_of(chunk.lang) or chunk.lang,
+    fence = languages.fence_of(chunk.lang) or chunk.lang
+    return {"language": language, "fence": fence,
             "path": chunk.path, "source": chunk.numbered(),
             "context": f"\nIt is declared inside: {chunk.context}" if chunk.context else "",
-            "note": f"\n{chunk.note}" if getattr(chunk, "note", "") else ""}
+            "note": f"\n{chunk.note}" if getattr(chunk, "note", "") else "",
+            "relied": reach.block(getattr(chunk, "reached", []) or [], fence)}
 
 
 def examine(model: Model, chunk: Chunk, hint: str | None = None) -> dict | None:
