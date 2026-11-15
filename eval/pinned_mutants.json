@@ -1702,7 +1702,7 @@
  },
  {
   "label": "0.90.0 P29 local: a green test a small model calls brittle is filed on a project with a record",
-  "path": "src/verdict_mcp/small.py",
+  "path": "src/verdict_mcp/local_suite.py",
   "old": "            if leads is not None:\n                # A green test a small model thinks is brittle is an opinion about a\n",
   "new": "            if False:\n                # A green test a small model thinks is brittle is an opinion about a\n"
  },
@@ -2122,7 +2122,7 @@
  },
  {
   "label": "local severity 1: a failing test the model calls a Blocker files as a Blocker",
-  "path": "src/verdict_mcp/small.py",
+  "path": "src/verdict_mcp/local_suite.py",
   "old": "    severity = capped_failure(claim[\"severity\"])\n",
   "new": "    severity = claim[\"severity\"]\n"
  },
