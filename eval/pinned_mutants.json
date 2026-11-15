@@ -1606,7 +1606,7 @@
  },
  {
   "label": "0.90.0 P13 local gate: a range run falls back to the reading map",
-  "path": "src/verdict_mcp/small.py",
+  "path": "src/verdict_mcp/local_candidates.py",
   "old": "    if not changed:\n        return candidates(facts, repo)",
   "new": "    if True:\n        return candidates(facts, repo)"
  },
@@ -2668,7 +2668,7 @@
  },
  {
   "label": "0.91.1 local 1: files holding a survivor are no longer read first",
-  "path": "src/verdict_mcp/small.py",
+  "path": "src/verdict_mcp/local_candidates.py",
   "old": "    files = list(gap_functions(facts))\n",
   "new": "    files = []\n"
  },
@@ -2866,7 +2866,7 @@
  },
  {
   "label": "focus 6: the breadth pass reads by coverage order, not the scope the profile names",
-  "path": "src/verdict_mcp/small.py",
+  "path": "src/verdict_mcp/local_candidates.py",
   "old": "    files += [f for f in ((facts.get(\"risk_focus\") or {}).get(\"files\") or []) if isinstance(f, str)]\n",
   "new": ""
  },
