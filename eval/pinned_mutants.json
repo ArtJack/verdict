@@ -2698,7 +2698,7 @@
  },
  {
   "label": "0.91.1 local 3: an unread survivor function is left out of not_tested",
-  "path": "src/verdict_mcp/small.py",
+  "path": "src/verdict_mcp/local_summary.py",
   "old": "    out.extend(f\"{path}::{name} — an assertion-gap survivor this run did not read\"\n               for path, name in (unread_survivors or []))\n",
   "new": ""
  },
