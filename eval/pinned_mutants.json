@@ -806,7 +806,7 @@
  },
  {
   "label": "0.79.0 S4 F-72: every pick counts as chosen",
-  "path": "src/verdict_mcp/harness.py",
+  "path": "src/verdict_mcp/harness_common.py",
   "old": "    return isinstance(rec, dict) and rec.get(\"selected_by\") in (\"explicit\", \"added_this_run\")\n",
   "new": "    return isinstance(rec, dict)\n"
  },
