@@ -105,7 +105,7 @@ PLATFORM_PATHS = ("/_vercel/", "/.netlify/", "/cdn-cgi/", "/.well-known/vercel/"
 
 # Where a site's redirects and rewrites live. A local run has none of the deployment's settings,
 # so a path these files mention may be served in production and missing here (measured
-# 2026-11-14: artjeck.com's /lab/brain is a rewrite that exists only when an env var is set).
+# 2026-11-14 on a real Next.js site: a rewrite that exists only when an env var is set).
 ROUTING_FILES = ("next.config.js", "next.config.mjs", "next.config.cjs", "next.config.ts",
                  "vercel.json", "netlify.toml", "_redirects", "public/_redirects",
                  "nuxt.config.ts", "nuxt.config.js", "astro.config.mjs", "astro.config.ts",
