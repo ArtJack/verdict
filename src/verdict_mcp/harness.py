@@ -100,91 +100,65 @@ except ImportError:  # bare-script execution
     from state import misplaced_root, root_refusal
     from validate import (inherited_conflicts, known_tests, report_outside_reports,
                           validate_judgment)
-try:  # split out of this file by the structure pass; still importable here
+# Split out of this file by the structure pass (2026-11-15), and imported back for the code
+# below and for callers that import these names from harness.
+try:
     from .harness_common import _git, _read_json, _resolve_root, _session_identity
-except ImportError:  # executed as a bare script
-    from harness_common import _git, _read_json, _resolve_root, _session_identity
-try:  # split out of this file by the structure pass; still importable here
     from .facts_suite import (_counts, _summary_line, cannot_start, duration_regressed,
                               executed_nothing)
-except ImportError:  # executed as a bare script
-    from facts_suite import (_counts, _summary_line, cannot_start, duration_regressed,
-                             executed_nothing)
-try:  # split out of this file by the structure pass; still importable here
     from .facts_verify import (verify_findings, _drop_bytecode as _drop_bytecode,
                                _run_test as _run_test, _scratch_checkout as _scratch_checkout,
                                cited_tests as cited_tests, resolve_test_id as resolve_test_id,
                                select_test as select_test)
-except ImportError:  # executed as a bare script
-    from facts_verify import (verify_findings, _drop_bytecode as _drop_bytecode,
-                              _run_test as _run_test, _scratch_checkout as _scratch_checkout,
-                              cited_tests as cited_tests, resolve_test_id as resolve_test_id,
-                              select_test as select_test)
-try:  # split out of this file by the structure pass; still importable here
     from .facts_reading import (_test_id_from_context as _test_id_from_context, is_test_file,
                                 reading_map_from as reading_map_from)
-except ImportError:  # executed as a bare script
-    from facts_reading import (_test_id_from_context as _test_id_from_context, is_test_file,
-                               reading_map_from as reading_map_from)
-try:  # split out of this file by the structure pass; still importable here
     from .facts_coverage import (PREMEASURED_ENV, PREMEASURED_MAX_AGE_MIN, _changed_lines,
                                  _coverage_with_gaps, _put, _restake_marker,
                                  GAPS_MIN_S as GAPS_MIN_S, _diff_from_files as _diff_from_files,
                                  _render_cmd as _render_cmd, _run_coverage as _run_coverage)
-except ImportError:  # executed as a bare script
-    from facts_coverage import (PREMEASURED_ENV, PREMEASURED_MAX_AGE_MIN, _changed_lines,
-                                _coverage_with_gaps, _put, _restake_marker,
-                                GAPS_MIN_S as GAPS_MIN_S, _diff_from_files as _diff_from_files,
-                                _render_cmd as _render_cmd, _run_coverage as _run_coverage)
-try:  # split out of this file by the structure pass; still importable here
     from .hygiene_facts import (hygiene_evidence as hygiene_evidence, split_hygiene,
                                 tier2_items as tier2_items)
-except ImportError:  # executed as a bare script
-    from hygiene_facts import (hygiene_evidence as hygiene_evidence, split_hygiene,
-                               tier2_items as tier2_items)
-try:  # split out of this file by the structure pass; still importable here
     from .finalize_ids import finding_hash as finding_hash, next_finding_id
-except ImportError:  # executed as a bare script
-    from finalize_ids import finding_hash as finding_hash, next_finding_id
-try:  # split out of this file by the structure pass; still importable here
     from .finalize_carry import (_apply_replay as _apply_replay, _replay_fresh_findings,
                                  _stamp_outcome as _stamp_outcome,
                                  read_first_accounting as read_first_accounting, run_date,
                                  survivor_accounting)
+    from .finalize_write import (check_artifacts, write_state, INDEX_HEADER as INDEX_HEADER,
+                                 index_row as index_row)
+    from .finalize_merge import merge
+    from .report_names import _lift_narratives, _re_report, _report_name, _safe_topic as _safe_topic
+    from .finalize_policy import change_lines, gate_policy
+    from .finalize_bill import _gateway_host, _measure_bill, _record_bill
+    from .report_sections import _render_calibration as _render_calibration
+    from .report_render import render_report
 except ImportError:  # executed as a bare script
+    from harness_common import _git, _read_json, _resolve_root, _session_identity
+    from facts_suite import (_counts, _summary_line, cannot_start, duration_regressed,
+                             executed_nothing)
+    from facts_verify import (verify_findings, _drop_bytecode as _drop_bytecode,
+                              _run_test as _run_test, _scratch_checkout as _scratch_checkout,
+                              cited_tests as cited_tests, resolve_test_id as resolve_test_id,
+                              select_test as select_test)
+    from facts_reading import (_test_id_from_context as _test_id_from_context, is_test_file,
+                               reading_map_from as reading_map_from)
+    from facts_coverage import (PREMEASURED_ENV, PREMEASURED_MAX_AGE_MIN, _changed_lines,
+                                _coverage_with_gaps, _put, _restake_marker,
+                                GAPS_MIN_S as GAPS_MIN_S, _diff_from_files as _diff_from_files,
+                                _render_cmd as _render_cmd, _run_coverage as _run_coverage)
+    from hygiene_facts import (hygiene_evidence as hygiene_evidence, split_hygiene,
+                               tier2_items as tier2_items)
+    from finalize_ids import finding_hash as finding_hash, next_finding_id
     from finalize_carry import (_apply_replay as _apply_replay, _replay_fresh_findings,
                                 _stamp_outcome as _stamp_outcome,
                                 read_first_accounting as read_first_accounting, run_date,
                                 survivor_accounting)
-try:  # split out of this file by the structure pass; still importable here
-    from .finalize_write import (check_artifacts, write_state, INDEX_HEADER as INDEX_HEADER,
-                                 index_row as index_row)
-except ImportError:  # executed as a bare script
     from finalize_write import (check_artifacts, write_state, INDEX_HEADER as INDEX_HEADER,
                                 index_row as index_row)
-try:  # split out of this file by the structure pass; still importable here
-    from .finalize_merge import merge
-except ImportError:  # executed as a bare script
     from finalize_merge import merge
-try:  # split out of this file by the structure pass; still importable here
-    from .report_names import _lift_narratives, _re_report, _report_name, _safe_topic as _safe_topic
-except ImportError:  # executed as a bare script
     from report_names import _lift_narratives, _re_report, _report_name, _safe_topic as _safe_topic
-try:  # split out of this file by the structure pass; still importable here
-    from .finalize_policy import change_lines, gate_policy
-except ImportError:  # executed as a bare script
     from finalize_policy import change_lines, gate_policy
-try:  # split out of this file by the structure pass; still importable here
-    from .finalize_bill import _gateway_host, _measure_bill, _record_bill
-except ImportError:  # executed as a bare script
     from finalize_bill import _gateway_host, _measure_bill, _record_bill
-try:  # split out of this file by the structure pass; still importable here
-    from .report_sections import _render_calibration as _render_calibration
-except ImportError:  # executed as a bare script
     from report_sections import _render_calibration as _render_calibration
-try:  # split out of this file by the structure pass; still importable here
-    from .report_render import render_report
-except ImportError:  # executed as a bare script
     from report_render import render_report
 
 RE_BASELINE_AFTER_DAYS = 7
