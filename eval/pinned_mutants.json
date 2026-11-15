@@ -1480,7 +1480,7 @@
  },
  {
   "label": "0.89.0 Q8 harness: a bill that cannot be written takes the run down with it",
-  "path": "src/verdict_mcp/harness.py",
+  "path": "src/verdict_mcp/finalize_bill.py",
   "old": "    except Exception as exc:        # noqa: BLE001 — see the docstring\n        print(f\"verdict-finalize: the run's bill was not recorded",
   "new": "    except KeyError as exc:        # noqa: BLE001 — see the docstring\n        print(f\"verdict-finalize: the run's bill was not recorded"
  },
@@ -2128,7 +2128,7 @@
  },
  {
   "label": "local bill 1: a local run reads the launching session's bill",
-  "path": "src/verdict_mcp/harness.py",
+  "path": "src/verdict_mcp/finalize_bill.py",
   "old": "    if _judged_locally(facts):\n        return None\n    marker = _read_json(qa_root / \"run-in-progress.json\") or {}\n",
   "new": "    marker = _read_json(qa_root / \"run-in-progress.json\") or {}\n"
  },
@@ -3166,7 +3166,7 @@
  },
  {
   "label": "gateway host 3: the bill writes the gateway's whole URL, userinfo, path and query, where a hostname was promised",
-  "path": "src/verdict_mcp/harness.py",
+  "path": "src/verdict_mcp/finalize_bill.py",
   "old": "        return urllib.parse.urlsplit(text if \"//\" in text else \"//\" + text).hostname or None\n",
   "new": "        return text\n"
  },
