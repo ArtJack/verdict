@@ -1168,7 +1168,7 @@
  },
  {
   "label": "0.83.0 L5 harness: introduced_at falls back to first_seen when the origin names no commit",
-  "path": "src/verdict_mcp/harness.py",
+  "path": "src/verdict_mcp/finalize_ids.py",
   "old": "            entry[\"introduced_at\"] = when[:10]\n            entry[\"introduced_sha\"] = full\n            return\n",
   "new": "            entry[\"introduced_at\"] = when[:10]\n            entry[\"introduced_sha\"] = full\n            return\n    if entry.get(\"first_seen\"):\n        entry[\"introduced_at\"] = entry[\"first_seen\"]\n"
  },
@@ -1762,7 +1762,7 @@
  },
  {
   "label": "0.90.0 P39 harness: finding ids without a prefix (Sales' F-162) are not read, and a second numbering starts",
-  "path": "src/verdict_mcp/harness.py",
+  "path": "src/verdict_mcp/finalize_ids.py",
   "old": "_FID = re.compile(r\"^(?:(?P<prefix>.+)-)?F-(?P<n>\\d+)$\")\n",
   "new": "_FID = re.compile(r\"^(?P<prefix>.+)-F-(?P<n>\\d+)$\")\n"
  },
@@ -1930,7 +1930,7 @@
  },
  {
   "label": "0.91.0 H25 harness: the next id reads only a wrapped outcome ledger, so an id only the ledger holds is minted again",
-  "path": "src/verdict_mcp/harness.py",
+  "path": "src/verdict_mcp/finalize_ids.py",
   "old": "    if isinstance(rows.get(\"findings\"), dict):\n        rows = rows[\"findings\"]\n",
   "new": "    rows = rows.get(\"findings\") if isinstance(rows.get(\"findings\"), dict) else {}\n"
  },
@@ -1996,7 +1996,7 @@
  },
  {
   "label": "0.91.0 H36 merge: a key back after its finding left the state is filed again under a new id",
-  "path": "src/verdict_mcp/harness.py",
+  "path": "src/verdict_mcp/finalize_ids.py",
   "old": "    return [row for row in rows.values()\n",
   "new": "    return [row for row in []\n"
  },
