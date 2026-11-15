@@ -1300,19 +1300,19 @@
  },
  {
   "label": "0.86.0 N2 reading map: sorted most covered first",
-  "path": "src/verdict_mcp/harness.py",
+  "path": "src/verdict_mcp/facts_reading.py",
   "old": "    modules.sort(key=lambda m: (m[\"percent\"] if m[\"percent\"] is not None else 101,\n                                -(m[\"statements\"] or 10 ** 9)))\n",
   "new": "    modules.sort(key=lambda m: -(m[\"percent\"] or 0))\n"
  },
  {
   "label": "0.86.0 N3 reading map: test files counted as modules to read",
-  "path": "src/verdict_mcp/harness.py",
+  "path": "src/verdict_mcp/facts_reading.py",
   "old": "        if is_test_file(p):\n            continue\n        summ = (f or {}).get(\"summary\") or {}\n",
   "new": "        if False:\n            continue\n        summ = (f or {}).get(\"summary\") or {}\n"
  },
  {
   "label": "0.86.0 N4 reading map: a module the suite never imported is invisible",
-  "path": "src/verdict_mcp/harness.py",
+  "path": "src/verdict_mcp/facts_reading.py",
   "old": "    for path in tracked or []:\n",
   "new": "    for path in []:\n"
  },
@@ -1324,7 +1324,7 @@
  },
  {
   "label": "0.86.0 N6 exercised-by: any test of the file counts, not the tests that executed the cited line",
-  "path": "src/verdict_mcp/harness.py",
+  "path": "src/verdict_mcp/facts_reading.py",
   "old": "            for c in (fj.get(\"contexts\") or {}).get(str(a.get(\"line\")), []):\n",
   "new": "            for c in {x for v in (fj.get(\"contexts\") or {}).values() for x in v}:\n"
  },
