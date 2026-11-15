@@ -1042,19 +1042,19 @@
  },
  {
   "label": "0.80.2 G2 ofetch: colour codes reach the dialect table (vitest reads as pytest, 1 of 28)",
-  "path": "src/verdict_mcp/harness.py",
+  "path": "src/verdict_mcp/facts_suite.py",
   "old": "    output = _ANSI.sub(\"\", output)\n",
   "new": "    output = output\n"
  },
  {
   "label": "0.80.2 G3 ofetch: the vitest count is read off the `Test Files` line (collected 1 of 28)",
-  "path": "src/verdict_mcp/harness.py",
+  "path": "src/verdict_mcp/facts_suite.py",
   "old": "        \"collected\": r\"(?m)^\\s*Tests\\s+.*\\((\\d+)\\)\",\n",
   "new": "        \"collected\": r\"\\((\\d+)\\)\",\n"
  },
  {
   "label": "0.80.2 G4 ofetch: the jest count is read off the `Test Suites` line",
-  "path": "src/verdict_mcp/harness.py",
+  "path": "src/verdict_mcp/facts_suite.py",
   "old": "        \"collected\": r\"(?m)^Tests:.*?(\\d+) total\",\n",
   "new": "        \"collected\": r\"(\\d+) total\",\n"
  },
@@ -1072,25 +1072,25 @@
  },
  {
   "label": "0.80.2 G7 F-65 campaign: gotestsum's skip count is read from a broken pattern (mutmut #27)",
-  "path": "src/verdict_mcp/harness.py",
+  "path": "src/verdict_mcp/facts_suite.py",
   "old": "        \"skipped\": r\"(\\d+)\\s+skipped\"}),\n    (r\"Total:\\s*\\d+\", \"dotnet\", {",
   "new": "        \"skipped\": r\"XX(\\d+)\\s+skippedXX\"}),\n    (r\"Total:\\s*\\d+\", \"dotnet\", {"
  },
  {
   "label": "0.80.2 S1 sweep: two prior durations stop being a baseline (the minimum moves by one)",
-  "path": "src/verdict_mcp/harness.py",
+  "path": "src/verdict_mcp/facts_suite.py",
   "old": "    if len(priors) < _DURATION_MIN_PRIOR:\n",
   "new": "    if len(priors) <= _DURATION_MIN_PRIOR:\n"
  },
  {
   "label": "0.80.2 S2 sweep: a zero median is compared against, then divided by",
-  "path": "src/verdict_mcp/harness.py",
+  "path": "src/verdict_mcp/facts_suite.py",
   "old": "    if median <= 0:\n",
   "new": "    if median < 0:\n"
  },
  {
   "label": "0.80.2 S3 sweep: a duration that is not a number is compared anyway (TypeError on None)",
-  "path": "src/verdict_mcp/harness.py",
+  "path": "src/verdict_mcp/facts_suite.py",
   "old": "    if not isinstance(current_s, (int, float)):\n        return None\n    priors = sorted(",
   "new": "    if False:\n        return None\n    priors = sorted("
  },

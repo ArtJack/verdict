@@ -833,13 +833,14 @@ def test_duration_regression_needs_a_number():
 def test_collect_reports_duration_regression_from_history(repo, qa_root, monkeypatch):
     """End to end: history in runs.jsonl, comparison in collect, fact in the
     gate result -- the judgment step receives it established."""
+    import verdict_mcp.facts_suite as facts_suite
     import verdict_mcp.harness as h
     rows = [{"run_number": n, "gate_durations": {"suite": 0.001}} for n in (1, 2, 3)]
     (qa_root / "runs.jsonl").write_text(
         "".join(json.dumps(r) + "\n" for r in rows), encoding="utf-8")
     # The real gate takes ~1s of wall clock; against a 1ms median that is
     # thousands of x. Only the absolute floor needs lowering to test the wiring.
-    monkeypatch.setattr(h, "_DURATION_ABS_FLOOR_S", 0.0)
+    monkeypatch.setattr(facts_suite, "_DURATION_ABS_FLOOR_S", 0.0)
     facts = h.collect(repo, qa_root, [("suite", _emit(["1 passed"]))])
     gate = facts["gates"]["suite"]
     assert "duration_regressed" in gate, gate
