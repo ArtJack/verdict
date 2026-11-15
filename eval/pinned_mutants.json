@@ -2350,13 +2350,13 @@
  },
  {
   "label": "0.90.10 skip scan 1: a test-looking file the suite never collects is scanned for skips",
-  "path": "src/verdict_mcp/small.py",
+  "path": "src/verdict_mcp/local_skips.py",
   "old": "    python = collected_test_files(repo, qa_root) or test_files(repo)\n",
   "new": "    python = test_files(repo)\n"
  },
  {
   "label": "0.90.10 skip scan 2: a pytest.skip() under a condition reads as an abandoned test",
-  "path": "src/verdict_mcp/small.py",
+  "path": "src/verdict_mcp/local_skips.py",
   "old": "            if m.group(\"call\") and _under_a_condition(text, line):",
   "new": "            if False:"
  },
