@@ -278,7 +278,7 @@ def test_the_verdict_is_arithmetic_over_the_findings():
 
 
 def test_ids_from_a_report_use_the_harnesss_own_parser():
-    source = (REPO / "src" / "verdict_mcp" / "small.py").read_text(encoding="utf-8")
+    source = (REPO / "src" / "verdict_mcp" / "local_suite.py").read_text(encoding="utf-8")
     assert "read_report(path)" in source, \
         "a second parser gave a second id shape, and every rerun looked unstable"
 
