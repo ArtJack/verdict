@@ -1534,19 +1534,19 @@
  },
  {
   "label": "0.90.0 P1 local delta: a drifted finding is carried instead of re-filed",
-  "path": "src/verdict_mcp/small.py",
+  "path": "src/verdict_mcp/local_carry.py",
   "old": "        elif drift in (\"changed\", \"missing\"):\n            refile.append((f, drift, moved))",
   "new": "        elif False:\n            refile.append((f, drift, moved))"
  },
  {
   "label": "0.90.0 P2 local delta: an unmentioned finding is left to the merge's silence rule",
-  "path": "src/verdict_mcp/small.py",
+  "path": "src/verdict_mcp/local_carry.py",
   "old": "        else:\n            still_open.append(fid)",
   "new": "        else:\n            pass"
  },
  {
   "label": "0.90.0 P3 local delta: a resolution on a test that merely passes at HEAD",
-  "path": "src/verdict_mcp/small.py",
+  "path": "src/verdict_mcp/local_carry.py",
   "old": "    if rec.get(\"at_previous\") != \"fail\" or rec.get(\"at_head\") != \"pass\":\n        return None",
   "new": "    if rec.get(\"at_head\") != \"pass\":\n        return None"
  },
@@ -1978,7 +1978,7 @@
  },
  {
   "label": "0.91.0 H33 local: a hygiene id is carried by word, so every local night records it as ignored",
-  "path": "src/verdict_mcp/small.py",
+  "path": "src/verdict_mcp/local_carry.py",
   "old": "        if norm_status(f.get(\"status\")) != \"open\" or f.get(\"source\") == \"hygiene\":\n",
   "new": "        if norm_status(f.get(\"status\")) != \"open\":\n"
  },
