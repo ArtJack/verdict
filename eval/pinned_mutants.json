@@ -1582,7 +1582,7 @@
  },
  {
   "label": "0.90.0 P9 local quarantine: released on the expiry date alone, unmeasured",
-  "path": "src/verdict_mcp/small.py",
+  "path": "src/verdict_mcp/local_quarantine.py",
   "old": "        outcomes = [_run_test(test_one_cmd, str(entry[\"test_id\"]), repo, repo,\n                              REQUARANTINE_TIMEOUT_S)[\"result\"] for _ in range(runs)]",
   "new": "        outcomes = [\"pass\" for _ in range(runs)]"
  },
