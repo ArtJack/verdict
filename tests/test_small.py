@@ -219,7 +219,8 @@ def test_the_console_script_is_declared():
 def test_the_judgment_says_what_local_mode_did_not_do():
     source = (REPO / "src" / "verdict_mcp" / "small.py").read_text(encoding="utf-8")
     assert '"not_tested"' in source
-    assert "no origin was traced" in source, \
+    lines = (REPO / "src" / "verdict_mcp" / "local_summary.py").read_text(encoding="utf-8")
+    assert "no origin was traced" in lines, \
         "a pass must always name what was not tested; local mode tests almost nothing"
 
 

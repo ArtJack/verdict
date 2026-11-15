@@ -52,7 +52,7 @@ from datetime import timedelta
 from pathlib import Path
 
 try:
-    from .harness import _git, finalize_main, finding_hash, is_test_file
+    from .harness import finalize_main, finding_hash, is_test_file
     from .filed import FINDINGS_DIR
     from .profile import ProfileError, gates_from
     from .profile import load as load_profile
@@ -65,7 +65,7 @@ except ImportError:  # bare-script execution
     sys.path.insert(0, str(Path(__file__).resolve().parent))
     import clock
     import languages
-    from harness import _git, finalize_main, finding_hash, is_test_file
+    from harness import finalize_main, finding_hash, is_test_file
     from filed import FINDINGS_DIR
     from profile import ProfileError, gates_from
     from profile import load as load_profile
@@ -94,15 +94,13 @@ except ImportError:  # executed as a bare script
                                   changed_lines_of, chunks_in_range as chunks_in_range,
                                   delta_candidates, python_in, readable_in)
 try:  # split out of this file by the structure pass; still importable here
-    from .local_questions import (FAILURE_CEILING, UNPROVEN_CEILING,
-                                  capped_failure as capped_failure, examine as examine,
+    from .local_questions import (capped_failure as capped_failure, examine as examine,
                                   finding_of as finding_of, CLASSIFY_Q as CLASSIFY_Q,
                                   CONTRACT_Q as CONTRACT_Q, capped as capped,
                                   classify_question as classify_question,
                                   contract_question as contract_question)
 except ImportError:  # executed as a bare script
-    from local_questions import (FAILURE_CEILING, UNPROVEN_CEILING,
-                                 capped_failure as capped_failure, examine as examine,
+    from local_questions import (capped_failure as capped_failure, examine as examine,
                                  finding_of as finding_of, CLASSIFY_Q as CLASSIFY_Q,
                                  CONTRACT_Q as CONTRACT_Q, capped as capped,
                                  classify_question as classify_question,
@@ -156,13 +154,11 @@ except ImportError:  # executed as a bare script
     from local_verdict import (CARRIED_BLOCKED, counts_measured, gate_failed, local_verdict,
                                unexercised_diff, verdict_for as verdict_for)
 try:  # split out of this file by the structure pass; still importable here
-    from .local_leads import (FOCUS_LINES, LEADS_FILE, LEADS_IN_FOCUS, LEADS_IN_REPORT,
-                              NO_CODE_READ, NO_PROBE as NO_PROBE, READ_NOT_RUN, _unique,
-                              needs_claude)
+    from .local_leads import (FOCUS_LINES, LEADS_FILE, LEADS_IN_FOCUS, NO_CODE_READ,
+                              NO_PROBE as NO_PROBE, READ_NOT_RUN, _unique, needs_claude)
 except ImportError:  # executed as a bare script
-    from local_leads import (FOCUS_LINES, LEADS_FILE, LEADS_IN_FOCUS, LEADS_IN_REPORT,
-                             NO_CODE_READ, NO_PROBE as NO_PROBE, READ_NOT_RUN, _unique,
-                             needs_claude)
+    from local_leads import (FOCUS_LINES, LEADS_FILE, LEADS_IN_FOCUS, NO_CODE_READ,
+                             NO_PROBE as NO_PROBE, READ_NOT_RUN, _unique, needs_claude)
 try:  # split out of this file by the structure pass; still importable here
     from .local_budget import Budget, MAX_FUNCTIONS
 except ImportError:  # executed as a bare script
@@ -182,6 +178,12 @@ except ImportError:  # executed as a bare script
     from local_env import (ENGINE, REUSE_MAX_AGE_MIN, interpreter_of, measure, plaintext_env_files,
                            probes_off, read_json, read_reference, touches_findings,
                            _RUNNER_PYTHON as _RUNNER_PYTHON, _gate_tokens as _gate_tokens)
+try:  # split out of this file by the structure pass; still importable here
+    from .local_summary import (leads_text, not_tested_lines, print_summary, read_env_file,
+                                resolve_range, written_verdict)
+except ImportError:  # executed as a bare script
+    from local_summary import (leads_text, not_tested_lines, print_summary, read_env_file,
+                               resolve_range, written_verdict)
 # What a gate run may spend. A PR gate that takes an hour is a gate nobody
 # waits for, so the caps are the product decision: six files, twenty-four
 # functions, six counterfactuals, two minutes per call and fifteen minutes of
@@ -621,130 +623,6 @@ def run(repo: Path, qa_root: Path, model: Model, limit: int, gate: str | None,
                   written_verdict(qa_root, verdict) if code == 0 else verdict, owed, budget,
                   engine_verdict=verdict)
     return code
-
-
-def written_verdict(qa_root: Path, fallback: str) -> str:
-    """The verdict the state holds. This engine's own arithmetic cannot see a Critical
-    the hygiene scan files at finalize, which caps a `pass` at `pass with risks`."""
-    try:
-        state = json.loads((qa_root / "state.json").read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
-        return fallback
-    return str(state.get("verdict") or fallback) if isinstance(state, dict) else fallback
-
-
-def leads_text(leads) -> str:
-    """The report's list of what was read and not proven — for a person, or for the next
-    run that can judge it. Capped, and it says so when it is."""
-    if not leads:
-        return ""
-    shown = leads[:LEADS_IN_REPORT]
-    lines = [f"\n\n**Leads — read by a small model, not proven, not filed ({len(leads)}).** "
-             "Each is a question for a run that can judge it; none is on the record."]
-    for x in shown:
-        lines.append(f"- `{x['path']}:{x['line']}` `{x['function']}` — {x['title']} "
-                     f"(read as {x['severity']}; {x['why']})")
-    if len(leads) > len(shown):
-        lines.append(f"- … and {len(leads) - len(shown)} more, not listed")
-    return "\n".join(lines)
-
-
-def not_tested_lines(model: Model, files: list, examined: int, prior_open: list,
-                     still_open: list, refiled: list, prove: bool, budget: Budget,
-                     quarantine_notes: list, non_python: bool,
-                     disabled: str | None = None, unread_survivors: list | None = None) -> list:
-    """What a night like this one does not do, counted rather than described.
-
-    The temptation with a cheap engine is to let its report read like the
-    expensive one's. This list is what stops that: every line is a number the run
-    measured, so a local `pass` is visibly a different sentence from an agent's.
-    `disabled` is why no counterfactual ran, when none did — the profile's switch, a
-    flag, or a gate with no Python interpreter — named rather than summarised.
-    """
-    out = [
-        f"no agent ran: {model.answered + model.unanswered} bounded question(s) went to "
-        f"{model.name} — no exploratory charter, no archaeology, no adversarial reading of "
-        "the suite",
-        "the commit history: no origin was traced, and no `git log -S` was run",
-        f"{len(still_open)} of {len(prior_open)} prior open finding(s) were carried unread, "
-        f"and {len(refiled)} re-filed because the code they cite changed and no model looked "
-        "at the change",
-        f"{len(files)} file(s) and {examined} function(s) were read; nothing else in the "
-        "repository was",
-        ("claims the counterfactual could not reach — a probe that would not run leaves its "
-         f"finding a hypothesis, and an unproven severity is held at {UNPROVEN_CEILING} for a "
-         f"reading and at {FAILURE_CEILING} for a failing test the model classified"
-         if prove else
-         f"everything a counterfactual would show: {disabled or 'proving was disabled this run'}"
-         ", so every finding from reading is a hypothesis, and a failing test the model "
-         f"classified is held at {FAILURE_CEILING}"),
-        "nothing outside the checkout was read — no database, no MCP tools, no production "
-        "numbers — so a standing blocker that quotes one was NOT re-read",
-        f"{model.unanswered} question(s) the model did not answer"
-        + (f", {model.errors} of which the gateway never received" if model.errors else ""),
-    ]
-    if budget.stopped:
-        out.append(f"{budget.skipped} candidate function(s) were never asked about: "
-                   f"{budget.stopped}")
-    out.extend(f"{path}::{name} — an assertion-gap survivor this run did not read"
-               for path, name in (unread_survivors or []))
-    if non_python:
-        out.append(NO_CODE_READ)
-    out.extend(quarantine_notes)
-    return out
-
-
-def print_summary(model: Model, files: list, examined: int, filed: list, refiled: list,
-                  resolved: list, still_open: list, verdict: str, owed: dict,
-                  budget: Budget, engine_verdict: str | None = None) -> None:
-    """At most fifteen lines, ending on the number this whole release is about.
-    `verdict` is the one the state holds; `engine_verdict`, this engine's own, is
-    named when finalize capped it."""
-    lines = [
-        f"verdict-local: verdict {verdict!r}"
-        + (f" (this engine's {engine_verdict!r}, capped at finalize by a Critical the "
-           "hygiene scan filed)" if engine_verdict and engine_verdict != verdict else ""),
-        f"  read       {examined} function(s) in {len(files)} file(s)"
-        + (f", {budget.skipped} skipped — {budget.stopped}" if budget.stopped else ""),
-        f"  filed      {len(filed)} finding(s), {len(refiled)} of them re-filed unread",
-        f"  carried    {len(still_open)} by id · resolved {len(resolved)} by measurement",
-        f"  model      {model.name} · {model.calls} call(s) · "
-        f"{model.input_tokens + model.output_tokens:,} token(s) · "
-        f"{model.unanswered} unanswered · {model.errors} transport error(s)",
-    ]
-    for key, value in sorted(owed.items()):
-        lines.append(f"  needs a model run: {key} — {value}")
-    print("\n".join(lines[:14] + ["  Claude tokens: 0"]), file=sys.stderr)
-
-
-def resolve_range(repo: Path, explicit, base) -> str | None:
-    """`BASE..HEAD` from `--range`, or from `--base` through the merge base.
-
-    A branch is judged against where it left the trunk, not against the trunk's
-    tip: `main..HEAD` after somebody else merges reads their commits as this
-    branch's change. `git merge-base` asks the question that was meant.
-    """
-    if explicit:
-        return str(explicit)
-    if not base:
-        return None
-    merge_base = _git(["merge-base", str(base), "HEAD"], repo)
-    if not merge_base:
-        print(f"verdict-local: --base {base} has no merge base with HEAD in {repo}",
-              file=sys.stderr)
-        return None
-    return f"{merge_base}..HEAD"
-
-
-def read_env_file(path: Path) -> dict:
-    out = {}
-    for line in Path(path).read_text(encoding="utf-8").splitlines():
-        line = line.strip()
-        if not line or line.startswith("#") or "=" not in line:
-            continue
-        key, _, value = line.partition("=")
-        out[key.strip()] = value.strip().strip('"').strip("'")
-    return out
 
 
 def main(argv=None) -> int:
