@@ -2674,7 +2674,7 @@
  },
  {
   "label": "0.91.1 local 2: the census hint never reaches the reader",
-  "path": "src/verdict_mcp/small.py",
+  "path": "src/verdict_mcp/local_questions.py",
   "old": "    first = model.ask_json(contract_question(chunk) + (f\"\\n\\n{hint}\" if hint else \"\"))\n",
   "new": "    first = model.ask_json(contract_question(chunk))\n"
  },
