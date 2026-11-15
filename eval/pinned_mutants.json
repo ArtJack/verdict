@@ -2062,7 +2062,7 @@
  },
  {
   "label": "one model: a run on two models is not blocked",
-  "path": "src/verdict_mcp/harness.py",
+  "path": "src/verdict_mcp/finalize_policy.py",
   "old": "    if len(models) > 1:\n        reason = (\"the tester answered on more than one model (\"\n",
   "new": "    if len(models) > 2:\n        reason = (\"the tester answered on more than one model (\"\n"
  },
@@ -2074,25 +2074,25 @@
  },
  {
   "label": "scoped gate 1: a proven defect off the change blocks too",
-  "path": "src/verdict_mcp/harness.py",
+  "path": "src/verdict_mcp/finalize_policy.py",
   "old": "               and in_change(a[\"path\"], a[\"line\"]) for a in f.get(\"anchors\") or []):\n            proven.append(f)\n",
   "new": "               for a in f.get(\"anchors\") or []):\n            proven.append(f)\n"
  },
  {
   "label": "scoped gate 2: a Trivial blocks too",
-  "path": "src/verdict_mcp/harness.py",
+  "path": "src/verdict_mcp/finalize_policy.py",
   "old": "_MINOR_OR_WORSE = (\"Blocker\", \"Critical\", \"Major\", \"Minor\")\n",
   "new": "_MINOR_OR_WORSE = (\"Blocker\", \"Critical\", \"Major\", \"Minor\", \"Trivial\")\n"
  },
  {
   "label": "scoped gate 3: no range, and it blocks anyway",
-  "path": "src/verdict_mcp/harness.py",
+  "path": "src/verdict_mcp/finalize_policy.py",
   "old": "    if in_change is None:\n        return notes + [f\"risk_class {risk_class}: no gate range",
   "new": "    if in_change is None:\n        in_change = lambda path, line: True\n    if False:\n        return notes + [f\"risk_class {risk_class}: no gate range"
  },
  {
   "label": "scoped gate 4: an unproven defect blocks",
-  "path": "src/verdict_mcp/harness.py",
+  "path": "src/verdict_mcp/finalize_policy.py",
   "old": "                and str(f.get(\"confidence\") or \"\") == \"proven\"\n                and str(f.get(\"failure_classification\") or \"\") == \"REAL_DEFECT\"\n                and str(f.get(\"severity\") or \"\") in _MINOR_OR_WORSE):\n",
   "new": "                and str(f.get(\"confidence\") or \"\") != \"refuted\"\n                and str(f.get(\"failure_classification\") or \"\") == \"REAL_DEFECT\"\n                and str(f.get(\"severity\") or \"\") in _MINOR_OR_WORSE):\n"
  },
@@ -2110,7 +2110,7 @@
  },
  {
   "label": "scoped gate 7: blame read backwards",
-  "path": "src/verdict_mcp/harness.py",
+  "path": "src/verdict_mcp/finalize_policy.py",
   "old": "            return owners[key].get(int(line)) in commits\n",
   "new": "            return owners[key].get(int(line)) not in commits\n"
  },
@@ -2386,31 +2386,31 @@
  },
  {
   "label": "0.90.11 contract 1: a fix that fails green tests is never a dispute",
-  "path": "src/verdict_mcp/harness.py",
+  "path": "src/verdict_mcp/finalize_policy.py",
   "old": "    if contract_rule:\n        notes.extend(_contract_dispute(state, in_change, judgment))\n",
   "new": ""
  },
  {
   "label": "0.90.11 contract 2: a disputed Critical keeps its severity",
-  "path": "src/verdict_mcp/harness.py",
+  "path": "src/verdict_mcp/finalize_policy.py",
   "old": "        if str(f.get(\"severity\") or \"\") in (\"Blocker\", \"Critical\"):\n            f[\"severity_was\"] = f[\"severity\"]\n            f[\"severity\"] = _SEVERITY_CAP\n",
   "new": ""
  },
  {
   "label": "0.90.11 contract 3: a disputed finding stays a release blocker",
-  "path": "src/verdict_mcp/harness.py",
+  "path": "src/verdict_mcp/finalize_policy.py",
   "old": "    blockers = [b for b in (state.get(\"release_blockers\") or [])\n                if not any(fid in str(b) for fid in ids)]\n",
   "new": "    blockers = list(state.get(\"release_blockers\") or [])\n"
  },
  {
   "label": "0.90.11 contract 4: a fail that rested on the dispute alone stays a fail",
-  "path": "src/verdict_mcp/harness.py",
+  "path": "src/verdict_mcp/finalize_policy.py",
   "old": "    if was == \"fail\" and not blockers and not still:\n        state[\"verdict\"] = \"pass with risks\"",
   "new": "    if False:\n        state[\"verdict\"] = \"pass with risks\""
  },
  {
   "label": "0.90.11 contract 5: inside a money gate's own change the dispute excuses the defect",
-  "path": "src/verdict_mcp/harness.py",
+  "path": "src/verdict_mcp/finalize_policy.py",
   "old": "            continue            # the change's own defect: the money rule judges it\n",
   "new": "            pass\n"
  },
