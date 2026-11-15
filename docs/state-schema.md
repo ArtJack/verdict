@@ -255,6 +255,26 @@ and said nothing. A `verdict-local` run has no such transcript — its judge is 
 behind the gateway — so the session that launched it is not billed, and its models are not
 read as the tester's (0.90.6).
 
+**`site:` names a website for the browser pass.** `verdict-local` runs it after the gates
+(`src/verdict_mcp/browser.py`, also `verdict-browse`):
+
+```
+site:
+  url: http://127.0.0.1:{port}/
+  start: npx next start -p {port}
+  pages: /contact /pay
+```
+
+`url` is required. `start` serves the site from the checkout under test, and only a URL on this
+machine is accepted with it; `{port}` becomes one free port in both. `pages`, `max_pages`,
+`checks`, `skip`, `ready_s` and `budget_s` are optional. The browser's findings are filed
+`proven`, each with a `measured by the browser check \`<check>\` on \`<page>\`` evidence line
+per page. A later run resolves a finding when it has measured every one of those pages with the
+same check and did not find it, and the run's notes name it. What the pass measured goes to
+`facts.json` → `site`: the pages and their statuses, the browser, the hosts and writes it
+aborted, and seconds per phase. What it did not do goes to `not_tested` as `browser pass: …`
+lines.
+
 Explicit `--gate` still wins, and the override is recorded in the facts; a run that ends up
 with no gates at all records `no_gates` and says every count and duration gate is
 unmeasurable, because "nothing to measure" and "nobody said what to measure" are different
