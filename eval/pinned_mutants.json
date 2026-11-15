@@ -481,7 +481,7 @@
  },
  {
   "label": "H4 F-54 over-correction: ignore the run stamp, always use now",
-  "path": "src/verdict_mcp/harness.py",
+  "path": "src/verdict_mcp/finalize_carry.py",
   "old": "    stamp = str(((facts or {}).get(\"last_run\") or {}).get(\"timestamp_utc\") or \"\")",
   "new": "    stamp = \"\""
  },
@@ -716,7 +716,7 @@
  },
  {
   "label": "0.78.0 R4 an acceptance settles nothing in the ledger",
-  "path": "src/verdict_mcp/harness.py",
+  "path": "src/verdict_mcp/finalize_carry.py",
   "old": "    if status == \"accepted\":\n        # The maintainer's word, recorded through `verdict-accept`",
   "new": "    if False and status == \"accepted\":\n        # The maintainer's word, recorded through `verdict-accept`"
  },
@@ -812,13 +812,13 @@
  },
  {
   "label": "0.79.0 S5 F-72: the ledger confirms on a prose-quoted test",
-  "path": "src/verdict_mcp/harness.py",
+  "path": "src/verdict_mcp/finalize_carry.py",
   "old": "    shows_fix = (attempted and v.get(\"at_previous\") == \"fail\" and v.get(\"at_head\") == \"pass\"\n                 and _chosen(v))\n",
   "new": "    shows_fix = (attempted and v.get(\"at_previous\") == \"fail\" and v.get(\"at_head\") == \"pass\"\n                 and True)\n"
  },
  {
   "label": "0.79.0 S6 a tester-authored accepted block survives the fold",
-  "path": "src/verdict_mcp/harness.py",
+  "path": "src/verdict_mcp/finalize_carry.py",
   "old": "    elif status == \"open\":\n        # A judgment may not carry the maintainer's block",
   "new": "    elif False and status == \"open\":\n        # A judgment may not carry the maintainer's block"
  },
@@ -916,13 +916,13 @@
  },
  {
   "label": "0.80.0 C13 run_date: the Z suffix is translated to the wrong offset",
-  "path": "src/verdict_mcp/harness.py",
+  "path": "src/verdict_mcp/finalize_carry.py",
   "old": "stamp.replace(\"Z\", \"+00:00\")",
   "new": "stamp.replace(\"Z\", \"+01:00\")"
  },
  {
   "label": "0.80.0 C14 run_date: an offset in the stamp is read off the wall clock, not converted",
-  "path": "src/verdict_mcp/harness.py",
+  "path": "src/verdict_mcp/finalize_carry.py",
   "old": "    if when.tzinfo is not None:\n        when = when.astimezone(timezone.utc)\n",
   "new": "    if False:\n        when = when.astimezone(timezone.utc)\n"
  },
@@ -1174,7 +1174,7 @@
  },
  {
   "label": "0.83.0 L6 harness: fixed_at is stamped on the tester's claim",
-  "path": "src/verdict_mcp/harness.py",
+  "path": "src/verdict_mcp/finalize_carry.py",
   "old": "        return {\"outcome\": \"confirmed\", \"outcome_basis\": \"claimed\",\n",
   "new": "        return {\"outcome\": \"confirmed\", \"outcome_basis\": \"claimed\",\n                \"fixed_at\": str(finding.get(\"first_seen\") or \"\"),\n"
  },
@@ -2536,13 +2536,13 @@
  },
  {
   "label": "0.91.0 replay-in-run 1: a repro that still reproduces at HEAD no longer refuses a resolution",
-  "path": "src/verdict_mcp/harness.py",
+  "path": "src/verdict_mcp/finalize_carry.py",
   "old": "    if rec.get(\"at_head\") == \"reproduced\":\n        if resolving:\n",
   "new": "    if False:\n        if resolving:\n"
  },
  {
   "label": "0.91.0 replay-in-run 2: a repro that stopped reproducing no longer resolves a carried finding",
-  "path": "src/verdict_mcp/harness.py",
+  "path": "src/verdict_mcp/finalize_carry.py",
   "old": "        if not resolving:\n            entry[\"status\"] = \"resolved\"\n",
   "new": "        if False:\n            entry[\"status\"] = \"resolved\"\n"
  },
@@ -2554,7 +2554,7 @@
  },
  {
   "label": "0.91.0 replay-in-run 4: the repro measurement is not a basis for a confirmed outcome",
-  "path": "src/verdict_mcp/harness.py",
+  "path": "src/verdict_mcp/finalize_carry.py",
   "old": "    shows_fix_by_repro = (r.get(\"at_previous\") == \"reproduced\" and r.get(\"at_head\") == \"not reproduced\"\n                          and r.get(\"isolated\") is not False)\n",
   "new": "    shows_fix_by_repro = False\n"
  },
@@ -2596,13 +2596,13 @@
  },
  {
   "label": "0.91.0 read-first 4: a function named in not_tested still reads as unaccounted",
-  "path": "src/verdict_mcp/harness.py",
+  "path": "src/verdict_mcp/finalize_carry.py",
   "old": "        elif (short and short in nt) or (path and path.lower() in nt):\n",
   "new": "        elif False:\n"
  },
  {
   "label": "0.91.0 read-first 5: a finding that cites the file but not the function accounts for it",
-  "path": "src/verdict_mcp/harness.py",
+  "path": "src/verdict_mcp/finalize_carry.py",
   "old": "            return in_file and (not short or short in text)\n",
   "new": "            return in_file\n"
  },
@@ -2824,7 +2824,7 @@
  },
  {
   "label": "backfill 6: a model-written repro that stopped reproducing resolves its finding",
-  "path": "src/verdict_mcp/harness.py",
+  "path": "src/verdict_mcp/finalize_carry.py",
   "old": "        if model_written(entry.get(\"repro\") or (prior or {}).get(\"repro\")):\n",
   "new": "        if False:\n"
  },
@@ -3016,7 +3016,7 @@
  },
  {
   "label": "replay 0.93.0 3: a Minor's failed proof refuses the run",
-  "path": "src/verdict_mcp/harness.py",
+  "path": "src/verdict_mcp/finalize_carry.py",
   "old": "            (problems if f.get(\"severity\") in SEVERITIES_ASKED else minor).append(\n",
   "new": "            problems.append(\n"
  },
