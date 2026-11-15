@@ -1666,37 +1666,37 @@
  },
  {
   "label": "0.90.0 P23 local: a resolved finding that comes back is not re-filed under its own id",
-  "path": "src/verdict_mcp/small.py",
+  "path": "src/verdict_mcp/local_findings.py",
   "old": "            elif status == \"resolved\":\n",
   "new": "            elif False:\n"
  },
  {
   "label": "0.90.0 P24 local: a claim about an open finding's function is filed again as NEW",
-  "path": "src/verdict_mcp/small.py",
+  "path": "src/verdict_mcp/local_findings.py",
   "old": "                if already_open is not None:\n                    already_open.append((str(prior[\"id\"]), chunk.name, how))\n",
   "new": "                mint(entry, findings_dir, filed)\n"
  },
  {
   "label": "0.90.0 P25 local: a common function name links a claim to any finding that mentions it",
-  "path": "src/verdict_mcp/small.py",
+  "path": "src/verdict_mcp/local_findings.py",
   "old": "        if len(name) < 4 or name in _TOO_COMMON:\n",
   "new": "        if len(name) < 4:\n"
  },
  {
   "label": "0.90.0 P26 local: a withdrawn finding is matched as if it were a real one",
-  "path": "src/verdict_mcp/small.py",
+  "path": "src/verdict_mcp/local_findings.py",
   "old": "            if status not in (\"open\", \"accepted\", \"resolved\"):\n                continue\n",
   "new": "            if False:\n                continue\n"
  },
  {
   "label": "0.90.0 P27 local: a finding that cites another file claims this one by name",
-  "path": "src/verdict_mcp/small.py",
+  "path": "src/verdict_mcp/local_findings.py",
   "old": "            if name in e[\"words\"] and (not e[\"paths\"] or chunk.path in e[\"paths\"]):\n",
   "new": "            if name in e[\"words\"]:\n"
  },
  {
   "label": "0.90.0 P28 local: in a delta an unproven reading is filed as a finding, not listed as a lead",
-  "path": "src/verdict_mcp/small.py",
+  "path": "src/verdict_mcp/local_findings.py",
   "old": "            if prior is None and leads is not None and entry.get(\"confidence\") != \"proven\":\n",
   "new": "            if False:\n"
  },
@@ -2176,7 +2176,7 @@
  },
  {
   "label": "0.90.7 local regression 2: an unproven reading re-opens a resolved finding",
-  "path": "src/verdict_mcp/small.py",
+  "path": "src/verdict_mcp/local_findings.py",
   "old": "            elif status == \"resolved\" and entry.get(\"confidence\") != \"proven\":\n",
   "new": "            elif status == \"resolved\" and False:\n"
  },
@@ -2872,7 +2872,7 @@
  },
  {
   "label": "focus 7: functions the risk section names are read in file order",
-  "path": "src/verdict_mcp/small.py",
+  "path": "src/verdict_mcp/local_findings.py",
   "old": "    return sorted(chunks, key=lambda c: (c.name not in named, c.name.rsplit(\".\", 1)[-1] not in focus))\n",
   "new": "    return sorted(chunks, key=lambda c: c.name not in named)\n"
  },

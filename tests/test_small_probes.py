@@ -23,7 +23,7 @@ import pytest
 
 REPO = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO / "src"))
-from verdict_mcp import small  # noqa: E402
+from verdict_mcp import local_findings, small  # noqa: E402
 from verdict_mcp.validate import validate_finding  # noqa: E402
 
 from test_local_delta import _ByPrompt, git  # noqa: E402
@@ -370,7 +370,7 @@ def test_probes_off_means_no_counterfactual_is_ever_called(tmp_path, monkeypatch
     nothing is executed, and `not_tested` says which switch did it."""
     def never(*a, **k):
         raise AssertionError("counterfactual was called with probes off")
-    monkeypatch.setattr(small, "counterfactual", never)
+    monkeypatch.setattr(local_findings, "counterfactual", never)
     repo, sha_range = branch_repo(tmp_path)
     qa = _gate_root(tmp_path, "probes: off\n" if how == "profile" else "")
     budget = small.Budget(probes=0) if how == "flag" else None
@@ -473,7 +473,7 @@ def test_a_gate_with_no_python_disables_proving_and_says_so(tmp_path, monkeypatc
     monkeypatch.setattr(small, "interpreter_of", lambda command, repo=None: None)
     def never(*a, **k):
         raise AssertionError("counterfactual was called with no interpreter")
-    monkeypatch.setattr(small, "counterfactual", never)
+    monkeypatch.setattr(local_findings, "counterfactual", never)
     repo, sha_range = branch_repo(tmp_path)
     qa = _gate_root(tmp_path)
     assert small.run(repo, qa, _claiming_model(), limit=4, gate=None, reruns=0, prove=True,
