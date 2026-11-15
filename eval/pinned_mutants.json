@@ -349,7 +349,7 @@
  },
  {
   "label": "0.90.3 F-29b: the coverage scratch directory outlives the measurement",
-  "path": "src/verdict_mcp/harness.py",
+  "path": "src/verdict_mcp/facts_coverage.py",
   "old": "        shutil.rmtree(scratch, ignore_errors=True)\n",
   "new": "        pass\n"
  },
@@ -1294,7 +1294,7 @@
  },
  {
   "label": "0.86.0 N1 facts: the reading map is never measured",
-  "path": "src/verdict_mcp/harness.py",
+  "path": "src/verdict_mcp/facts_coverage.py",
   "old": "    reading_map = reading_map_from(files, findings, _tracked_python(repo))\n",
   "new": "    reading_map = None\n"
  },
@@ -1318,7 +1318,7 @@
  },
  {
   "label": "0.86.0 N5 facts: the exercised-by tests are never computed",
-  "path": "src/verdict_mcp/harness.py",
+  "path": "src/verdict_mcp/facts_coverage.py",
   "old": "    exercised = exercised_by_from(files, findings, repo)\n",
   "new": "    exercised = None\n"
  },
@@ -2686,7 +2686,7 @@
  },
  {
   "label": "0.91.1 render 1: a slow full render loses every coverage fact instead of falling back",
-  "path": "src/verdict_mcp/harness.py",
+  "path": "src/verdict_mcp/facts_coverage.py",
   "old": "    except subprocess.TimeoutExpired:\n        # A large suite's contexts make the full render slow: freqtrade's exceeded 300 s\n",
   "new": "    except ZeroDivisionError:\n        # A large suite's contexts make the full render slow: freqtrade's exceeded 300 s\n"
  },
@@ -2710,7 +2710,7 @@
  },
  {
   "label": "0.91.1 gaps 10: inside an agent call the census ignores the 10-minute Bash window",
-  "path": "src/verdict_mcp/harness.py",
+  "path": "src/verdict_mcp/facts_coverage.py",
   "old": "        if inside_agent_call():\n",
   "new": "        if False:\n"
  },

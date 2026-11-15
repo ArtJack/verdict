@@ -1120,7 +1120,8 @@ def test_fix_verification_runs_with_bytecode_writing_off(tmp_path, monkeypatch):
     # Cleared first: inherited from the caller, this assertion holds whether or
     # not `_run_test` sets anything, which is a test that cannot fail.
     monkeypatch.delenv("PYTHONDONTWRITEBYTECODE", raising=False)
-    monkeypatch.setattr(harness.subprocess, "run", fake_run)
+    from verdict_mcp import facts_verify
+    monkeypatch.setattr(facts_verify.subprocess, "run", fake_run)
     harness._run_test("pytest {id}", "tests/t.py::x", tmp_path, tmp_path, 30)
     assert seen.get("PYTHONDONTWRITEBYTECODE") == "1"
 

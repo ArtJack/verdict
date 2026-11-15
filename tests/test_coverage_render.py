@@ -3,7 +3,7 @@
 import json
 import subprocess
 
-from verdict_mcp import harness
+from verdict_mcp import facts_coverage, harness
 
 
 def test_a_slow_full_render_retries_on_production_files(tmp_path, monkeypatch):
@@ -22,11 +22,11 @@ def test_a_slow_full_render_retries_on_production_files(tmp_path, monkeypatch):
             return subprocess.CompletedProcess(cmd, 0, "", "")
         return subprocess.CompletedProcess(cmd, 0, "1 passed", "")
 
-    monkeypatch.setattr(harness.subprocess, "run", fake_run)
+    monkeypatch.setattr(facts_coverage.subprocess, "run", fake_run)
     scratch = tmp_path / "s"
     scratch.mkdir()
     files, meta = harness._run_coverage(tmp_path, scratch, "python -m coverage run -m pytest -q")
-    monkeypatch.setattr(harness.subprocess, "run", real_run)
+    monkeypatch.setattr(facts_coverage.subprocess, "run", real_run)
     assert files == {"pkg/pay.py": {"summary": {"num_statements": 3}}}
     assert meta["render_scope"].startswith("production files only (the full render exceeded 300 s)")
     rc = (tmp_path / "rendered.txt").read_text()
@@ -55,7 +55,7 @@ def test_the_fallback_render_runs_on_real_coverage(tmp_path, monkeypatch):
     (repo / "pkg" / "pay.py").write_text("def fee(x):\n    return x * 2\n", encoding="utf-8")
     (repo / "tests" / "test_pay.py").write_text("from pkg.pay import fee\n\n\ndef test_fee():\n    assert fee(2) == 4\n",
                                                 encoding="utf-8")
-    monkeypatch.setattr(harness, "RENDER_TIMEOUT_S", 0.001)
+    monkeypatch.setattr(facts_coverage, "RENDER_TIMEOUT_S", 0.001)
     scratch = tmp_path / "s"
     scratch.mkdir()
     files, meta = harness._run_coverage(repo, scratch, f"{sys.executable} -m coverage run -m pytest -q -p no:cacheprovider")
