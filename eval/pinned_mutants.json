@@ -475,7 +475,7 @@
  },
  {
   "label": "H3 F-54: back to the machine's local calendar",
-  "path": "src/verdict_mcp/harness.py",
+  "path": "src/verdict_mcp/finalize_merge.py",
   "old": "    today = today or run_date(facts)",
   "new": "    today = today or date.today()"
  },
@@ -704,13 +704,13 @@
  },
  {
   "label": "0.78.0 R2 the fold is never applied to a re-reported finding",
-  "path": "src/verdict_mcp/harness.py",
+  "path": "src/verdict_mcp/finalize_merge.py",
   "old": "        _fold_accepted(entry, accepted)\n        _apply_verification(entry, prior, facts.get(\"verification\") or {}, measured_at)\n",
   "new": "        _apply_verification(entry, prior, facts.get(\"verification\") or {}, measured_at)\n"
  },
  {
   "label": "0.78.0 R3 an accepted finding nobody re-reports is resolved by silence",
-  "path": "src/verdict_mcp/harness.py",
+  "path": "src/verdict_mcp/finalize_merge.py",
   "old": "        maintainers = st == \"accepted\" or (\n            st == \"open\" and in_force((accepted or {}).get(str(prior.get(\"id\") or \"\"))))\n",
   "new": "        maintainers = False\n"
  },
@@ -1144,7 +1144,7 @@
  },
  {
   "label": "0.83.0 L1 finalize: cited lines are never anchored",
-  "path": "src/verdict_mcp/harness.py",
+  "path": "src/verdict_mcp/finalize_merge.py",
   "old": "            _anchor(entry, prior, repo, facts.get(\"run_number\"))\n",
   "new": "            pass\n"
  },
@@ -1186,7 +1186,7 @@
  },
  {
   "label": "0.83.0 L8 finalize: nothing says when it could not anchor",
-  "path": "src/verdict_mcp/harness.py",
+  "path": "src/verdict_mcp/finalize_merge.py",
   "old": "        state[\"verified_intact_anchors\"] = []\n        state[\"evidence_anchors\"] = {\n",
   "new": "        state[\"verified_intact_anchors\"] = []\n        state[\"_evidence_anchors\"] = {\n"
  },
@@ -1288,7 +1288,7 @@
  },
  {
   "label": "0.84.0 M14 finalize: a carried finding keeps last run's verb",
-  "path": "src/verdict_mcp/harness.py",
+  "path": "src/verdict_mcp/finalize_merge.py",
   "old": "    for prior in unmentioned:\n        carried = {k: v for k, v in prior.items() if k != \"re_reported\"}\n",
   "new": "    for prior in unmentioned:\n        carried = dict(prior)\n"
  },
@@ -1852,13 +1852,13 @@
  },
  {
   "label": "0.91.0 H5 merge: hygiene findings are resolved by the tester's silence",
-  "path": "src/verdict_mcp/harness.py",
+  "path": "src/verdict_mcp/finalize_merge.py",
   "old": "        if is_hygiene(prior):\n            continue  # owned by the harness: re-measured below, never resolved by silence\n",
   "new": ""
  },
  {
   "label": "0.91.0 H6 merge: a still_open copy of a hygiene finding is filed twice",
-  "path": "src/verdict_mcp/harness.py",
+  "path": "src/verdict_mcp/finalize_merge.py",
   "old": "        if is_hygiene(f):\n            continue  # a `still_open` copy of the harness's own finding — reconciled below\n",
   "new": ""
  },
@@ -1924,7 +1924,7 @@
  },
  {
   "label": "0.91.0 H24 merge: a pass stands over a Critical the scan filed, and the local tier's night is refused",
-  "path": "src/verdict_mcp/harness.py",
+  "path": "src/verdict_mcp/finalize_merge.py",
   "old": "    if verdict == \"pass\" and capped_by:\n        verdict = \"pass with risks\"\n",
   "new": "    if False:\n        verdict = \"pass with risks\"\n"
  },
@@ -1954,7 +1954,7 @@
  },
  {
   "label": "0.91.0 H29 merge: a hygiene id the judgment named is ignored without a word",
-  "path": "src/verdict_mcp/harness.py",
+  "path": "src/verdict_mcp/finalize_merge.py",
   "old": "    if ignored:\n        state[\"hygiene\"][\"ignored_judgment_ids\"] = ignored\n",
   "new": "    if False:\n        state[\"hygiene\"][\"ignored_judgment_ids\"] = ignored\n"
  },
@@ -2188,7 +2188,7 @@
  },
  {
   "label": "0.90.7 report 1: an old run's label heads a new run's report",
-  "path": "src/verdict_mcp/harness.py",
+  "path": "src/verdict_mcp/finalize_merge.py",
   "old": "        if key in RUN_SCOPED_KEYS:\n            continue\n",
   "new": ""
  },
@@ -2254,7 +2254,7 @@
  },
  {
   "label": "0.90.8 gate label 2: finalize drops the gate label facts measured",
-  "path": "src/verdict_mcp/harness.py",
+  "path": "src/verdict_mcp/finalize_merge.py",
   "old": "    if \"run_label\" not in state and facts.get(\"run_label\"):",
   "new": "    if False:"
  },
@@ -2266,7 +2266,7 @@
  },
  {
   "label": "0.90.8 gate label 4: the measured label overrides the judgment's own",
-  "path": "src/verdict_mcp/harness.py",
+  "path": "src/verdict_mcp/finalize_merge.py",
   "old": "    if \"run_label\" not in state and facts.get(\"run_label\"):",
   "new": "    if facts.get(\"run_label\"):"
  },
