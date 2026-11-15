@@ -463,13 +463,13 @@
  },
  {
   "label": "H1 F-51: back to the maximum over the concatenated buckets",
-  "path": "src/verdict_mcp/harness.py",
+  "path": "src/verdict_mcp/report_sections.py",
   "old": "    unrecorded = max((_unrecorded(store) for store in\n                      (cal.get(\"by_confidence\") or {}, cal.get(\"by_proof_method\") or {})\n                      if store), default=0)",
   "new": "    unrecorded = max((v.get(\"confirmed\", 0) - v.get(\"confirmed_measured\", 0)\n                      - v.get(\"confirmed_claimed\", 0) for v in buckets), default=0)"
  },
  {
   "label": "H2 F-51 over-correction: sum across BOTH stores, double-counting",
-  "path": "src/verdict_mcp/harness.py",
+  "path": "src/verdict_mcp/report_sections.py",
   "old": "    unrecorded = max((_unrecorded(store) for store in\n                      (cal.get(\"by_confidence\") or {}, cal.get(\"by_proof_method\") or {})\n                      if store), default=0)",
   "new": "    unrecorded = sum(_unrecorded(store) for store in\n                     (cal.get(\"by_confidence\") or {}, cal.get(\"by_proof_method\") or {}))"
  },
@@ -1600,7 +1600,7 @@
  },
  {
   "label": "0.90.0 P12 report: the Judge line is omitted, so a local run reads like an agent run",
-  "path": "src/verdict_mcp/harness.py",
+  "path": "src/verdict_mcp/report_sections.py",
   "old": "    engine = last.get(\"engine\")\n    if not engine:",
   "new": "    engine = None\n    if not engine:"
  },
@@ -2194,7 +2194,7 @@
  },
  {
   "label": "0.90.7 report 2: a finding carried unread is reported as looked at",
-  "path": "src/verdict_mcp/harness.py",
+  "path": "src/verdict_mcp/report_sections.py",
   "old": "    if f.get(\"re_reported\") == \"still_open\" and carried_unread:\n",
   "new": "    if False:\n"
  },
@@ -3172,7 +3172,7 @@
  },
  {
   "label": "gateway host 4: the Judge line prints the host an older state kept",
-  "path": "src/verdict_mcp/harness.py",
+  "path": "src/verdict_mcp/report_sections.py",
   "old": "    parts = [f\"- Judge: {engine} \u00b7 model `{last.get('model') or '?'}`\"]\n",
   "new": "    parts = [f\"- Judge: {engine} \u00b7 model `{last.get('model') or '?'}`\"]\n    parts += [f\"host `{local['host']}`\"] if local.get(\"host\") else []\n"
  }
