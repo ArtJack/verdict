@@ -2272,7 +2272,7 @@
  },
  {
   "label": "0.90.9 model budget 1: the model's clock starts before the suite",
-  "path": "src/verdict_mcp/small.py",
+  "path": "src/verdict_mcp/local_budget.py",
   "old": "        self.stopped = None\n        self._started = None\n",
   "new": "        self.stopped = None\n        self._started = time.monotonic()\n"
  },
