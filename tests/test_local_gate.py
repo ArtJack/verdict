@@ -21,7 +21,7 @@ from pathlib import Path
 
 REPO = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO / "src"))
-from verdict_mcp import small  # noqa: E402
+from verdict_mcp import local_budget, small  # noqa: E402
 
 from test_local_delta import ScriptedModel, git, state_of  # noqa: E402
 
@@ -260,7 +260,7 @@ def test_the_model_budget_is_model_time_not_the_suite_before_it(monkeypatch):
     said "the 900s model budget ran out" (2026-10-15)."""
     from types import SimpleNamespace
     now = [1000.0]
-    monkeypatch.setattr(small, "time", SimpleNamespace(monotonic=lambda: now[0]))
+    monkeypatch.setattr(local_budget, "time", SimpleNamespace(monotonic=lambda: now[0]))
     budget = small.Budget(functions=99, seconds=900)
     now[0] += 853                                   # the suite and coverage
     assert budget.take_function(), "measurement is not model time"
