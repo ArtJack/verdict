@@ -1624,7 +1624,7 @@
  },
  {
   "label": "0.90.0 P16 local gate: needs_claude drops the changed lines nothing executed",
-  "path": "src/verdict_mcp/small.py",
+  "path": "src/verdict_mcp/local_leads.py",
   "old": "    cold = unexercised_diff(facts)\n    if cold:\n        out[\"unexercised_changed_lines\"] = cold",
   "new": "    cold = 0\n    if cold:\n        out[\"unexercised_changed_lines\"] = cold"
  },
