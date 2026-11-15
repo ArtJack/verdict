@@ -1630,7 +1630,7 @@
  },
  {
   "label": "0.90.0 P17 local gate: the reference state is opened for writing",
-  "path": "src/verdict_mcp/small.py",
+  "path": "src/verdict_mcp/local_env.py",
   "old": "    try:\n        doc = json.loads(Path(path).read_text(encoding=\"utf-8\"))\n    except (OSError, json.JSONDecodeError) as exc:",
   "new": "    try:\n        Path(path).write_text(\"{}\", encoding=\"utf-8\")\n        doc = json.loads(Path(path).read_text(encoding=\"utf-8\"))\n    except (OSError, json.JSONDecodeError) as exc:"
  },
@@ -2164,13 +2164,13 @@
  },
  {
   "label": "0.90.7 local facts 2: a measurement of another commit is reused",
-  "path": "src/verdict_mcp/small.py",
+  "path": "src/verdict_mcp/local_env.py",
   "old": "    if (facts.get(\"last_run\") or {}).get(\"git_sha\") != _git([\"rev-parse\", \"HEAD\"], repo):\n        return None\n",
   "new": ""
  },
  {
   "label": "0.90.7 local facts 3: the engine ignores the sweep attempt's measurement",
-  "path": "src/verdict_mcp/small.py",
+  "path": "src/verdict_mcp/local_env.py",
   "old": "    reused = reusable_facts(repo, qa_root) if reuse else None\n",
   "new": "    reused = None\n"
  },
@@ -2734,7 +2734,7 @@
  },
  {
   "label": "0.91.1 local 4: the local engine collects its facts without the census its profile asks for",
-  "path": "src/verdict_mcp/small.py",
+  "path": "src/verdict_mcp/local_env.py",
   "old": "                    assertion_gaps=({\"test_one_cmd\": config.get(\"test_one_cmd\"), \"budget_s\": gaps_budget,\n",
   "new": "                    assertion_gaps=None and ({\"test_one_cmd\": config.get(\"test_one_cmd\"), \"budget_s\": gaps_budget,\n"
  },

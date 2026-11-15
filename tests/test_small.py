@@ -13,7 +13,7 @@ import pytest
 
 REPO = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO / "src"))
-from verdict_mcp import small  # noqa: E402
+from verdict_mcp import local_env, small  # noqa: E402
 from verdict_mcp.validate import validate_finding  # noqa: E402
 
 MODULE = '''"""A module."""
@@ -581,7 +581,7 @@ def test_the_local_engine_runs_the_census_its_profile_asks_for(tmp_path, monkeyp
         seen.update(kw)
         return {"last_run": {}}
 
-    monkeypatch.setattr(small, "collect", fake_collect)
+    monkeypatch.setattr(local_env, "collect", fake_collect)
     config = {"assertion_gaps": "on", "test_one_cmd": "pytest {id}", "risk_paths": "shop/*",
               "coverage_suite_cmd": "python -m coverage run -m pytest"}
     small.measure(repo, qa, [], config, None, [])
