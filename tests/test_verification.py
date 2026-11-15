@@ -11,6 +11,7 @@ import subprocess
 import sys
 from datetime import datetime, timezone
 
+import verdict_mcp.facts_verify as facts_verify
 import verdict_mcp.harness as h
 from verdict_mcp.harness import (cited_tests, collect, merge, render_report,
                                  resolve_test_id, select_test)
@@ -383,7 +384,7 @@ def test_a_missing_previous_commit_still_measures_head(tmp_path):
 
 
 def test_verification_is_bounded(tmp_path, monkeypatch):
-    monkeypatch.setattr(h, "VERIFY_MAX_FINDINGS", 2)
+    monkeypatch.setattr(facts_verify, "VERIFY_MAX_FINDINGS", 2)
     repo, sha_a = bugged_repo(tmp_path)
     qa = tmp_path / "qa"
     prev = previous_state(qa, sha_a)
@@ -761,8 +762,8 @@ def test_a_stale_cache_planted_in_the_scratch_does_not_survive_the_run(tmp_path,
                      and planted["path"].exists()))
         return real_run_test(template, test_id, cwd, repo_path, timeout, pythonpath)
 
-    monkeypatch.setattr(h, "_scratch_checkout", poisoned)
-    monkeypatch.setattr(h, "_run_test", watch)
+    monkeypatch.setattr(facts_verify, "_scratch_checkout", poisoned)
+    monkeypatch.setattr(facts_verify, "_run_test", watch)
     facts = collect(repo, qa, [], test_one_cmd=CMD)
 
     assert planted, "the scratch was never built; this test measured nothing"

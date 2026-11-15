@@ -23,7 +23,7 @@ import pytest
 
 REPO = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO / "src"))
-from verdict_mcp import sandbox, small  # noqa: E402
+from verdict_mcp import local_env, local_findings, local_probes, sandbox, small  # noqa: E402
 from verdict_mcp.validate import validate_finding  # noqa: E402
 
 from test_local_delta import _ByPrompt, git  # noqa: E402
@@ -41,7 +41,7 @@ def _refuse_subprocess(monkeypatch):
     """Any child process started is the failure under test."""
     def boom(*a, **k):
         raise AssertionError(f"a subprocess was started: {a[0] if a else k}")
-    monkeypatch.setattr(small.subprocess, "run", boom)
+    monkeypatch.setattr(local_probes.subprocess, "run", boom)
 
 
 def _recorder_repo(tmp_path, marker: Path):
@@ -391,7 +391,7 @@ def test_probes_off_means_no_counterfactual_is_ever_called(tmp_path, monkeypatch
     nothing is executed, and `not_tested` says which switch did it."""
     def never(*a, **k):
         raise AssertionError("counterfactual was called with probes off")
-    monkeypatch.setattr(small, "counterfactual", never)
+    monkeypatch.setattr(local_findings, "counterfactual", never)
     repo, sha_range = branch_repo(tmp_path)
     qa = _gate_root(tmp_path, "probes: off\n" if how == "profile" else "")
     budget = small.Budget(probes=0) if how == "flag" else None
@@ -463,7 +463,7 @@ def test_uv_run_asks_uv_once_for_its_interpreter(tmp_path, monkeypatch):
         return subprocess.CompletedProcess(argv, 0, stdout="/proj/.venv/bin/python\n", stderr="")
 
     # 0.94.0: the question goes through the box (`uv run` syncs, and a sync builds the project).
-    monkeypatch.setattr(small.sandbox, "run", fake_run)
+    monkeypatch.setattr(local_env.sandbox, "run", fake_run)
     small._RUNNER_PYTHON.clear()
     assert small.interpreter_of("uv run pytest -q", tmp_path) == "/proj/.venv/bin/python"
     assert small.interpreter_of("uv run pytest -q", tmp_path) == "/proj/.venv/bin/python"
@@ -475,13 +475,13 @@ def test_uv_run_asks_uv_once_for_its_interpreter(tmp_path, monkeypatch):
     def failing(argv, **kw):
         return subprocess.CompletedProcess(argv, 1, stdout="", stderr="no project found")
 
-    monkeypatch.setattr(small.sandbox, "run", failing)
+    monkeypatch.setattr(local_env.sandbox, "run", failing)
     small._RUNNER_PYTHON.clear()
     assert small.interpreter_of("uv run pytest", tmp_path) is None
 
 
 def test_a_bare_tool_is_found_on_path_and_a_non_python_gate_is_none(monkeypatch):
-    monkeypatch.setattr(small.shutil, "which",
+    monkeypatch.setattr(local_env.shutil, "which",
                         lambda name: {"pytest": "/w/bin/pytest", "python": "/w/bin/python"}.get(name))
     assert small.interpreter_of("pytest -q") == "/w/bin/python"
     assert small.interpreter_of("python -m pytest") == "/w/bin/python"
@@ -495,7 +495,7 @@ def test_a_gate_with_no_python_disables_proving_and_says_so(tmp_path, monkeypatc
     monkeypatch.setattr(small, "interpreter_of", lambda command, repo=None: None)
     def never(*a, **k):
         raise AssertionError("counterfactual was called with no interpreter")
-    monkeypatch.setattr(small, "counterfactual", never)
+    monkeypatch.setattr(local_findings, "counterfactual", never)
     repo, sha_range = branch_repo(tmp_path)
     qa = _gate_root(tmp_path)
     assert small.run(repo, qa, _claiming_model(), limit=4, gate=None, reruns=0, prove=True,
