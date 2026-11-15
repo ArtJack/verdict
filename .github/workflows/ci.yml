@@ -37,6 +37,21 @@ jobs:
         # fixture's trap, found living in our own CI)
         run: uv run --group dev python -m pytest tests/
 
+  sandbox-macos:
+    # The OS box (`src/verdict_mcp/sandbox.py`) is macOS's sandbox-exec. ubuntu and windows never
+    # run it, so without this job every test that proves what code inside the box cannot do skips
+    # in CI. VERDICT_TEST_REQUIRE_BOX turns "no box here" from a skip into a failure.
+    runs-on: macos-latest
+    env:
+      VERDICT_TEST_REQUIRE_BOX: "1"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+      - name: Run the box tests
+        run: >-
+          uv run --group dev python -m pytest tests/test_sandbox.py tests/test_small_probes.py
+          tests/test_backfill.py tests/test_replay.py
+
   hooks-floor:
     # `hooks.json` starts every hook with `python3`, and on a stock Mac that is 3.9 —
     # below this package's own floor, which binds pip and not a plugin. The matrix

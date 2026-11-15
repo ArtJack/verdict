@@ -28,9 +28,11 @@ import time
 from pathlib import Path
 
 try:
+    from . import sandbox
     from .readfirst import risk_of
     from .replay import ORIGINAL_ENV, _fresh_checkout, _guard_dir, _outside_quotes, _remove_checkout
 except ImportError:  # executed as a bare script
+    import sandbox
     from readfirst import risk_of
     from replay import ORIGINAL_ENV, _fresh_checkout, _guard_dir, _outside_quotes, _remove_checkout
 
@@ -165,7 +167,8 @@ def _parses(lines) -> bool:
 
 
 def _env(repo: Path, scratch: Path) -> dict:
-    env = dict(os.environ)
+    """What a mutant's tests need set; `sandbox.run` builds the rest from its allowlist."""
+    env = {}
     env["PYTHONPATH"] = os.pathsep.join([str(_guard_dir(scratch.parent)), str(scratch / "src"), str(scratch)]
                                         + ([os.environ["PYTHONPATH"]] if os.environ.get("PYTHONPATH") else []))
     env[ORIGINAL_ENV] = os.pathsep.join(dict.fromkeys([str(repo.resolve()), str(repo)]))
@@ -184,8 +187,10 @@ def _run_tests(cmd: str, ids, scratch: Path, env: dict, detail: list | None = No
     `detail`, when given, receives the last lines of the output."""
     command = cmd.replace("{id}", " ".join(_quote(i) for i in ids))
     try:
-        proc = subprocess.run(command, shell=True, cwd=str(scratch), env=env, capture_output=True,
-                              text=True, errors="replace", timeout=RUN_TIMEOUT_S)
+        # A mutant's tests are the project's code: they run in the box (`sandbox.py`). The
+        # fresh tree's parent holds the guard and the checkout, and is all they may write.
+        proc = sandbox.run(command, shell=True, cwd=str(scratch), writable=[scratch.parent],
+                           extra_env=env, errors="replace", timeout=RUN_TIMEOUT_S)
     except subprocess.TimeoutExpired:
         if detail is not None:
             detail.append(f"timed out after {RUN_TIMEOUT_S}s")

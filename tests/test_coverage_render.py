@@ -3,10 +3,13 @@
 import json
 import subprocess
 
-from verdict_mcp import harness
+from verdict_mcp import harness, sandbox
 
 
 def test_a_slow_full_render_retries_on_production_files(tmp_path, monkeypatch):
+    # The render's retry, not the box: the fake runner reads the command as the harness wrote
+    # it, so the OS half of `sandbox.py` stays out. Its environment half still applies.
+    monkeypatch.setattr(sandbox, "available", lambda: False)
     calls = []
     real_run = subprocess.run
 
@@ -22,7 +25,7 @@ def test_a_slow_full_render_retries_on_production_files(tmp_path, monkeypatch):
             return subprocess.CompletedProcess(cmd, 0, "", "")
         return subprocess.CompletedProcess(cmd, 0, "1 passed", "")
 
-    monkeypatch.setattr(harness.subprocess, "run", fake_run)
+    monkeypatch.setattr(sandbox, "_call", fake_run)   # every boxed run starts there (0.94.0)
     scratch = tmp_path / "s"
     scratch.mkdir()
     files, meta = harness._run_coverage(tmp_path, scratch, "python -m coverage run -m pytest -q")

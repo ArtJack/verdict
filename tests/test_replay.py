@@ -131,6 +131,19 @@ def test_a_wrong_exit_code_is_not_reproduced_and_no_expect_means_exit_0(tmp_path
     assert by_id["PRICER-F-4"]["result"] == "reproduced" and by_id["PRICER-F-4"]["expect"] == {"exit": 0}
 
 
+def test_a_testers_repro_runs_without_the_callers_secret(tmp_path, monkeypatch):
+    """0.94.0: a tester's repro is the project's code under the tester's command, so it runs
+    in the box every target run gets (`sandbox.py`). Before, it had the caller's environment:
+    under `verdict-paid`, the API key."""
+    repo = _repo(tmp_path)
+    monkeypatch.setenv("CANARY_SECRET_TOKEN", "leak")
+    sees = f'{PY} -c "import os, sys; sys.exit(0 if os.environ.get(\'CANARY_SECRET_TOKEN\') else 1)"'
+    _state(repo, [_finding("PRICER-F-9", {"command": sees, "expect": {"exit": 0}})])
+    replay.main([str(repo)])
+    (row,) = _rows(repo)
+    assert row["result"] == "not reproduced" and row["checks"] == ["exit 1 (expected 0)"]
+
+
 def test_a_command_that_cannot_start_or_times_out_is_could_not_run(tmp_path, capsys):
     repo = _repo(tmp_path)
     _state(repo, [_finding("PRICER-F-5", {"command": "no-such-tool-xyz --flag", "expect": {"exit": 0}}),

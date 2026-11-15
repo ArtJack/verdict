@@ -72,8 +72,9 @@ try:
     from .replay import adopt_backfill, load_backfill, major_first, measure_findings, model_written, without_repro
     from .escalate import not_tested_line as escalation_not_tested
     from .reports import read_report
-    from .profile import RISK_CLASSES, ProfileError, gates_from, hygiene_filing_from, contract_rule_from, repro_rule_from, risk_class_from, risk_paths_from, assertion_gaps_from
+    from .profile import RISK_CLASSES, ProfileError, gates_from, hygiene_filing_from, contract_rule_from, repro_rule_from, risk_class_from, risk_paths_from, assertion_gaps_from, sandbox_from
     from .profile import load as load_profile
+    from . import sandbox
     from .project_key import derive_key
     from .state import (OUTCOMES_FILE, accepted_block, calibration, in_force, is_open,
                         load_accepted, load_chain_anchor, load_outcomes,
@@ -106,8 +107,9 @@ except ImportError:  # bare-script execution
     from replay import adopt_backfill, load_backfill, major_first, measure_findings, model_written, without_repro
     from escalate import not_tested_line as escalation_not_tested
     from reports import read_report
-    from profile import RISK_CLASSES, ProfileError, gates_from, hygiene_filing_from, contract_rule_from, repro_rule_from, risk_paths_from, assertion_gaps_from, risk_class_from
+    from profile import RISK_CLASSES, ProfileError, gates_from, hygiene_filing_from, contract_rule_from, repro_rule_from, risk_paths_from, assertion_gaps_from, risk_class_from, sandbox_from
     from profile import load as load_profile
+    import sandbox
     from project_key import derive_key
     from state import (OUTCOMES_FILE, accepted_block, calibration, in_force, is_open,
                        load_accepted, load_chain_anchor, load_outcomes,
@@ -585,12 +587,14 @@ def _run_test(template: str, test_id: str, cwd, repo: Path, timeout: float,
     # silently executes the first's bytecode. Fix verification is exactly that
     # shape: the same test id is run against two versions of a tree, and this
     # scratch has files copied into it from HEAD (VERDICT-F-50).
-    env = dict(os.environ, PYTHONDONTWRITEBYTECODE="1")
+    extra = {"PYTHONDONTWRITEBYTECODE": "1"}
     if pythonpath:
-        env["PYTHONPATH"] = os.pathsep.join([*pythonpath, env.get("PYTHONPATH", "")]).rstrip(os.pathsep)
+        extra["PYTHONPATH"] = os.pathsep.join(
+            [*pythonpath, os.environ.get("PYTHONPATH", "")]).rstrip(os.pathsep)
     try:
-        proc = subprocess.run(cmd, cwd=str(cwd), shell=True, capture_output=True, text=True,
-                              timeout=timeout, env=env)
+        # The project's test is target code: it runs in the box (`sandbox.py`).
+        proc = sandbox.run(cmd, cwd=str(cwd), shell=True, writable=[cwd], extra_env=extra,
+                           timeout=timeout)
     except subprocess.TimeoutExpired:
         return {"result": "error", "summary": f"timed out after {timeout:.0f}s"}
     except OSError as exc:
@@ -1213,20 +1217,24 @@ def _run_coverage(repo: Path, scratch: Path, cmd: str) -> tuple[dict | None, dic
     child_rc = scratch / "child.rc"
     child_rc.write_text(f"[run]\ncontext = {SUBPROCESS_CONTEXT}\nparallel = True\n"
                         "relative_files = True\n", encoding="utf-8")
-    env = dict(os.environ, COVERAGE_RCFILE=str(rc), COVERAGE_FILE=str(db),
-               COVERAGE_PROCESS_START=str(child_rc))
+    extra = {"COVERAGE_RCFILE": str(rc), "COVERAGE_FILE": str(db),
+             "COVERAGE_PROCESS_START": str(child_rc)}
     started = time.monotonic()
+
+    def boxed(command, timeout):
+        # The suite and its render are target code: they run in the box (`sandbox.py`).
+        return sandbox.run(command, cwd=str(repo), shell=True, writable=[repo, scratch],
+                           extra_env=extra, timeout=timeout)
+
     try:
-        proc = subprocess.run(cmd, cwd=str(repo), shell=True, capture_output=True, text=True,
-                              timeout=COVERAGE_TIMEOUT_S, env=env)
+        proc = boxed(cmd, COVERAGE_TIMEOUT_S)
     except (subprocess.TimeoutExpired, OSError) as exc:
         return None, {"reason": f"coverage run did not complete: {type(exc).__name__}"}
     duration = round(time.monotonic() - started, 2)
     render = _render_cmd(cmd, out)
     scope = "all files"
     try:
-        rproc = subprocess.run(render, cwd=str(repo), shell=True, capture_output=True,
-                               text=True, timeout=RENDER_TIMEOUT_S, env=env)
+        rproc = boxed(render, RENDER_TIMEOUT_S)
     except subprocess.TimeoutExpired:
         # A large suite's contexts make the full render slow: freqtrade's exceeded 300 s
         # (2026-10-17) and every coverage fact went with it. The production files alone
@@ -1235,8 +1243,7 @@ def _run_coverage(repo: Path, scratch: Path, cmd: str) -> tuple[dict | None, dic
             "[report]\n", "[report]\nomit = " + ", ".join(TEST_OMIT) + "\n", 1), encoding="utf-8")
         scope = f"production files only (the full render exceeded {RENDER_TIMEOUT_S} s)"
         try:
-            rproc = subprocess.run(render, cwd=str(repo), shell=True, capture_output=True,
-                                   text=True, timeout=COVERAGE_TIMEOUT_S // 2, env=env)
+            rproc = boxed(render, COVERAGE_TIMEOUT_S // 2)
         except (subprocess.TimeoutExpired, OSError) as exc:
             rproc, rendered_err = None, type(exc).__name__
         else:
@@ -1461,7 +1468,11 @@ def collect(repo: Path, qa_root: Path, gates: list[tuple[str, str]],
             report_path = reports_dir / f"{name}.report"
             rendered = command.replace("{report}", str(report_path))
         started = time.monotonic()
-        proc = _run(rendered, cwd=repo, shell=True)
+        # A gate is the project's own command: target code, run in the box (`sandbox.py`).
+        # A gate the profile names under `sandbox_network:` keeps the network, nothing else.
+        proc = sandbox.run(rendered, cwd=repo, shell=True,
+                           writable=[repo, *([reports_dir] if reports_dir else [])],
+                           network=name in sandbox.current().network_gates)
         duration = round(time.monotonic() - started, 2)
         output = proc.stdout + proc.stderr
         counts, dialect = _counts(output)
@@ -1611,7 +1622,8 @@ def collect(repo: Path, qa_root: Path, gates: list[tuple[str, str]],
         if ids_from_report:
             ids = ids_from_report
         else:
-            proc = _run(test_ids_cmd, cwd=repo, shell=True)
+            # Collection imports the project (its conftest.py runs): target code, boxed.
+            proc = sandbox.run(test_ids_cmd, cwd=repo, shell=True, writable=[repo])
             ids = sorted({x.strip() for x in proc.stdout.splitlines() if "::" in x})
         if not ids:
             # Zero ids is almost never an empty suite; it is a command that
@@ -3051,6 +3063,9 @@ def facts_main(argv=None) -> int:
         and (clock.now() - started).total_seconds() / 3600 <= RETRY_WINDOW_HOURS
     archived = archive_findings(qa_root, keep=retry)
     gaps_on, gaps_budget = assertion_gaps_from(config, profile_notes)
+    # The box the project's own code runs in (`sandbox.py`), as the profile sets it. With no
+    # profile, or under `--no-profile`, it is the default, on.
+    sandbox.configure(sandbox.policy_from(sandbox_from(config, profile_notes), qa_root, profile_notes))
     facts = collect(repo, qa_root, gates, args.test_ids_cmd, abandoned=abandoned,
                     test_one_cmd=args.test_one_cmd, coverage_suite_cmd=args.coverage_suite_cmd,
                     sha_range=args.sha_range, hygiene_filing=filing,
@@ -3058,6 +3073,7 @@ def facts_main(argv=None) -> int:
                                      "globs": risk_paths_from(config, [])} if gaps_on else None))
     if archived:
         facts["findings_archived"] = archived
+    facts["sandbox"] = sandbox.current().as_fact()
     # The scope the profile names (0.92.0): the files under the paths its risk-focus section
     # mentions, or defining the functions it names. The local tier reads these after the census
     # survivors, where it used to read the largest files on a project with no coverage map.
@@ -3523,6 +3539,9 @@ def finalize_main(argv=None, *, gateway: str | None = None) -> int:
     if refusal:
         print(refusal, file=sys.stderr)
         return 1
+    # Finalize replays repros and re-runs verification tests: the project's own code, so it
+    # runs in the box the profile sets (`sandbox.py`). An unreadable profile keeps it on.
+    sandbox.configure(sandbox.from_profile(qa_root))
     facts = _read_json(args.facts or (qa_root / "facts.json"))
     judgment = _read_json(args.judgment)
     if args.sweep and isinstance(facts, dict):

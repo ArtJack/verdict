@@ -196,6 +196,56 @@ the record (0.91.1). The local engine's runs and a model-free sweep are told, ne
 Off, the default, the same findings are accepted and named once. Either way a `repro` that does
 not reproduce on a fresh worktree refuses `proven`.
 
+**The project's own code runs in a box (0.94.0, `sandbox.py`).**
+
+What counts as the project's code: every command the harness starts from it.
+- the gates and the test-id collection;
+- one-test fix verification;
+- the coverage run and its render;
+- the census's mutants;
+- a tester's or a model's repro;
+- the local tier's probes, flake re-runs and its `<runner> run python` question.
+
+Where macOS's `/usr/bin/sandbox-exec` exists, that code runs with these limits:
+- no network but loopback (none at all for a model-written repro), and no DNS;
+- writes only to the checkout it runs in, a private temp dir and uv cache, and what `sandbox_write:` adds;
+- never a write to a checkout's `.git`, `.claude` or `.mcp.json`, or to the QA root, because git and Claude Code run those later, outside any box;
+- no reads of the owner's credential stores (`~/.ssh`, `~/.aws`, `~/.config/op-agent`, plaintext `.env` files under `~/.config`, and the others in `CREDENTIAL_PATHS`), of the Claude login the caller runs under, or of other projects' QA records. The credential stores are denied again after every read-back, so a writable path cannot reopen one;
+- a 4 GiB file-size ceiling;
+- its whole process group killed when it returns.
+
+Its environment is built from an allowlist on every machine, never inherited. `test_env:` names the variables a suite needs beyond it, comma-separated, and never passes one named like a credential.
+
+On macOS a process can read the start-up environment of any process of the same user (`sysctl(KERN_PROCARGS2)`), and no sandbox rule tried stopped it. So `verdict-run` starts its premeasure with no credential in its environment. The Claude CLI's own `ANTHROPIC_API_KEY`, when it authenticates that way, is the exception the box cannot close; the box denies it the network only. For a repository you do not trust, authenticate the CLI some other way.
+
+Before 0.94.0 these commands ran with the caller's whole environment (under `verdict-paid`, the API key), the network and the owner's files, measured 2026-11-03.
+
+`sandbox:` takes three values:
+- `auto` (unset) boxes the code where a box exists.
+- `required` runs nothing where none exists. The gate is `unavailable` and says why. Use it on a stranger's repository.
+- `off` restores the pre-0.94.0 behaviour for a suite that needs the network or the owner's files.
+
+A value it cannot read keeps `auto` and says so. `sandbox_network:` names the gates that may use the network, such as an `npm ci` gate; they keep everything else. `sandbox_write:` adds writable paths; one that reaches a credential store, such as `~` itself, is ignored with a note.
+
+**The floor.** `verdict-run --sandbox auto|required` sets the least box for the run and for every process it starts (`VERDICT_SANDBOX`), and a profile can only tighten it. Under a `required` floor the profile's `sandbox_network`, `sandbox_write` and `test_env` are ignored: a repository that ships its own `.qa/` must not loosen the box it is run in. `verdict-run` pins the floor to the profile's own setting before the tester starts, so a `profile.md` edited during the run changes nothing.
+
+`facts.json` → `sandbox` records `{mode, box, environment}`, plus `floor`, the network gates, the extra writable paths and `test_env` when set. `box` is one of:
+- `sandbox-exec`;
+- `none on this machine…`;
+- `off…`;
+- `the caller's sandbox…`, when the harness itself runs inside the tester's Claude Code sandbox, which macOS will not stack (`sandbox.nested`). Under `required` that counts only when `verdict-run` set the outer box up (`VERDICT_OUTER_BOX`).
+
+`verdict-run` also puts the tester's own Bash in Claude Code's sandbox through `--settings`. The settings:
+- `network.strictAllowlist` with no allowed domains;
+- `credentials.envVars` deny for every variable named like a credential, or whose value carries one (`scheme://user:password@host`);
+- `denyRead` for the credential stores and every `.env` file under `~/.config`;
+- writes to the checkout, the QA root and the repository's git directory;
+- the harness commands excluded, because they box the project's code themselves.
+
+`--no-sandbox` or `sandbox: off` leaves the tester outside the sandbox.
+
+**The checkout's Claude Code configuration.** A session started with `--setting-sources project,local` runs a tracked `.claude/settings.json` hook before the tester's first turn, outside every box (measured). Under `required`, `verdict-run` refuses a checkout holding anything under `.claude` that `provision` did not write, whatever its case or symlink, tracked or not. It fails closed when git or the disk cannot be read, and reads again after premeasure. Under `auto` it names what the repository tracks there.
+
 **A fix that fails the project's own green tests is a contract dispute (0.90.11).** A finding carrying `fix_breaks_tests` above 0 is capped at Major, taken out of the release blockers and parked as a question; the verdict is lowered from `fail` to `pass with risks` only when nothing else blocks. The project's tests are evidence of intent: on 2026-10-17 a django-oscar baseline called a Critical what 22 green tests and the tracker's history had settled the other way.
 
 A run whose tester answered on more than one model (its own

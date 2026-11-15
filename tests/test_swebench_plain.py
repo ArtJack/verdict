@@ -386,9 +386,11 @@ def test_the_plain_argv_is_still_the_one_the_runner_builds():
     # 0.90.8: `*tester` after the model is `--agent verdict --effort <the agent's pin>` —
     # the agent and the effort it pins are what the Verdict arm adds, so the plain arm,
     # Claude Code as a user gets it, carries neither.
+    # 0.94.0: `*box` after `*mcp` is the tester's sandbox (`--settings`, `tester_sandbox`), a
+    # Verdict control the plain arm does not carry either. Empty under `sandbox: off`.
     assert shape == ["Attribute", "-p", "Name", "--model", "Attribute", "Starred",
                      "--setting-sources", "project,local", "Starred", "Starred", "Starred",
-                     "Starred"]
+                     "Starred", "Starred"]
     strings = {n.value for n in ast.walk(main) if isinstance(n, ast.Constant)}
     assert "--dangerously-skip-permissions" in strings and "--strict-mcp-config" in strings
     env_calls = [v for v in assigned("env") if isinstance(v, ast.Call)]

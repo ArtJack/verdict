@@ -17,8 +17,23 @@ def _no_ambient_session(monkeypatch):
     that had answered on two models made the one-model rule block the finalize tests
     (2026-10-14). A test that needs a session sets its own."""
     for name in ("CLAUDE_CODE_SESSION_ID", "CLAUDE_CONFIG_DIR", "VERDICT_MODEL",
-                 "VERDICT_LOCAL_MODEL"):
+                 "VERDICT_LOCAL_MODEL", "VERDICT_SANDBOX", "VERDICT_OUTER_BOX"):
         monkeypatch.delenv(name, raising=False)
+
+
+@pytest.fixture(autouse=True)
+def _default_box():
+    """The box target code runs in (`sandbox.py`) is set per process by whichever entry point
+    read a profile last. A test whose profile said `sandbox: off` must not leave the next test
+    running without it, so every test starts from the default and leaves it there."""
+    try:
+        from verdict_mcp import sandbox
+    except ImportError:   # the hooks-floor job runs its tests with no project installed
+        yield
+        return
+    sandbox.configure(None)
+    yield
+    sandbox.configure(None)
 
 
 def git(args, cwd):
