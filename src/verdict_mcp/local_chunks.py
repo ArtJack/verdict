@@ -12,11 +12,12 @@ import sys
 from pathlib import Path
 
 try:
-    from . import braces, languages, readers
+    from . import braces, languages, reach, readers
 except ImportError:  # executed as a bare script
     sys.path.insert(0, str(Path(__file__).resolve().parent))
     import braces
     import languages
+    import reach
     import readers
 
 
@@ -35,9 +36,10 @@ class Chunk:
 
     def __init__(self, path: str, name: str, start: int, end: int, source: str,
                  lang: str = "python", context: str | None = None, note: str = "",
-                 unit: str = "function"):
+                 unit: str = "function", reached: list | None = None):
         self.path, self.name, self.start, self.end, self.source = path, name, start, end, source
         self.lang, self.context, self.note, self.unit = lang, context, note, unit
+        self.reached = reached or []
 
     def numbered(self) -> str:
         return "\n".join(f"{self.start + i:4d}| {line}"
@@ -59,8 +61,13 @@ def _source_chunks(repo: Path, rel: str, lines) -> list | None:
     except OSError:
         return []
     found = readers.read(rel, text, lines, MAX_SOURCE_LINES) or []
+    # A function in a file its own language's reader cut is asked about with what it reaches for
+    # one step outside itself: the callee that checks, the state it shares, the type it names.
+    whole_file = languages.family_of(lang) in ("braces", "ends")
     return [Chunk(rel, p.name, p.start, p.end, p.source, p.lang, p.context,
-                  language_note(repo, rel, p.lang), p.unit) for p in found]
+                  language_note(repo, rel, p.lang), p.unit,
+                  reach.reached(repo, rel, text, p.lang, p.start, p.end)
+                  if whole_file and p.unit == "function" else None) for p in found]
 
 
 _brace_chunks = _source_chunks

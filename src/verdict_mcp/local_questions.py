@@ -10,12 +10,13 @@ import sys
 from pathlib import Path
 
 try:
-    from . import languages
+    from . import languages, reach
     from .local_model import Model
     from .local_chunks import Chunk
 except ImportError:  # executed as a bare script
     sys.path.insert(0, str(Path(__file__).resolve().parent))
     import languages
+    import reach
     from local_model import Model
     from local_chunks import Chunk
 
@@ -65,7 +66,7 @@ codebase. Its doc comment, or its name and the code, state what it must do.
 File: {path}{context}
 ```{fence}
 {source}
-```
+```{relied}
 
 Does the code do exactly what it claims? Look for: a boundary that is off by one (`>` where
 `>=` is meant), a condition that can never be true or is always true, an error or a failed
@@ -88,7 +89,7 @@ BRACES_CLASSIFY_Q = """You are a software tester. A defect has been claimed in t
 File: {path}{context}
 ```{fence}
 {source}
-```
+```{relied}
 
 Claim: {mechanism}
 
@@ -191,10 +192,12 @@ def _brace_fields(chunk: Chunk) -> dict:
     language = languages.name_of(chunk.lang)
     if getattr(chunk, "unit", "function") == "template" and not language.endswith("template"):
         language += " template"                 # a Vue component's template, a Razor view's markup
-    return {"language": language, "fence": languages.fence_of(chunk.lang) or chunk.lang,
+    fence = languages.fence_of(chunk.lang) or chunk.lang
+    return {"language": language, "fence": fence,
             "path": chunk.path, "source": chunk.numbered(),
             "context": f"\nIt is declared inside: {chunk.context}" if chunk.context else "",
-            "note": f"\n{chunk.note}" if getattr(chunk, "note", "") else ""}
+            "note": f"\n{chunk.note}" if getattr(chunk, "note", "") else "",
+            "relied": reach.block(getattr(chunk, "reached", []) or [], fence)}
 
 
 def examine(model: Model, chunk: Chunk, hint: str | None = None) -> dict | None:
