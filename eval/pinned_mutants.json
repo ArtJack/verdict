@@ -1552,7 +1552,7 @@
  },
  {
   "label": "0.90.0 P4 local verdict: computed from this run's findings only, so a fail can improve",
-  "path": "src/verdict_mcp/small.py",
+  "path": "src/verdict_mcp/local_verdict.py",
   "old": "    if previous_verdict in (\"fail\", \"blocked\"):\n        return str(previous_verdict)",
   "new": "    if previous_verdict == \"never\":\n        return str(previous_verdict)"
  },
@@ -1636,7 +1636,7 @@
  },
  {
   "label": "0.90.0 P18 local verdict: a standing blocked verdict is improved by a local run that filed something",
-  "path": "src/verdict_mcp/small.py",
+  "path": "src/verdict_mcp/local_verdict.py",
   "old": "    if previous_verdict in (\"fail\", \"blocked\"):\n        return str(previous_verdict)",
   "new": "    if previous_verdict in (\"fail\",):\n        return str(previous_verdict)"
  },
@@ -1654,7 +1654,7 @@
  },
  {
   "label": "0.90.0 P21 local verdict: a red suite is reported as whatever the findings say",
-  "path": "src/verdict_mcp/small.py",
+  "path": "src/verdict_mcp/local_verdict.py",
   "old": "    if gates_failed:\n        # Red suite, red verdict. Not \"pass with risks over three failing tests\".\n        return \"fail\"\n",
   "new": "    if False:\n        # Red suite, red verdict. Not \"pass with risks over three failing tests\".\n        return \"fail\"\n"
  },
