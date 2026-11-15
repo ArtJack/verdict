@@ -25,31 +25,31 @@
  },
  {
   "label": "0.90.3 O-S-1a: the counterfactual probes the real tree, not the scratch copy",
-  "path": "src/verdict_mcp/small.py",
+  "path": "src/verdict_mcp/local_probes.py",
   "old": "        scratch_root = scratch / root_rel.relative_to(repo) if root_rel != repo else scratch\n",
   "new": "        scratch_root = root_rel\n"
  },
  {
   "label": "0.90.3 O-S-1b: a probe inherits the operator's whole environment",
-  "path": "src/verdict_mcp/small.py",
+  "path": "src/verdict_mcp/local_probes.py",
   "old": "    env = {k: v for k, v in os.environ.items()\n           if k.upper() in PROBE_ENV_KEEP or k.upper().startswith(\"LC_\")}\n",
   "new": "    env = dict(os.environ)\n"
  },
  {
   "label": "0.90.3 O-S-1c: the model's expression runs without being read as a syntax tree",
-  "path": "src/verdict_mcp/small.py",
+  "path": "src/verdict_mcp/local_probes.py",
   "old": "    call, why = safe_probe(expression, chunk.name)\n    if why:\n        return refused(why, expression)\n",
   "new": "    call, why = expression, None\n    if why:\n        return refused(why, expression)\n"
  },
  {
   "label": "0.90.3 O-S-1d: the model's replacement line is written without being read",
-  "path": "src/verdict_mcp/small.py",
+  "path": "src/verdict_mcp/local_probes.py",
   "old": "    unsafe_fix = safe_replacement(replacement, chunk.source)\n    if unsafe_fix:\n",
   "new": "    unsafe_fix = None\n    if unsafe_fix:\n"
  },
  {
   "label": "0.90.3 O-S-1e: secret files ride along in the scratch copy",
-  "path": "src/verdict_mcp/small.py",
+  "path": "src/verdict_mcp/local_probes.py",
   "old": "                    ignore=shutil.ignore_patterns(*COPY_SKIP, *SECRET_SKIP))",
   "new": "                    ignore=shutil.ignore_patterns(*COPY_SKIP))"
  },
@@ -355,31 +355,31 @@
  },
  {
   "label": "0.90.3 gate2 F-1a: a secret name the scratch copy carries",
-  "path": "src/verdict_mcp/small.py",
+  "path": "src/verdict_mcp/local_probes.py",
   "old": "SECRET_SKIP = (\".env\", \".env.*\", \"*.env\", \".envrc\", \"*.pem\", \"*.key\", \"id_rsa*\", \".ssh\",",
   "new": "SECRET_SKIP = (\".env\", \".env.*\", \"*.pem\", \"*.key\", \"id_rsa*\", \".ssh\","
  },
  {
   "label": "0.90.3 gate2 F-1b: copytree follows a symlink out of the tree and copies the secret",
-  "path": "src/verdict_mcp/small.py",
+  "path": "src/verdict_mcp/local_probes.py",
   "old": "    shutil.copytree(repo, into, dirs_exist_ok=True, symlinks=True,\n",
   "new": "    shutil.copytree(repo, into, dirs_exist_ok=True,\n"
  },
  {
   "label": "0.90.3 gate2 F-1c: a link out of the tree is left in the scratch copy",
-  "path": "src/verdict_mcp/small.py",
+  "path": "src/verdict_mcp/local_probes.py",
   "old": "        if target == into_real or into_real in target.parents:\n            continue            # a link that stays inside the copy\n",
   "new": "        if True:\n            continue            # a link that stays inside the copy\n"
  },
  {
   "label": "0.90.3 gate2 F-4a: _names reads the raw identifier spelling, not the form Python runs",
-  "path": "src/verdict_mcp/small.py",
+  "path": "src/verdict_mcp/local_probes.py",
   "old": "                out.add(unicodedata.normalize(\"NFKC\", tok.string))\n",
   "new": "                out.add(tok.string)\n"
  },
  {
   "label": "0.90.3 gate2 F-4b: safe_replacement judges a fix line by its raw spelling",
-  "path": "src/verdict_mcp/small.py",
+  "path": "src/verdict_mcp/local_probes.py",
   "old": "            name = unicodedata.normalize(\"NFKC\", tok.string)\n",
   "new": "            name = tok.string\n"
  },
@@ -1726,13 +1726,13 @@
  },
  {
   "label": "0.90.0 P33 local: a proof imports a packaged file from the repository root",
-  "path": "src/verdict_mcp/small.py",
+  "path": "src/verdict_mcp/local_probes.py",
   "old": "    root_rel, module = probe_root(repo, chunk.path)\n",
   "new": "    root_rel, module = source_root(repo, chunk.path), module_name(repo, chunk.path)\n"
  },
  {
   "label": "0.90.0 P34 local: the project's declared pythonpath is ignored",
-  "path": "src/verdict_mcp/small.py",
+  "path": "src/verdict_mcp/local_probes.py",
   "old": "    declared = [Path(r) for r in import_roots(repo)\n",
   "new": "    declared = [Path(r) for r in []\n"
  },
