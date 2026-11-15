@@ -73,115 +73,89 @@ except ImportError:  # bare-script execution
     from state import home as state_home
     from state import norm_status, resolve_root, root_refusal
     from validate import known_tests, validate_finding
-try:  # split out of this file by the structure pass; still importable here
+# Split out of this file by the structure pass (2026-11-15), and imported back for the code
+# below and for callers that import these names from small.
+try:
     from .local_model import (DEFAULT_NUM_CTX, DEFAULT_TIMEOUT_S, Model, gateway_alive,
                               extract_json as extract_json)
-except ImportError:  # executed as a bare script
-    from local_model import (DEFAULT_NUM_CTX, DEFAULT_TIMEOUT_S, Model, gateway_alive,
-                             extract_json as extract_json)
-try:  # split out of this file by the structure pass; still importable here
     from .local_chunks import (Chunk as Chunk, chunks_of as chunks_of, gap_functions,
                                gap_hint as gap_hint, MAX_SOURCE_LINES as MAX_SOURCE_LINES)
-except ImportError:  # executed as a bare script
-    from local_chunks import (Chunk as Chunk, chunks_of as chunks_of, gap_functions,
-                              gap_hint as gap_hint, MAX_SOURCE_LINES as MAX_SOURCE_LINES)
-try:  # split out of this file by the structure pass; still importable here
     from .local_candidates import (added_lines, candidates, changed_files, changed_lines_in,
                                    changed_lines_of, chunks_in_range as chunks_in_range,
                                    delta_candidates, python_in, readable_in)
-except ImportError:  # executed as a bare script
-    from local_candidates import (added_lines, candidates, changed_files, changed_lines_in,
-                                  changed_lines_of, chunks_in_range as chunks_in_range,
-                                  delta_candidates, python_in, readable_in)
-try:  # split out of this file by the structure pass; still importable here
     from .local_questions import (capped_failure as capped_failure, examine as examine,
                                   finding_of as finding_of, CLASSIFY_Q as CLASSIFY_Q,
                                   CONTRACT_Q as CONTRACT_Q, capped as capped,
                                   classify_question as classify_question,
                                   contract_question as contract_question)
-except ImportError:  # executed as a bare script
-    from local_questions import (capped_failure as capped_failure, examine as examine,
-                                 finding_of as finding_of, CLASSIFY_Q as CLASSIFY_Q,
-                                 CONTRACT_Q as CONTRACT_Q, capped as capped,
-                                 classify_question as classify_question,
-                                 contract_question as contract_question)
-try:  # split out of this file by the structure pass; still importable here
     from .local_probes import (counterfactual as counterfactual, PROBE_Q as PROBE_Q,
                                import_roots as import_roots, module_name as module_name,
                                probe_root as probe_root, run_probe as run_probe,
                                safe_probe as safe_probe, safe_replacement as safe_replacement,
                                scratch_copy as scratch_copy, source_root as source_root)
+    from .local_skips import (group_skips, skip_finding, skip_scan_files, skips_without_expiry,
+                              collected_test_files as collected_test_files,
+                              has_expiry as has_expiry)
+    from .local_suite import (GATE_DEFAULT, QUARANTINE_DAYS, brittle_findings, classify,
+                              failure_finding, failures_of, flaky_finding, focus_finding,
+                              rerun_failures, unstable, deterministic_kind as deterministic_kind,
+                              words_of as words_of)
+    from .local_carry import (carry_invariant, drift_note, partition_prior, refiled_finding,
+                              measured_resolution as measured_resolution)
+    from .local_quarantine import (REQUARANTINE_RUNS, failure_on_record, flaky_findings_by_test,
+                                   merge_quarantine, released_ids, requarantine)
+    from .local_verdict import (CARRIED_BLOCKED, counts_measured, gate_failed, local_verdict,
+                                unexercised_diff, verdict_for as verdict_for)
+    from .local_leads import (FOCUS_LINES, LEADS_FILE, LEADS_IN_FOCUS, NO_CODE_READ,
+                              NO_PROBE as NO_PROBE, READ_NOT_RUN, _unique, needs_claude)
+    from .local_budget import Budget, MAX_FUNCTIONS
+    from .local_findings import (PriorIndex, file_findings, focus_names, regressed_finding,
+                                 ordered_chunks as ordered_chunks)
+    from .local_env import (ENGINE, REUSE_MAX_AGE_MIN, interpreter_of, measure,
+                            plaintext_env_files, probes_off, read_json, read_reference,
+                            touches_findings, _RUNNER_PYTHON as _RUNNER_PYTHON,
+                            _gate_tokens as _gate_tokens)
+    from .local_summary import (leads_text, not_tested_lines, print_summary, read_env_file,
+                                resolve_range, written_verdict)
 except ImportError:  # executed as a bare script
+    from local_model import (DEFAULT_NUM_CTX, DEFAULT_TIMEOUT_S, Model, gateway_alive,
+                             extract_json as extract_json)
+    from local_chunks import (Chunk as Chunk, chunks_of as chunks_of, gap_functions,
+                              gap_hint as gap_hint, MAX_SOURCE_LINES as MAX_SOURCE_LINES)
+    from local_candidates import (added_lines, candidates, changed_files, changed_lines_in,
+                                  changed_lines_of, chunks_in_range as chunks_in_range,
+                                  delta_candidates, python_in, readable_in)
+    from local_questions import (capped_failure as capped_failure, examine as examine,
+                                 finding_of as finding_of, CLASSIFY_Q as CLASSIFY_Q,
+                                 CONTRACT_Q as CONTRACT_Q, capped as capped,
+                                 classify_question as classify_question,
+                                 contract_question as contract_question)
     from local_probes import (counterfactual as counterfactual, PROBE_Q as PROBE_Q,
                               import_roots as import_roots, module_name as module_name,
                               probe_root as probe_root, run_probe as run_probe,
                               safe_probe as safe_probe, safe_replacement as safe_replacement,
                               scratch_copy as scratch_copy, source_root as source_root)
-try:  # split out of this file by the structure pass; still importable here
-    from .local_skips import (group_skips, skip_finding, skip_scan_files, skips_without_expiry,
-                              collected_test_files as collected_test_files,
-                              has_expiry as has_expiry)
-except ImportError:  # executed as a bare script
     from local_skips import (group_skips, skip_finding, skip_scan_files, skips_without_expiry,
                              collected_test_files as collected_test_files,
                              has_expiry as has_expiry)
-try:  # split out of this file by the structure pass; still importable here
-    from .local_suite import (GATE_DEFAULT, QUARANTINE_DAYS, brittle_findings, classify,
-                              failure_finding, failures_of, flaky_finding, focus_finding,
-                              rerun_failures, unstable, deterministic_kind as deterministic_kind,
-                              words_of as words_of)
-except ImportError:  # executed as a bare script
     from local_suite import (GATE_DEFAULT, QUARANTINE_DAYS, brittle_findings, classify,
                              failure_finding, failures_of, flaky_finding, focus_finding,
                              rerun_failures, unstable, deterministic_kind as deterministic_kind,
                              words_of as words_of)
-try:  # split out of this file by the structure pass; still importable here
-    from .local_carry import (carry_invariant, drift_note, partition_prior, refiled_finding,
-                              measured_resolution as measured_resolution)
-except ImportError:  # executed as a bare script
     from local_carry import (carry_invariant, drift_note, partition_prior, refiled_finding,
                              measured_resolution as measured_resolution)
-try:  # split out of this file by the structure pass; still importable here
-    from .local_quarantine import (REQUARANTINE_RUNS, failure_on_record, flaky_findings_by_test,
-                                   merge_quarantine, released_ids, requarantine)
-except ImportError:  # executed as a bare script
     from local_quarantine import (REQUARANTINE_RUNS, failure_on_record, flaky_findings_by_test,
                                   merge_quarantine, released_ids, requarantine)
-try:  # split out of this file by the structure pass; still importable here
-    from .local_verdict import (CARRIED_BLOCKED, counts_measured, gate_failed, local_verdict,
-                                unexercised_diff, verdict_for as verdict_for)
-except ImportError:  # executed as a bare script
     from local_verdict import (CARRIED_BLOCKED, counts_measured, gate_failed, local_verdict,
                                unexercised_diff, verdict_for as verdict_for)
-try:  # split out of this file by the structure pass; still importable here
-    from .local_leads import (FOCUS_LINES, LEADS_FILE, LEADS_IN_FOCUS, NO_CODE_READ,
-                              NO_PROBE as NO_PROBE, READ_NOT_RUN, _unique, needs_claude)
-except ImportError:  # executed as a bare script
     from local_leads import (FOCUS_LINES, LEADS_FILE, LEADS_IN_FOCUS, NO_CODE_READ,
                              NO_PROBE as NO_PROBE, READ_NOT_RUN, _unique, needs_claude)
-try:  # split out of this file by the structure pass; still importable here
-    from .local_budget import Budget, MAX_FUNCTIONS
-except ImportError:  # executed as a bare script
     from local_budget import Budget, MAX_FUNCTIONS
-try:  # split out of this file by the structure pass; still importable here
-    from .local_findings import (PriorIndex, file_findings, focus_names, regressed_finding,
-                                 ordered_chunks as ordered_chunks)
-except ImportError:  # executed as a bare script
     from local_findings import (PriorIndex, file_findings, focus_names, regressed_finding,
                                 ordered_chunks as ordered_chunks)
-try:  # split out of this file by the structure pass; still importable here
-    from .local_env import (ENGINE, REUSE_MAX_AGE_MIN, interpreter_of, measure,
-                            plaintext_env_files, probes_off, read_json, read_reference,
-                            touches_findings, _RUNNER_PYTHON as _RUNNER_PYTHON,
-                            _gate_tokens as _gate_tokens)
-except ImportError:  # executed as a bare script
     from local_env import (ENGINE, REUSE_MAX_AGE_MIN, interpreter_of, measure, plaintext_env_files,
                            probes_off, read_json, read_reference, touches_findings,
                            _RUNNER_PYTHON as _RUNNER_PYTHON, _gate_tokens as _gate_tokens)
-try:  # split out of this file by the structure pass; still importable here
-    from .local_summary import (leads_text, not_tested_lines, print_summary, read_env_file,
-                                resolve_range, written_verdict)
-except ImportError:  # executed as a bare script
     from local_summary import (leads_text, not_tested_lines, print_summary, read_env_file,
                                resolve_range, written_verdict)
 # What a gate run may spend. A PR gate that takes an hour is a gate nobody
