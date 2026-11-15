@@ -1942,7 +1942,7 @@
  },
  {
   "label": "0.91.0 H27 finalize: a rows file another run wrote is compared against, so a restored state resolves rows it never had",
-  "path": "src/verdict_mcp/harness.py",
+  "path": "src/verdict_mcp/hygiene_facts.py",
   "old": "    if (doc is None or type(doc.get(\"run_number\")) is not int or doc[\"run_number\"] != run_number\n            or not isinstance(doc.get(\"rows\"), list)):\n",
   "new": "    if (doc is None\n            or not isinstance(doc.get(\"rows\"), list)):\n"
  },
