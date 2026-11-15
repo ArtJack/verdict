@@ -13,7 +13,7 @@
  },
  {
   "label": "0.90.3 H-D-1c: a report topic is used as a path",
-  "path": "src/verdict_mcp/harness.py",
+  "path": "src/verdict_mcp/report_names.py",
   "old": "    text = _TOPIC_SAFE.sub(\"-\", str(topic or \"\"))\n",
   "new": "    text = str(topic or \"\")\n"
  },
@@ -1204,7 +1204,7 @@
  },
  {
   "label": "0.83.0 L11 finalize: a later run's report overwrites an earlier run's with the same date and topic",
-  "path": "src/verdict_mcp/harness.py",
+  "path": "src/verdict_mcp/report_names.py",
   "old": "        if not path.exists() or _report_belongs_to(path, run_number):\n",
   "new": "        if True:\n"
  },
@@ -1246,7 +1246,7 @@
  },
  {
   "label": "0.84.0 M7 finalize: still_open is accepted over code that changed or vanished",
-  "path": "src/verdict_mcp/harness.py",
+  "path": "src/verdict_mcp/report_names.py",
   "old": "            if isinstance(d, dict) and d.get(\"drift\") in (\"changed\", \"missing\"):\n",
   "new": "            if False:\n"
  },
@@ -1918,7 +1918,7 @@
  },
  {
   "label": "0.91.0 H23 finalize: still_open naming a hygiene finding files a second copy under its id",
-  "path": "src/verdict_mcp/harness.py",
+  "path": "src/verdict_mcp/report_names.py",
   "old": "            if is_hygiene(prior):\n                continue            # the harness's own: re-measured, never carried by word\n",
   "new": ""
  },
