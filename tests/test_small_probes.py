@@ -23,7 +23,7 @@ import pytest
 
 REPO = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO / "src"))
-from verdict_mcp import local_findings, small  # noqa: E402
+from verdict_mcp import local_env, local_findings, local_probes, small  # noqa: E402
 from verdict_mcp.validate import validate_finding  # noqa: E402
 
 from test_local_delta import _ByPrompt, git  # noqa: E402
@@ -41,7 +41,7 @@ def _refuse_subprocess(monkeypatch):
     """Any child process started is the failure under test."""
     def boom(*a, **k):
         raise AssertionError(f"a subprocess was started: {a[0] if a else k}")
-    monkeypatch.setattr(small.subprocess, "run", boom)
+    monkeypatch.setattr(local_probes.subprocess, "run", boom)
 
 
 def _recorder_repo(tmp_path, marker: Path):
@@ -441,7 +441,7 @@ def test_uv_run_asks_uv_once_for_its_interpreter(tmp_path, monkeypatch):
         calls.append((argv, kw))
         return subprocess.CompletedProcess(argv, 0, stdout="/proj/.venv/bin/python\n", stderr="")
 
-    monkeypatch.setattr(small.subprocess, "run", fake_run)
+    monkeypatch.setattr(local_env.subprocess, "run", fake_run)
     small._RUNNER_PYTHON.clear()
     assert small.interpreter_of("uv run pytest -q", tmp_path) == "/proj/.venv/bin/python"
     assert small.interpreter_of("uv run pytest -q", tmp_path) == "/proj/.venv/bin/python"
@@ -453,13 +453,13 @@ def test_uv_run_asks_uv_once_for_its_interpreter(tmp_path, monkeypatch):
     def failing(argv, **kw):
         return subprocess.CompletedProcess(argv, 1, stdout="", stderr="no project found")
 
-    monkeypatch.setattr(small.subprocess, "run", failing)
+    monkeypatch.setattr(local_env.subprocess, "run", failing)
     small._RUNNER_PYTHON.clear()
     assert small.interpreter_of("uv run pytest", tmp_path) is None
 
 
 def test_a_bare_tool_is_found_on_path_and_a_non_python_gate_is_none(monkeypatch):
-    monkeypatch.setattr(small.shutil, "which",
+    monkeypatch.setattr(local_env.shutil, "which",
                         lambda name: {"pytest": "/w/bin/pytest", "python": "/w/bin/python"}.get(name))
     assert small.interpreter_of("pytest -q") == "/w/bin/python"
     assert small.interpreter_of("python -m pytest") == "/w/bin/python"
