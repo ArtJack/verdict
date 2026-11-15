@@ -1948,7 +1948,7 @@
  },
  {
   "label": "0.91.0 H28 state: the junk ledger's rows stay in state.json, which the tester reads first",
-  "path": "src/verdict_mcp/harness.py",
+  "path": "src/verdict_mcp/finalize_write.py",
   "old": "    _write_hygiene_rows(qa_root, state)\n",
   "new": ""
  },
