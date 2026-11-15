@@ -499,13 +499,13 @@
  },
  {
   "label": "H7 F-50: the scratch sweep becomes a no-op",
-  "path": "src/verdict_mcp/harness.py",
+  "path": "src/verdict_mcp/facts_verify.py",
   "old": "    for cache in Path(root).rglob(\"__pycache__\"):\n        shutil.rmtree(cache, ignore_errors=True)",
   "new": "    return"
  },
  {
   "label": "H8 F-50: verification subprocesses write bytecode again",
-  "path": "src/verdict_mcp/harness.py",
+  "path": "src/verdict_mcp/facts_verify.py",
   "old": "    extra = {\"PYTHONDONTWRITEBYTECODE\": \"1\"}\n    if pythonpath:",
   "new": "    extra = {}\n    if pythonpath:"
  },
@@ -541,7 +541,7 @@
  },
  {
   "label": "F-57: the bytecode sweep's only call site is deleted",
-  "path": "src/verdict_mcp/harness.py",
+  "path": "src/verdict_mcp/facts_verify.py",
   "old": "                _drop_bytecode(scratch)\n",
   "new": ""
  },
@@ -680,7 +680,7 @@
  },
  {
   "label": "0.77.0 Q5 F-26: the unselectable branch is never taken (the first cited test runs)",
-  "path": "src/verdict_mcp/harness.py",
+  "path": "src/verdict_mcp/facts_verify.py",
   "old": "        if how == \"first_cited\":\n",
   "new": "        if False and how == \"first_cited\":\n"
  },
@@ -1036,7 +1036,7 @@
  },
  {
   "label": "0.80.2 G1 F-26: a single prose-cited test is still run, and may still refuse",
-  "path": "src/verdict_mcp/harness.py",
+  "path": "src/verdict_mcp/facts_verify.py",
   "old": "        if how == \"first_cited\":\n",
   "new": "        if how == \"first_cited\" and len(tests) > 1:\n"
  },
@@ -1102,19 +1102,19 @@
  },
  {
   "label": "0.80.2 S5 sweep: an explicit citation that resolves to the collected id is not explicit",
-  "path": "src/verdict_mcp/harness.py",
+  "path": "src/verdict_mcp/facts_verify.py",
   "old": "    if any(resolve_test_id(str(n), {chosen}) == chosen for n in named) or chosen in named:\n",
   "new": "    if any(resolve_test_id(str(n), {chosen}) != chosen for n in named) or chosen in named:\n"
  },
  {
   "label": "0.80.2 S6 sweep: the counterfactual worktree is never removed",
-  "path": "src/verdict_mcp/harness.py",
+  "path": "src/verdict_mcp/facts_verify.py",
   "old": "    finally:\n        if scratch is not None:\n            _remove_scratch(repo, scratch)\n",
   "new": "    finally:\n        if False:\n            _remove_scratch(repo, scratch)\n"
  },
  {
   "label": "0.80.2 S7 sweep: the uncited-findings note starts counting at one",
-  "path": "src/verdict_mcp/harness.py",
+  "path": "src/verdict_mcp/facts_verify.py",
   "old": "    cited, unresolved, uncited = [], [], 0\n",
   "new": "    cited, unresolved, uncited = [], [], 1\n"
  },
@@ -1162,7 +1162,7 @@
  },
  {
   "label": "0.83.0 L4 harness: last_verified_at is stamped by a record that ran no test",
-  "path": "src/verdict_mcp/harness.py",
+  "path": "src/verdict_mcp/facts_verify.py",
   "old": "    if rec.get(\"at_head\") in (\"pass\", \"fail\") and measured_at:\n",
   "new": "    if rec.get(\"at_head\") and measured_at:\n"
  },
@@ -3208,7 +3208,7 @@
  },
  {
   "label": "0.94.0 call site 2: a fix-verification test gets the caller's environment",
-  "path": "src/verdict_mcp/harness.py",
+  "path": "src/verdict_mcp/facts_verify.py",
   "old": "        proc = sandbox.run(cmd, cwd=str(cwd), shell=True, writable=[cwd], extra_env=extra,\n                           timeout=timeout)\n",
   "new": "        proc = subprocess.run(cmd, cwd=str(cwd), shell=True, capture_output=True, text=True,\n                              timeout=timeout, env={**os.environ, **extra})\n"
  },
