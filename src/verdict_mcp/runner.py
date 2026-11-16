@@ -72,60 +72,48 @@ except ImportError:  # bare-script execution
     from project_key import derive_key
     from state import home as state_home
     from state import is_path_like, resolve_root
-try:  # split out of this file by the structure pass; still importable here
+# Split out of this file by the structure pass (2026-11-15), and imported back for the code
+# below and for callers that import these names from runner.
+try:
     from .runner_stream import _run_streaming
-except ImportError:  # executed as a bare script
-    from runner_stream import _run_streaming
-try:  # split out of this file by the structure pass; still importable here
     from .runner_limits import (final_stop, flag_refused, resolve_cap, seconds_until_reset,
                                 limit_kind as limit_kind, limit_line as limit_line)
-except ImportError:  # executed as a bare script
-    from runner_limits import (final_stop, flag_refused, resolve_cap, seconds_until_reset,
-                               limit_kind as limit_kind, limit_line as limit_line)
-try:  # split out of this file by the structure pass; still importable here
     from .runner_env import (BG_WAIT_ENV, GAPS_DEFAULT_ENV, child_env, passthrough_names,
                              pin_model_aliases, read_env_file, session_env,
                              is_gateway as is_gateway, seed_config as seed_config)
-except ImportError:  # executed as a bare script
-    from runner_env import (BG_WAIT_ENV, GAPS_DEFAULT_ENV, child_env, passthrough_names,
-                            pin_model_aliases, read_env_file, session_env,
-                            is_gateway as is_gateway, seed_config as seed_config)
-try:  # split out of this file by the structure pass; still importable here
     from .runner_sweep import (sweep, _harness as _harness, sweep_blockers as sweep_blockers,
                                sweep_judgment as sweep_judgment)
-except ImportError:  # executed as a bare script
-    from runner_sweep import (sweep, _harness as _harness, sweep_blockers as sweep_blockers,
-                              sweep_judgment as sweep_judgment)
-try:  # split out of this file by the structure pass; still importable here
     from .runner_agent import (DEFAULT_PROMPT, agent_flags, budget_line, print_bill, tester_prompt,
                                AGENT_PROMPT as AGENT_PROMPT, agent_effort as agent_effort,
                                bill_line as bill_line)
-except ImportError:  # executed as a bare script
-    from runner_agent import (DEFAULT_PROMPT, agent_flags, budget_line, print_bill, tester_prompt,
-                              AGENT_PROMPT as AGENT_PROMPT, agent_effort as agent_effort,
-                              bill_line as bill_line)
-try:  # split out of this file by the structure pass; still importable here
     from .runner_provision import (_PERMISSION_FLAGS, pin_box_floor, plugin_root, provision,
                                    shipped_config_allowed, tester_box_mode, tester_sandbox,
                                    HARNESS_COMMANDS as HARNESS_COMMANDS,
                                    PROVISION_RECORD as PROVISION_RECORD, _sha as _sha,
                                    repo_claude_config as repo_claude_config)
+    from .runner_local import (PREMEASURED_ENV as PREMEASURED_ENV, clear_marker,
+                               local_endpoint, measure_first, run_local,
+                               premeasure as premeasure)
+    from .runner_escalate import asked_preflight, escalate_preflight, start_escalation
 except ImportError:  # executed as a bare script
+    from runner_stream import _run_streaming
+    from runner_limits import (final_stop, flag_refused, resolve_cap, seconds_until_reset,
+                               limit_kind as limit_kind, limit_line as limit_line)
+    from runner_env import (BG_WAIT_ENV, GAPS_DEFAULT_ENV, child_env, passthrough_names,
+                            pin_model_aliases, read_env_file, session_env,
+                            is_gateway as is_gateway, seed_config as seed_config)
+    from runner_sweep import (sweep, _harness as _harness, sweep_blockers as sweep_blockers,
+                              sweep_judgment as sweep_judgment)
+    from runner_agent import (DEFAULT_PROMPT, agent_flags, budget_line, print_bill, tester_prompt,
+                              AGENT_PROMPT as AGENT_PROMPT, agent_effort as agent_effort,
+                              bill_line as bill_line)
     from runner_provision import (_PERMISSION_FLAGS, pin_box_floor, plugin_root, provision,
                                   shipped_config_allowed, tester_box_mode, tester_sandbox,
                                   HARNESS_COMMANDS as HARNESS_COMMANDS,
                                   PROVISION_RECORD as PROVISION_RECORD, _sha as _sha,
                                   repo_claude_config as repo_claude_config)
-try:  # split out of this file by the structure pass; still importable here
-    from .runner_local import (PREMEASURED_ENV as PREMEASURED_ENV, clear_marker,
-                               local_endpoint, measure_first, run_local,
-                               premeasure as premeasure)
-except ImportError:  # executed as a bare script
     from runner_local import (PREMEASURED_ENV as PREMEASURED_ENV, clear_marker, local_endpoint,
                               measure_first, run_local, premeasure as premeasure)
-try:  # split out of this file by the structure pass; still importable here
-    from .runner_escalate import asked_preflight, escalate_preflight, start_escalation
-except ImportError:  # executed as a bare script
     from runner_escalate import asked_preflight, escalate_preflight, start_escalation
 
 
