@@ -1408,19 +1408,19 @@
  },
  {
   "label": "0.87.0 O4 runner: a named config directory is used without seeding trust, so the run is refused in silence",
-  "path": "src/verdict_mcp/runner.py",
+  "path": "src/verdict_mcp/runner_env.py",
   "old": "    if config_dir:\n        seed_config(config_dir, repo)",
   "new": "    if config_dir:\n        pass"
  },
  {
   "label": "0.87.0 O5 runner: a gateway token is not mirrored to ANTHROPIC_API_KEY",
-  "path": "src/verdict_mcp/runner.py",
+  "path": "src/verdict_mcp/runner_env.py",
   "old": "            env[\"ANTHROPIC_API_KEY\"] = env[\"ANTHROPIC_AUTH_TOKEN\"]",
   "new": "            pass"
  },
  {
   "label": "0.87.0 O6 runner: the operator's own flag value is overwritten by the gateway defaults",
-  "path": "src/verdict_mcp/runner.py",
+  "path": "src/verdict_mcp/runner_env.py",
   "old": "        for key, value in GATEWAY_FLAGS.items():\n            env.setdefault(key, value)",
   "new": "        for key, value in GATEWAY_FLAGS.items():\n            env[key] = value"
  },
@@ -1432,7 +1432,7 @@
  },
  {
   "label": "0.87.0 O8 runner: any ANTHROPIC_BASE_URL counts as a gateway, so a plain run loses its named account",
-  "path": "src/verdict_mcp/runner.py",
+  "path": "src/verdict_mcp/runner_env.py",
   "old": "    return not (host == \"anthropic.com\" or host.endswith(\".anthropic.com\"))",
   "new": "    return True"
  },
@@ -2068,7 +2068,7 @@
  },
  {
   "label": "model pin: an id given as --model pins nothing",
-  "path": "src/verdict_mcp/runner.py",
+  "path": "src/verdict_mcp/runner_env.py",
   "old": "    pinned = [name for name in _ALIAS_ENV if not env.get(name)]\n",
   "new": "    pinned = []\n"
  },
