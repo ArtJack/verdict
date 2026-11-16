@@ -1810,7 +1810,7 @@
  },
  {
   "label": "0.91.0 H2 hygiene: placeholder-shaped keys are taken as live",
-  "path": "src/verdict_mcp/hygiene.py",
+  "path": "src/verdict_mcp/hygiene_scrub.py",
   "old": "    if _PLACEHOLDER.search(low) or any(seq in low for seq in _SEQUENTIAL):\n        return False\n",
   "new": "    if False:\n        return False\n"
  },
@@ -1822,13 +1822,13 @@
  },
  {
   "label": "0.91.0 H4 hygiene: the fingerprint includes the line number, so a moved line is a new item",
-  "path": "src/verdict_mcp/hygiene.py",
+  "path": "src/verdict_mcp/hygiene_scrub.py",
   "old": "        base = (it[\"kind\"], it[\"path\"], it.pop(\"_key\"))\n",
   "new": "        base = (it[\"kind\"], it[\"path\"], it.pop(\"_key\") + str(it[\"line\"]))\n"
  },
  {
   "label": "0.91.0 H13 hygiene: excerpts are not scrubbed, so a key in a TODO or a console.log reaches facts",
-  "path": "src/verdict_mcp/hygiene.py",
+  "path": "src/verdict_mcp/hygiene_scrub.py",
   "old": "    if redacted is None:\n        text, why = _scrub(text), _scrub(why)\n",
   "new": "    if False:\n        text, why = _scrub(text), _scrub(why)\n"
  },
