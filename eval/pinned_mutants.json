@@ -1192,13 +1192,13 @@
  },
  {
   "label": "0.83.0 L9 runner: a prompt the runner rendered from another root is kept when --plugin-root moves",
-  "path": "src/verdict_mcp/runner.py",
+  "path": "src/verdict_mcp/runner_provision.py",
   "old": "        owned = bool(mine.get(\"sha256\")) and mine[\"sha256\"] == _sha(current)\n",
   "new": "        owned = False\n"
  },
  {
   "label": "0.83.0 L10 runner: hooks the runner installed from another root are kept when --plugin-root moves",
-  "path": "src/verdict_mcp/runner.py",
+  "path": "src/verdict_mcp/runner_provision.py",
   "old": "        owned = bool(mine.get(\"sha256\")) and \\\n            mine[\"sha256\"] == _sha(json.dumps(current[\"hooks\"], sort_keys=True))\n",
   "new": "        owned = False\n"
  },
@@ -3226,7 +3226,7 @@
  },
  {
   "label": "0.94.0 runner 1: in bypass mode the tester's sandbox lets unlisted hosts through",
-  "path": "src/verdict_mcp/runner.py",
+  "path": "src/verdict_mcp/runner_provision.py",
   "old": "        \"network\": {\"strictAllowlist\": True, \"allowedDomains\": []},\n",
   "new": "        \"network\": {\"allowedDomains\": []},\n"
  },
@@ -3238,7 +3238,7 @@
  },
  {
   "label": "0.94.0 runner 3: the tester's Bash sees the API key",
-  "path": "src/verdict_mcp/runner.py",
+  "path": "src/verdict_mcp/runner_provision.py",
   "old": "        \"credentials\": {\"envVars\": [{\"name\": n, \"mode\": \"deny\"} for n in hidden]},\n",
   "new": "        \"credentials\": {\"envVars\": []},\n"
  },
@@ -3298,7 +3298,7 @@
  },
  {
   "label": "0.94.0 runner 4: required starts a checkout that carries foreign Claude Code configuration",
-  "path": "src/verdict_mcp/runner.py",
+  "path": "src/verdict_mcp/runner_provision.py",
   "old": "    if problem or foreign:\n",
   "new": "    if False:\n"
  },
