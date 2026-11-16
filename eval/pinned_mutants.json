@@ -1834,7 +1834,7 @@
  },
  {
   "label": "0.91.0 H14 hygiene: an encrypted .env.sops is read as a committed secrets file",
-  "path": "src/verdict_mcp/hygiene.py",
+  "path": "src/verdict_mcp/hygiene_paths.py",
   "old": "    return parts[-1] in _ENCRYPTED_LAST or any(p in _ENCRYPTED_INNER for p in parts[:-1])\n",
   "new": "    return False\n"
  },

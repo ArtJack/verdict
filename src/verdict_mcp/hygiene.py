@@ -73,104 +73,70 @@ try:
 except ImportError:  # imported as a plain module beside census.py
     from census import _SKIP_DIRS
 try:  # split out of this file by the structure pass; still importable here
-    from .hygiene_const import (CODE_SUFFIXES, DUPLICATE_MIN_LINES, FILE_CAP, LEAD_CAP, LEDGER_CAP,
-                                LONG_LINE, MAX_BYTES, OVERSIZED_LINES, PREVIEW_ROWS,
-                                SCANNED_SUFFIXES, SERVICE_ACCOUNT_MAX, SEVERITY, TIER2_KINDS,
-                                TITLE, _CODE_CLASS, _DATA_CLASS, _DOC_SUFFIXES, _GIT_REPO_VARS,
-                                _LEAD_ORDER, _MINIFIED, _SCRIPT_DIRS, _TEST_DIRS, _VENDOR_DIRS)
+    from .hygiene_const import (CODE_SUFFIXES, DUPLICATE_MIN_LINES, FILE_CAP, LEAD_CAP,
+                                LEDGER_CAP, LONG_LINE, MAX_BYTES, OVERSIZED_LINES,
+                                PREVIEW_ROWS, SCANNED_SUFFIXES, SERVICE_ACCOUNT_MAX, SEVERITY,
+                                TIER2_KINDS, TITLE, _CODE_CLASS, _DATA_CLASS, _DOC_SUFFIXES,
+                                _GIT_REPO_VARS, _LEAD_ORDER)
 except ImportError:  # executed as a bare script
-    from hygiene_const import (CODE_SUFFIXES, DUPLICATE_MIN_LINES, FILE_CAP, LEAD_CAP, LEDGER_CAP,
-                               LONG_LINE, MAX_BYTES, OVERSIZED_LINES, PREVIEW_ROWS,
-                               SCANNED_SUFFIXES, SERVICE_ACCOUNT_MAX, SEVERITY, TIER2_KINDS, TITLE,
-                               _CODE_CLASS, _DATA_CLASS, _DOC_SUFFIXES, _GIT_REPO_VARS,
-                               _LEAD_ORDER, _MINIFIED, _SCRIPT_DIRS, _TEST_DIRS, _VENDOR_DIRS)
+    from hygiene_const import (CODE_SUFFIXES, DUPLICATE_MIN_LINES, FILE_CAP, LEAD_CAP,
+                               LEDGER_CAP, LONG_LINE, MAX_BYTES, OVERSIZED_LINES, PREVIEW_ROWS,
+                               SCANNED_SUFFIXES, SERVICE_ACCOUNT_MAX, SEVERITY, TIER2_KINDS,
+                               TITLE, _CODE_CLASS, _DATA_CLASS, _DOC_SUFFIXES, _GIT_REPO_VARS,
+                               _LEAD_ORDER)
 try:  # split out of this file by the structure pass; still importable here
-    from .hygiene_patterns import (_BASE64_LINE, _CLIENT_PREFIXES, _COMMENT_MARKS, _COMPOSE_FILE,
-                                   _COMPOSE_PASSWORD, _COMPOSE_PORT, _COMPOSE_PORTS,
-                                   _CONFIG_TOKENS, _CONSOLE, _CONSTANT_NAME, _C_TOKENS, _DB_PORTS,
-                                   _DEFAULT_PASSWORDS, _DOWN_MIGRATION, _DOWN_SECTION,
-                                   _ENCRYPTED_INNER, _ENCRYPTED_LAST, _ENTRY_FILE, _ENV_ASSIGN,
-                                   _ENV_FILE, _ENV_TEMPLATE, _GOOGLE_KEY, _GOOGLE_WHY,
-                                   _HASH_COMMENTED, _HASH_COMMENTED_NAMES, _HASH_TOKENS,
-                                   _HCL_SUFFIXES, _HCL_TOKENS, _INLINE_KEY, _JS_CODEY_COMMENT,
+    from .hygiene_patterns import (_BASE64_LINE, _CLIENT_PREFIXES, _COMMENT_MARKS,
+                                   _COMPOSE_FILE, _COMPOSE_PASSWORD, _COMPOSE_PORT,
+                                   _COMPOSE_PORTS, _CONFIG_TOKENS, _CONSOLE, _CONSTANT_NAME,
+                                   _C_TOKENS, _DB_PORTS, _DEFAULT_PASSWORDS, _DOWN_MIGRATION,
+                                   _DOWN_SECTION, _ENTRY_FILE, _ENV_ASSIGN, _ENV_FILE,
+                                   _ENV_TEMPLATE, _GOOGLE_KEY, _GOOGLE_WHY, _HASH_COMMENTED,
+                                   _HASH_COMMENTED_NAMES, _HASH_TOKENS, _HCL_SUFFIXES,
+                                   _HCL_TOKENS, _INLINE_KEY, _JS_CODEY_COMMENT,
                                    _JS_COMMENT_TODO, _JS_DEBUGGER, _JS_EMPTY_CATCH, _JS_IMPORT,
                                    _JS_SQL_CONCAT, _JS_TEMPLATE, _JS_USE, _JWT, _KEY_CONTAINER,
-                                   _KEY_QUALIFIERS, _KEY_WORDS, _LINE_LEADS, _NOT_A_SECRET_TAIL,
-                                   _PAID_API, _PLACEHOLDER, _PLACEHOLDER_SECURITY_DEFAULT,
-                                   _PRIVATE_KEY, _PUBLIC_ENV_SECRET, _PUBLIC_RULE_WHY,
-                                   _PUBLIC_VALUES, _PUBLIC_WORDS, _PY_DEBUGGER_MODULES,
-                                   _READS_TEXT, _READ_CALL, _RICH, _RLS_OPEN_POLICY, _RLS_SWITCH,
-                                   _RTDB_RULE, _RULES_TOKEN, _SCRUBBED, _SCRUB_BASE64, _SCRUB_RUN,
-                                   _SECRET_PATTERNS, _SECRET_WORDS, _SENSITIVE, _SEQUENTIAL,
-                                   _SERVICE_ACCOUNT, _SERVICE_ACCOUNT_KEY, _SOPS_MAC, _SQL_BRACES,
-                                   _SQL_IN_VALUES, _SQL_PERCENT, _SQL_SHAPE, _SQL_SLOT,
-                                   _SQL_SLOT_LINE, _SQL_TOKENS, _SQL_WHY, _TEMPLATE_END, _TODO,
-                                   _TRIPLE_QUOTED, _URL_CREDENTIALS, _USE_CLIENT, _WRITE_CALL)
+                                   _KEY_QUALIFIERS, _KEY_WORDS, _LINE_LEADS,
+                                   _NOT_A_SECRET_TAIL, _PAID_API, _PLACEHOLDER,
+                                   _PLACEHOLDER_SECURITY_DEFAULT, _PRIVATE_KEY,
+                                   _PUBLIC_ENV_SECRET, _PUBLIC_RULE_WHY, _PUBLIC_VALUES,
+                                   _PUBLIC_WORDS, _PY_DEBUGGER_MODULES, _READS_TEXT,
+                                   _READ_CALL, _RICH, _RLS_OPEN_POLICY, _RLS_SWITCH,
+                                   _RTDB_RULE, _RULES_TOKEN, _SCRUBBED, _SCRUB_BASE64,
+                                   _SCRUB_RUN, _SECRET_PATTERNS, _SECRET_WORDS, _SENSITIVE,
+                                   _SEQUENTIAL, _SERVICE_ACCOUNT, _SERVICE_ACCOUNT_KEY,
+                                   _SQL_BRACES, _SQL_IN_VALUES, _SQL_PERCENT, _SQL_SHAPE,
+                                   _SQL_SLOT, _SQL_SLOT_LINE, _SQL_TOKENS, _SQL_WHY,
+                                   _TEMPLATE_END, _TODO, _TRIPLE_QUOTED, _URL_CREDENTIALS,
+                                   _USE_CLIENT, _WRITE_CALL)
 except ImportError:  # executed as a bare script
-    from hygiene_patterns import (_BASE64_LINE, _CLIENT_PREFIXES, _COMMENT_MARKS, _COMPOSE_FILE,
-                                  _COMPOSE_PASSWORD, _COMPOSE_PORT, _COMPOSE_PORTS, _CONFIG_TOKENS,
-                                  _CONSOLE, _CONSTANT_NAME, _C_TOKENS, _DB_PORTS,
-                                  _DEFAULT_PASSWORDS, _DOWN_MIGRATION, _DOWN_SECTION,
-                                  _ENCRYPTED_INNER, _ENCRYPTED_LAST, _ENTRY_FILE, _ENV_ASSIGN,
-                                  _ENV_FILE, _ENV_TEMPLATE, _GOOGLE_KEY, _GOOGLE_WHY,
-                                  _HASH_COMMENTED, _HASH_COMMENTED_NAMES, _HASH_TOKENS,
-                                  _HCL_SUFFIXES, _HCL_TOKENS, _INLINE_KEY, _JS_CODEY_COMMENT,
+    from hygiene_patterns import (_BASE64_LINE, _CLIENT_PREFIXES, _COMMENT_MARKS,
+                                  _COMPOSE_FILE, _COMPOSE_PASSWORD, _COMPOSE_PORT,
+                                  _COMPOSE_PORTS, _CONFIG_TOKENS, _CONSOLE, _CONSTANT_NAME,
+                                  _C_TOKENS, _DB_PORTS, _DEFAULT_PASSWORDS, _DOWN_MIGRATION,
+                                  _DOWN_SECTION, _ENTRY_FILE, _ENV_ASSIGN, _ENV_FILE,
+                                  _ENV_TEMPLATE, _GOOGLE_KEY, _GOOGLE_WHY, _HASH_COMMENTED,
+                                  _HASH_COMMENTED_NAMES, _HASH_TOKENS, _HCL_SUFFIXES,
+                                  _HCL_TOKENS, _INLINE_KEY, _JS_CODEY_COMMENT,
                                   _JS_COMMENT_TODO, _JS_DEBUGGER, _JS_EMPTY_CATCH, _JS_IMPORT,
                                   _JS_SQL_CONCAT, _JS_TEMPLATE, _JS_USE, _JWT, _KEY_CONTAINER,
                                   _KEY_QUALIFIERS, _KEY_WORDS, _LINE_LEADS, _NOT_A_SECRET_TAIL,
                                   _PAID_API, _PLACEHOLDER, _PLACEHOLDER_SECURITY_DEFAULT,
                                   _PRIVATE_KEY, _PUBLIC_ENV_SECRET, _PUBLIC_RULE_WHY,
-                                  _PUBLIC_VALUES, _PUBLIC_WORDS, _PY_DEBUGGER_MODULES, _READS_TEXT,
-                                  _READ_CALL, _RICH, _RLS_OPEN_POLICY, _RLS_SWITCH, _RTDB_RULE,
-                                  _RULES_TOKEN, _SCRUBBED, _SCRUB_BASE64, _SCRUB_RUN,
-                                  _SECRET_PATTERNS, _SECRET_WORDS, _SENSITIVE, _SEQUENTIAL,
-                                  _SERVICE_ACCOUNT, _SERVICE_ACCOUNT_KEY, _SOPS_MAC, _SQL_BRACES,
-                                  _SQL_IN_VALUES, _SQL_PERCENT, _SQL_SHAPE, _SQL_SLOT,
-                                  _SQL_SLOT_LINE, _SQL_TOKENS, _SQL_WHY, _TEMPLATE_END, _TODO,
-                                  _TRIPLE_QUOTED, _URL_CREDENTIALS, _USE_CLIENT, _WRITE_CALL)
-
-
-def is_test_path(rel: str) -> bool:
-    p = rel.replace("\\", "/").lower()
-    if any(d in _TEST_DIRS for d in p.split("/")[:-1]):
-        return True
-    return re.search(r"(?:^|/)(?:test_[^/]*\.py|[^/]*_tests?\.py|tests?\.py|conftest\.py"
-                     r"|[^/]*\.(?:test|spec|cy)\.[cm]?[jt]sx?|setuptests\.[cm]?[jt]sx?"
-                     r"|(?:jest|vitest)\.setup\.[^/]*)$", p) is not None
-
-
-def _is_script_path(rel: str) -> bool:
-    parts = rel.lower().split("/")
-    return parts[0] in _SCRIPT_DIRS or ".config." in parts[-1]
-
-
-def _generated(rel: str) -> bool:
-    """Minified or vendored: code nobody here wrote, so its junk is nobody's here."""
-    parts = rel.lower().split("/")
-    return _MINIFIED.search(parts[-1]) is not None or any(d in _VENDOR_DIRS for d in parts[:-1])
-
-
-def _encrypted_name(name: str) -> bool:
-    """`.env.sops`, `secrets.enc.yaml`, `.env.vault` — but `vault.py` is code. A name
-    with no dot at all (Ansible's `group_vars/all/vault`) is left to its content, so
-    a plaintext file that only sounds encrypted is still read."""
-    parts = name.lower().split(".")
-    if len(parts) < 2 or "." + parts[-1] in CODE_SUFFIXES:
-        return False
-    return parts[-1] in _ENCRYPTED_LAST or any(p in _ENCRYPTED_INNER for p in parts[:-1])
-
-
-def _encrypted_text(name: str, text: str) -> bool:
-    """SOPS (its MAC in the file's own metadata), Ansible Vault, PGP or age content.
-    Source code and documents are never such a payload: a scanner, its tests, a
-    SOPS helper or a page that explains SOPS may quote a marker, and quoting one
-    must not hide every key in the file."""
-    suffix = Path(name).suffix.lower()
-    if suffix in _CODE_CLASS or suffix in _DOC_SUFFIXES:
-        return False
-    head = text[:4096].lstrip()
-    return (_SOPS_MAC.search(text) is not None or "-----BEGIN PGP MESSAGE-----" in text
-            or head.startswith(("$ANSIBLE_VAULT;", "age-encryption.org/v1")))
+                                  _PUBLIC_VALUES, _PUBLIC_WORDS, _PY_DEBUGGER_MODULES,
+                                  _READS_TEXT, _READ_CALL, _RICH, _RLS_OPEN_POLICY,
+                                  _RLS_SWITCH, _RTDB_RULE, _RULES_TOKEN, _SCRUBBED,
+                                  _SCRUB_BASE64, _SCRUB_RUN, _SECRET_PATTERNS, _SECRET_WORDS,
+                                  _SENSITIVE, _SEQUENTIAL, _SERVICE_ACCOUNT,
+                                  _SERVICE_ACCOUNT_KEY, _SQL_BRACES, _SQL_IN_VALUES,
+                                  _SQL_PERCENT, _SQL_SHAPE, _SQL_SLOT, _SQL_SLOT_LINE,
+                                  _SQL_TOKENS, _SQL_WHY, _TEMPLATE_END, _TODO, _TRIPLE_QUOTED,
+                                  _URL_CREDENTIALS, _USE_CLIENT, _WRITE_CALL)
+try:  # split out of this file by the structure pass; still importable here
+    from .hygiene_paths import (_encrypted_name, _encrypted_text, _generated, _is_script_path,
+                                is_test_path)
+except ImportError:  # executed as a bare script
+    from hygiene_paths import (_encrypted_name, _encrypted_text, _generated, _is_script_path,
+                               is_test_path)
 
 
 # ── reading git ───────────────────────────────────────────────────────────
