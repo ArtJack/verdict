@@ -2218,13 +2218,13 @@
  },
  {
   "label": "0.90.8 agent launch 3: the effort is not the one the agent file pins",
-  "path": "src/verdict_mcp/runner.py",
+  "path": "src/verdict_mcp/runner_agent.py",
   "old": "        flags += [\"--effort\", agent_effort(repo)]",
   "new": "        flags += [\"--effort\", AGENT_EFFORT_DEFAULT]"
  },
  {
   "label": "0.90.8 agent launch 4: an operator's own --agent is overridden",
-  "path": "src/verdict_mcp/runner.py",
+  "path": "src/verdict_mcp/runner_agent.py",
   "old": "    if not given(\"--agent\"):",
   "new": "    if True:"
  },
@@ -2236,7 +2236,7 @@
  },
  {
   "label": "0.90.8 agent launch 6: the session that is the tester is told to go and find one",
-  "path": "src/verdict_mcp/runner.py",
+  "path": "src/verdict_mcp/runner_agent.py",
   "old": "    text = prompt if told else (AGENT_PROMPT if tester else DEFAULT_PROMPT)",
   "new": "    text = prompt if told else DEFAULT_PROMPT"
  },
@@ -2980,7 +2980,7 @@
  },
  {
   "label": "lite 2: a capped asked run's tester is never told its budget",
-  "path": "src/verdict_mcp/runner.py",
+  "path": "src/verdict_mcp/runner_agent.py",
   "old": "    if cap is None:\n        return \"\"\n    aim = ",
   "new": "    if True:\n        return \"\"\n    aim = "
  },
@@ -2998,7 +2998,7 @@
  },
  {
   "label": "lite 5: a capped normal run closes without its bill",
-  "path": "src/verdict_mcp/runner.py",
+  "path": "src/verdict_mcp/runner_agent.py",
   "old": "    bill = bill_line(qa_root, before) if (args.escalate or capped) else None\n",
   "new": "    bill = bill_line(qa_root, before) if args.escalate else None\n"
  },
