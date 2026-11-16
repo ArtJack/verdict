@@ -3088,7 +3088,7 @@
  },
  {
   "label": "0.93.1 hygiene: the Python SQL check is never called",
-  "path": "src/verdict_mcp/hygiene.py",
+  "path": "src/verdict_mcp/hygiene_python.py",
   "old": "            leads.extend(_sql_py(rel, tree, lines))\n",
   "new": "            leads.extend([])\n"
  },
