@@ -3,7 +3,7 @@
 [CI](https://github.com/ArtJack/verdict/actions/workflows/ci.yml) ·
 [verdict on itself](.qa/reports/INDEX.md) ·
 [eval: 8/8 seeded defects](eval/README.md#published-results) ·
-[pinned rules: 552/552 killed](eval/README.md#suite-fault-detection-power--mutation-testing-on-ourselves) ·
+[pinned rules: 560/560 killed](eval/README.md#suite-fault-detection-power--mutation-testing-on-ourselves) ·
 [PyPI: verdict-qa-mcp](https://pypi.org/project/verdict-qa-mcp/) ·
 [OpenSSF Best Practices: passing](https://www.bestpractices.dev/projects/16149) ·
 [MIT license](LICENSE)
@@ -736,6 +736,58 @@ one. Which model may sign a verdict is the eval's decision, never a default's: S
 on the honesty fixture and was at parity on root cause at n=3, with one run that wrote no state
 ([the model axis](eval/README.md#the-model-axis--opus-against-sonnet-paired)). Run it, publish
 the score, then decide.
+
+**Can it test a website, not just read its code?** Yes: `verdict-browse`, or a `site:` block
+in the profile that `verdict-local` runs after its gates
+([src/verdict_mcp/browser.py](src/verdict_mcp/browser.py)). It drives a real Chrome over the
+site, and every finding is something the browser measured. No model is asked anything:
+
+| Check | What the browser measures |
+|---|---|
+| `autofill-trap` | Chrome's own address autofill, driven through the DevTools protocol, fills each form; a field it fills that nobody can see is filed |
+| `phone-width`, `long-input` | at 375 px the page scrolls sideways, at load or after a long file name or entry |
+| `ios-zoom` | a form field whose CSS size is under 16 px, which makes iOS Safari zoom in on tap |
+| `hidden-at-load` | text and controls kept `visibility: hidden` until scrolled to, so out of the accessibility tree and the Tab order |
+| `focus-visible` | a control the Tab key reaches looks pixel for pixel the same focused and unfocused |
+| `keyboard` | a control that reacts to a click and not to Enter or Space |
+| `get-form` | without JavaScript, a form that sends personal fields in the address bar |
+| `social-image`, `links` | a preview image that is missing or not the size declared; a broken link or missing file; a live page answering 5xx |
+
+It only ever sends GET requests. Every request a page makes with another method is aborted in
+the browser, and so is every request to another origin, so a form is never submitted and no
+third party is called. Links that read like actions (log out, delete, unsubscribe) are never
+followed. That makes it safe to point at a live site:
+
+```
+pip install 'verdict-qa-mcp[browser]'
+verdict-browse https://example.com
+verdict-browse 'http://127.0.0.1:{port}/' --start 'npx next start -p {port}' --repo .
+```
+
+In a profile, `site:` takes `url`, an optional `start` (a command that serves the site on this
+machine, from the checkout under test), `pages`, `max_pages`, `checks`, `skip`, `ready_s` and
+`budget_s`. A later run that measures every page a browser finding was filed on, with the same
+check, and does not find it again resolves it. A page it could not reach leaves the finding
+open. The report's `not_tested` names what the pass did not do: submissions, the blocked third
+parties, Safari and Firefox, and frames.
+
+On a production Next.js site, at the commit a full manual audit covered and before its fixes,
+it checked 25 pages in 333 seconds and filed 11 findings, all of them real. Nine cover seven
+defects the audit had proven:
+- the bot trap Chrome's autofill fills, on both forms (the audit's one Critical);
+- content kept from screen readers until it is scrolled to;
+- a file picker that ignores Enter and Space, beside a file input with no visible focus;
+- a long file name that widens a form past a phone;
+- a contact form that, without JavaScript, puts the name, email and message in the URL;
+- 14 px fields that make iOS zoom;
+- a 1586×992 social image declared as 1200×630.
+
+The other two are the same no-JavaScript form defect on two forms the audit had not listed.
+Pointed at the live site three days and the Critical's fix later, it found the bot trap gone
+and the rest still there. The same commit's local model readings had found 1 of the audit's 35
+code-reachable defects. The checks were written after reading that audit, so
+this was a test of whether each check works on a real site, not of how much a blind run would
+find.
 
 **Why won't it fix the bugs it finds?** Independence. The agent that patches the code and
 then declares it healthy is grading its own homework. Verdict returns an ordered,

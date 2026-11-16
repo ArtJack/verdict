@@ -60,9 +60,10 @@ try:
     from .state import home as state_home
     from .state import norm_status, resolve_root, root_refusal
     from .validate import known_tests, validate_finding
-    from . import clock, languages
+    from . import browser, clock, languages
 except ImportError:  # bare-script execution
     sys.path.insert(0, str(Path(__file__).resolve().parent))
+    import browser
     import clock
     import languages
     from harness import finalize_main, finding_hash, is_test_file
@@ -158,6 +159,10 @@ except ImportError:  # executed as a bare script
                            _RUNNER_PYTHON as _RUNNER_PYTHON, _gate_tokens as _gate_tokens)
     from local_summary import (leads_text, not_tested_lines, print_summary, read_env_file,
                                resolve_range, written_verdict)
+try:  # split out of this file by the structure pass; still importable here
+    from .local_browser import browser_not_tested, browser_pass, browser_prose, browser_resolved
+except ImportError:  # executed as a bare script
+    from local_browser import browser_not_tested, browser_pass, browser_prose, browser_resolved
 # What a gate run may spend. A PR gate that takes an hour is a gate nobody
 # waits for, so the caps are the product decision: six files, twenty-four
 # functions, six counterfactuals, two minutes per call and fifteen minutes of
@@ -193,7 +198,10 @@ def run(repo: Path, qa_root: Path, model: Model, limit: int, gate: str | None,
     budget = budget or Budget()
     try:
         config, profile_notes = load_profile(qa_root)
-    except ProfileError as exc:
+        # Read before anything is measured: a `site:` block that cannot run is the profile's
+        # error, said now, not a browser pass that quietly never happened.
+        site = browser.site_from(config)
+    except (ProfileError, browser.SiteError) as exc:
         print(f"verdict-local: {exc}", file=sys.stderr)
         return 2
     gates = [("suite", gate)] if gate else (gates_from(config) or [("suite", GATE_DEFAULT)])
@@ -381,6 +389,10 @@ def run(repo: Path, qa_root: Path, model: Model, limit: int, gate: str | None,
         mint((focus_finding if skip.get("kind") == "focus" else skip_finding)(skip, "@"),
              findings_dir, filed)
 
+    # 2b. What a browser measures on the profile's `site:` — GET requests only, every write and
+    # every other origin aborted, and no model call at all: each finding is a measurement.
+    site_pass = browser_pass(site, repo, mint, findings_dir, filed, facts)
+
     # 3. What reading says, function by function — the source, then the tests.
     already_open: list = []
     leads: list | None = [] if previous else None      # a project with a record to protect
@@ -410,6 +422,8 @@ def run(repo: Path, qa_root: Path, model: Model, limit: int, gate: str | None,
                   if isinstance(f, dict) and f.get("id") and norm_status(f.get("status")) == "open"
                   and f.get("source") != "hygiene"]
     resolved_ids, still_open_ids, to_refile = partition_prior(previous, facts)
+    site_resolved = browser_resolved(site_pass, previous, on_record, resolved_ids,
+                                     still_open_ids)
     by_id = {str(f.get("id")): f for f in (previous or {}).get("findings") or []
              if isinstance(f, dict) and f.get("id")}
     for fid in released_ids(previous, released):
@@ -529,6 +543,8 @@ def run(repo: Path, qa_root: Path, model: Model, limit: int, gate: str | None,
     carried_blocked = prior_verdict == "blocked" and verdict == "blocked"
     if carried_blocked:
         not_tested.append(CARRIED_BLOCKED)
+    not_tested.extend(browser_not_tested(site_pass))
+    site_scope, site_notes = browser_prose(site_pass, site_resolved)
 
     judgment = {
         "topic": "local-delta" if previous else "local",
@@ -541,7 +557,7 @@ def run(repo: Path, qa_root: Path, model: Model, limit: int, gate: str | None,
                       f"time by {model.name}, each in isolation"
                       + (f", over the range `{measured_range}`" if ranged else "")
                       + ". The harness measured the repository; the model answered bounded "
-                        "questions about single functions."),
+                        "questions about single functions." + site_scope),
             "risks": ("Every finding read here is a `hypothesis` unless a counterfactual "
                       "proved it. This mode cannot see a defect that spans two functions, and "
                       "it reads the suite only where the range touched it."
@@ -552,7 +568,7 @@ def run(repo: Path, qa_root: Path, model: Model, limit: int, gate: str | None,
                       "stays `blocked`, until something with judgment looks at it."
                       + (" " + CARRIED_BLOCKED[0].upper() + CARRIED_BLOCKED[1:] + "."
                          if carried_blocked else "")
-                      + leads_text(leads)),
+                      + site_notes + leads_text(leads)),
         },
         "isolation_check": {"result": "pass",
                             "method": ("measured before the gates: no plaintext .env file at "

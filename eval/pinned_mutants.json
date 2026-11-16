@@ -3325,5 +3325,53 @@
   "path": "src/verdict_mcp/sandbox.py",
   "old": "        stdout, stderr = (s.decode(encoding, errors=errors).replace(\"\\r\\n\", \"\\n\").replace(\"\\r\", \"\\n\")\n",
   "new": "        stdout, stderr = (s.decode(encoding, errors=errors)\n"
+ },
+ {
+  "label": "browser 1: a write the page sends reaches the server",
+  "path": "src/verdict_mcp/browser_config.py",
+  "old": "NOT_A_WRITE = (\"GET\", \"HEAD\", \"OPTIONS\")\n",
+  "new": "NOT_A_WRITE = (\"GET\", \"HEAD\", \"OPTIONS\", \"POST\", \"PUT\", \"PATCH\", \"DELETE\")\n"
+ },
+ {
+  "label": "browser 2: a request to another origin is let through",
+  "path": "src/verdict_mcp/browser.py",
+  "old": "        if origin_of(url) != self.site.origin:\n            host = urllib.parse.urlsplit(url).hostname or \"?\"\n",
+  "new": "        if False and origin_of(url) != self.site.origin:\n            host = urllib.parse.urlsplit(url).hostname or \"?\"\n"
+ },
+ {
+  "label": "browser 3: a link that reads like an action is followed",
+  "path": "src/verdict_mcp/browser_config.py",
+  "old": "STATEFUL_PATH = re.compile(r\"(?:^|/)(?:log-?out|sign-?out|log-?off|delete|remove|destroy|\"\n",
+  "new": "STATEFUL_PATH = re.compile(r\"(?:^|/)(?:sign-?out|log-?off|delete|remove|destroy|\"\n"
+ },
+ {
+  "label": "browser 4: a finding is resolved when only some of its pages were measured again",
+  "path": "src/verdict_mcp/browser_findings.py",
+  "old": "        if marks and marks <= measured:\n",
+  "new": "        if marks and marks & measured:\n"
+ },
+ {
+  "label": "browser 5: a finding found again this run is resolved anyway",
+  "path": "src/verdict_mcp/browser_findings.py",
+  "old": "        if str(f.get(\"status\") or \"open\").lower() != \"open\" or str(f[\"id\"]) in refound:\n",
+  "new": "        if str(f.get(\"status\") or \"open\").lower() != \"open\":\n"
+ },
+ {
+  "label": "browser 6: a start command serves a URL off this machine",
+  "path": "src/verdict_mcp/browser_config.py",
+  "old": "    if start and parts.hostname not in LOOPBACK:\n",
+  "new": "    if False and start and parts.hostname not in LOOPBACK:\n"
+ },
+ {
+  "label": "browser 7 (call site): verdict-local never runs the profile's site: block",
+  "path": "src/verdict_mcp/small.py",
+  "old": "    site_pass = browser_pass(site, repo, mint, findings_dir, filed, facts)\n",
+  "new": "    site_pass = None\n"
+ },
+ {
+  "label": "browser 8 (call site): what the browser measured gone is never resolved",
+  "path": "src/verdict_mcp/small.py",
+  "old": "    site_resolved = browser_resolved(site_pass, previous, on_record, resolved_ids,\n                                     still_open_ids)\n",
+  "new": "    site_resolved = []\n"
  }
 ]

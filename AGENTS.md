@@ -41,7 +41,9 @@
   contract, also the PostToolUse hook), `anchors.py` (cited lines, hashed; drift),
   `filed.py` (findings as files), `sandbox.py` (the box every run of the project's own code
   goes through), `questions.py` (the questions ledger and
-  `verdict-answer`), `accept.py`, `replay.py` (`verdict-replay`), `dupes.py` (`verdict-dupes`), `check.py` (`verdict-check`), `backfill.py` (`verdict-backfill`), `escalate.py` (`--escalate` packets), `readfirst.py`, `gate.py`, `runner.py` (headless runs), `server.py`
+  `verdict-answer`), `accept.py`, `replay.py` (`verdict-replay`), `dupes.py` (`verdict-dupes`), `check.py` (`verdict-check`), `backfill.py` (`verdict-backfill`), `escalate.py` (`--escalate` packets), `readfirst.py`, `gate.py`, `runner.py` (headless runs), `browser.py` (`verdict-browse` and the
+  profile's `site:` block: a site in a real browser, GET only, no model; its parts are the
+  `browser_*` modules and `local_browser.py`), `server.py`
   (MCP); the guards `hooks/`; the state schema `docs/state-schema.md`; the evals
   `eval/`; the release notes `CHANGELOG.md` (one version line, three manifests).
 - **A release** is a tag: `release.yml` builds, publishes to PyPI and the MCP registry,

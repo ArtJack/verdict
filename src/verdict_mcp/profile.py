@@ -59,7 +59,7 @@ _NESTED = re.compile(r"^[ \t]{2,}([A-Za-z_][A-Za-z0-9_-]*):[ \t]*(.*)$")
 KNOWN = ("gates", "test_ids_cmd", "test_one_cmd", "coverage_suite_cmd", "coverage_cmd",
          "authorship", "hygiene", "probes", "risk_class", "risk_paths", "assertion_gaps",
          "assertion_gaps_budget_s", "repro_rule", "contract_rule",
-         "sandbox", "sandbox_network", "sandbox_write", "test_env")
+         "sandbox", "sandbox_network", "sandbox_write", "test_env", "site")
 SANDBOX_MODES = ("auto", "required", "off")
 # The production an owner runs this gate for, when it is one where a proven defect must
 # not ship: money moves through the code, or access is decided by it.
