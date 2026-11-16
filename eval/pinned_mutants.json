@@ -2770,7 +2770,7 @@
  },
  {
   "label": "escalate 2: the tester is started although the breadth pass failed",
-  "path": "src/verdict_mcp/runner.py",
+  "path": "src/verdict_mcp/runner_escalate.py",
   "old": "        code = local_main(argv)\n        if code != 0:\n",
   "new": "        code = local_main(argv)\n        if False:\n"
  },
@@ -2788,7 +2788,7 @@
  },
  {
   "label": "escalate 5: an escalation run with no gateway starts anyway",
-  "path": "src/verdict_mcp/runner.py",
+  "path": "src/verdict_mcp/runner_escalate.py",
   "old": "    base_url, token = local_endpoint(args.local_env_file, dict(os.environ))\n    if not base_url or not token:\n",
   "new": "    base_url, token = local_endpoint(args.local_env_file, dict(os.environ))\n    if False:\n"
  },
@@ -2968,7 +2968,7 @@
  },
  {
   "label": "escalate 12: the packet asks for 35 calls whatever the operator names",
-  "path": "src/verdict_mcp/runner.py",
+  "path": "src/verdict_mcp/runner_escalate.py",
   "old": "                                         args.calls or escalate.CALLS_DEFAULT)\n",
   "new": "                                         escalate.CALLS_DEFAULT)\n"
  },
@@ -2992,7 +2992,7 @@
  },
  {
   "label": "lite 4: --lite and --escalate run together",
-  "path": "src/verdict_mcp/runner.py",
+  "path": "src/verdict_mcp/runner_escalate.py",
   "old": "    if args.lite and args.escalate:\n",
   "new": "    if False:\n"
  },
