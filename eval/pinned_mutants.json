@@ -3142,13 +3142,13 @@
  },
  {
   "label": "0.93.1 hygiene: a JWT read with verification off is not a lead",
-  "path": "src/verdict_mcp/hygiene.py",
+  "path": "src/verdict_mcp/hygiene_patterns.py",
   "old": "        r\"|[\\\"']verify_(?:signature|exp)[\\\"']\\s*:\\s*False|ignoreExpiration\\s*:\\s*true\"),\n",
   "new": "        r\"|ignoreExpiration\\s*:\\s*true\"),\n"
  },
  {
   "label": "0.93.1 hygiene: an AI SDK allowed into the browser is not a lead",
-  "path": "src/verdict_mcp/hygiene.py",
+  "path": "src/verdict_mcp/hygiene_patterns.py",
   "old": "    (\"ai_key_in_browser\", re.compile(r\"dangerouslyAllowBrowser\\s*:\\s*true\"),\n",
   "new": "    (\"ai_key_in_browser\", re.compile(r\"(?!x)x\"),\n"
  },
