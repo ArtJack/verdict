@@ -7,7 +7,7 @@ import sys
 import pytest
 
 from conftest import judgment
-from verdict_mcp import escalate, runner, small
+from verdict_mcp import escalate, runner, runner_local, small
 from verdict_mcp.harness import facts_main, finalize_main
 
 
@@ -166,7 +166,7 @@ def wired(repo, tmp_path, monkeypatch):
         made.append(path)
         return path
 
-    monkeypatch.setattr(runner, "premeasure", premeasure)
+    monkeypatch.setattr(runner_local, "premeasure", premeasure)
     monkeypatch.setattr(small, "main", local_main)
     monkeypatch.setattr(small, "gateway_alive", lambda url, token=None, timeout_s=10.0: (seen.get("alive", True), "gateway answered"))
     monkeypatch.setattr(runner, "_run_streaming", run_streaming)

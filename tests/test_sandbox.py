@@ -23,7 +23,7 @@ import time
 import pytest
 
 from conftest import git
-from verdict_mcp import harness, profile, runner, runner_provision, sandbox
+from verdict_mcp import harness, profile, runner, runner_local, runner_provision, sandbox
 
 
 def _box_works() -> bool:
@@ -290,7 +290,7 @@ def test_premeasure_starts_with_no_credential_in_its_environment(tmp_path, monke
     def fake_premeasure(repo, qa_root, env, sha_range):
         seen.update(env)
         return "abc123"
-    monkeypatch.setattr(runner, "premeasure", fake_premeasure)
+    monkeypatch.setattr(runner_local, "premeasure", fake_premeasure)
     repo = _repo(tmp_path)
     env = {"PATH": "/bin", "ANTHROPIC_API_KEY": "sk", "OP_SERVICE_ACCOUNT_TOKEN": "op",
            "VERDICT_MODEL": "opus"}

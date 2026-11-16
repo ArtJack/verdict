@@ -2158,7 +2158,7 @@
  },
  {
   "label": "0.90.7 local facts 1: the engine measures again after the sweep attempt",
-  "path": "src/verdict_mcp/runner.py",
+  "path": "src/verdict_mcp/runner_local.py",
   "old": "\"--delta\", \"--reuse-facts\",",
   "new": "\"--delta\","
  },
@@ -2728,7 +2728,7 @@
  },
  {
   "label": "0.91.1 premeasure 3: the premeasurement runs inside the session's 10-minute window",
-  "path": "src/verdict_mcp/runner.py",
+  "path": "src/verdict_mcp/runner_local.py",
   "old": "    child = {k: v for k, v in env.items() if k not in (\"CLAUDECODE\", \"CLAUDE_CODE_ENTRYPOINT\")}\n",
   "new": "    child = dict(env)\n"
  },
@@ -3304,7 +3304,7 @@
  },
  {
   "label": "0.94.0 runner 5: premeasure starts with the caller's credentials",
-  "path": "src/verdict_mcp/runner.py",
+  "path": "src/verdict_mcp/runner_local.py",
   "old": "    head = premeasure(repo, qa_root, {k: v for k, v in env.items() if k not in hidden}, sha_range)\n",
   "new": "    head = premeasure(repo, qa_root, env, sha_range)\n"
  },
