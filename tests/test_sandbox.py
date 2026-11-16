@@ -23,7 +23,7 @@ import time
 import pytest
 
 from conftest import git
-from verdict_mcp import harness, profile, runner, sandbox
+from verdict_mcp import harness, profile, runner, runner_local, runner_provision, sandbox
 
 
 def _box_works() -> bool:
@@ -290,7 +290,7 @@ def test_premeasure_starts_with_no_credential_in_its_environment(tmp_path, monke
     def fake_premeasure(repo, qa_root, env, sha_range):
         seen.update(env)
         return "abc123"
-    monkeypatch.setattr(runner, "premeasure", fake_premeasure)
+    monkeypatch.setattr(runner_local, "premeasure", fake_premeasure)
     repo = _repo(tmp_path)
     env = {"PATH": "/bin", "ANTHROPIC_API_KEY": "sk", "OP_SERVICE_ACCOUNT_TOKEN": "op",
            "VERDICT_MODEL": "opus"}
@@ -553,7 +553,7 @@ def test_required_refuses_a_checkout_with_any_claude_configuration_but_verdicts_
 
 def test_required_fails_closed_when_git_cannot_say(tmp_path, monkeypatch):
     repo = _repo(tmp_path)
-    monkeypatch.setattr(runner, "repo_claude_config", lambda r: ([], "fatal: not a git repository"))
+    monkeypatch.setattr(runner_provision, "repo_claude_config", lambda r: ([], "fatal: not a git repository"))
     assert not runner.shipped_config_allowed(repo, "required")
 
 

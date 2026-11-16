@@ -1192,13 +1192,13 @@
  },
  {
   "label": "0.83.0 L9 runner: a prompt the runner rendered from another root is kept when --plugin-root moves",
-  "path": "src/verdict_mcp/runner.py",
+  "path": "src/verdict_mcp/runner_provision.py",
   "old": "        owned = bool(mine.get(\"sha256\")) and mine[\"sha256\"] == _sha(current)\n",
   "new": "        owned = False\n"
  },
  {
   "label": "0.83.0 L10 runner: hooks the runner installed from another root are kept when --plugin-root moves",
-  "path": "src/verdict_mcp/runner.py",
+  "path": "src/verdict_mcp/runner_provision.py",
   "old": "        owned = bool(mine.get(\"sha256\")) and \\\n            mine[\"sha256\"] == _sha(json.dumps(current[\"hooks\"], sort_keys=True))\n",
   "new": "        owned = False\n"
  },
@@ -1354,25 +1354,25 @@
  },
  {
   "label": "0.86.0 N11 sweep: a changed file a finding cites does not block the sweep",
-  "path": "src/verdict_mcp/runner.py",
+  "path": "src/verdict_mcp/runner_sweep.py",
   "old": "        if hit:\n            why.append(\"changed files a finding cites: \" + \", \".join(hit[:5]))\n",
   "new": "        if False:\n            why.append(\"changed files a finding cites: \" + \", \".join(hit[:5]))\n"
  },
  {
   "label": "0.86.0 N12 sweep: a red gate does not block the sweep",
-  "path": "src/verdict_mcp/runner.py",
+  "path": "src/verdict_mcp/runner_sweep.py",
   "old": "        elif g.get(\"result\") != \"pass\":\n            why.append(f\"gate {name} failed\")\n",
   "new": "        elif False:\n            why.append(f\"gate {name} failed\")\n"
  },
  {
   "label": "0.86.0 N13 sweep: a quarantine that is due does not block the sweep",
-  "path": "src/verdict_mcp/runner.py",
+  "path": "src/verdict_mcp/runner_sweep.py",
   "old": "        if not until or until <= today.isoformat():\n",
   "new": "        if False:\n"
  },
  {
   "label": "0.86.0 N14 sweep: a changed test-id set does not block the sweep",
-  "path": "src/verdict_mcp/runner.py",
+  "path": "src/verdict_mcp/runner_sweep.py",
   "old": "    elif ids.get(\"added_count\") or ids.get(\"removed_count\"):\n",
   "new": "    elif False:\n"
  },
@@ -1390,37 +1390,37 @@
  },
  {
   "label": "0.87.0 O1 runner: a weekly limit reads as a session one, so the night sleeps for a window that reopens in days",
-  "path": "src/verdict_mcp/runner.py",
+  "path": "src/verdict_mcp/runner_limits.py",
   "old": "    if \"weekly limit\" in low:\n        return \"weekly\"\n",
   "new": "    if \"weekly limit\" in low:\n        return \"session\"\n"
  },
  {
   "label": "0.87.0 O2 runner: a weekly limit spends the retry instead of stopping",
-  "path": "src/verdict_mcp/runner.py",
+  "path": "src/verdict_mcp/runner_limits.py",
   "old": "    if limit_kind(output) == \"weekly\":",
   "new": "    if False:"
  },
  {
   "label": "0.87.0 O3 runner: seconds_until_reset waits out any limit, weekly included",
-  "path": "src/verdict_mcp/runner.py",
+  "path": "src/verdict_mcp/runner_limits.py",
   "old": "    if limit_kind(output) != \"session\":\n        return None",
   "new": "    if limit_kind(output) is None:\n        return None"
  },
  {
   "label": "0.87.0 O4 runner: a named config directory is used without seeding trust, so the run is refused in silence",
-  "path": "src/verdict_mcp/runner.py",
+  "path": "src/verdict_mcp/runner_env.py",
   "old": "    if config_dir:\n        seed_config(config_dir, repo)",
   "new": "    if config_dir:\n        pass"
  },
  {
   "label": "0.87.0 O5 runner: a gateway token is not mirrored to ANTHROPIC_API_KEY",
-  "path": "src/verdict_mcp/runner.py",
+  "path": "src/verdict_mcp/runner_env.py",
   "old": "            env[\"ANTHROPIC_API_KEY\"] = env[\"ANTHROPIC_AUTH_TOKEN\"]",
   "new": "            pass"
  },
  {
   "label": "0.87.0 O6 runner: the operator's own flag value is overwritten by the gateway defaults",
-  "path": "src/verdict_mcp/runner.py",
+  "path": "src/verdict_mcp/runner_env.py",
   "old": "        for key, value in GATEWAY_FLAGS.items():\n            env.setdefault(key, value)",
   "new": "        for key, value in GATEWAY_FLAGS.items():\n            env[key] = value"
  },
@@ -1432,7 +1432,7 @@
  },
  {
   "label": "0.87.0 O8 runner: any ANTHROPIC_BASE_URL counts as a gateway, so a plain run loses its named account",
-  "path": "src/verdict_mcp/runner.py",
+  "path": "src/verdict_mcp/runner_env.py",
   "old": "    return not (host == \"anthropic.com\" or host.endswith(\".anthropic.com\"))",
   "new": "    return True"
  },
@@ -1594,7 +1594,7 @@
  },
  {
   "label": "0.90.0 P11 sweep: verified_intact is dropped, so the next sweep guards nothing",
-  "path": "src/verdict_mcp/runner.py",
+  "path": "src/verdict_mcp/runner_sweep.py",
   "old": "        \"verified_intact\": list(previous.get(\"verified_intact\") or []),",
   "new": "        \"verified_intact\": [],"
  },
@@ -1774,7 +1774,7 @@
  },
  {
   "label": "0.90.0 P41 runner: the harness child is left to find the package itself, and a runner started from source cannot sweep",
-  "path": "src/verdict_mcp/runner.py",
+  "path": "src/verdict_mcp/runner_sweep.py",
   "old": "    return subprocess.run([sys.executable, \"-c\", _BOOT, src, sub, *args],\n",
   "new": "    return subprocess.run([sys.executable, \"-m\", \"verdict_mcp.harness\", sub, *args],\n"
  },
@@ -1786,7 +1786,7 @@
  },
  {
   "label": "0.90.1 P42 runner: the harness child's source root leaks into the project's test command through PYTHONPATH",
-  "path": "src/verdict_mcp/runner.py",
+  "path": "src/verdict_mcp/runner_sweep.py",
   "old": "    return subprocess.run([sys.executable, \"-c\", _BOOT, src, sub, *args],\n                          capture_output=True, text=True, encoding=\"utf-8\", errors=\"replace\")\n",
   "new": "    return subprocess.run([sys.executable, \"-c\", _BOOT, src, sub, *args],\n                          capture_output=True, text=True, encoding=\"utf-8\", errors=\"replace\",\n                          env=dict(os.environ, PYTHONPATH=src))\n"
  },
@@ -1810,31 +1810,31 @@
  },
  {
   "label": "0.91.0 H2 hygiene: placeholder-shaped keys are taken as live",
-  "path": "src/verdict_mcp/hygiene.py",
+  "path": "src/verdict_mcp/hygiene_scrub.py",
   "old": "    if _PLACEHOLDER.search(low) or any(seq in low for seq in _SEQUENTIAL):\n        return False\n",
   "new": "    if False:\n        return False\n"
  },
  {
   "label": "0.91.0 H3 hygiene: lines numbered with splitlines(), so U+2028 shifts them",
-  "path": "src/verdict_mcp/hygiene.py",
+  "path": "src/verdict_mcp/hygiene_git.py",
   "old": "    return [ln.rstrip(\"\\r\") for ln in text.split(\"\\n\")]\n",
   "new": "    return text.splitlines()\n"
  },
  {
   "label": "0.91.0 H4 hygiene: the fingerprint includes the line number, so a moved line is a new item",
-  "path": "src/verdict_mcp/hygiene.py",
+  "path": "src/verdict_mcp/hygiene_scrub.py",
   "old": "        base = (it[\"kind\"], it[\"path\"], it.pop(\"_key\"))\n",
   "new": "        base = (it[\"kind\"], it[\"path\"], it.pop(\"_key\") + str(it[\"line\"]))\n"
  },
  {
   "label": "0.91.0 H13 hygiene: excerpts are not scrubbed, so a key in a TODO or a console.log reaches facts",
-  "path": "src/verdict_mcp/hygiene.py",
+  "path": "src/verdict_mcp/hygiene_scrub.py",
   "old": "    if redacted is None:\n        text, why = _scrub(text), _scrub(why)\n",
   "new": "    if False:\n        text, why = _scrub(text), _scrub(why)\n"
  },
  {
   "label": "0.91.0 H14 hygiene: an encrypted .env.sops is read as a committed secrets file",
-  "path": "src/verdict_mcp/hygiene.py",
+  "path": "src/verdict_mcp/hygiene_paths.py",
   "old": "    return parts[-1] in _ENCRYPTED_LAST or any(p in _ENCRYPTED_INNER for p in parts[:-1])\n",
   "new": "    return False\n"
  },
@@ -1846,7 +1846,7 @@
  },
  {
   "label": "0.91.0 H16 hygiene: tracked symlinks are read, so a link out of the repository is scanned",
-  "path": "src/verdict_mcp/hygiene.py",
+  "path": "src/verdict_mcp/hygiene_git.py",
   "old": "        if tab and len(fields) == 4 and fields[1] == b\"blob\" and fields[0] in (b\"100644\", b\"100755\"):\n",
   "new": "        if tab and len(fields) == 4 and fields[1] == b\"blob\":\n"
  },
@@ -1864,7 +1864,7 @@
  },
  {
   "label": "0.91.0 H7 sweep: a file only hygiene cites blocks the free sweep",
-  "path": "src/verdict_mcp/runner.py",
+  "path": "src/verdict_mcp/runner_sweep.py",
   "old": "            if not isinstance(f, dict) or f.get(\"source\") == \"hygiene\" \\\n                    or norm_status",
   "new": "            if not isinstance(f, dict) \\\n                    or norm_status"
  },
@@ -1882,37 +1882,37 @@
  },
  {
   "label": "0.91.0 H17 lifecycle: an item not seen resolves though its file was never read",
-  "path": "src/verdict_mcp/hygiene.py",
+  "path": "src/verdict_mcp/hygiene_evidence.py",
   "old": "                unread = [p for p in paths if p not in self.scanned and p not in gone]\n",
   "new": "                unread = []\n"
  },
  {
   "label": "0.91.0 H18 lifecycle: a file gone from the tree never resolves what was filed in it",
-  "path": "src/verdict_mcp/hygiene.py",
+  "path": "src/verdict_mcp/hygiene_evidence.py",
   "old": "        gone = self.absent(ask)\n",
   "new": "        gone = set()\n"
  },
  {
   "label": "0.91.0 H19 lifecycle: a file the parser refused resolves what only the parser finds",
-  "path": "src/verdict_mcp/hygiene.py",
+  "path": "src/verdict_mcp/hygiene_evidence.py",
   "old": "            if p in self.scanned and kind in _PARSED_KINDS and p in self.parse_failed:\n",
   "new": "            if False:\n"
  },
  {
   "label": "0.91.0 H20 lifecycle: an RLS switch resolves while a migration went unread",
-  "path": "src/verdict_mcp/hygiene.py",
+  "path": "src/verdict_mcp/hygiene_evidence.py",
   "old": "        if kind == \"open_database_rules\" and sql and not self.rls_judged:\n",
   "new": "        if False:\n"
  },
  {
   "label": "0.91.0 H21 lifecycle: a client secret whose site moves is filed again as NEW",
-  "path": "src/verdict_mcp/hygiene.py",
+  "path": "src/verdict_mcp/hygiene_evidence.py",
   "old": "    if record.get(\"kind\") == \"public_env_secret\" and record.get(\"variable\"):\n",
   "new": "    if False:\n"
  },
  {
   "label": "0.91.0 H22 ledger: a side file that cannot be read reads as no rows, so rows in scanned files resolve",
-  "path": "src/verdict_mcp/hygiene.py",
+  "path": "src/verdict_mcp/hygiene_reconcile.py",
   "old": "    rows_read = tier2 is not None\n",
   "new": "    rows_read = True\n"
  },
@@ -1936,7 +1936,7 @@
  },
  {
   "label": "0.91.0 H26 ledger: a prior ledger file that cannot be read passes for a first inventory, and says nothing",
-  "path": "src/verdict_mcp/hygiene.py",
+  "path": "src/verdict_mcp/hygiene_reconcile.py",
   "old": "    prior_unread = prev_rows is None and bool(prev.get(\"rows_file\"))\n",
   "new": "    prior_unread = False\n"
  },
@@ -1960,7 +1960,7 @@
  },
  {
   "label": "0.91.0 H30 sweep: a verdict the scan capped is reported as the previous one carried",
-  "path": "src/verdict_mcp/runner.py",
+  "path": "src/verdict_mcp/runner_sweep.py",
   "old": "    if written is None or written == carried:\n",
   "new": "    if True:\n"
  },
@@ -1972,7 +1972,7 @@
  },
  {
   "label": "0.91.0 H32 sweep: a hygiene id is carried by word, so every sweep records it as ignored",
-  "path": "src/verdict_mcp/runner.py",
+  "path": "src/verdict_mcp/runner_sweep.py",
   "old": "                if isinstance(f, dict) and f.get(\"id\") and norm_status(f.get(\"status\")) == \"open\"\n                and f.get(\"source\") != \"hygiene\"]\n",
   "new": "                if isinstance(f, dict) and f.get(\"id\") and norm_status(f.get(\"status\")) == \"open\"]\n"
  },
@@ -1984,13 +1984,13 @@
  },
  {
   "label": "0.91.0 H34 state: the preview shows the first rows in path order, not the oldest",
-  "path": "src/verdict_mcp/hygiene.py",
+  "path": "src/verdict_mcp/hygiene_reconcile.py",
   "old": "                    key=lambda r: (str(r.get(\"first_seen\") or \"\"), *where(r)))\n",
   "new": "                    key=where)\n"
  },
  {
   "label": "0.91.0 H35 lifecycle: an RLS finding resolves when its migration is deleted while RLS is unjudged",
-  "path": "src/verdict_mcp/hygiene.py",
+  "path": "src/verdict_mcp/hygiene_evidence.py",
   "old": "        sql = [p for p in paths if p.lower().endswith(\".sql\")]\n",
   "new": "        sql = [p for p in paths if p.lower().endswith(\".sql\") and p in self.scanned]\n"
  },
@@ -2068,7 +2068,7 @@
  },
  {
   "label": "model pin: an id given as --model pins nothing",
-  "path": "src/verdict_mcp/runner.py",
+  "path": "src/verdict_mcp/runner_env.py",
   "old": "    pinned = [name for name in _ALIAS_ENV if not env.get(name)]\n",
   "new": "    pinned = []\n"
  },
@@ -2158,7 +2158,7 @@
  },
  {
   "label": "0.90.7 local facts 1: the engine measures again after the sweep attempt",
-  "path": "src/verdict_mcp/runner.py",
+  "path": "src/verdict_mcp/runner_local.py",
   "old": "\"--delta\", \"--reuse-facts\",",
   "new": "\"--delta\","
  },
@@ -2218,25 +2218,25 @@
  },
  {
   "label": "0.90.8 agent launch 3: the effort is not the one the agent file pins",
-  "path": "src/verdict_mcp/runner.py",
+  "path": "src/verdict_mcp/runner_agent.py",
   "old": "        flags += [\"--effort\", agent_effort(repo)]",
   "new": "        flags += [\"--effort\", AGENT_EFFORT_DEFAULT]"
  },
  {
   "label": "0.90.8 agent launch 4: an operator's own --agent is overridden",
-  "path": "src/verdict_mcp/runner.py",
+  "path": "src/verdict_mcp/runner_agent.py",
   "old": "    if not given(\"--agent\"):",
   "new": "    if True:"
  },
  {
   "label": "0.90.8 agent launch 5: any unknown option reads as the agent flag refused",
-  "path": "src/verdict_mcp/runner.py",
+  "path": "src/verdict_mcp/runner_limits.py",
   "old": "r\"error: unknown option '--(?:agent|effort)'\"",
   "new": "r\"error: unknown option '\""
  },
  {
   "label": "0.90.8 agent launch 6: the session that is the tester is told to go and find one",
-  "path": "src/verdict_mcp/runner.py",
+  "path": "src/verdict_mcp/runner_agent.py",
   "old": "    text = prompt if told else (AGENT_PROMPT if tester else DEFAULT_PROMPT)",
   "new": "    text = prompt if told else DEFAULT_PROMPT"
  },
@@ -2308,7 +2308,7 @@
  },
  {
   "label": "0.90.10 news 6: a swept night never says what it changed",
-  "path": "src/verdict_mcp/runner.py",
+  "path": "src/verdict_mcp/runner_sweep.py",
   "old": "    result = evaluate(project, fail_on, None, before + 1, require_harness=require_harness)\n    print(f\"verdict-run: verdict {result.get('verdict')!r} → exit {result['exit_code']} \"\n          f\"({result['reason']})\")\n    if news := news_line(result):\n        print(f\"verdict-run: {news}\")\n",
   "new": "    result = evaluate(project, fail_on, None, before + 1, require_harness=require_harness)\n    print(f\"verdict-run: verdict {result.get('verdict')!r} → exit {result['exit_code']} \"\n          f\"({result['reason']})\")\n"
  },
@@ -2728,7 +2728,7 @@
  },
  {
   "label": "0.91.1 premeasure 3: the premeasurement runs inside the session's 10-minute window",
-  "path": "src/verdict_mcp/runner.py",
+  "path": "src/verdict_mcp/runner_local.py",
   "old": "    child = {k: v for k, v in env.items() if k not in (\"CLAUDECODE\", \"CLAUDE_CODE_ENTRYPOINT\")}\n",
   "new": "    child = dict(env)\n"
  },
@@ -2764,13 +2764,13 @@
  },
  {
   "label": "escalate 1: a session stopped at its dollar cap is tried again, spending the cap twice",
-  "path": "src/verdict_mcp/runner.py",
+  "path": "src/verdict_mcp/runner_limits.py",
   "old": "    if budget_exhausted(output):\n",
   "new": "    if False:\n"
  },
  {
   "label": "escalate 2: the tester is started although the breadth pass failed",
-  "path": "src/verdict_mcp/runner.py",
+  "path": "src/verdict_mcp/runner_escalate.py",
   "old": "        code = local_main(argv)\n        if code != 0:\n",
   "new": "        code = local_main(argv)\n        if False:\n"
  },
@@ -2788,7 +2788,7 @@
  },
  {
   "label": "escalate 5: an escalation run with no gateway starts anyway",
-  "path": "src/verdict_mcp/runner.py",
+  "path": "src/verdict_mcp/runner_escalate.py",
   "old": "    base_url, token = local_endpoint(args.local_env_file, dict(os.environ))\n    if not base_url or not token:\n",
   "new": "    base_url, token = local_endpoint(args.local_env_file, dict(os.environ))\n    if False:\n"
  },
@@ -2968,19 +2968,19 @@
  },
  {
   "label": "escalate 12: the packet asks for 35 calls whatever the operator names",
-  "path": "src/verdict_mcp/runner.py",
+  "path": "src/verdict_mcp/runner_escalate.py",
   "old": "                                         args.calls or escalate.CALLS_DEFAULT)\n",
   "new": "                                         escalate.CALLS_DEFAULT)\n"
  },
  {
   "label": "lite 1: a --lite run carries no dollar cap",
-  "path": "src/verdict_mcp/runner.py",
+  "path": "src/verdict_mcp/runner_limits.py",
   "old": "    elif cap is None and (args.escalate or args.lite):\n",
   "new": "    elif cap is None and args.escalate:\n"
  },
  {
   "label": "lite 2: a capped asked run's tester is never told its budget",
-  "path": "src/verdict_mcp/runner.py",
+  "path": "src/verdict_mcp/runner_agent.py",
   "old": "    if cap is None:\n        return \"\"\n    aim = ",
   "new": "    if True:\n        return \"\"\n    aim = "
  },
@@ -2992,13 +2992,13 @@
  },
  {
   "label": "lite 4: --lite and --escalate run together",
-  "path": "src/verdict_mcp/runner.py",
+  "path": "src/verdict_mcp/runner_escalate.py",
   "old": "    if args.lite and args.escalate:\n",
   "new": "    if False:\n"
  },
  {
   "label": "lite 5: a capped normal run closes without its bill",
-  "path": "src/verdict_mcp/runner.py",
+  "path": "src/verdict_mcp/runner_agent.py",
   "old": "    bill = bill_line(qa_root, before) if (args.escalate or capped) else None\n",
   "new": "    bill = bill_line(qa_root, before) if args.escalate else None\n"
  },
@@ -3058,37 +3058,37 @@
  },
  {
   "label": "0.93.1 hygiene: any value formatted into SQL is a lead, a table name in a value's slot or not",
-  "path": "src/verdict_mcp/hygiene.py",
+  "path": "src/verdict_mcp/hygiene_lines.py",
   "old": "                    if _sql_slot(before) and not _sql_safe_value(v.value):\n",
   "new": "                    if not _sql_safe_value(v.value):\n"
  },
  {
   "label": "0.93.1 hygiene: an ALL_CAPS constant in SQL is taken as outside text",
-  "path": "src/verdict_mcp/hygiene.py",
+  "path": "src/verdict_mcp/hygiene_lines.py",
   "old": "    if isinstance(node, ast.Name):\n        return bool(_CONSTANT_NAME.match(node.id))\n",
   "new": "    if isinstance(node, ast.Name):\n        return False\n"
  },
  {
   "label": "0.93.1 hygiene: the SQL lead points where a multi-line string starts, not where the value goes in",
-  "path": "src/verdict_mcp/hygiene.py",
+  "path": "src/verdict_mcp/hygiene_lines.py",
   "old": "                        lead(_sql_line(lines, node))\n",
   "new": "                        lead(node.lineno)\n"
  },
  {
   "label": "0.93.1 hygiene: a `+` chain is a lead once per link",
-  "path": "src/verdict_mcp/hygiene.py",
+  "path": "src/verdict_mcp/hygiene_lines.py",
   "old": "        elif isinstance(node, ast.BinOp) and isinstance(node.op, ast.Add) and id(node) not in inner:\n",
   "new": "        elif isinstance(node, ast.BinOp) and isinstance(node.op, ast.Add):\n"
  },
  {
   "label": "0.93.1 hygiene: a tagged template's bound values are taken as formatted SQL",
-  "path": "src/verdict_mcp/hygiene.py",
+  "path": "src/verdict_mcp/hygiene_lines.py",
   "old": "            if (m.start() and re.match(r\"[\\w$]\", line[m.start() - 1])) or not _SQL_SHAPE.search(body):\n",
   "new": "            if not _SQL_SHAPE.search(body):\n"
  },
  {
   "label": "0.93.1 hygiene: the Python SQL check is never called",
-  "path": "src/verdict_mcp/hygiene.py",
+  "path": "src/verdict_mcp/hygiene_python.py",
   "old": "            leads.extend(_sql_py(rel, tree, lines))\n",
   "new": "            leads.extend([])\n"
  },
@@ -3106,31 +3106,31 @@
  },
  {
   "label": "0.93.1 hygiene: every module counts as browser code",
-  "path": "src/verdict_mcp/hygiene.py",
+  "path": "src/verdict_mcp/hygiene_lines.py",
   "old": "            return bool(_USE_CLIENT.match(s))\n",
   "new": "            return True\n"
  },
  {
   "label": "0.93.1 hygiene: a port under expose: counts as published",
-  "path": "src/verdict_mcp/hygiene.py",
+  "path": "src/verdict_mcp/hygiene_lines.py",
   "old": "        if ports_at is not None and (indent < ports_at\n                                     or (indent == ports_at and not stripped.startswith(\"-\"))):\n",
   "new": "        if ports_at is not None and indent < ports_at:\n"
  },
  {
   "label": "0.93.1 hygiene: a dash level with its ports: key ends the list",
-  "path": "src/verdict_mcp/hygiene.py",
+  "path": "src/verdict_mcp/hygiene_lines.py",
   "old": "        if ports_at is not None and (indent < ports_at\n                                     or (indent == ports_at and not stripped.startswith(\"-\"))):\n",
   "new": "        if ports_at is not None and indent <= ports_at:\n"
  },
  {
   "label": "0.93.1 hygiene: a database port bound to loopback counts as published",
-  "path": "src/verdict_mcp/hygiene.py",
+  "path": "src/verdict_mcp/hygiene_lines.py",
   "old": "            loopback = ip.startswith(\"127.\") or ip in (\"localhost\", \"[::1]\")\n",
   "new": "            loopback = False\n"
  },
  {
   "label": "0.93.1 hygiene: a compose password read from the environment counts as a default",
-  "path": "src/verdict_mcp/hygiene.py",
+  "path": "src/verdict_mcp/hygiene_lines.py",
   "old": "        if pw and pw.group(\"value\").lower() in _DEFAULT_PASSWORDS:\n",
   "new": "        if pw:\n"
  },
@@ -3142,13 +3142,13 @@
  },
  {
   "label": "0.93.1 hygiene: a JWT read with verification off is not a lead",
-  "path": "src/verdict_mcp/hygiene.py",
+  "path": "src/verdict_mcp/hygiene_patterns.py",
   "old": "        r\"|[\\\"']verify_(?:signature|exp)[\\\"']\\s*:\\s*False|ignoreExpiration\\s*:\\s*true\"),\n",
   "new": "        r\"|ignoreExpiration\\s*:\\s*true\"),\n"
  },
  {
   "label": "0.93.1 hygiene: an AI SDK allowed into the browser is not a lead",
-  "path": "src/verdict_mcp/hygiene.py",
+  "path": "src/verdict_mcp/hygiene_patterns.py",
   "old": "    (\"ai_key_in_browser\", re.compile(r\"dangerouslyAllowBrowser\\s*:\\s*true\"),\n",
   "new": "    (\"ai_key_in_browser\", re.compile(r\"(?!x)x\"),\n"
  },
@@ -3226,7 +3226,7 @@
  },
  {
   "label": "0.94.0 runner 1: in bypass mode the tester's sandbox lets unlisted hosts through",
-  "path": "src/verdict_mcp/runner.py",
+  "path": "src/verdict_mcp/runner_provision.py",
   "old": "        \"network\": {\"strictAllowlist\": True, \"allowedDomains\": []},\n",
   "new": "        \"network\": {\"allowedDomains\": []},\n"
  },
@@ -3238,7 +3238,7 @@
  },
  {
   "label": "0.94.0 runner 3: the tester's Bash sees the API key",
-  "path": "src/verdict_mcp/runner.py",
+  "path": "src/verdict_mcp/runner_provision.py",
   "old": "        \"credentials\": {\"envVars\": [{\"name\": n, \"mode\": \"deny\"} for n in hidden]},\n",
   "new": "        \"credentials\": {\"envVars\": []},\n"
  },
@@ -3298,13 +3298,13 @@
  },
  {
   "label": "0.94.0 runner 4: required starts a checkout that carries foreign Claude Code configuration",
-  "path": "src/verdict_mcp/runner.py",
+  "path": "src/verdict_mcp/runner_provision.py",
   "old": "    if problem or foreign:\n",
   "new": "    if False:\n"
  },
  {
   "label": "0.94.0 runner 5: premeasure starts with the caller's credentials",
-  "path": "src/verdict_mcp/runner.py",
+  "path": "src/verdict_mcp/runner_local.py",
   "old": "    head = premeasure(repo, qa_root, {k: v for k, v in env.items() if k not in hidden}, sha_range)\n",
   "new": "    head = premeasure(repo, qa_root, env, sha_range)\n"
  },
