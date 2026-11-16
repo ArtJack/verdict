@@ -60,66 +60,46 @@ try:
     from .census import _SKIP_DIRS
 except ImportError:  # imported as a plain module beside census.py
     from census import _SKIP_DIRS
-try:  # split out of this file by the structure pass; still importable here
+# Split out of this file by the structure pass (2026-11-15), and imported back for the code
+# below and for callers that import these names from hygiene.
+try:
     from .hygiene_const import (CODE_SUFFIXES, FILE_CAP, LEAD_CAP, MAX_BYTES, OVERSIZED_LINES,
                                 SCANNED_SUFFIXES, TIER2_KINDS as TIER2_KINDS, _CODE_CLASS,
                                 _DATA_CLASS, _DOC_SUFFIXES, _LEAD_ORDER)
+    from .hygiene_patterns import (_COMPOSE_FILE, _ENTRY_FILE, _ENV_FILE, _ENV_TEMPLATE,
+                                   _READS_TEXT)
+    from .hygiene_paths import _encrypted_name, _encrypted_text, _generated, is_test_path
+    from .hygiene_git import _Blobs, _Unavailable, _head_files, _lines
+    from .hygiene_scrub import _fingerprint, _item, _scrub
+    from .hygiene_secrets import (_google_keys, _google_sites, _public_env, _public_env_sites,
+                                  _secret_file, _secret_file_kind, _secrets)
+    from .hygiene_rules import _database_rules, _js_debuggers, _rls_disabled, _rls_source
+    from .hygiene_lines import (_compose, _env_placeholders, _line_leads,
+                                _paid_api_from_browser, _sql_js)
+    from .hygiene_python import _duplicates, _function_bodies, _python, _unimported
+    from .hygiene_js import _javascript
+    from .hygiene_evidence import (Evidence as Evidence, is_hygiene as is_hygiene,
+                                   absent_from_tree as absent_from_tree)
+    from .hygiene_reconcile import (leads_followed as leads_followed, ledger as ledger,
+                                    reconcile as reconcile)
 except ImportError:  # executed as a bare script
     from hygiene_const import (CODE_SUFFIXES, FILE_CAP, LEAD_CAP, MAX_BYTES, OVERSIZED_LINES,
                                SCANNED_SUFFIXES, TIER2_KINDS as TIER2_KINDS, _CODE_CLASS,
                                _DATA_CLASS, _DOC_SUFFIXES, _LEAD_ORDER)
-try:  # split out of this file by the structure pass; still importable here
-    from .hygiene_patterns import (_COMPOSE_FILE, _ENTRY_FILE, _ENV_FILE, _ENV_TEMPLATE,
-                                   _READS_TEXT)
-except ImportError:  # executed as a bare script
     from hygiene_patterns import (_COMPOSE_FILE, _ENTRY_FILE, _ENV_FILE, _ENV_TEMPLATE,
                                   _READS_TEXT)
-try:  # split out of this file by the structure pass; still importable here
-    from .hygiene_paths import _encrypted_name, _encrypted_text, _generated, is_test_path
-except ImportError:  # executed as a bare script
     from hygiene_paths import _encrypted_name, _encrypted_text, _generated, is_test_path
-try:  # split out of this file by the structure pass; still importable here
-    from .hygiene_git import _Blobs, _Unavailable, _head_files, _lines
-except ImportError:  # executed as a bare script
     from hygiene_git import _Blobs, _Unavailable, _head_files, _lines
-try:  # split out of this file by the structure pass; still importable here
-    from .hygiene_scrub import _fingerprint, _item, _scrub
-except ImportError:  # executed as a bare script
     from hygiene_scrub import _fingerprint, _item, _scrub
-try:  # split out of this file by the structure pass; still importable here
-    from .hygiene_secrets import (_google_keys, _google_sites, _public_env, _public_env_sites,
-                                  _secret_file, _secret_file_kind, _secrets)
-except ImportError:  # executed as a bare script
     from hygiene_secrets import (_google_keys, _google_sites, _public_env, _public_env_sites,
                                  _secret_file, _secret_file_kind, _secrets)
-try:  # split out of this file by the structure pass; still importable here
-    from .hygiene_rules import _database_rules, _js_debuggers, _rls_disabled, _rls_source
-except ImportError:  # executed as a bare script
     from hygiene_rules import _database_rules, _js_debuggers, _rls_disabled, _rls_source
-try:  # split out of this file by the structure pass; still importable here
-    from .hygiene_lines import (_compose, _env_placeholders, _line_leads,
-                                _paid_api_from_browser, _sql_js)
-except ImportError:  # executed as a bare script
     from hygiene_lines import (_compose, _env_placeholders, _line_leads,
                                _paid_api_from_browser, _sql_js)
-try:  # split out of this file by the structure pass; still importable here
-    from .hygiene_python import _duplicates, _function_bodies, _python, _unimported
-except ImportError:  # executed as a bare script
     from hygiene_python import _duplicates, _function_bodies, _python, _unimported
-try:  # split out of this file by the structure pass; still importable here
-    from .hygiene_js import _javascript
-except ImportError:  # executed as a bare script
     from hygiene_js import _javascript
-try:  # split out of this file by the structure pass; still importable here
-    from .hygiene_evidence import (Evidence as Evidence, is_hygiene as is_hygiene,
-                                   absent_from_tree as absent_from_tree)
-except ImportError:  # executed as a bare script
     from hygiene_evidence import (Evidence as Evidence, is_hygiene as is_hygiene,
                                   absent_from_tree as absent_from_tree)
-try:  # split out of this file by the structure pass; still importable here
-    from .hygiene_reconcile import (leads_followed as leads_followed, ledger as ledger,
-                                    reconcile as reconcile)
-except ImportError:  # executed as a bare script
     from hygiene_reconcile import (leads_followed as leads_followed, ledger as ledger,
                                    reconcile as reconcile)
 
