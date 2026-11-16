@@ -1912,7 +1912,7 @@
  },
  {
   "label": "0.91.0 H22 ledger: a side file that cannot be read reads as no rows, so rows in scanned files resolve",
-  "path": "src/verdict_mcp/hygiene.py",
+  "path": "src/verdict_mcp/hygiene_reconcile.py",
   "old": "    rows_read = tier2 is not None\n",
   "new": "    rows_read = True\n"
  },
@@ -1936,7 +1936,7 @@
  },
  {
   "label": "0.91.0 H26 ledger: a prior ledger file that cannot be read passes for a first inventory, and says nothing",
-  "path": "src/verdict_mcp/hygiene.py",
+  "path": "src/verdict_mcp/hygiene_reconcile.py",
   "old": "    prior_unread = prev_rows is None and bool(prev.get(\"rows_file\"))\n",
   "new": "    prior_unread = False\n"
  },
@@ -1984,7 +1984,7 @@
  },
  {
   "label": "0.91.0 H34 state: the preview shows the first rows in path order, not the oldest",
-  "path": "src/verdict_mcp/hygiene.py",
+  "path": "src/verdict_mcp/hygiene_reconcile.py",
   "old": "                    key=lambda r: (str(r.get(\"first_seen\") or \"\"), *where(r)))\n",
   "new": "                    key=where)\n"
  },

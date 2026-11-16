@@ -4,7 +4,7 @@ Owned by the harness means measured every run and resolved only on evidence —
 every file the item lives in was scanned this run, or is gone from the tree —
 never by the tester's silence, never re-filed by a judgment."""
 
-from verdict_mcp import hygiene
+from verdict_mcp import hygiene_reconcile
 from verdict_mcp.hygiene import Evidence, is_hygiene, leads_followed, ledger, reconcile
 
 
@@ -239,7 +239,7 @@ def test_an_unavailable_scan_keeps_the_ledger_rather_than_dropping_it():
 
 
 def test_past_the_cap_the_rows_with_a_history_are_kept_and_the_counts_stay_exact(monkeypatch):
-    monkeypatch.setattr(hygiene, "LEDGER_CAP", 2)
+    monkeypatch.setattr(hygiene_reconcile, "LEDGER_CAP", 2)
     old = [item("unused_import", "u1", 2), item("unused_import", "u2", 2)]
     one = ledger(facts(), old, None, "2026-10-01", 1, "a")
     fresh = [item("todo_comment", f"t{n}", 2) for n in range(3)]
