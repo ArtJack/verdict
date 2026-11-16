@@ -3058,31 +3058,31 @@
  },
  {
   "label": "0.93.1 hygiene: any value formatted into SQL is a lead, a table name in a value's slot or not",
-  "path": "src/verdict_mcp/hygiene.py",
+  "path": "src/verdict_mcp/hygiene_lines.py",
   "old": "                    if _sql_slot(before) and not _sql_safe_value(v.value):\n",
   "new": "                    if not _sql_safe_value(v.value):\n"
  },
  {
   "label": "0.93.1 hygiene: an ALL_CAPS constant in SQL is taken as outside text",
-  "path": "src/verdict_mcp/hygiene.py",
+  "path": "src/verdict_mcp/hygiene_lines.py",
   "old": "    if isinstance(node, ast.Name):\n        return bool(_CONSTANT_NAME.match(node.id))\n",
   "new": "    if isinstance(node, ast.Name):\n        return False\n"
  },
  {
   "label": "0.93.1 hygiene: the SQL lead points where a multi-line string starts, not where the value goes in",
-  "path": "src/verdict_mcp/hygiene.py",
+  "path": "src/verdict_mcp/hygiene_lines.py",
   "old": "                        lead(_sql_line(lines, node))\n",
   "new": "                        lead(node.lineno)\n"
  },
  {
   "label": "0.93.1 hygiene: a `+` chain is a lead once per link",
-  "path": "src/verdict_mcp/hygiene.py",
+  "path": "src/verdict_mcp/hygiene_lines.py",
   "old": "        elif isinstance(node, ast.BinOp) and isinstance(node.op, ast.Add) and id(node) not in inner:\n",
   "new": "        elif isinstance(node, ast.BinOp) and isinstance(node.op, ast.Add):\n"
  },
  {
   "label": "0.93.1 hygiene: a tagged template's bound values are taken as formatted SQL",
-  "path": "src/verdict_mcp/hygiene.py",
+  "path": "src/verdict_mcp/hygiene_lines.py",
   "old": "            if (m.start() and re.match(r\"[\\w$]\", line[m.start() - 1])) or not _SQL_SHAPE.search(body):\n",
   "new": "            if not _SQL_SHAPE.search(body):\n"
  },
@@ -3106,31 +3106,31 @@
  },
  {
   "label": "0.93.1 hygiene: every module counts as browser code",
-  "path": "src/verdict_mcp/hygiene.py",
+  "path": "src/verdict_mcp/hygiene_lines.py",
   "old": "            return bool(_USE_CLIENT.match(s))\n",
   "new": "            return True\n"
  },
  {
   "label": "0.93.1 hygiene: a port under expose: counts as published",
-  "path": "src/verdict_mcp/hygiene.py",
+  "path": "src/verdict_mcp/hygiene_lines.py",
   "old": "        if ports_at is not None and (indent < ports_at\n                                     or (indent == ports_at and not stripped.startswith(\"-\"))):\n",
   "new": "        if ports_at is not None and indent < ports_at:\n"
  },
  {
   "label": "0.93.1 hygiene: a dash level with its ports: key ends the list",
-  "path": "src/verdict_mcp/hygiene.py",
+  "path": "src/verdict_mcp/hygiene_lines.py",
   "old": "        if ports_at is not None and (indent < ports_at\n                                     or (indent == ports_at and not stripped.startswith(\"-\"))):\n",
   "new": "        if ports_at is not None and indent <= ports_at:\n"
  },
  {
   "label": "0.93.1 hygiene: a database port bound to loopback counts as published",
-  "path": "src/verdict_mcp/hygiene.py",
+  "path": "src/verdict_mcp/hygiene_lines.py",
   "old": "            loopback = ip.startswith(\"127.\") or ip in (\"localhost\", \"[::1]\")\n",
   "new": "            loopback = False\n"
  },
  {
   "label": "0.93.1 hygiene: a compose password read from the environment counts as a default",
-  "path": "src/verdict_mcp/hygiene.py",
+  "path": "src/verdict_mcp/hygiene_lines.py",
   "old": "        if pw and pw.group(\"value\").lower() in _DEFAULT_PASSWORDS:\n",
   "new": "        if pw:\n"
  },
