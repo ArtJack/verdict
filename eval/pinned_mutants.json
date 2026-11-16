@@ -1390,19 +1390,19 @@
  },
  {
   "label": "0.87.0 O1 runner: a weekly limit reads as a session one, so the night sleeps for a window that reopens in days",
-  "path": "src/verdict_mcp/runner.py",
+  "path": "src/verdict_mcp/runner_limits.py",
   "old": "    if \"weekly limit\" in low:\n        return \"weekly\"\n",
   "new": "    if \"weekly limit\" in low:\n        return \"session\"\n"
  },
  {
   "label": "0.87.0 O2 runner: a weekly limit spends the retry instead of stopping",
-  "path": "src/verdict_mcp/runner.py",
+  "path": "src/verdict_mcp/runner_limits.py",
   "old": "    if limit_kind(output) == \"weekly\":",
   "new": "    if False:"
  },
  {
   "label": "0.87.0 O3 runner: seconds_until_reset waits out any limit, weekly included",
-  "path": "src/verdict_mcp/runner.py",
+  "path": "src/verdict_mcp/runner_limits.py",
   "old": "    if limit_kind(output) != \"session\":\n        return None",
   "new": "    if limit_kind(output) is None:\n        return None"
  },
@@ -2230,7 +2230,7 @@
  },
  {
   "label": "0.90.8 agent launch 5: any unknown option reads as the agent flag refused",
-  "path": "src/verdict_mcp/runner.py",
+  "path": "src/verdict_mcp/runner_limits.py",
   "old": "r\"error: unknown option '--(?:agent|effort)'\"",
   "new": "r\"error: unknown option '\""
  },
@@ -2764,7 +2764,7 @@
  },
  {
   "label": "escalate 1: a session stopped at its dollar cap is tried again, spending the cap twice",
-  "path": "src/verdict_mcp/runner.py",
+  "path": "src/verdict_mcp/runner_limits.py",
   "old": "    if budget_exhausted(output):\n",
   "new": "    if False:\n"
  },
@@ -2974,7 +2974,7 @@
  },
  {
   "label": "lite 1: a --lite run carries no dollar cap",
-  "path": "src/verdict_mcp/runner.py",
+  "path": "src/verdict_mcp/runner_limits.py",
   "old": "    elif cap is None and (args.escalate or args.lite):\n",
   "new": "    elif cap is None and args.escalate:\n"
  },
