@@ -1816,7 +1816,7 @@
  },
  {
   "label": "0.91.0 H3 hygiene: lines numbered with splitlines(), so U+2028 shifts them",
-  "path": "src/verdict_mcp/hygiene.py",
+  "path": "src/verdict_mcp/hygiene_git.py",
   "old": "    return [ln.rstrip(\"\\r\") for ln in text.split(\"\\n\")]\n",
   "new": "    return text.splitlines()\n"
  },
@@ -1846,7 +1846,7 @@
  },
  {
   "label": "0.91.0 H16 hygiene: tracked symlinks are read, so a link out of the repository is scanned",
-  "path": "src/verdict_mcp/hygiene.py",
+  "path": "src/verdict_mcp/hygiene_git.py",
   "old": "        if tab and len(fields) == 4 and fields[1] == b\"blob\" and fields[0] in (b\"100644\", b\"100755\"):\n",
   "new": "        if tab and len(fields) == 4 and fields[1] == b\"blob\":\n"
  },
