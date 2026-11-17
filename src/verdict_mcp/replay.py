@@ -38,14 +38,14 @@ try:
     from . import sandbox as box
     from .state import is_open, load_state, repo_for_root
     from .gitenv import git_env
-    from .repro_shape import unattended_argv, _outside_quotes as _outside_quotes
+    from .repro_shape import TMP, unattended_argv, _outside_quotes as _outside_quotes
 except ImportError:  # executed as a bare script
     sys.path.insert(0, str(Path(__file__).resolve().parent))
     import clock
     import sandbox as box
     from state import is_open, load_state, repo_for_root
     from gitenv import git_env
-    from repro_shape import unattended_argv, _outside_quotes as _outside_quotes
+    from repro_shape import TMP, unattended_argv, _outside_quotes as _outside_quotes
 
 REPLAYS_FILE = "replays.jsonl"
 ORIGINAL_ENV = "VERDICT_REPLAY_ORIGINAL"
@@ -336,6 +336,9 @@ def replay_one(finding: dict, repo: Path, scratch: Path, qa_root: Path, timeout:
                 "checks": ["no structured repro (`repro.command`) on the finding"]}
     command = _rewrite_paths(str(r["command"]), repo, scratch)
     command = command.replace("{repo}", str(scratch)).replace("{qa_root}", str(qa_root))
+    if TMP in command:
+        # Beside the fresh tree, so it goes when the checkout does; one per repro.
+        command = command.replace(TMP, tempfile.mkdtemp(prefix="repro-", dir=scratch.parent))
     cwd, problem = _cwd_for(r.get("cwd"), scratch, qa_root)
     if cwd is None:
         return {"id": str(finding.get("id")), "command": command, "cwd": str(r.get("cwd")),

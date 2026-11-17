@@ -106,3 +106,39 @@ def unattended_argv(command: str, scratch: Path, qa_root: Path, cwd: Path):
     if not any(script == r or r in script.parents for r in roots):
         return None, {}, f"the script {words[i]} is outside the QA root and the fresh checkout"
     return words, env, ""
+
+
+# An empty directory of the repro's own, filled in when the repro runs: what `d=$(mktemp -d) &&
+# …` gave a repro, without the shell the harness does not run unattended. An asked run on a
+# PDF (2026-11-17) wrote two of its three repros around `mktemp -d`, and neither ran.
+TMP = "{tmp}"
+
+_SHAPES = ("one interpreter call: `python -c \"…\"`, `python` on a script in the QA root or "
+           "the checkout, or `pytest`, with no shell, so no `&&`, `;`, `|`, `>` or `$(…)`")
+
+
+def shape_note(finding, qa_root, repo=None) -> str:
+    """What a tester reads as it writes `finding` when the harness will not replay its repro
+    unattended, or "" when it will, or there is no repro to judge.
+
+    `verdict-facts` and `verdict-finalize` replay a repro only in the shapes above, and said
+    so only in the replay record, after the run: the tester learnt it once nothing could be
+    rewritten. With no checkout known, a script's location is not judged."""
+    repro = finding.get("repro") if isinstance(finding, dict) else None
+    if not (isinstance(repro, dict) and isinstance(repro.get("command"), str)
+            and repro["command"].strip()):
+        return ""
+    qa_root = Path(qa_root)
+    tree = Path(repo) if repo else qa_root
+    command = (repro["command"].replace("{repo}", str(tree))
+               .replace("{qa_root}", str(qa_root)).replace(TMP, str(qa_root / "tmp")))
+    where = str(repro.get("cwd") or "repo")
+    cwd = qa_root if where == "qa_root" else (tree if where == "repo" else tree / where)
+    argv, _, why = unattended_argv(command, tree, qa_root, cwd)
+    if argv is not None or (not repo and why.startswith("the script")):
+        return ""
+    return (f"{finding.get('id') or 'this finding'}'s repro will not be replayed unattended "
+            f"({why}). The harness replays a repro by itself only as {_SHAPES}. `{{repo}}`, "
+            f"`{{qa_root}}` and `{TMP}`, an empty directory of the repro's own, are filled in. "
+            "Rewrite it in that shape if the defect allows. If not, leave it: a person running "
+            "`verdict-replay` still runs it as written.")

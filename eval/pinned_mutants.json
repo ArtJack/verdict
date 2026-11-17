@@ -3379,5 +3379,23 @@
   "path": "src/verdict_mcp/runner_env.py",
   "old": "    env[\"CLAUDE_CODE_SHELL\"] = bash\n",
   "new": "    pass\n"
+ },
+ {
+  "label": "repro shape 1: {tmp} is not filled in, so a repro gets no folder of its own",
+  "path": "src/verdict_mcp/replay.py",
+  "old": "        command = command.replace(TMP, tempfile.mkdtemp(prefix=\"repro-\", dir=scratch.parent))\n",
+  "new": "        command = command\n"
+ },
+ {
+  "label": "repro shape 2: the finding hook says nothing of a repro the harness will not run",
+  "path": "src/verdict_mcp/validate.py",
+  "old": "    note = shape_note(data, qa_root, _checkout_of(qa_root)) if _is_open(data) else \"\"\n",
+  "new": "    note = \"\"\n"
+ },
+ {
+  "label": "repro shape 3: with no checkout known, a shell repro goes unflagged too",
+  "path": "src/verdict_mcp/repro_shape.py",
+  "old": "    if argv is not None or (not repo and why.startswith(\"the script\")):\n",
+  "new": "    if argv is not None or not repo:\n"
  }
 ]

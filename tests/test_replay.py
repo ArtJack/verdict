@@ -768,3 +768,29 @@ def test_repro_rule_refuses_a_finding_filed_in_this_run_and_names_a_carried_one(
     err = capsys.readouterr().err
     assert rc == 2, err
     assert "repro_rule is on and 1 proven Major+ finding(s) carry no `repro` block: W-F-4 -" in err
+
+
+# ── {tmp}: a folder of the repro's own, without a shell ───────────────────────
+
+TMP_CMD = (f'{PY} -c "import os, sys; d = sys.argv[1]; '
+           "assert os.path.isdir(d) and not os.listdir(d), os.listdir(d); "
+           "open(os.path.join(d, 'out'), 'w').write('x'); print('DEFECT', d)\" {tmp}")
+
+
+def test_tmp_is_an_empty_folder_of_each_repros_own_that_goes_with_the_checkout(tmp_path):
+    """`{tmp}` is what `d=$(mktemp -d) && …` gave a repro. An asked run on 2026-11-17 wrote two of
+    its three repros that way, and the harness, which runs no shell unattended, ran neither."""
+    repo = _repo(tmp_path)
+    scratch, _, problem = replay._fresh_checkout(repo)
+    assert scratch is not None, problem
+    repro = {"command": TMP_CMD, "cwd": "repo", "expect": {"stdout_contains": "DEFECT"}}
+    try:
+        rows = [replay.replay_one(_finding(fid, repro), repo, scratch, repo / ".qa", 60,
+                                  unattended=True) for fid in ("PRICER-F-1", "PRICER-F-2")]
+        assert [r["result"] for r in rows] == ["reproduced", "reproduced"], rows
+        dirs = [Path(r["output_tail"].split("DEFECT", 1)[1].split()[0]) for r in rows]
+        assert dirs[0] != dirs[1], "one folder per repro"
+        assert all(d.parent == scratch.parent for d in dirs), (dirs, scratch)
+    finally:
+        replay._remove_checkout(repo, scratch)
+    assert not any(d.exists() for d in dirs), "the folder goes with the fresh checkout"
