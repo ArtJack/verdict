@@ -20,12 +20,14 @@ try:
     from .state import is_open
     from .harness_common import _chosen, _run
     from .facts_suite import _counts, _summary_line
+    from .gitenv import git_env
 except ImportError:  # executed as a bare script
     sys.path.insert(0, str(Path(__file__).resolve().parent))
     import sandbox
     from state import is_open
     from harness_common import _chosen, _run
     from facts_suite import _counts, _summary_line
+    from gitenv import git_env
 
 
 # ── fix verification ───────────────────────────────────────────────────────
@@ -212,7 +214,8 @@ def _scratch_checkout(repo: Path, sha: str):
     checkout tree itself is never touched; the worktree lives in a temp dir and
     is removed when verification ends."""
     tmp = Path(tempfile.mkdtemp(prefix="verdict-verify-"))
-    proc = _run(["git", "-C", str(repo), "worktree", "add", "--detach", "-q", str(tmp), sha])
+    proc = _run(["git", "-C", str(repo), "worktree", "add", "--detach", "-q", str(tmp), sha],
+                env=git_env())
     if proc.returncode != 0:
         shutil.rmtree(tmp, ignore_errors=True)
         return None
@@ -235,7 +238,7 @@ def _drop_bytecode(root: Path) -> None:
 
 
 def _remove_scratch(repo: Path, tmp: Path) -> None:
-    _run(["git", "-C", str(repo), "worktree", "remove", "--force", str(tmp)])
+    _run(["git", "-C", str(repo), "worktree", "remove", "--force", str(tmp)], env=git_env())
     shutil.rmtree(tmp, ignore_errors=True)
 
 

@@ -15,11 +15,13 @@ try:
     from .harness import is_test_file
     from . import languages
     from .local_chunks import _source_chunks, chunks_of, gap_functions
+    from .gitenv import git_env
 except ImportError:  # executed as a bare script
     sys.path.insert(0, str(Path(__file__).resolve().parent))
     import languages
     from harness import is_test_file
     from local_chunks import _source_chunks, chunks_of, gap_functions
+    from gitenv import git_env
 
 
 # ── what to ask about: the harness decides, not the model ─────────────────────
@@ -59,7 +61,8 @@ def other_sources(repo: Path) -> list:
     """The tracked source files in languages other than Python that this engine reads: not
     tests, not generated, not vendored. Outside git, none: a directory walk would read whatever
     happens to sit on disk as if it were committed."""
-    proc = subprocess.run(["git", "-C", str(repo), "ls-files", "-z"], capture_output=True)
+    proc = subprocess.run(["git", "-C", str(repo), "ls-files", "-z"], capture_output=True,
+                          env=git_env())
     if proc.returncode != 0:
         return []
     return [n for n in proc.stdout.decode("utf-8", "replace").split("\0")
@@ -110,7 +113,7 @@ def changed_files(repo: Path, sha_range: str | None) -> list:
     if not sha_range:
         return []
     proc = subprocess.run(["git", "-C", str(repo), "diff", "--name-only", sha_range],
-                          capture_output=True, text=True)
+                          capture_output=True, text=True, env=git_env())
     if proc.returncode != 0:
         return []
     return sorted({ln.strip().replace("\\", "/") for ln in proc.stdout.splitlines() if ln.strip()})
@@ -230,7 +233,8 @@ def added_lines(repo: Path, sha_range: str | None) -> dict:
     if not sha_range:
         return {}
     proc = subprocess.run(["git", "-C", str(repo), "diff", "--numstat", "--no-color", sha_range],
-                          capture_output=True, text=True, encoding="utf-8", errors="replace")
+                          capture_output=True, text=True, encoding="utf-8", errors="replace",
+                          env=git_env())
     out = {}
     for line in proc.stdout.splitlines() if proc.returncode == 0 else []:
         parts = line.split("\t")
@@ -250,7 +254,8 @@ def changed_lines_in(repo: Path, sha_range: str | None, paths) -> dict:
         return {}
     proc = subprocess.run(["git", "-C", str(repo), "diff", "-U0", "--no-color", "--diff-filter=AM",
                            sha_range, "--", *paths],
-                          capture_output=True, text=True, encoding="utf-8", errors="replace")
+                          capture_output=True, text=True, encoding="utf-8", errors="replace",
+                          env=git_env())
     out: dict = {}
     current = None
     for line in proc.stdout.splitlines() if proc.returncode == 0 else []:

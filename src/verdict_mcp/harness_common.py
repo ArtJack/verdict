@@ -16,19 +16,21 @@ try:
     from .project_key import derive_key
     from .state import home as state_home
     from .usage import ENTRYPOINT_ENV, SESSION_ENV
+    from .gitenv import git_env
 except ImportError:  # executed as a bare script
     sys.path.insert(0, str(Path(__file__).resolve().parent))
     from project_key import derive_key
     from state import home as state_home
     from usage import ENTRYPOINT_ENV, SESSION_ENV
+    from gitenv import git_env
 
 
-def _run(cmd, cwd=None, shell=False):
-    return subprocess.run(cmd, cwd=cwd, shell=shell, capture_output=True, text=True)
+def _run(cmd, cwd=None, shell=False, env=None):
+    return subprocess.run(cmd, cwd=cwd, shell=shell, capture_output=True, text=True, env=env)
 
 
 def _git(args, repo):
-    proc = _run(["git", "-C", str(repo), *args])
+    proc = _run(["git", "-C", str(repo), *args], env=git_env())
     return proc.stdout.strip() if proc.returncode == 0 else None
 
 

@@ -16,8 +16,10 @@ from pathlib import Path
 
 try:
     from . import languages
+    from .gitenv import git_env
 except ImportError:  # imported as a plain module beside small.py
     import languages
+    from gitenv import git_env
 
 HEADING = re.compile(r"^#{1,6}\s+(.*?)\s*$")
 TICKED = re.compile(r"`([^`\n]{2,160})`")
@@ -110,7 +112,7 @@ def _is_file(token: str) -> bool:
 def _tracked(repo: Path) -> list:
     """The tracked source files, in every language this engine reads, that are not generated."""
     proc = subprocess.run(["git", "-C", str(repo), "ls-files"], capture_output=True,
-                          text=True, errors="replace")
+                          text=True, errors="replace", env=git_env())
     if proc.returncode != 0:
         return []
     return [f for f in proc.stdout.splitlines() if languages.source(f)]
@@ -143,7 +145,7 @@ def _defining(repo: Path, names) -> dict:
                r"(\([^)]*\)[[:space:]]*)?(self\.)?("
                + "|".join(re.escape(n) for n in names) + r")(_[A-Za-z0-9_]*)?([^A-Za-z0-9_]|$)")
     proc = subprocess.run(["git", "-C", str(repo), "grep", "-o", "-E", pattern],
-                          capture_output=True, text=True, errors="replace")
+                          capture_output=True, text=True, errors="replace", env=git_env())
     out: dict = {}
     for line in proc.stdout.splitlines():
         path, _, match = line.partition(":")

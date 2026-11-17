@@ -26,8 +26,15 @@ import os
 import re
 import stat
 import subprocess
+import sys
 from datetime import date, datetime, timezone
 from pathlib import Path
+
+try:
+    from .gitenv import git_env
+except ImportError:  # imported as a plain module: the hooks, and the Action's gate mode
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    from gitenv import git_env
 
 SEVERITY_RANK = {"Blocker": 0, "Critical": 1, "Major": 2, "Minor": 3, "Trivial": 4}
 DELTA_VALUES = {"NEW", "STILL_OPEN", "RESOLVED", "REGRESSED", "ACCEPTED"}
@@ -978,7 +985,7 @@ def fix_claims(repo, sha, findings, qa_dir: str = ".qa", timeout: float = 10.0) 
     try:
         proc = subprocess.run(["git", "-C", str(repo), "log", "--format=%x1e%h%x1f%cs%x1f%s",
                                "--name-only", f"{sha.strip()}^{{commit}}", "--"],
-                              capture_output=True, text=True, timeout=timeout)
+                              capture_output=True, text=True, timeout=timeout, env=git_env())
     except (OSError, subprocess.SubprocessError):
         return []
     if proc.returncode != 0:
@@ -1038,7 +1045,7 @@ def code_drift(repo, sha, timeout: float = 3.0) -> dict:
     def git(*args):
         try:
             return subprocess.run(["git", "-C", str(repo), *args],
-                                  capture_output=True, text=True, timeout=timeout)
+                                  capture_output=True, text=True, timeout=timeout, env=git_env())
         except (OSError, subprocess.SubprocessError):
             return None
 
