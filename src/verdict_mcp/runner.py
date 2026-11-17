@@ -81,7 +81,7 @@ try:
     from .runner_limits import (final_stop, flag_refused, resolve_cap, seconds_until_reset,
                                 limit_kind as limit_kind, limit_line as limit_line)
     from .runner_env import (BG_WAIT_ENV, GAPS_DEFAULT_ENV, child_env, passthrough_names,
-                             pin_model_aliases, read_env_file, session_env,
+                             pin_model_aliases, read_env_file, session_env, tester_shell,
                              is_gateway as is_gateway, seed_config as seed_config)
     from .runner_sweep import (sweep, _harness as _harness, sweep_blockers as sweep_blockers,
                                sweep_judgment as sweep_judgment)
@@ -102,7 +102,7 @@ except ImportError:  # executed as a bare script
     from runner_limits import (final_stop, flag_refused, resolve_cap, seconds_until_reset,
                                limit_kind as limit_kind, limit_line as limit_line)
     from runner_env import (BG_WAIT_ENV, GAPS_DEFAULT_ENV, child_env, passthrough_names,
-                            pin_model_aliases, read_env_file, session_env,
+                            pin_model_aliases, read_env_file, session_env, tester_shell,
                             is_gateway as is_gateway, seed_config as seed_config)
     from runner_sweep import (sweep, _harness as _harness, sweep_blockers as sweep_blockers,
                               sweep_judgment as sweep_judgment)
@@ -446,7 +446,7 @@ def main(argv=None) -> int:
             return 2
         env.update(read_env_file(args.env_file))
     env, env_notes = session_env(env, repo)
-    env_notes = env_notes + pin_model_aliases(env, args.model)
+    env_notes = env_notes + pin_model_aliases(env, args.model) + tester_shell(env)
     if args.sha_range:
         env["VERDICT_RANGE"] = args.sha_range
         env_notes.append(f"gate range: {args.sha_range} (VERDICT_RANGE)")

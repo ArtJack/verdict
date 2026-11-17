@@ -3373,5 +3373,11 @@
   "path": "src/verdict_mcp/small.py",
   "old": "    site_resolved = browser_resolved(site_pass, previous, on_record, resolved_ids,\n                                     still_open_ids)\n",
   "new": "    site_resolved = []\n"
+ },
+ {
+  "label": "tester shell: a zsh login hands the tester bash, not zsh",
+  "path": "src/verdict_mcp/runner_env.py",
+  "old": "    env[\"CLAUDE_CODE_SHELL\"] = bash\n",
+  "new": "    pass\n"
  }
 ]
