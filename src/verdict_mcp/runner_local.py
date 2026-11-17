@@ -15,10 +15,12 @@ from pathlib import Path
 try:
     from .runner_env import hidden_names, read_env_file
     from .runner_provision import shipped_config_allowed
+    from .gitenv import git_env
 except ImportError:  # executed as a bare script
     sys.path.insert(0, str(Path(__file__).resolve().parent))
     from runner_env import hidden_names, read_env_file
     from runner_provision import shipped_config_allowed
+    from gitenv import git_env
 
 
 # ── the tier below the sweep ──────────────────────────────────────────────
@@ -99,7 +101,7 @@ def premeasure(repo, qa_root, env, sha_range=None, run=subprocess.run) -> str | 
               "the tester measures on its own", file=sys.stderr)
         return None
     head = subprocess.run(["git", "-C", str(repo), "rev-parse", "HEAD"], capture_output=True,
-                          text=True).stdout.strip()
+                          text=True, env=git_env()).stdout.strip()
     print(f"verdict-run: facts measured before the tester started ({time.monotonic() - started:.0f} s); "
           "its verdict-facts adopts them", file=sys.stderr)
     return head or None

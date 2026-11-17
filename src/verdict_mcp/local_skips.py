@@ -14,10 +14,12 @@ from pathlib import Path
 
 try:
     from . import clock, testmarks
+    from .gitenv import git_env
 except ImportError:  # executed as a bare script
     sys.path.insert(0, str(Path(__file__).resolve().parent))
     import clock
     import testmarks
+    from gitenv import git_env
 
 
 SKIP_MARKER = re.compile(
@@ -111,7 +113,8 @@ def skip_scan_files(repo: Path, qa_root: Path) -> list:
 def other_test_files(repo: Path) -> list:
     """The tracked test files of the project's own suite in languages other than Python: a Jest
     spec, an RSpec file, a JUnit class, a Go `_test.go`. Not an eval's fixtures or an example."""
-    proc = subprocess.run(["git", "-C", str(repo), "ls-files", "-z"], capture_output=True)
+    proc = subprocess.run(["git", "-C", str(repo), "ls-files", "-z"], capture_output=True,
+                          env=git_env())
     if proc.returncode != 0:
         return []
     return [n for n in proc.stdout.decode("utf-8", "replace").split("\0")

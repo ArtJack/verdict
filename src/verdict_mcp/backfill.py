@@ -35,6 +35,7 @@ try:
                          sandbox_prefix, without_repro)
     from .small import Model, import_roots, interpreter_of, read_env_file
     from .state import load_state, repo_for_root
+    from .gitenv import git_env
 except ImportError:  # bare-script execution
     sys.path.insert(0, str(Path(__file__).resolve().parent))
     import clock
@@ -44,6 +45,7 @@ except ImportError:  # bare-script execution
                         sandbox_prefix, without_repro)
     from small import Model, import_roots, interpreter_of, read_env_file
     from state import load_state, repo_for_root
+    from gitenv import git_env
 
 SCRIPT_DIR = ("scratch", "backfill")
 MARK = "DEFECT:"
@@ -101,13 +103,13 @@ What it printed:
 
 def _git_show(repo: Path, ref: str, rel: str) -> str | None:
     proc = subprocess.run(["git", "-C", str(repo), "show", f"{ref}:{rel}"], capture_output=True,
-                          text=True, errors="replace")
+                          text=True, errors="replace", env=git_env())
     return proc.stdout if proc.returncode == 0 else None
 
 
 def _tree(repo: Path, ref: str) -> list:
     proc = subprocess.run(["git", "-C", str(repo), "ls-tree", "-r", "--name-only", ref],
-                          capture_output=True, text=True, errors="replace")
+                          capture_output=True, text=True, errors="replace", env=git_env())
     return proc.stdout.splitlines() if proc.returncode == 0 else []
 
 

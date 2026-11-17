@@ -64,6 +64,7 @@ try:
     from .state import is_path_like, resolve_root
     from . import clock
     from . import escalate
+    from .gitenv import git_env
 except ImportError:  # bare-script execution
     sys.path.insert(0, str(Path(__file__).resolve().parent))
     import clock
@@ -72,6 +73,7 @@ except ImportError:  # bare-script execution
     from project_key import derive_key
     from state import home as state_home
     from state import is_path_like, resolve_root
+    from gitenv import git_env
 # Split out of this file by the structure pass (2026-11-15), and imported back for the code
 # below and for callers that import these names from runner.
 try:
@@ -120,7 +122,7 @@ except ImportError:  # executed as a bare script
 def _head_sha(repo):
     try:
         proc = subprocess.run(["git", "-C", str(repo), "rev-parse", "HEAD"],
-                              capture_output=True, text=True, timeout=10)
+                              capture_output=True, text=True, timeout=10, env=git_env())
     except (OSError, subprocess.SubprocessError):
         return None
     return proc.stdout.strip() if proc.returncode == 0 else None

@@ -39,6 +39,12 @@ import subprocess
 import sys
 from pathlib import Path
 
+try:
+    from .gitenv import git_env
+except ImportError:  # imported as a plain module beside the hooks' own
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    from gitenv import git_env
+
 _JS_SUFFIXES = {".js", ".jsx", ".ts", ".tsx", ".mjs", ".cjs"}
 # What the tree sample reads for placeholders: source in the languages a website is built in.
 # Only Python and JavaScript have an import census; the rest are read for placeholders alone.
@@ -93,7 +99,7 @@ _SAMPLE_CAP = 12  # locations shown per category; the count is always complete
 
 def _git(args, repo, text=True):
     proc = subprocess.run(["git", "-C", str(repo), *args],
-                          capture_output=True, text=text)
+                          capture_output=True, text=text, env=git_env())
     return proc.stdout if proc.returncode == 0 else None
 
 

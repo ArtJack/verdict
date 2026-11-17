@@ -16,10 +16,12 @@ from pathlib import Path
 try:
     from . import sandbox
     from .runner_env import env_files, hidden_names
+    from .gitenv import git_env
 except ImportError:  # executed as a bare script
     sys.path.insert(0, str(Path(__file__).resolve().parent))
     import sandbox
     from runner_env import env_files, hidden_names
+    from gitenv import git_env
 
 
 _PERMISSION_FLAGS = ("--dangerously-skip-permissions", "--permission-mode", "--allowedTools",
@@ -92,7 +94,7 @@ def tester_sandbox(repo: Path, qa_root: Path, env: dict, mode: str) -> list:
 
     writable = {real(qa_root)}
     common = subprocess.run(["git", "-C", str(repo), "rev-parse", "--git-common-dir"],
-                            capture_output=True, text=True)
+                            capture_output=True, text=True, env=git_env())
     if common.returncode == 0 and common.stdout.strip():
         git_dir = Path(common.stdout.strip())
         writable.add(real(git_dir if git_dir.is_absolute() else Path(repo) / git_dir))
@@ -120,7 +122,7 @@ def repo_claude_config(repo: Path) -> tuple:
     ([], why) when git cannot say. Case-insensitive: on APFS a tracked `.CLAUDE/settings.json`
     loads as `.claude/settings.json` (measured by review, 2026-11-03)."""
     proc = subprocess.run(["git", "-C", str(repo), "ls-files", "--", ":(icase).claude"],
-                          capture_output=True, text=True)
+                          capture_output=True, text=True, env=git_env())
     if proc.returncode != 0:
         return [], (proc.stderr.strip().splitlines() or [f"git exit {proc.returncode}"])[-1][:160]
     return [line.strip() for line in proc.stdout.splitlines() if line.strip()], None

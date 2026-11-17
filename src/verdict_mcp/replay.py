@@ -38,11 +38,13 @@ try:
     from . import clock
     from . import sandbox as box
     from .state import is_open, load_state, repo_for_root
+    from .gitenv import git_env
 except ImportError:  # executed as a bare script
     sys.path.insert(0, str(Path(__file__).resolve().parent))
     import clock
     import sandbox as box
     from state import is_open, load_state, repo_for_root
+    from gitenv import git_env
 
 REPLAYS_FILE = "replays.jsonl"
 ORIGINAL_ENV = "VERDICT_REPLAY_ORIGINAL"
@@ -239,13 +241,13 @@ def _fresh_checkout(repo: Path, ref: str = "HEAD") -> tuple[Path | None, str, st
     base = Path(tempfile.mkdtemp(prefix="verdict-replay-")).resolve()   # git reports resolved paths
     scratch = base / "tree"
     head = subprocess.run(["git", "-C", str(repo), "rev-parse", "--verify", f"{ref}^{{commit}}"],
-                          capture_output=True, text=True)
+                          capture_output=True, text=True, env=git_env())
     if head.returncode != 0:
         shutil.rmtree(base, ignore_errors=True)
         return None, "", (f"not a git repository: {repo}" if ref == "HEAD"
                           else f"commit {ref[:12]} is not in this repository")
     proc = subprocess.run(["git", "-C", str(repo), "worktree", "add", "--detach", str(scratch),
-                           head.stdout.strip()], capture_output=True, text=True)
+                           head.stdout.strip()], capture_output=True, text=True, env=git_env())
     if proc.returncode != 0:
         shutil.rmtree(base, ignore_errors=True)
         return None, head.stdout.strip(), f"git worktree add failed: {proc.stderr.strip()[:200]}"
@@ -258,7 +260,7 @@ def _remove_checkout(repo: Path, scratch: Path | None) -> None:
     if scratch is None:
         return
     proc = subprocess.run(["git", "-C", str(repo), "worktree", "remove", "--force", str(scratch)],
-                          capture_output=True, text=True)
+                          capture_output=True, text=True, env=git_env())
     if scratch.parent.name.startswith("verdict-replay-"):   # only the directory this module made
         shutil.rmtree(scratch.parent, ignore_errors=True)
     if proc.returncode != 0 or scratch.exists():
