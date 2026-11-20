@@ -479,6 +479,9 @@ def replay_one(finding: dict, repo: Path, scratch: Path, qa_root: Path, timeout:
             # Its own session, killed whole on return, under the file-size ceiling (`sandbox._call`).
             proc = box._call([*wrap, *argv], shell=not unattended, cwd=str(cwd), env=env,
                              text=True, errors="replace", timeout=timeout)
+            failed = box.exec_failure(proc, argv[0])   # could not start: never its own exit
+            if failed:
+                raise failed
         else:
             # A tester's repro runs the project's code: the box every target run gets
             # (`sandbox.py`). Its fresh tree's parent holds the checkout, the guard and tmp.
