@@ -87,7 +87,7 @@ python3 eval/run_eval.py --fixture cause --repeat 2 --pair v0.83.0   # paired A/
 
 Every run provisions both scope-guard hooks and sets `VERDICT_STRICT=1` — each eval is
 also a live hooks regression test. Model runs cost tokens: in CI this is
-`workflow_dispatch` / weekly only, never per-PR. Do **not** open any `EXPECTED*` or
+`workflow_dispatch` only (the weekly run went on 2026-10-29), never per-PR. Do **not** open any `EXPECTED*` or
 `expected*` file during a run. The fixtures no longer warn the agent off them, because
 the warning was itself the disclosure (see [Fixture hygiene](#fixture-hygiene--the-checkout-stopped-announcing-itself-2026-09-17));
 the keys stay outside every tree the harness copies, and a run's evidence list should
