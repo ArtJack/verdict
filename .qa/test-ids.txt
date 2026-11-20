@@ -95,6 +95,177 @@ tests/test_backfill.py::test_the_gate_names_old_findings_that_look_fixed
 tests/test_backfill.py::test_the_model_reads_the_cited_code_at_head_numbered
 tests/test_backfill.py::test_the_prompt_names_each_cited_files_import_path_and_what_it_defines
 tests/test_backfill.py::test_the_sandbox_is_sandbox_exec_on_macos_and_nothing_elsewhere
+tests/test_braces.py::test_a_changed_field_is_its_own_statement_and_swallows_no_method
+tests/test_braces.py::test_a_changed_line_asks_about_the_function_it_sits_in_once
+tests/test_braces.py::test_a_declaration_with_nothing_to_run_asks_nothing
+tests/test_braces.py::test_a_function_too_long_for_one_question_is_read_around_the_change
+tests/test_braces.py::test_a_jsx_component_is_one_question_however_many_lines_change
+tests/test_braces.py::test_a_pipeline_of_top_level_calls_is_read_in_order_as_one_question
+tests/test_braces.py::test_an_expression_bodied_member_is_read_as_its_statement
+tests/test_braces.py::test_csharp_heads_are_judged_by_their_shape[app.MapGet("/x", async (HttpContext c) =>-lambda]
+tests/test_braces.py::test_csharp_heads_are_judged_by_their_shape[catch (Exception e) when (e.Retry)-control]
+tests/test_braces.py::test_csharp_heads_are_judged_by_their_shape[else-control]
+tests/test_braces.py::test_csharp_heads_are_judged_by_their_shape[for (var i = 0; i < n; i++)-control]
+tests/test_braces.py::test_csharp_heads_are_judged_by_their_shape[get-accessor]
+tests/test_braces.py::test_csharp_heads_are_judged_by_their_shape[if (order is null)-control]
+tests/test_braces.py::test_csharp_heads_are_judged_by_their_shape[public Thing(int a) : base(a)-function]
+tests/test_braces.py::test_csharp_heads_are_judged_by_their_shape[public decimal Total-property]
+tests/test_braces.py::test_csharp_heads_are_judged_by_their_shape[public enum State-shape]
+tests/test_braces.py::test_csharp_heads_are_judged_by_their_shape[public int this[int index]-property]
+tests/test_braces.py::test_csharp_heads_are_judged_by_their_shape[public interface IOrders-shape]
+tests/test_braces.py::test_csharp_heads_are_judged_by_their_shape[public sealed record Order(Guid Id)-type]
+tests/test_braces.py::test_csharp_heads_are_judged_by_their_shape[public static IResult Handle<T>(T body) where T : class, new()-function]
+tests/test_braces.py::test_csharp_heads_are_judged_by_their_shape[return Ok(new OrderView-object]
+tests/test_braces.py::test_csharp_heads_are_judged_by_their_shape[switch (state)-control]
+tests/test_braces.py::test_csharp_heads_are_judged_by_their_shape[var v = new()-object]
+tests/test_braces.py::test_csharp_heads_are_judged_by_their_shape[x switch-object]
+tests/test_braces.py::test_csharp_members_are_found_with_their_attributes_and_doc_comment
+tests/test_braces.py::test_csharp_strings_chars_comments_and_directives_hide_their_braces
+tests/test_braces.py::test_hand_written_source_is_read[src/Api/OrdersController.cs]
+tests/test_braces.py::test_hand_written_source_is_read[src/Api/wwwroot/js/site.js]
+tests/test_braces.py::test_hand_written_source_is_read[web/src/pages/Checkout.tsx]
+tests/test_braces.py::test_hand_written_source_is_read[web/src/testing-utils-free.ts]
+tests/test_braces.py::test_imports_type_heads_auto_properties_and_shapes_ask_nothing
+tests/test_braces.py::test_line_numbers_are_the_files_own
+tests/test_braces.py::test_neighbouring_one_line_members_are_one_question
+tests/test_braces.py::test_tests_generated_and_vendored_code_are_not_read[src/Api.Tests/OrdersTests.cs]
+tests/test_braces.py::test_tests_generated_and_vendored_code_are_not_read[src/Api/Form1.Designer.cs]
+tests/test_braces.py::test_tests_generated_and_vendored_code_are_not_read[src/Api/Migrations/20260101_Init.cs]
+tests/test_braces.py::test_tests_generated_and_vendored_code_are_not_read[src/Api/obj/Debug/Api.AssemblyInfo.cs]
+tests/test_braces.py::test_tests_generated_and_vendored_code_are_not_read[src/Api/wwwroot/lib/jquery/jquery.js]
+tests/test_braces.py::test_tests_generated_and_vendored_code_are_not_read[tests/Orders.cs]
+tests/test_braces.py::test_tests_generated_and_vendored_code_are_not_read[web/dist/app.js]
+tests/test_braces.py::test_tests_generated_and_vendored_code_are_not_read[web/e2e/login.ts]
+tests/test_braces.py::test_tests_generated_and_vendored_code_are_not_read[web/node_modules/react/index.js]
+tests/test_braces.py::test_tests_generated_and_vendored_code_are_not_read[web/public/vendor.min.js]
+tests/test_braces.py::test_tests_generated_and_vendored_code_are_not_read[web/src/App.test.tsx]
+tests/test_braces.py::test_tests_generated_and_vendored_code_are_not_read[web/src/__tests__/App.tsx]
+tests/test_braces.py::test_tests_generated_and_vendored_code_are_not_read[web/src/app.spec.ts]
+tests/test_braces.py::test_tests_generated_and_vendored_code_are_not_read[web/src/types.d.ts]
+tests/test_braces.py::test_the_language_comes_from_the_extension[README.md-None]
+tests/test_braces.py::test_the_language_comes_from_the_extension[appsettings.json-None]
+tests/test_braces.py::test_the_language_comes_from_the_extension[scripts/seed.py-python]
+tests/test_braces.py::test_the_language_comes_from_the_extension[src/Api/OrdersController.cs-csharp]
+tests/test_braces.py::test_the_language_comes_from_the_extension[tools/a.cjs-javascript]
+tests/test_braces.py::test_the_language_comes_from_the_extension[web/app.jsx-javascript]
+tests/test_braces.py::test_the_language_comes_from_the_extension[web/lib/util.mts-typescript]
+tests/test_braces.py::test_the_language_comes_from_the_extension[web/src/App.tsx-typescript]
+tests/test_braces.py::test_typescript_functions_components_methods_and_arrows_are_found
+tests/test_braces.py::test_typescript_heads_are_judged_by_their_shape[async load(): Promise<Map<string, (x: number) => void>>-function]
+tests/test_braces.py::test_typescript_heads_are_judged_by_their_shape[declare module "x"-type]
+tests/test_braces.py::test_typescript_heads_are_judged_by_their_shape[export class Basket-type]
+tests/test_braces.py::test_typescript_heads_are_judged_by_their_shape[export const total = (items) =>-lambda]
+tests/test_braces.py::test_typescript_heads_are_judged_by_their_shape[export interface Props-shape]
+tests/test_braces.py::test_typescript_heads_are_judged_by_their_shape[export type Row =-shape]
+tests/test_braces.py::test_typescript_heads_are_judged_by_their_shape[get size(): number-function]
+tests/test_braces.py::test_typescript_heads_are_judged_by_their_shape[module.exports =-object]
+tests/test_braces.py::test_typescript_templates_regexes_and_jsx_text_keep_the_braces_honest
+tests/test_braces_languages.py::test_a_c_function_returning_a_struct_is_a_function_not_the_struct
+tests/test_braces_languages.py::test_a_call_closed_on_its_own_line_ends_its_statement_and_an_annotation_does_not
+tests/test_braces_languages.py::test_a_changed_java_field_asks_nothing_and_a_changed_body_line_asks_about_its_method
+tests/test_braces_languages.py::test_a_class_behind_a_decorator_with_arguments_is_still_a_type
+tests/test_braces_languages.py::test_a_function_too_long_for_one_question_is_read_as_the_functions_inside_it
+tests/test_braces_languages.py::test_a_hostile_head_is_read_in_linear_time[head1]
+tests/test_braces_languages.py::test_a_hostile_head_is_read_in_linear_time[head2]
+tests/test_braces_languages.py::test_a_hostile_head_is_read_in_linear_time[void f() &&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&!]
+tests/test_braces_languages.py::test_a_rust_lifetime_is_not_a_character_and_hides_nothing
+tests/test_braces_languages.py::test_a_statement_without_a_semicolon_ends_at_its_line
+tests/test_braces_languages.py::test_cpp_constructors_with_initializer_lists_and_const_methods
+tests/test_braces_languages.py::test_cpp_qualifiers_and_trailing_return_types_still_come_off
+tests/test_braces_languages.py::test_dart_named_constructors_getters_and_async_methods
+tests/test_braces_languages.py::test_go_methods_generics_and_func_literals
+tests/test_braces_languages.py::test_heads_are_judged_by_their_languages_words[$f = function ($x) use ($y)-php-lambda]
+tests/test_braces_languages.py::test_heads_are_judged_by_their_languages_words[$y = match($x)-php-control]
+tests/test_braces_languages.py::test_heads_are_judged_by_their_languages_words[@Override public String toString()-java-function]
+tests/test_braces_languages.py::test_heads_are_judged_by_their_languages_words[DispatchQueue.main.async-swift-other]
+tests/test_braces_languages.py::test_heads_are_judged_by_their_languages_words[Future<void> load() async-dart-function]
+tests/test_braces_languages.py::test_heads_are_judged_by_their_languages_words[companion object-kotlin-type]
+tests/test_braces_languages.py::test_heads_are_judged_by_their_languages_words[for _, x := range xs-go-control]
+tests/test_braces_languages.py::test_heads_are_judged_by_their_languages_words[func load() async-swift-function]
+tests/test_braces_languages.py::test_heads_are_judged_by_their_languages_words[guard let x = y else-swift-control]
+tests/test_braces_languages.py::test_heads_are_judged_by_their_languages_words[handler := func(x int)-go-lambda]
+tests/test_braces_languages.py::test_heads_are_judged_by_their_languages_words[if let x = y-swift-control]
+tests/test_braces_languages.py::test_heads_are_judged_by_their_languages_words[impl<T> From<T> for Wrapper-rust-type]
+tests/test_braces_languages.py::test_heads_are_judged_by_their_languages_words[let f = |x: i32| -> i32-rust-lambda]
+tests/test_braces_languages.py::test_heads_are_judged_by_their_languages_words[list.forEach(x ->-java-lambda]
+tests/test_braces_languages.py::test_heads_are_judged_by_their_languages_words[list.forEach-kotlin-other]
+tests/test_braces_languages.py::test_heads_are_judged_by_their_languages_words[match x-rust-control]
+tests/test_braces_languages.py::test_heads_are_judged_by_their_languages_words[on FormatException catch (e)-dart-control]
+tests/test_braces_languages.py::test_heads_are_judged_by_their_languages_words[record Point(int x, int y)-java-type]
+tests/test_braces_languages.py::test_heads_are_judged_by_their_languages_words[struct point p =-c-object]
+tests/test_braces_languages.py::test_heads_are_judged_by_their_languages_words[struct point-c-shape]
+tests/test_braces_languages.py::test_heads_are_judged_by_their_languages_words[synchronized (lock)-java-control]
+tests/test_braces_languages.py::test_heads_are_judged_by_their_languages_words[trait Draw-rust-type]
+tests/test_braces_languages.py::test_heads_are_judged_by_their_languages_words[type Server struct-go-shape]
+tests/test_braces_languages.py::test_heads_are_judged_by_their_languages_words[val x = when (y)-kotlin-control]
+tests/test_braces_languages.py::test_java_methods_constructors_initializers_and_default_methods_are_found
+tests/test_braces_languages.py::test_kotlin_functions_initializers_accessors_and_extension_functions
+tests/test_braces_languages.py::test_literals_hide_their_braces_and_keep_every_line[cpp-#define BLOCK { 1, \\\n  2 }\nauto r = R"x({ raw })x";\nint n = 1'000'000;\nchar c = '}';\n]
+tests/test_braces_languages.py::test_literals_hide_their_braces_and_keep_every_line[dart-final s = 'value ${m['{']} {';\nfinal r = r'raw { text';\nfinal t = '''\n{ triple\n''';\n]
+tests/test_braces_languages.py::test_literals_hide_their_braces_and_keep_every_line[go-var raw = `{ not\n a block }`\nvar r = '{'\nvar s = "}"\n]
+tests/test_braces_languages.py::test_literals_hide_their_braces_and_keep_every_line[java-String t = """\n    { text block }\n    """;\nchar c = '{';\n]
+tests/test_braces_languages.py::test_literals_hide_their_braces_and_keep_every_line[kotlin-val t = """raw { ${items.map { it }} } text"""\nval c = '}'\nval s = "a ${b["{"]} c"\n]
+tests/test_braces_languages.py::test_literals_hide_their_braces_and_keep_every_line[php-text7]
+tests/test_braces_languages.py::test_literals_hide_their_braces_and_keep_every_line[rust-let a = r#"{ "json": } "#;\nlet c = '{';\nlet s = "multi\n{ line";\nfn f<'a>(x: &'a str) {}\n]
+tests/test_braces_languages.py::test_literals_hide_their_braces_and_keep_every_line[scala-val s = s"total ${xs.map { x => x }.sum} {"\nval plain = "${not a hole"\n]
+tests/test_braces_languages.py::test_literals_hide_their_braces_and_keep_every_line[solidity-string s = "{";\nstring t = '}';\n]
+tests/test_braces_languages.py::test_literals_hide_their_braces_and_keep_every_line[swift-let s = "value: \\(f({ 1 }))"\nlet r = #"raw { "# \nlet m = """\n{ multi\n"""\n]
+tests/test_braces_languages.py::test_nested_parameter_lists_still_flatten
+tests/test_braces_languages.py::test_php_methods_and_route_closures
+tests/test_braces_languages.py::test_php_reads_only_what_is_inside_its_tags
+tests/test_braces_languages.py::test_rust_reads_impl_methods_and_leaves_its_test_module
+tests/test_braces_languages.py::test_scala_defs_with_and_without_a_match_body
+tests/test_braces_languages.py::test_solidity_constructors_modifiers_and_functions
+tests/test_braces_languages.py::test_swift_computed_properties_async_functions_and_initializers
+tests/test_browser.py::test_a_browser_finding_is_validator_clean_and_cites_its_source_file_first
+tests/test_browser.py::test_a_finding_is_left_open_when_any_page_was_not_measured_or_it_was_found_again
+tests/test_browser.py::test_a_finding_measured_again_everywhere_and_not_found_is_resolved
+tests/test_browser.py::test_a_get_form_with_personal_fields_is_read_and_a_search_form_is_not
+tests/test_browser.py::test_a_path_the_routing_files_mention_is_named
+tests/test_browser.py::test_a_site_block_reads_into_a_site
+tests/test_browser.py::test_a_site_block_that_cannot_run_is_an_error_naming_why[site: https://example.com/\n-block]
+tests/test_browser.py::test_a_site_block_that_cannot_run_is_an_error_naming_why[site:\n  start: npm start\n-needs a `url`]
+tests/test_browser.py::test_a_site_block_that_cannot_run_is_an_error_naming_why[site:\n  url: ftp://example.com/\n-http(s)]
+tests/test_browser.py::test_a_site_block_that_cannot_run_is_an_error_naming_why[site:\n  url: https://example.com/\n  checks: links, vibes\n-unknown check]
+tests/test_browser.py::test_a_site_block_that_cannot_run_is_an_error_naming_why[site:\n  url: https://example.com/\n  colour: blue\n-unknown key]
+tests/test_browser.py::test_a_site_block_that_cannot_run_is_an_error_naming_why[site:\n  url: https://example.com/\n  max_pages: many\n-whole number]
+tests/test_browser.py::test_a_site_block_that_cannot_run_is_an_error_naming_why[site:\n  url: https://example.com/\n  pages: https://elsewhere.org/x\n-not on the site]
+tests/test_browser.py::test_a_site_block_that_cannot_run_is_an_error_naming_why[site:\n  url: https://example.com/\n  start: npm start\n-must be on it]
+tests/test_browser.py::test_each_seeded_defect_is_found_on_its_page[autofill-trap]
+tests/test_browser.py::test_each_seeded_defect_is_found_on_its_page[focus-visible]
+tests/test_browser.py::test_each_seeded_defect_is_found_on_its_page[get-form]
+tests/test_browser.py::test_each_seeded_defect_is_found_on_its_page[hidden-at-load]
+tests/test_browser.py::test_each_seeded_defect_is_found_on_its_page[ios-zoom]
+tests/test_browser.py::test_each_seeded_defect_is_found_on_its_page[keyboard]
+tests/test_browser.py::test_each_seeded_defect_is_found_on_its_page[links]
+tests/test_browser.py::test_each_seeded_defect_is_found_on_its_page[long-input]
+tests/test_browser.py::test_each_seeded_defect_is_found_on_its_page[phone-width]
+tests/test_browser.py::test_each_seeded_defect_is_found_on_its_page[social-image]
+tests/test_browser.py::test_every_finding_is_a_validator_clean_measurement
+tests/test_browser.py::test_every_request_is_a_get_to_the_site_or_it_is_aborted[DELETE-https://example.com/api/x-abort]
+tests/test_browser.py::test_every_request_is_a_get_to_the_site_or_it_is_aborted[GET-data:image/png;base64,AAAA-continue]
+tests/test_browser.py::test_every_request_is_a_get_to_the_site_or_it_is_aborted[GET-http://example.com/about-abort]
+tests/test_browser.py::test_every_request_is_a_get_to_the_site_or_it_is_aborted[GET-https://example.com.evil.org/x-abort]
+tests/test_browser.py::test_every_request_is_a_get_to_the_site_or_it_is_aborted[GET-https://example.com/about-continue]
+tests/test_browser.py::test_every_request_is_a_get_to_the_site_or_it_is_aborted[GET-https://www.google-analytics.com/collect-abort]
+tests/test_browser.py::test_every_request_is_a_get_to_the_site_or_it_is_aborted[HEAD-https://example.com/about-continue]
+tests/test_browser.py::test_every_request_is_a_get_to_the_site_or_it_is_aborted[PATCH-https://example.com/api/x-abort]
+tests/test_browser.py::test_every_request_is_a_get_to_the_site_or_it_is_aborted[POST-https://example.com/api/contact-abort]
+tests/test_browser.py::test_every_request_is_a_get_to_the_site_or_it_is_aborted[PUT-https://example.com/api/x-abort]
+tests/test_browser.py::test_image_sizes_are_read_from_png_gif_jpeg_and_webp_headers
+tests/test_browser.py::test_links_that_read_like_actions_are_never_requested
+tests/test_browser.py::test_marks_round_trip_for_every_page_a_finding_was_measured_on
+tests/test_browser.py::test_next_app_router_pages_resolve_through_groups_dynamics_and_catch_alls
+tests/test_browser.py::test_no_clean_twin_is_flagged
+tests/test_browser.py::test_no_site_block_is_no_browser_pass
+tests/test_browser.py::test_no_write_reached_the_server_and_no_action_link_was_followed
+tests/test_browser.py::test_pages_router_and_static_files_resolve
+tests/test_browser.py::test_port_is_one_free_port_in_both_the_url_and_the_start_command
+tests/test_browser.py::test_the_profile_reads_site_as_a_known_key
+tests/test_browser.py::test_verdict_browse_writes_its_result_and_exits_zero
+tests/test_browser.py::test_verdict_local_files_a_browser_finding_carries_it_unmeasured_and_resolves_it_measured
+tests/test_browser.py::test_verdict_local_mints_carries_and_resolves_what_the_browser_measured
+tests/test_browser.py::test_without_playwright_the_pass_says_so_and_measures_nothing
 tests/test_calibration.py::test_a_claim_the_harness_could_not_weigh_still_stands
 tests/test_calibration.py::test_a_decided_outcome_sticks_when_the_finding_changes_state_again
 tests/test_calibration.py::test_a_decided_row_is_not_downgraded_by_a_later_unknown
@@ -306,6 +477,13 @@ tests/test_dupes.py::test_terms_skip_the_language_and_the_stopwords
 tests/test_dupes.py::test_the_command_searches_each_term_once_and_writes_the_ledger
 tests/test_dupes.py::test_the_gate_names_each_searched_findings_lead_and_warns_on_an_open_pr
 tests/test_dupes.py::test_without_gh_the_real_search_is_refused_plainly
+tests/test_ends.py::test_a_changed_class_level_line_is_read_with_its_paragraph
+tests/test_ends.py::test_a_method_too_long_for_one_question_is_read_around_the_change
+tests/test_ends.py::test_a_ruby_method_carries_the_guards_its_class_declares
+tests/test_ends.py::test_elixir_defs_with_their_docs_and_the_plugs_that_guard_them
+tests/test_ends.py::test_heredoc_lines_are_blank_so_column_zero_ends_nothing
+tests/test_ends.py::test_lua_functions_past_long_strings_and_comments_that_say_end
+tests/test_ends.py::test_ruby_methods_run_to_their_own_end_past_heredocs_and_rescue
 tests/test_escalate.py::test_a_breadth_pass_that_passed_nothing_on_says_so
 tests/test_escalate.py::test_a_capped_normal_run_is_told_its_cap_and_an_uncapped_one_nothing
 tests/test_escalate.py::test_a_lite_run_is_a_capped_normal_run_told_its_budget_and_billed
@@ -488,6 +666,14 @@ tests/test_gate_policy.py::test_the_one_model_rule_comes_first
 tests/test_gate_policy.py::test_verdict_facts_records_the_range_given_or_inherited
 tests/test_gate_policy.py::test_without_a_gate_range_the_judgment_stands_and_says_why
 tests/test_gate_policy.py::test_without_a_risk_class_nothing_is_raised
+tests/test_gitenv.py::test_a_signature_is_the_name_the_working_repository_configures[accept]
+tests/test_gitenv.py::test_a_signature_is_the_name_the_working_repository_configures[questions]
+tests/test_gitenv.py::test_each_variable_that_misdirects_a_reader_on_its_own_is_dropped
+tests/test_gitenv.py::test_every_git_call_in_the_package_names_its_environment
+tests/test_gitenv.py::test_git_env_is_the_environment_without_the_seven
+tests/test_gitenv.py::test_the_scratch_checkout_is_a_worktree_of_the_repository_asked
+tests/test_gitenv.py::test_the_sweep_sees_the_calls_it_is_meant_to_see
+tests/test_gitenv.py::test_under_another_repositorys_git_dir_every_reader_answers_for_the_one_asked
 tests/test_harness.py::test_a_correction_appended_after_a_rollback_outranks_the_row_it_corrects
 tests/test_harness.py::test_a_garbled_revision_never_outranks_a_real_one
 tests/test_harness.py::test_a_gate_that_cannot_start_is_unavailable_not_a_failing_test
@@ -2074,42 +2260,110 @@ tests/test_interpreter_floor.py::test_new_style_unions_are_lazy[__init__.py]
 tests/test_interpreter_floor.py::test_new_style_unions_are_lazy[accept.py]
 tests/test_interpreter_floor.py::test_new_style_unions_are_lazy[anchors.py]
 tests/test_interpreter_floor.py::test_new_style_unions_are_lazy[backfill.py]
+tests/test_interpreter_floor.py::test_new_style_unions_are_lazy[braces.py]
+tests/test_interpreter_floor.py::test_new_style_unions_are_lazy[browser.py]
+tests/test_interpreter_floor.py::test_new_style_unions_are_lazy[browser_config.py]
+tests/test_interpreter_floor.py::test_new_style_unions_are_lazy[browser_findings.py]
+tests/test_interpreter_floor.py::test_new_style_unions_are_lazy[browser_forms.py]
+tests/test_interpreter_floor.py::test_new_style_unions_are_lazy[browser_images.py]
+tests/test_interpreter_floor.py::test_new_style_unions_are_lazy[browser_js.py]
+tests/test_interpreter_floor.py::test_new_style_unions_are_lazy[browser_server.py]
+tests/test_interpreter_floor.py::test_new_style_unions_are_lazy[browser_source.py]
 tests/test_interpreter_floor.py::test_new_style_unions_are_lazy[census.py]
 tests/test_interpreter_floor.py::test_new_style_unions_are_lazy[check.py]
 tests/test_interpreter_floor.py::test_new_style_unions_are_lazy[clock.py]
 tests/test_interpreter_floor.py::test_new_style_unions_are_lazy[dupes.py]
+tests/test_interpreter_floor.py::test_new_style_unions_are_lazy[ends.py]
 tests/test_interpreter_floor.py::test_new_style_unions_are_lazy[enforce_bash_scope.py]
 tests/test_interpreter_floor.py::test_new_style_unions_are_lazy[enforce_run_contract.py]
 tests/test_interpreter_floor.py::test_new_style_unions_are_lazy[enforce_write_scope.py]
 tests/test_interpreter_floor.py::test_new_style_unions_are_lazy[escalate.py]
 tests/test_interpreter_floor.py::test_new_style_unions_are_lazy[external.py]
+tests/test_interpreter_floor.py::test_new_style_unions_are_lazy[facts_coverage.py]
+tests/test_interpreter_floor.py::test_new_style_unions_are_lazy[facts_reading.py]
+tests/test_interpreter_floor.py::test_new_style_unions_are_lazy[facts_suite.py]
+tests/test_interpreter_floor.py::test_new_style_unions_are_lazy[facts_verify.py]
 tests/test_interpreter_floor.py::test_new_style_unions_are_lazy[filed.py]
+tests/test_interpreter_floor.py::test_new_style_unions_are_lazy[finalize_bill.py]
+tests/test_interpreter_floor.py::test_new_style_unions_are_lazy[finalize_carry.py]
+tests/test_interpreter_floor.py::test_new_style_unions_are_lazy[finalize_ids.py]
+tests/test_interpreter_floor.py::test_new_style_unions_are_lazy[finalize_merge.py]
+tests/test_interpreter_floor.py::test_new_style_unions_are_lazy[finalize_policy.py]
+tests/test_interpreter_floor.py::test_new_style_unions_are_lazy[finalize_write.py]
 tests/test_interpreter_floor.py::test_new_style_unions_are_lazy[fixture_freshness.py]
 tests/test_interpreter_floor.py::test_new_style_unions_are_lazy[focus.py]
 tests/test_interpreter_floor.py::test_new_style_unions_are_lazy[gaps.py]
 tests/test_interpreter_floor.py::test_new_style_unions_are_lazy[gate.py]
+tests/test_interpreter_floor.py::test_new_style_unions_are_lazy[gitenv.py]
 tests/test_interpreter_floor.py::test_new_style_unions_are_lazy[harness.py]
+tests/test_interpreter_floor.py::test_new_style_unions_are_lazy[harness_common.py]
 tests/test_interpreter_floor.py::test_new_style_unions_are_lazy[hygiene.py]
+tests/test_interpreter_floor.py::test_new_style_unions_are_lazy[hygiene_const.py]
+tests/test_interpreter_floor.py::test_new_style_unions_are_lazy[hygiene_evidence.py]
+tests/test_interpreter_floor.py::test_new_style_unions_are_lazy[hygiene_facts.py]
+tests/test_interpreter_floor.py::test_new_style_unions_are_lazy[hygiene_git.py]
+tests/test_interpreter_floor.py::test_new_style_unions_are_lazy[hygiene_js.py]
+tests/test_interpreter_floor.py::test_new_style_unions_are_lazy[hygiene_lines.py]
+tests/test_interpreter_floor.py::test_new_style_unions_are_lazy[hygiene_paths.py]
+tests/test_interpreter_floor.py::test_new_style_unions_are_lazy[hygiene_patterns.py]
+tests/test_interpreter_floor.py::test_new_style_unions_are_lazy[hygiene_python.py]
+tests/test_interpreter_floor.py::test_new_style_unions_are_lazy[hygiene_reconcile.py]
+tests/test_interpreter_floor.py::test_new_style_unions_are_lazy[hygiene_rules.py]
+tests/test_interpreter_floor.py::test_new_style_unions_are_lazy[hygiene_scrub.py]
+tests/test_interpreter_floor.py::test_new_style_unions_are_lazy[hygiene_secrets.py]
 tests/test_interpreter_floor.py::test_new_style_unions_are_lazy[issues.py]
+tests/test_interpreter_floor.py::test_new_style_unions_are_lazy[languages.py]
+tests/test_interpreter_floor.py::test_new_style_unions_are_lazy[local_browser.py]
+tests/test_interpreter_floor.py::test_new_style_unions_are_lazy[local_budget.py]
+tests/test_interpreter_floor.py::test_new_style_unions_are_lazy[local_candidates.py]
+tests/test_interpreter_floor.py::test_new_style_unions_are_lazy[local_carry.py]
+tests/test_interpreter_floor.py::test_new_style_unions_are_lazy[local_chunks.py]
+tests/test_interpreter_floor.py::test_new_style_unions_are_lazy[local_env.py]
+tests/test_interpreter_floor.py::test_new_style_unions_are_lazy[local_findings.py]
+tests/test_interpreter_floor.py::test_new_style_unions_are_lazy[local_leads.py]
+tests/test_interpreter_floor.py::test_new_style_unions_are_lazy[local_model.py]
+tests/test_interpreter_floor.py::test_new_style_unions_are_lazy[local_probes.py]
+tests/test_interpreter_floor.py::test_new_style_unions_are_lazy[local_quarantine.py]
+tests/test_interpreter_floor.py::test_new_style_unions_are_lazy[local_questions.py]
+tests/test_interpreter_floor.py::test_new_style_unions_are_lazy[local_skips.py]
+tests/test_interpreter_floor.py::test_new_style_unions_are_lazy[local_suite.py]
+tests/test_interpreter_floor.py::test_new_style_unions_are_lazy[local_summary.py]
+tests/test_interpreter_floor.py::test_new_style_unions_are_lazy[local_verdict.py]
 tests/test_interpreter_floor.py::test_new_style_unions_are_lazy[mutate.py]
 tests/test_interpreter_floor.py::test_new_style_unions_are_lazy[pin_check.py]
 tests/test_interpreter_floor.py::test_new_style_unions_are_lazy[profile.py]
 tests/test_interpreter_floor.py::test_new_style_unions_are_lazy[project_key.py]
 tests/test_interpreter_floor.py::test_new_style_unions_are_lazy[qa_paths.py]
 tests/test_interpreter_floor.py::test_new_style_unions_are_lazy[questions.py]
+tests/test_interpreter_floor.py::test_new_style_unions_are_lazy[reach.py]
+tests/test_interpreter_floor.py::test_new_style_unions_are_lazy[readers.py]
 tests/test_interpreter_floor.py::test_new_style_unions_are_lazy[readfirst.py]
+tests/test_interpreter_floor.py::test_new_style_unions_are_lazy[regions.py]
 tests/test_interpreter_floor.py::test_new_style_unions_are_lazy[replay.py]
+tests/test_interpreter_floor.py::test_new_style_unions_are_lazy[report_names.py]
 tests/test_interpreter_floor.py::test_new_style_unions_are_lazy[report_open_findings.py]
+tests/test_interpreter_floor.py::test_new_style_unions_are_lazy[report_render.py]
+tests/test_interpreter_floor.py::test_new_style_unions_are_lazy[report_sections.py]
 tests/test_interpreter_floor.py::test_new_style_unions_are_lazy[reports.py]
 tests/test_interpreter_floor.py::test_new_style_unions_are_lazy[run_eval.py]
 tests/test_interpreter_floor.py::test_new_style_unions_are_lazy[run_mutation.py]
 tests/test_interpreter_floor.py::test_new_style_unions_are_lazy[runner.py]
+tests/test_interpreter_floor.py::test_new_style_unions_are_lazy[runner_agent.py]
+tests/test_interpreter_floor.py::test_new_style_unions_are_lazy[runner_env.py]
+tests/test_interpreter_floor.py::test_new_style_unions_are_lazy[runner_escalate.py]
+tests/test_interpreter_floor.py::test_new_style_unions_are_lazy[runner_limits.py]
+tests/test_interpreter_floor.py::test_new_style_unions_are_lazy[runner_local.py]
+tests/test_interpreter_floor.py::test_new_style_unions_are_lazy[runner_provision.py]
+tests/test_interpreter_floor.py::test_new_style_unions_are_lazy[runner_stream.py]
+tests/test_interpreter_floor.py::test_new_style_unions_are_lazy[runner_sweep.py]
+tests/test_interpreter_floor.py::test_new_style_unions_are_lazy[sandbox.py]
 tests/test_interpreter_floor.py::test_new_style_unions_are_lazy[score.py]
 tests/test_interpreter_floor.py::test_new_style_unions_are_lazy[server.py]
 tests/test_interpreter_floor.py::test_new_style_unions_are_lazy[small.py]
 tests/test_interpreter_floor.py::test_new_style_unions_are_lazy[state.py]
 tests/test_interpreter_floor.py::test_new_style_unions_are_lazy[swebench.py]
 tests/test_interpreter_floor.py::test_new_style_unions_are_lazy[sweep.py]
+tests/test_interpreter_floor.py::test_new_style_unions_are_lazy[testmarks.py]
 tests/test_interpreter_floor.py::test_new_style_unions_are_lazy[usage.py0]
 tests/test_interpreter_floor.py::test_new_style_unions_are_lazy[usage.py1]
 tests/test_interpreter_floor.py::test_new_style_unions_are_lazy[usage_census.py]
@@ -2118,42 +2372,110 @@ tests/test_interpreter_floor.py::test_no_syntax_the_floor_cannot_parse[__init__.
 tests/test_interpreter_floor.py::test_no_syntax_the_floor_cannot_parse[accept.py]
 tests/test_interpreter_floor.py::test_no_syntax_the_floor_cannot_parse[anchors.py]
 tests/test_interpreter_floor.py::test_no_syntax_the_floor_cannot_parse[backfill.py]
+tests/test_interpreter_floor.py::test_no_syntax_the_floor_cannot_parse[braces.py]
+tests/test_interpreter_floor.py::test_no_syntax_the_floor_cannot_parse[browser.py]
+tests/test_interpreter_floor.py::test_no_syntax_the_floor_cannot_parse[browser_config.py]
+tests/test_interpreter_floor.py::test_no_syntax_the_floor_cannot_parse[browser_findings.py]
+tests/test_interpreter_floor.py::test_no_syntax_the_floor_cannot_parse[browser_forms.py]
+tests/test_interpreter_floor.py::test_no_syntax_the_floor_cannot_parse[browser_images.py]
+tests/test_interpreter_floor.py::test_no_syntax_the_floor_cannot_parse[browser_js.py]
+tests/test_interpreter_floor.py::test_no_syntax_the_floor_cannot_parse[browser_server.py]
+tests/test_interpreter_floor.py::test_no_syntax_the_floor_cannot_parse[browser_source.py]
 tests/test_interpreter_floor.py::test_no_syntax_the_floor_cannot_parse[census.py]
 tests/test_interpreter_floor.py::test_no_syntax_the_floor_cannot_parse[check.py]
 tests/test_interpreter_floor.py::test_no_syntax_the_floor_cannot_parse[clock.py]
 tests/test_interpreter_floor.py::test_no_syntax_the_floor_cannot_parse[dupes.py]
+tests/test_interpreter_floor.py::test_no_syntax_the_floor_cannot_parse[ends.py]
 tests/test_interpreter_floor.py::test_no_syntax_the_floor_cannot_parse[enforce_bash_scope.py]
 tests/test_interpreter_floor.py::test_no_syntax_the_floor_cannot_parse[enforce_run_contract.py]
 tests/test_interpreter_floor.py::test_no_syntax_the_floor_cannot_parse[enforce_write_scope.py]
 tests/test_interpreter_floor.py::test_no_syntax_the_floor_cannot_parse[escalate.py]
 tests/test_interpreter_floor.py::test_no_syntax_the_floor_cannot_parse[external.py]
+tests/test_interpreter_floor.py::test_no_syntax_the_floor_cannot_parse[facts_coverage.py]
+tests/test_interpreter_floor.py::test_no_syntax_the_floor_cannot_parse[facts_reading.py]
+tests/test_interpreter_floor.py::test_no_syntax_the_floor_cannot_parse[facts_suite.py]
+tests/test_interpreter_floor.py::test_no_syntax_the_floor_cannot_parse[facts_verify.py]
 tests/test_interpreter_floor.py::test_no_syntax_the_floor_cannot_parse[filed.py]
+tests/test_interpreter_floor.py::test_no_syntax_the_floor_cannot_parse[finalize_bill.py]
+tests/test_interpreter_floor.py::test_no_syntax_the_floor_cannot_parse[finalize_carry.py]
+tests/test_interpreter_floor.py::test_no_syntax_the_floor_cannot_parse[finalize_ids.py]
+tests/test_interpreter_floor.py::test_no_syntax_the_floor_cannot_parse[finalize_merge.py]
+tests/test_interpreter_floor.py::test_no_syntax_the_floor_cannot_parse[finalize_policy.py]
+tests/test_interpreter_floor.py::test_no_syntax_the_floor_cannot_parse[finalize_write.py]
 tests/test_interpreter_floor.py::test_no_syntax_the_floor_cannot_parse[fixture_freshness.py]
 tests/test_interpreter_floor.py::test_no_syntax_the_floor_cannot_parse[focus.py]
 tests/test_interpreter_floor.py::test_no_syntax_the_floor_cannot_parse[gaps.py]
 tests/test_interpreter_floor.py::test_no_syntax_the_floor_cannot_parse[gate.py]
+tests/test_interpreter_floor.py::test_no_syntax_the_floor_cannot_parse[gitenv.py]
 tests/test_interpreter_floor.py::test_no_syntax_the_floor_cannot_parse[harness.py]
+tests/test_interpreter_floor.py::test_no_syntax_the_floor_cannot_parse[harness_common.py]
 tests/test_interpreter_floor.py::test_no_syntax_the_floor_cannot_parse[hygiene.py]
+tests/test_interpreter_floor.py::test_no_syntax_the_floor_cannot_parse[hygiene_const.py]
+tests/test_interpreter_floor.py::test_no_syntax_the_floor_cannot_parse[hygiene_evidence.py]
+tests/test_interpreter_floor.py::test_no_syntax_the_floor_cannot_parse[hygiene_facts.py]
+tests/test_interpreter_floor.py::test_no_syntax_the_floor_cannot_parse[hygiene_git.py]
+tests/test_interpreter_floor.py::test_no_syntax_the_floor_cannot_parse[hygiene_js.py]
+tests/test_interpreter_floor.py::test_no_syntax_the_floor_cannot_parse[hygiene_lines.py]
+tests/test_interpreter_floor.py::test_no_syntax_the_floor_cannot_parse[hygiene_paths.py]
+tests/test_interpreter_floor.py::test_no_syntax_the_floor_cannot_parse[hygiene_patterns.py]
+tests/test_interpreter_floor.py::test_no_syntax_the_floor_cannot_parse[hygiene_python.py]
+tests/test_interpreter_floor.py::test_no_syntax_the_floor_cannot_parse[hygiene_reconcile.py]
+tests/test_interpreter_floor.py::test_no_syntax_the_floor_cannot_parse[hygiene_rules.py]
+tests/test_interpreter_floor.py::test_no_syntax_the_floor_cannot_parse[hygiene_scrub.py]
+tests/test_interpreter_floor.py::test_no_syntax_the_floor_cannot_parse[hygiene_secrets.py]
 tests/test_interpreter_floor.py::test_no_syntax_the_floor_cannot_parse[issues.py]
+tests/test_interpreter_floor.py::test_no_syntax_the_floor_cannot_parse[languages.py]
+tests/test_interpreter_floor.py::test_no_syntax_the_floor_cannot_parse[local_browser.py]
+tests/test_interpreter_floor.py::test_no_syntax_the_floor_cannot_parse[local_budget.py]
+tests/test_interpreter_floor.py::test_no_syntax_the_floor_cannot_parse[local_candidates.py]
+tests/test_interpreter_floor.py::test_no_syntax_the_floor_cannot_parse[local_carry.py]
+tests/test_interpreter_floor.py::test_no_syntax_the_floor_cannot_parse[local_chunks.py]
+tests/test_interpreter_floor.py::test_no_syntax_the_floor_cannot_parse[local_env.py]
+tests/test_interpreter_floor.py::test_no_syntax_the_floor_cannot_parse[local_findings.py]
+tests/test_interpreter_floor.py::test_no_syntax_the_floor_cannot_parse[local_leads.py]
+tests/test_interpreter_floor.py::test_no_syntax_the_floor_cannot_parse[local_model.py]
+tests/test_interpreter_floor.py::test_no_syntax_the_floor_cannot_parse[local_probes.py]
+tests/test_interpreter_floor.py::test_no_syntax_the_floor_cannot_parse[local_quarantine.py]
+tests/test_interpreter_floor.py::test_no_syntax_the_floor_cannot_parse[local_questions.py]
+tests/test_interpreter_floor.py::test_no_syntax_the_floor_cannot_parse[local_skips.py]
+tests/test_interpreter_floor.py::test_no_syntax_the_floor_cannot_parse[local_suite.py]
+tests/test_interpreter_floor.py::test_no_syntax_the_floor_cannot_parse[local_summary.py]
+tests/test_interpreter_floor.py::test_no_syntax_the_floor_cannot_parse[local_verdict.py]
 tests/test_interpreter_floor.py::test_no_syntax_the_floor_cannot_parse[mutate.py]
 tests/test_interpreter_floor.py::test_no_syntax_the_floor_cannot_parse[pin_check.py]
 tests/test_interpreter_floor.py::test_no_syntax_the_floor_cannot_parse[profile.py]
 tests/test_interpreter_floor.py::test_no_syntax_the_floor_cannot_parse[project_key.py]
 tests/test_interpreter_floor.py::test_no_syntax_the_floor_cannot_parse[qa_paths.py]
 tests/test_interpreter_floor.py::test_no_syntax_the_floor_cannot_parse[questions.py]
+tests/test_interpreter_floor.py::test_no_syntax_the_floor_cannot_parse[reach.py]
+tests/test_interpreter_floor.py::test_no_syntax_the_floor_cannot_parse[readers.py]
 tests/test_interpreter_floor.py::test_no_syntax_the_floor_cannot_parse[readfirst.py]
+tests/test_interpreter_floor.py::test_no_syntax_the_floor_cannot_parse[regions.py]
 tests/test_interpreter_floor.py::test_no_syntax_the_floor_cannot_parse[replay.py]
+tests/test_interpreter_floor.py::test_no_syntax_the_floor_cannot_parse[report_names.py]
 tests/test_interpreter_floor.py::test_no_syntax_the_floor_cannot_parse[report_open_findings.py]
+tests/test_interpreter_floor.py::test_no_syntax_the_floor_cannot_parse[report_render.py]
+tests/test_interpreter_floor.py::test_no_syntax_the_floor_cannot_parse[report_sections.py]
 tests/test_interpreter_floor.py::test_no_syntax_the_floor_cannot_parse[reports.py]
 tests/test_interpreter_floor.py::test_no_syntax_the_floor_cannot_parse[run_eval.py]
 tests/test_interpreter_floor.py::test_no_syntax_the_floor_cannot_parse[run_mutation.py]
 tests/test_interpreter_floor.py::test_no_syntax_the_floor_cannot_parse[runner.py]
+tests/test_interpreter_floor.py::test_no_syntax_the_floor_cannot_parse[runner_agent.py]
+tests/test_interpreter_floor.py::test_no_syntax_the_floor_cannot_parse[runner_env.py]
+tests/test_interpreter_floor.py::test_no_syntax_the_floor_cannot_parse[runner_escalate.py]
+tests/test_interpreter_floor.py::test_no_syntax_the_floor_cannot_parse[runner_limits.py]
+tests/test_interpreter_floor.py::test_no_syntax_the_floor_cannot_parse[runner_local.py]
+tests/test_interpreter_floor.py::test_no_syntax_the_floor_cannot_parse[runner_provision.py]
+tests/test_interpreter_floor.py::test_no_syntax_the_floor_cannot_parse[runner_stream.py]
+tests/test_interpreter_floor.py::test_no_syntax_the_floor_cannot_parse[runner_sweep.py]
+tests/test_interpreter_floor.py::test_no_syntax_the_floor_cannot_parse[sandbox.py]
 tests/test_interpreter_floor.py::test_no_syntax_the_floor_cannot_parse[score.py]
 tests/test_interpreter_floor.py::test_no_syntax_the_floor_cannot_parse[server.py]
 tests/test_interpreter_floor.py::test_no_syntax_the_floor_cannot_parse[small.py]
 tests/test_interpreter_floor.py::test_no_syntax_the_floor_cannot_parse[state.py]
 tests/test_interpreter_floor.py::test_no_syntax_the_floor_cannot_parse[swebench.py]
 tests/test_interpreter_floor.py::test_no_syntax_the_floor_cannot_parse[sweep.py]
+tests/test_interpreter_floor.py::test_no_syntax_the_floor_cannot_parse[testmarks.py]
 tests/test_interpreter_floor.py::test_no_syntax_the_floor_cannot_parse[usage.py0]
 tests/test_interpreter_floor.py::test_no_syntax_the_floor_cannot_parse[usage.py1]
 tests/test_interpreter_floor.py::test_no_syntax_the_floor_cannot_parse[usage_census.py]
@@ -2176,6 +2498,89 @@ tests/test_issues.py::test_labels_and_repo_reach_gh_verbatim
 tests/test_issues.py::test_limit_files_the_worst_and_defers_the_rest
 tests/test_issues.py::test_no_state_is_exit_4
 tests/test_issues.py::test_the_same_regression_is_not_filed_twice_in_later_runs
+tests/test_languages.py::test_a_generated_file_or_a_bundle_is_known_by_its_content
+tests/test_languages.py::test_a_name_that_only_contains_test_is_code[app/AbstractTestable.java]
+tests/test_languages.py::test_a_name_that_only_contains_test_is_code[app/models/contest_entry.rb]
+tests/test_languages.py::test_a_name_that_only_contains_test_is_code[lib/latest.go]
+tests/test_languages.py::test_a_name_that_only_contains_test_is_code[src/Latest.cs]
+tests/test_languages.py::test_a_name_that_only_contains_test_is_code[src/contest.ts]
+tests/test_languages.py::test_a_name_that_only_contains_test_is_code[src/testing-utils-free.ts]
+tests/test_languages.py::test_a_source_folder_named_like_build_output_is_still_read
+tests/test_languages.py::test_every_language_a_website_is_built_in_has_a_reader[Pages/Index.cshtml-razor]
+tests/test_languages.py::test_every_language_a_website_is_built_in_has_a_reader[Rakefile-ruby]
+tests/test_languages.py::test_every_language_a_website_is_built_in_has_a_reader[Sources/App/View.swift-swift]
+tests/test_languages.py::test_every_language_a_website_is_built_in_has_a_reader[app/Http/Controllers/OrderController.php-php]
+tests/test_languages.py::test_every_language_a_website_is_built_in_has_a_reader[app/api/route.ts-typescript]
+tests/test_languages.py::test_every_language_a_website_is_built_in_has_a_reader[app/controllers/orders_controller.rb-ruby]
+tests/test_languages.py::test_every_language_a_website_is_built_in_has_a_reader[app/src/main/kotlin/Cart.kt-kotlin]
+tests/test_languages.py::test_every_language_a_website_is_built_in_has_a_reader[app/views/orders/show.html.erb-erb]
+tests/test_languages.py::test_every_language_a_website_is_built_in_has_a_reader[cmd/server/main.go-go]
+tests/test_languages.py::test_every_language_a_website_is_built_in_has_a_reader[contracts/Token.sol-solidity]
+tests/test_languages.py::test_every_language_a_website_is_built_in_has_a_reader[db/schema.sql-sql]
+tests/test_languages.py::test_every_language_a_website_is_built_in_has_a_reader[deploy.sh-shell]
+tests/test_languages.py::test_every_language_a_website_is_built_in_has_a_reader[include/shop.hpp-cpp]
+tests/test_languages.py::test_every_language_a_website_is_built_in_has_a_reader[init.lua-lua]
+tests/test_languages.py::test_every_language_a_website_is_built_in_has_a_reader[lib/shop_web/router.ex-elixir]
+tests/test_languages.py::test_every_language_a_website_is_built_in_has_a_reader[lib/widget.dart-dart]
+tests/test_languages.py::test_every_language_a_website_is_built_in_has_a_reader[public/index.html-html]
+tests/test_languages.py::test_every_language_a_website_is_built_in_has_a_reader[resources/views/orders/show.blade.php-blade]
+tests/test_languages.py::test_every_language_a_website_is_built_in_has_a_reader[scripts/seed.py-python]
+tests/test_languages.py::test_every_language_a_website_is_built_in_has_a_reader[scripts/setup.ps1-powershell]
+tests/test_languages.py::test_every_language_a_website_is_built_in_has_a_reader[src/App.tsx-typescript]
+tests/test_languages.py::test_every_language_a_website_is_built_in_has_a_reader[src/Counter.vue-vue]
+tests/test_languages.py::test_every_language_a_website_is_built_in_has_a_reader[src/lib.rs-rust]
+tests/test_languages.py::test_every_language_a_website_is_built_in_has_a_reader[src/main/java/shop/Orders.java-java]
+tests/test_languages.py::test_every_language_a_website_is_built_in_has_a_reader[src/math.c-c]
+tests/test_languages.py::test_every_language_a_website_is_built_in_has_a_reader[src/pages/index.astro-astro]
+tests/test_languages.py::test_every_language_a_website_is_built_in_has_a_reader[src/routes/+page.svelte-svelte]
+tests/test_languages.py::test_every_language_a_website_is_built_in_has_a_reader[templates/base.html.j2-jinja]
+tests/test_languages.py::test_every_language_a_website_is_built_in_has_a_reader[web/app.jsx-javascript]
+tests/test_languages.py::test_generated_vendored_and_built_code_is_not_read[.svelte-kit/generated/root.svelte]
+tests/test_languages.py::test_generated_vendored_and_built_code_is_not_read[Pods/Alamofire/Source/AF.swift]
+tests/test_languages.py::test_generated_vendored_and_built_code_is_not_read[_build/dev/lib/x.ex]
+tests/test_languages.py::test_generated_vendored_and_built_code_is_not_read[api/v1/orders.pb.go]
+tests/test_languages.py::test_generated_vendored_and_built_code_is_not_read[build/generated/X.kt]
+tests/test_languages.py::test_generated_vendored_and_built_code_is_not_read[deps/plug/lib/plug.ex]
+tests/test_languages.py::test_generated_vendored_and_built_code_is_not_read[internal/store/mock_store.go]
+tests/test_languages.py::test_generated_vendored_and_built_code_is_not_read[lib/models/order.freezed.dart]
+tests/test_languages.py::test_generated_vendored_and_built_code_is_not_read[lib/models/order.g.dart]
+tests/test_languages.py::test_generated_vendored_and_built_code_is_not_read[pkg/apis/zz_generated.deepcopy.go]
+tests/test_languages.py::test_generated_vendored_and_built_code_is_not_read[public/lib/jquery.js]
+tests/test_languages.py::test_generated_vendored_and_built_code_is_not_read[target/classes/A.java]
+tests/test_languages.py::test_generated_vendored_and_built_code_is_not_read[vendor/laravel/framework/src/X.php]
+tests/test_languages.py::test_generated_vendored_and_built_code_is_not_read[web/dist/app.js]
+tests/test_languages.py::test_generated_vendored_and_built_code_is_not_read[web/src/types.d.ts]
+tests/test_languages.py::test_generated_vendored_and_built_code_is_not_read[wp-includes/load.php]
+tests/test_languages.py::test_templates_are_named_as_templates
+tests/test_languages.py::test_tests_are_known_by_every_ecosystems_own_conventions[Tests/AppTests/CartTests.swift]
+tests/test_languages.py::test_tests_are_known_by_every_ecosystems_own_conventions[app/src/test/kotlin/CartTest.kt]
+tests/test_languages.py::test_tests_are_known_by_every_ecosystems_own_conventions[cypress/e2e/checkout.cy.ts]
+tests/test_languages.py::test_tests_are_known_by_every_ecosystems_own_conventions[pkg/orders/orders_test.go]
+tests/test_languages.py::test_tests_are_known_by_every_ecosystems_own_conventions[spec/cart_spec.lua]
+tests/test_languages.py::test_tests_are_known_by_every_ecosystems_own_conventions[spec/models/order_spec.rb]
+tests/test_languages.py::test_tests_are_known_by_every_ecosystems_own_conventions[src/Api.Tests/OrdersTests.cs]
+tests/test_languages.py::test_tests_are_known_by_every_ecosystems_own_conventions[src/components/Button.stories.tsx]
+tests/test_languages.py::test_tests_are_known_by_every_ecosystems_own_conventions[src/test/java/shop/OrdersTest.java]
+tests/test_languages.py::test_tests_are_known_by_every_ecosystems_own_conventions[test/shop_web/user_controller_test.exs]
+tests/test_languages.py::test_tests_are_known_by_every_ecosystems_own_conventions[test/widget_test.dart]
+tests/test_languages.py::test_tests_are_known_by_every_ecosystems_own_conventions[tests/Feature/OrderTest.php]
+tests/test_languages.py::test_tests_are_known_by_every_ecosystems_own_conventions[tests/integration.rs]
+tests/test_languages.py::test_tests_are_known_by_every_ecosystems_own_conventions[web/__tests__/x.js]
+tests/test_languages.py::test_tests_are_known_by_every_ecosystems_own_conventions[web/e2e/login.ts]
+tests/test_languages.py::test_tests_are_known_by_every_ecosystems_own_conventions[web/src/App.test.tsx]
+tests/test_languages.py::test_tests_are_known_by_every_ecosystems_own_conventions[web/src/app.spec.ts]
+tests/test_languages.py::test_what_a_range_changed_that_no_reader_reads_is_counted_by_kind
+tests/test_languages.py::test_what_is_not_program_source_is_not_read[.env]
+tests/test_languages.py::test_what_is_not_program_source_is_not_read[Makefile]
+tests/test_languages.py::test_what_is_not_program_source_is_not_read[README.md]
+tests/test_languages.py::test_what_is_not_program_source_is_not_read[app/globals.scss]
+tests/test_languages.py::test_what_is_not_program_source_is_not_read[docker-compose.yml]
+tests/test_languages.py::test_what_is_not_program_source_is_not_read[package.json]
+tests/test_languages.py::test_what_is_not_program_source_is_not_read[prisma/schema.prisma]
+tests/test_languages.py::test_what_is_not_program_source_is_not_read[public/logo.svg]
+tests/test_languages.py::test_what_is_not_program_source_is_not_read[styles/site.css]
+tests/test_languages.py::test_what_is_not_program_source_is_not_read[tsconfig.json]
+tests/test_languages.py::test_what_is_not_program_source_is_not_read[yarn.lock]
 tests/test_limits.py::test_a_run_that_wrote_its_state_is_never_retried_over_a_session_limit_notice
 tests/test_limits.py::test_a_weekly_limit_is_never_slept_through
 tests/test_limits.py::test_limit_kind_separates_the_two_windows_and_ignores_everything_else
@@ -2202,6 +2607,16 @@ tests/test_listing_render.py::test_every_listed_description_is_one_clean_line[sk
 tests/test_listing_render.py::test_every_listed_description_is_one_clean_line[skills/verdict-verify-fix/SKILL.md]
 tests/test_listing_render.py::test_the_check_sees_the_description_that_broke_the_page
 tests/test_listing_render.py::test_the_readme_carries_no_images
+tests/test_local_braces.py::test_a_csharp_change_in_a_delta_becomes_a_lead_with_its_reason
+tests/test_local_braces.py::test_a_csharp_question_names_its_language_lines_and_the_type_around_it
+tests/test_local_braces.py::test_a_file_that_fails_to_parse_still_asks_and_never_raises
+tests/test_local_braces.py::test_a_mixed_diff_ranks_by_lines_added_not_by_language
+tests/test_local_braces.py::test_a_python_only_diff_is_ranked_exactly_as_before
+tests/test_local_braces.py::test_changed_lines_come_from_the_diff_in_the_new_files_numbering
+tests/test_local_braces.py::test_no_counterfactual_is_tried_on_csharp_and_the_reason_is_kept
+tests/test_local_braces.py::test_python_questions_are_worded_exactly_as_before
+tests/test_local_braces.py::test_the_projects_own_null_settings_reach_the_question
+tests/test_local_braces.py::test_the_run_reads_csharp_through_the_command_line_seam
 tests/test_local_delta.py::test_a_baseline_keeps_this_engines_own_arithmetic
 tests/test_local_delta.py::test_a_carried_blocked_verdict_says_why_it_was_carried
 tests/test_local_delta.py::test_a_claim_about_an_open_findings_function_is_not_filed_twice
@@ -2267,11 +2682,12 @@ tests/test_local_delta.py::test_two_findings_with_one_identity_in_one_run_are_on
 tests/test_local_gate.py::test_a_base_ref_is_resolved_through_the_merge_base
 tests/test_local_gate.py::test_a_branch_run_never_writes_the_keys_state_root
 tests/test_local_gate.py::test_a_capped_run_says_how_many_functions_it_never_asked_about
+tests/test_local_gate.py::test_a_diff_with_nothing_readable_reads_nothing_and_says_so
 tests/test_local_gate.py::test_a_gate_run_takes_the_caps_without_being_told
 tests/test_local_gate.py::test_a_range_run_reads_the_diff_not_the_reading_map
 tests/test_local_gate.py::test_a_range_without_a_qa_root_is_refused
 tests/test_local_gate.py::test_a_supplied_range_drives_diff_coverage
-tests/test_local_gate.py::test_a_typescript_only_diff_reads_nothing_and_says_so
+tests/test_local_gate.py::test_a_typescript_diff_is_read_and_held_below_pass
 tests/test_local_gate.py::test_changed_files_names_what_the_range_touched
 tests/test_local_gate.py::test_chunks_are_narrowed_to_the_lines_the_range_touched
 tests/test_local_gate.py::test_needs_claude_names_every_measured_reason
@@ -2283,6 +2699,17 @@ tests/test_local_gate.py::test_the_probe_cap_leaves_a_claim_a_hypothesis
 tests/test_local_gate.py::test_the_reference_state_is_read_and_never_written
 tests/test_local_gate.py::test_the_unexercised_count_is_zero_when_coverage_was_not_measured
 tests/test_local_gate.py::test_touches_findings_reads_anchors_and_cited_evidence
+tests/test_local_languages.py::test_a_changed_site_reads_money_and_sign_in_before_its_copy
+tests/test_local_languages.py::test_a_focused_jest_test_is_filed_by_a_regular_expression
+tests/test_local_languages.py::test_a_go_function_is_asked_about_in_go
+tests/test_local_languages.py::test_a_go_range_becomes_a_lead_held_below_pass
+tests/test_local_languages.py::test_a_language_with_no_reader_of_its_own_is_asked_about_as_an_excerpt
+tests/test_local_languages.py::test_a_python_project_is_read_exactly_as_before
+tests/test_local_languages.py::test_a_rails_action_carries_the_guard_its_class_declares
+tests/test_local_languages.py::test_a_template_is_asked_what_a_template_gets_wrong
+tests/test_local_languages.py::test_a_website_with_no_range_and_no_map_is_read_by_risk
+tests/test_local_languages.py::test_kotlin_swift_rust_and_dart_say_what_their_types_already_rule_out
+tests/test_local_languages.py::test_the_engine_starts_as_a_bare_script
 tests/test_mcp_cli.py::test_help_prints_usage_and_exits
 tests/test_mcp_cli.py::test_version_names_the_distribution
 tests/test_mcp_tools.py::test_findings_delta_filter_and_all
@@ -2419,6 +2846,12 @@ tests/test_questions.py::test_the_guards_refuse_the_answers_ledger_to_the_tester
 tests/test_questions.py::test_the_next_run_reads_the_answer_and_nobody_asks_again
 tests/test_questions.py::test_the_same_question_asked_again_is_not_minted_twice
 tests/test_questions.py::test_verdict_answer_writes_its_own_ledger_and_refuses_what_it_should
+tests/test_reach.py::test_a_file_defines_its_functions_state_and_shapes
+tests/test_reach.py::test_a_function_reaches_its_callee_its_state_and_its_imports
+tests/test_reach.py::test_a_long_definition_is_shown_by_its_head_and_the_budget_holds
+tests/test_reach.py::test_a_ruby_action_reaches_the_methods_of_its_controller
+tests/test_reach.py::test_an_import_never_leaves_the_repository
+tests/test_reach.py::test_the_question_carries_what_the_function_reaches_for
 tests/test_readfirst.py::test_a_baseline_ranks_functions_no_test_entered_risk_first
 tests/test_readfirst.py::test_each_line_goes_to_the_innermost_function
 tests/test_readfirst.py::test_facts_carries_read_first_for_a_range
@@ -2438,6 +2871,16 @@ tests/test_recall_bench.py::test_a_finding_that_names_two_defects_is_credited_on
 tests/test_recall_bench.py::test_a_missed_defect_a_ledger_replay_and_a_false_block
 tests/test_recall_bench.py::test_located_proven_blocked_and_the_extras
 tests/test_recall_bench.py::test_the_cli_prints_a_row_per_defect
+tests/test_regions.py::test_a_generated_file_raises_no_question
+tests/test_regions.py::test_a_language_with_no_reader_of_its_own_is_read_as_excerpts
+tests/test_regions.py::test_a_razor_view_reads_its_code_block_as_csharp_and_its_markup_as_a_template
+tests/test_regions.py::test_a_template_excerpt_prints_the_files_own_lines
+tests/test_regions.py::test_a_vue_component_is_read_as_typescript_and_as_a_template
+tests/test_regions.py::test_an_astro_page_reads_its_front_matter_as_typescript
+tests/test_regions.py::test_an_end_tag_closes_its_script_whatever_follows_its_name
+tests/test_regions.py::test_an_html_page_reads_its_scripts_and_not_its_json_or_plain_markup
+tests/test_regions.py::test_an_html_template_reads_its_markup
+tests/test_regions.py::test_excerpts_merge_while_they_fit_and_never_run_past_one_question
 tests/test_release_notes.py::test_a_version_without_a_section_is_refused
 tests/test_release_notes.py::test_every_tag_shaped_heading_parses
 tests/test_release_notes.py::test_the_body_stops_at_the_next_heading
@@ -2473,6 +2916,7 @@ tests/test_replay.py::test_a_path_into_the_original_checkout_is_rewritten_to_the
 tests/test_replay.py::test_a_path_the_fresh_tree_lacks_stays_where_it_is
 tests/test_replay.py::test_a_record_nobody_replayed_shows_nothing
 tests/test_replay.py::test_a_resolution_is_refused_while_the_repro_still_reproduces
+tests/test_replay.py::test_a_testers_repro_runs_without_the_callers_secret
 tests/test_replay.py::test_a_well_formed_or_absent_repro_passes_and_the_template_is_one
 tests/test_replay.py::test_a_wrong_exit_code_is_not_reproduced_and_no_expect_means_exit_0
 tests/test_replay.py::test_an_editable_install_of_the_original_checkout_is_disarmed_at_startup
@@ -2601,6 +3045,45 @@ tests/test_runner_env.py::test_a_named_variable_is_let_through
 tests/test_runner_env.py::test_passthrough_names_come_from_the_flag_and_the_environment
 tests/test_runner_env.py::test_the_child_sees_an_allowlist_not_the_operators_shell
 tests/test_runner_env.py::test_the_session_is_launched_isolated_and_capped
+tests/test_sandbox.py::test_a_census_mutants_tests_do_not_see_the_callers_secret
+tests/test_sandbox.py::test_a_checkout_and_a_fresh_tree_beside_it_keep_their_git_read_only
+tests/test_sandbox.py::test_a_daemon_does_not_outlive_its_run
+tests/test_sandbox.py::test_a_fix_verification_test_does_not_see_the_callers_secret
+tests/test_sandbox.py::test_a_floor_outranks_the_profile_and_required_drops_its_loosening
+tests/test_sandbox.py::test_a_gate_does_not_see_the_callers_secret_and_off_restores_the_old_way
+tests/test_sandbox.py::test_a_gate_named_for_the_network_keeps_it_and_nothing_else
+tests/test_sandbox.py::test_a_git_that_is_not_a_regular_file_is_never_opened
+tests/test_sandbox.py::test_a_nested_box_is_detected_not_stacked
+tests/test_sandbox.py::test_a_nested_harness_runs_only_inside_a_box_verdict_set_up
+tests/test_sandbox.py::test_a_profile_that_opens_the_shared_npm_cache_keeps_it
+tests/test_sandbox.py::test_a_shell_gate_keeps_its_pipes
+tests/test_sandbox.py::test_a_shipped_profile_cannot_turn_the_box_off_under_a_floor
+tests/test_sandbox.py::test_a_writable_home_does_not_reopen_the_credential_stores
+tests/test_sandbox.py::test_a_writable_path_that_reaches_a_credential_store_is_ignored
+tests/test_sandbox.py::test_configuring_the_box_hardens_the_harnesss_own_git
+tests/test_sandbox.py::test_each_run_gets_its_own_npm_cache
+tests/test_sandbox.py::test_each_run_gets_its_own_uv_cache
+tests/test_sandbox.py::test_facts_say_what_boxed_the_projects_code
+tests/test_sandbox.py::test_inside_the_box_the_code_reaches_nothing_but_its_checkout_and_loopback
+tests/test_sandbox.py::test_output_reads_as_text_mode_read_it
+tests/test_sandbox.py::test_premeasure_starts_with_no_credential_in_its_environment
+tests/test_sandbox.py::test_required_fails_closed_when_git_cannot_say
+tests/test_sandbox.py::test_required_refuses_a_checkout_with_any_claude_configuration_but_verdicts_own
+tests/test_sandbox.py::test_required_refuses_a_repository_that_ships_claude_hooks_and_auto_names_them
+tests/test_sandbox.py::test_required_with_no_box_runs_nothing_and_says_why
+tests/test_sandbox.py::test_the_ci_machine_that_must_have_the_box_has_it
+tests/test_sandbox.py::test_the_claude_configuration_a_repository_tracks_is_found_whatever_its_case
+tests/test_sandbox.py::test_the_claude_login_the_caller_runs_under_is_a_secret_store
+tests/test_sandbox.py::test_the_environment_keeps_the_allowlist_and_drops_every_secret
+tests/test_sandbox.py::test_the_floor_comes_from_the_environment_verdict_run_sets
+tests/test_sandbox.py::test_the_harness_git_runs_no_hook_a_repository_names
+tests/test_sandbox.py::test_the_profile_names_what_a_suite_needs_but_never_a_credential
+tests/test_sandbox.py::test_the_profile_reads_the_box_and_a_typo_never_turns_it_off
+tests/test_sandbox.py::test_the_profile_text_denies_the_network_but_loopback_and_the_secret_stores
+tests/test_sandbox.py::test_the_profile_text_keeps_git_claude_and_the_qa_root_unwritable
+tests/test_sandbox.py::test_the_testers_bash_runs_in_claude_codes_sandbox
+tests/test_sandbox.py::test_uvs_empty_git_marker_is_not_a_checkout
+tests/test_sandbox.py::test_verdict_run_launches_the_tester_with_the_sandbox_settings
 tests/test_score.py::test_a_broad_row_cannot_steal_the_finding_a_later_row_needs
 tests/test_score.py::test_a_row_starved_by_a_true_conflict_says_so
 tests/test_score.py::test_a_source_checkouts_harness_counts_as_current
@@ -2772,6 +3255,7 @@ tests/test_small_probes.py::test_anything_else_is_refused_as_probe_unsafe_and_ne
 tests/test_small_probes.py::test_anything_else_is_refused_as_probe_unsafe_and_never_run[os.getcwd()]
 tests/test_small_probes.py::test_both_probes_run_in_the_scratch_copy_and_the_checkout_is_untouched
 tests/test_small_probes.py::test_every_outcome_carries_the_expression_the_scratch_and_the_status
+tests/test_small_probes.py::test_in_the_box_a_probe_cannot_write_outside_its_copy
 tests/test_small_probes.py::test_probes_off_is_read_the_way_hygiene_off_is
 tests/test_small_probes.py::test_probes_off_means_no_counterfactual_is_ever_called[flag]
 tests/test_small_probes.py::test_probes_off_means_no_counterfactual_is_ever_called[profile]
@@ -2812,6 +3296,35 @@ tests/test_stop_hook.py::test_it_never_blocks_twice
 tests/test_stop_hook.py::test_the_block_names_a_durable_signal_before_promising_exit_6
 tests/test_stop_hook.py::test_the_record_is_never_written_through_a_link
 tests/test_stop_hook.py::test_when_nothing_can_be_remembered_a_continuation_is_read_as_its_own
+tests/test_suite_dialects.py::test_a_node_test_named_like_another_runners_summary_does_not_steal_the_reading
+tests/test_suite_dialects.py::test_a_runner_that_prints_its_passes_is_never_given_derived_ones
+tests/test_suite_dialects.py::test_a_runner_that_prints_only_a_total_gets_its_passes_from_it[5 examples, 0 failures, 2 pending-rspec-3]
+tests/test_suite_dialects.py::test_a_runner_that_prints_only_a_total_gets_its_passes_from_it[DONE 12 tests, 1 skipped, 1 failure in 0.5s-gotestsum-10]
+tests/test_suite_dialects.py::test_a_runner_that_prints_only_a_total_gets_its_passes_from_it[Tests run: 50, Failures: 1, Errors: 2, Skipped: 3-surefire-44]
+tests/test_suite_dialects.py::test_a_runner_that_prints_only_a_total_gets_its_passes_from_it[Tests: 9, Assertions: 20, Failures: 1, Skipped: 2, Incomplete: 1.-phpunit-5]
+tests/test_suite_dialects.py::test_a_suite_that_ran_with_a_few_skips_is_not_called_empty[5 examples, 0 failures, 2 pending]
+tests/test_suite_dialects.py::test_a_suite_that_ran_with_a_few_skips_is_not_called_empty[DONE 12 tests, 2 skipped in 0.5s]
+tests/test_suite_dialects.py::test_a_suite_that_ran_with_a_few_skips_is_not_called_empty[Ran 3 tests in 0.000s\n\nOK (skipped=1)\n]
+tests/test_suite_dialects.py::test_a_suite_that_ran_with_a_few_skips_is_not_called_empty[Tests run: 12, Failures: 0, Errors: 0, Skipped: 2]
+tests/test_suite_dialects.py::test_a_suite_that_ran_with_a_few_skips_is_not_called_empty[output4]
+tests/test_suite_dialects.py::test_a_suite_that_skipped_everything_is_still_called_empty[# tests 2\n# suites 0\n# pass 0\n# fail 0\n# cancelled 0\n# skipped 2\n# todo 0\n]
+tests/test_suite_dialects.py::test_a_suite_that_skipped_everything_is_still_called_empty[3 examples, 0 failures, 3 pending]
+tests/test_suite_dialects.py::test_a_suite_that_skipped_everything_is_still_called_empty[Ran 3 tests in 0.000s\n\nOK (skipped=3)\n]
+tests/test_suite_dialects.py::test_node_test_runner_is_read_in_both_reporters[spec-red]
+tests/test_suite_dialects.py::test_node_test_runner_is_read_in_both_reporters[tap-cancelled]
+tests/test_suite_dialects.py::test_node_test_runner_is_read_in_both_reporters[tap-green]
+tests/test_suite_dialects.py::test_node_test_runner_is_read_in_both_reporters[tap-red]
+tests/test_suite_dialects.py::test_one_test_re_run_to_verify_a_fix_reads_as_what_it_did[node-fail]
+tests/test_suite_dialects.py::test_one_test_re_run_to_verify_a_fix_reads_as_what_it_did[node-pass]
+tests/test_suite_dialects.py::test_one_test_re_run_to_verify_a_fix_reads_as_what_it_did[rspec-pass]
+tests/test_suite_dialects.py::test_one_test_re_run_to_verify_a_fix_reads_as_what_it_did[unittest-error]
+tests/test_suite_dialects.py::test_one_test_re_run_to_verify_a_fix_reads_as_what_it_did[unittest-fail]
+tests/test_suite_dialects.py::test_one_test_re_run_to_verify_a_fix_reads_as_what_it_did[unittest-pass]
+tests/test_suite_dialects.py::test_unittest_is_read[expected-failures]
+tests/test_suite_dialects.py::test_unittest_is_read[green-with-skip]
+tests/test_suite_dialects.py::test_unittest_is_read[none-ran]
+tests/test_suite_dialects.py::test_unittest_is_read[one-test]
+tests/test_suite_dialects.py::test_unittest_is_read[red]
 tests/test_swebench.py::test_build_prompt_carries_the_issue_verbatim_and_the_shipped_command
 tests/test_swebench.py::test_cited_refs_takes_anchors_first_and_prose_second
 tests/test_swebench.py::test_enclosing_picks_the_innermost_definition
@@ -2887,6 +3400,25 @@ tests/test_template.py::test_the_template_carries_every_shape_the_validator_has_
 tests/test_template.py::test_the_templates_are_the_ones_shipped_in_the_package
 tests/test_template.py::test_the_templates_finalize_into_a_valid_state_through_a_finding_file
 tests/test_template.py::test_the_validator_accepts_the_template
+tests/test_testmarks.py::test_a_skip_with_a_future_expiry_is_a_decision_and_a_focus_is_always_filed
+tests/test_testmarks.py::test_every_framework_marks_its_skips[csharp-[Fact(Skip = "until 2099-01-01")]\npublic void Charges() {}\n[Test, Ignore("broken")]\n-expected2]
+tests/test_testmarks.py::test_every_framework_marks_its_skips[dart-test('charges', () {}, skip: 'flaky');\n-expected7]
+tests/test_testmarks.py::test_every_framework_marks_its_skips[elixir-@tag :skip\ntest "charges" do\nend\n-expected6]
+tests/test_testmarks.py::test_every_framework_marks_its_skips[java-@Disabled("flaky")\n@Test\nvoid charges() {}\n-expected0]
+tests/test_testmarks.py::test_every_framework_marks_its_skips[kotlin-@Ignore\n@Test\nfun refunds() {}\n-expected1]
+tests/test_testmarks.py::test_every_framework_marks_its_skips[php-text3-expected3]
+tests/test_testmarks.py::test_every_framework_marks_its_skips[rust-#[test]\n#[ignore = "slow"]\nfn charges() {}\n-expected4]
+tests/test_testmarks.py::test_every_framework_marks_its_skips[swift-func testCharge() throws {\n    throw XCTSkip("no sandbox")\n}\n-expected5]
+tests/test_testmarks.py::test_go_skips_count_only_when_nothing_guards_them
+tests/test_testmarks.py::test_jest_vitest_mocha_and_playwright_markers
+tests/test_testmarks.py::test_rspec_and_minitest_markers_and_their_guards
+tests/test_testmarks.py::test_the_suite_is_the_projects_own_tests_not_its_fixtures[eval/fixtures/shop/cart.test.ts-False]
+tests/test_testmarks.py::test_the_suite_is_the_projects_own_tests_not_its_fixtures[examples/demo.spec.js-False]
+tests/test_testmarks.py::test_the_suite_is_the_projects_own_tests_not_its_fixtures[pkg/x/x_test.go-True]
+tests/test_testmarks.py::test_the_suite_is_the_projects_own_tests_not_its_fixtures[spec/models/order_spec.rb-True]
+tests/test_testmarks.py::test_the_suite_is_the_projects_own_tests_not_its_fixtures[tests/test_x.py-False]
+tests/test_testmarks.py::test_the_suite_is_the_projects_own_tests_not_its_fixtures[web/src/App.test.tsx-True]
+tests/test_testmarks.py::test_the_suite_is_the_projects_own_tests_not_its_fixtures[web/src/App.tsx-False]
 tests/test_usage.py::test_a_second_accounts_transcripts_are_read_from_its_own_config
 tests/test_usage.py::test_add_totals_two_arms_and_tolerates_a_missing_one
 tests/test_usage.py::test_brief_reads_as_a_bill
