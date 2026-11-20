@@ -886,6 +886,18 @@ to review (§3: green tests are under review too), and the place a regression te
 guard that fails on the defect is what `verification_test` names; the harness finds it on its
 own once a fix lands with its test (`added_this_run`).
 
+## Runner dialects
+
+`verdict-facts` reads the summary of pytest, `unittest`, Node's own runner (`node --test`,
+in its TAP or spec reporter), vitest, jest, cargo, `go test -v`, gotestsum, Maven surefire,
+.NET, PHPUnit and RSpec, and names the one it read in `counts_dialect`. Output it cannot read
+records `counts_unparsed`, never empty counts. surefire, gotestsum, PHPUnit, RSpec and
+`unittest` print a total and what did not pass, but no pass count: `passed` there is the total
+less failures, errors, skips, expected failures and PHPUnit's incomplete tests (0.94.0).
+Before, a suite of twelve with two skipped read as one that executed nothing, and a passing
+test re-run to verify a fix read as an error. A cancelled `node --test` test counts as an
+error.
+
 ## Structured test results before dialects — `{report}`
 
 `verdict-facts` reads a dozen runner dialects off the summary line, and a dialect is a

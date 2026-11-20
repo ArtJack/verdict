@@ -3373,5 +3373,41 @@
   "path": "src/verdict_mcp/small.py",
   "old": "    site_resolved = browser_resolved(site_pass, previous, on_record, resolved_ids,\n                                     still_open_ids)\n",
   "new": "    site_resolved = []\n"
+ },
+ {
+  "label": "runner counts 1: Node's own test runner is not read, so a TypeScript suite measures no counts",
+  "path": "src/verdict_mcp/facts_suite.py",
+  "old": "    (r\"(?m)^(?:# |ℹ )tests \\d+\\s*$\", \"node\", {\n",
+  "new": "    (r\"(?m)^(?:# |ℹ )tests \\d+\\s*$UNREAD\", \"node\", {\n"
+ },
+ {
+  "label": "runner counts 2: a test Node's runner cancelled is not counted as an error",
+  "path": "src/verdict_mcp/facts_suite.py",
+  "old": "        \"errors\": r\"(?m)^(?:# |ℹ )cancelled (\\d+)\\s*$\",\n",
+  "new": "        \"cancelled\": r\"(?m)^(?:# |ℹ )cancelled (\\d+)\\s*$\",\n"
+ },
+ {
+  "label": "runner counts 3: unittest is not read, so a stdlib suite measures no counts",
+  "path": "src/verdict_mcp/facts_suite.py",
+  "old": "    (r\"(?m)^Ran \\d+ tests? in \", \"unittest\", {\n",
+  "new": "    (r\"(?m)^Ran \\d+ tests? in UNREAD\", \"unittest\", {\n"
+ },
+ {
+  "label": "runner counts 4: unittest's expected failures are read as failures",
+  "path": "src/verdict_mcp/facts_suite.py",
+  "old": "        \"failed\": r\"(?m)^FAILED \\(.*?(?<!expected )\\bfailures=(\\d+)\",\n",
+  "new": "        \"failed\": r\"(?m)^FAILED \\(.*?\\bfailures=(\\d+)\",\n"
+ },
+ {
+  "label": "runner counts 5: a runner that prints only a total gets no passes, so a few skips read as an empty suite",
+  "path": "src/verdict_mcp/facts_suite.py",
+  "old": "        counts[\"passed\"] = max(0, counts[\"collected\"] - rest)\n",
+  "new": "        pass\n"
+ },
+ {
+  "label": "runner counts 6: derived passes are given to a runner that prints its own",
+  "path": "src/verdict_mcp/facts_suite.py",
+  "old": "    if name in _TOTAL_ONLY and \"passed\" not in counts and \"collected\" in counts:\n",
+  "new": "    if \"passed\" not in counts and \"collected\" in counts:\n"
  }
 ]
