@@ -3373,5 +3373,71 @@
   "path": "src/verdict_mcp/small.py",
   "old": "    site_resolved = browser_resolved(site_pass, previous, on_record, resolved_ids,\n                                     still_open_ids)\n",
   "new": "    site_resolved = []\n"
+ },
+ {
+  "label": "runner counts 1: Node's own test runner is not read, so a TypeScript suite measures no counts",
+  "path": "src/verdict_mcp/facts_suite.py",
+  "old": "    (r\"(?m)^(?:# |ℹ )tests \\d+\\s*$\", \"node\", {\n",
+  "new": "    (r\"(?m)^(?:# |ℹ )tests \\d+\\s*$UNREAD\", \"node\", {\n"
+ },
+ {
+  "label": "runner counts 2: a test Node's runner cancelled is not counted as an error",
+  "path": "src/verdict_mcp/facts_suite.py",
+  "old": "        \"errors\": r\"(?m)^(?:# |ℹ )cancelled (\\d+)\\s*$\",\n",
+  "new": "        \"cancelled\": r\"(?m)^(?:# |ℹ )cancelled (\\d+)\\s*$\",\n"
+ },
+ {
+  "label": "runner counts 3: unittest is not read, so a stdlib suite measures no counts",
+  "path": "src/verdict_mcp/facts_suite.py",
+  "old": "    (r\"(?m)^Ran \\d+ tests? in \", \"unittest\", {\n",
+  "new": "    (r\"(?m)^Ran \\d+ tests? in UNREAD\", \"unittest\", {\n"
+ },
+ {
+  "label": "runner counts 4: unittest's expected failures are read as failures",
+  "path": "src/verdict_mcp/facts_suite.py",
+  "old": "        \"failed\": r\"(?m)^FAILED \\(.*?(?<!expected )\\bfailures=(\\d+)\",\n",
+  "new": "        \"failed\": r\"(?m)^FAILED \\(.*?\\bfailures=(\\d+)\",\n"
+ },
+ {
+  "label": "runner counts 5: a runner that prints only a total gets no passes, so a few skips read as an empty suite",
+  "path": "src/verdict_mcp/facts_suite.py",
+  "old": "        counts[\"passed\"] = max(0, counts[\"collected\"] - rest)\n",
+  "new": "        pass\n"
+ },
+ {
+  "label": "runner counts 6: derived passes are given to a runner that prints its own",
+  "path": "src/verdict_mcp/facts_suite.py",
+  "old": "    if name in _TOTAL_ONLY and \"passed\" not in counts and \"collected\" in counts:\n",
+  "new": "    if \"passed\" not in counts and \"collected\" in counts:\n"
+ },
+ {
+  "label": "box marker 1: uv's empty .git marker is guarded like a checkout, so no uvx gate can run in the box",
+  "path": "src/verdict_mcp/sandbox.py",
+  "old": "            return fh.read(8) == b\"gitdir: \"\n",
+  "new": "            return True\n"
+ },
+ {
+  "label": "box marker 2: a checkout whose .git is a directory is not guarded",
+  "path": "src/verdict_mcp/sandbox.py",
+  "old": "    if git.is_dir():\n        return True\n",
+  "new": "    if git.is_dir():\n        return False\n"
+ },
+ {
+  "label": "box marker 3: a .git that is a named pipe is opened, and the next boxed command waits forever",
+  "path": "src/verdict_mcp/sandbox.py",
+  "old": "    if not git.is_file():          # never open a pipe boxed code left there: it waits forever\n        return False\n",
+  "new": ""
+ },
+ {
+  "label": "box npm 1: npm writes to the shared ~/.npm cache, so an install needing a download fails in the box",
+  "path": "src/verdict_mcp/sandbox.py",
+  "old": "                           **({\"npm_config_cache\": str(tmp / \"npm-cache\")} if own_npm else {}),\n",
+  "new": ""
+ },
+ {
+  "label": "box npm 2: a profile that opens ~/.npm still gets a private npm cache",
+  "path": "src/verdict_mcp/sandbox.py",
+  "old": "        own_npm = not any(_inside(Path(_real(p)), Path(_real(_SHARED_NPM))) or\n",
+  "new": "        own_npm = True or not any(_inside(Path(_real(p)), Path(_real(_SHARED_NPM))) or\n"
  }
 ]

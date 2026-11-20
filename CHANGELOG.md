@@ -9,7 +9,7 @@ They moved there on 2026-10-03, when this file outgrew what the Claude directory
 will read: at 250 KB it was read, at 267 KB it held 0.90.3 for "Files or downloads the
 validator couldn't inspect". The limit is most likely 256 KiB.
 
-## 0.94.0 — 2026-11-04 · "the project's code runs in a box"
+## 0.94.0 — 2026-11-20 · "the project's code runs in a box, and the local tier reads every language"
 
 - **Every command the harness runs from the project runs in a box (`sandbox.py`).** That
   covers:
@@ -56,6 +56,18 @@ validator couldn't inspect". The limit is most likely 256 KiB.
   starts, so an edited `profile.md` changes nothing mid-run. Under a `required` floor, a
   profile's loosening keys are ignored. A value the profile cannot read keeps the box on.
   `facts.json` → `sandbox` says what boxed the run.
+- **Package caches, found by running real projects' gates in the box before the release.**
+  - **npm gets a cache of its own, as uv already did.** `npm ci` writes each download to
+    `~/.npm` before unpacking it, and that was a write outside the box: EPERM, so an install
+    that needed one package not already cached failed, with network or without, and every gate
+    after it read red. An `npm ci` gate takes `sandbox_network:`; `sandbox_write: ~/.npm`
+    opens the shared cache.
+  - **A `uvx` gate runs when the profile says so.** `uvx --offline` needs uv's shared cache
+    and tool folder: `sandbox_write: ~/.cache/uv, ~/.local/share/uv/tools`. Even then it
+    failed, because uv keeps an empty `.git` file in its cache and the box read it as a
+    checkout to keep read-only. A checkout is now a `.git` directory, or a regular file that
+    starts with `gitdir: `. A `.git` that is neither, such as a named pipe boxed code left
+    behind, is never opened.
 - **The tester's own Bash runs in Claude Code's sandbox.** `verdict-run` passes `--settings`:
   - `network.strictAllowlist` with no domains;
   - every variable named like a credential, or whose value carries one, denied;
@@ -111,6 +123,87 @@ validator couldn't inspect". The limit is most likely 256 KiB.
     backfill 3;
   - 3 re-anchored on the code that moved: H8 F-50, 0.91.2 profile 1, backfill 2;
   - 28 of 28 killed; badge 552/552.
+
+**Merged after the box, and released with it.**
+
+- **`verdict-local` reads every language a project is written in (#181, #182).** It read
+  Python only. A range that changed TypeScript or C# had its gates run and no code read, and
+  the run ended `blocked`: "this engine read no code at all".
+  - The readers use the standard library only, with no parser dependency:
+    - `braces.py`: C#, TypeScript, JavaScript, Java, Kotlin, Scala, Groovy, Go, Rust, Swift,
+      Dart, C, C++, PHP and Solidity, one bounded question per function;
+    - `ends.py`: Ruby, Elixir and Lua, with a Rails `before_action` or a Phoenix `plug` kept
+      beside the method it guards;
+    - `regions.py`: Vue, Svelte, Astro, HTML and Razor, scripts by their own reader and
+      templates as templates;
+    - SQL, shell, PowerShell, Perl, Haskell and the template languages (Blade, ERB, Jinja,
+      Twig, Liquid, Handlebars) as excerpts of the changed lines.
+  - A run with no range reads tracked source in every language: code before excerpts and
+    templates, and money, sign-in and input paths first.
+  - Measured over the last 60 commits of five private repositories: 87–94% of the changed
+    TypeScript and JavaScript lines and 69% of the C# fall inside a question. What is left is
+    declarations, imports and types.
+  - **Read is not run.** Counterfactuals run in Python only, so a reading in another language
+    stays a lead, and the run is held at `pass with risks` (`READ_NOT_RUN`).
+    `needs_claude.non_python_diff` now means that nothing in the range is readable.
+- **Tests a suite will not run, in every framework (#182):** `it.skip`, `xit`, `@Disabled`,
+  `[Fact(Skip=)]`, `t.Skip`, `#[ignore]`, `markTestSkipped`, `XCTSkip`, `@tag :skip` and more.
+  A committed `it.only`, `fit` or `fdescribe` is filed like a skip with no expiry.
+- **A question carries what its function reaches one step outside itself (#184).** For code in
+  any language but Python, below the function and labelled as reference:
+  - the functions it calls that its own file defines, and in TypeScript and JavaScript also the
+    ones it imports from the repository;
+  - the module state it touches;
+  - the types it names.
+
+  Asked both ways about a Next.js site's code, six times each on the local tier's model: false
+  readings fell from 20 of 54 to 13 of 54, and true readings held level. Python's questions are
+  unchanged.
+- **Node's own test runner and `unittest` are read.** Every gate that ran `node --test` or
+  `python -m unittest` recorded `counts_unparsed`: 45 and 16 gate runs in one machine's records.
+  - **What that cost.** With no measured test count, the local tier said `blocked` on every
+    such project. The count-drop gate and the id set-diff could not fire, and a model run was
+    asked for a suite that had already answered.
+  - **Both of Node's reporters are read,** TAP (`# tests 6`) and spec (`ℹ tests 6`). A
+    cancelled test counts as an error.
+  - **`unittest` is read from `Ran 7 tests` and `FAILED (…)`.** `expected failures=` is not
+    read as `failures=`.
+  - **A runner that prints a total but no pass count gets `passed` from the total:**
+    surefire, gotestsum, PHPUnit, RSpec and `unittest`. Before, a suite of twelve with two
+    pending read as "all 2 collected tests were skipped", and a passing test re-run to verify a
+    fix read as `error`.
+- **`verdict-browse`: a website checked in real Chrome, GET only, with no model (#188).**
+  - **Ten deterministic checks** run in the installed Google Chrome through Playwright, an
+    optional extra (`pip install 'verdict-qa-mcp[browser]'`): `autofill-trap`, `phone-width`,
+    `long-input`, `ios-zoom`, `hidden-at-load`, `focus-visible`, `keyboard`, `get-form`,
+    `social-image` and `links`.
+  - **The profile's `site:` block** runs them after `verdict-local`'s gates.
+  - **Each finding is a measurement,** filed `proven`, and resolved only when every page it was
+    filed on is measured again and the check finds nothing.
+  - **Safe on a live site.** Every request but GET, HEAD and OPTIONS, and every request to
+    another origin, is aborted in the browser. Links that read like actions are never
+    requested. `robots.txt` is honoured for a remote site, and a bot wall stops the pass.
+- **Every git call reads the repository it names (#190).** With `GIT_DIR` exported, in a git
+  hook or by hand, a run on repository B derived repository A's key and read and wrote A's
+  state, and `verdict-accept` signed as A's user. `GIT_INDEX_FILE`, `GIT_WORK_TREE`,
+  `GIT_OBJECT_DIRECTORY` and `GIT_ALTERNATE_OBJECT_DIRECTORIES` each misdirected a read on
+  their own. All 29 git calls in 18 modules now run without the seven repository variables,
+  and a test fails any git call in the package that passes them through.
+- **The four largest modules split by feature, as pure moves (#187, #189).**
+  - Since 0.93.1: `harness.py` 4,311 → 1,173 lines, `small.py` 3,034 → 758, `runner.py`
+    1,545 → 563, `hygiene.py` 2,216 → 357.
+  - One move per commit, each checked byte-identical, merged with merge commits so `git blame`
+    follows the code. No behaviour change.
+- **CI and the Action.**
+  - CodeQL, OpenSSF Scorecard and every action pinned by its commit (#174).
+  - Dependabot groups, with two majors held, and a manual release from a tag that cannot
+    publish (#176, #178).
+  - The structure check from the build standard reports on every pull request (#185).
+  - `uses: ArtJack/verdict@v0` moves to this release, and the Action now runs
+    `actions/github-script` 9, which needs Actions runner 2.327.1 or newer. Only self-hosted
+    runners can be older.
+- Pinned mutants: 8 new for the browser pass, 6 for the runner counts and 5 for the package
+  caches, each killed by the whole suite; P15, P40 and "local 2" re-anchored; badge 571/571.
 
 ## 0.93.1 — 2026-10-30 · "what a team commits is the record"
 

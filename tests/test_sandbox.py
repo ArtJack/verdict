@@ -18,6 +18,7 @@ import json
 import os
 import subprocess
 import sys
+import threading
 import time
 
 import pytest
@@ -586,3 +587,67 @@ def test_a_shipped_profile_cannot_turn_the_box_off_under_a_floor(tmp_path):
     pol = sandbox.policy_from(profile.sandbox_from(profile.load(qa)[0], notes), qa, notes,
                               floor="required")
     assert pol.mode == "required" and not pol.env_names and not pol.write
+
+
+# ── what counts as a checkout whose .git the box keeps read-only ─────────────────────────
+
+
+def test_a_checkout_and_a_fresh_tree_beside_it_keep_their_git_read_only(tmp_path):
+    repo = tmp_path / "repo"
+    (repo / ".git").mkdir(parents=True)
+    scratch = tmp_path / "scratch"
+    (scratch / "tree").mkdir(parents=True)
+    (scratch / "tree" / ".git").write_text("gitdir: /elsewhere/.git/worktrees/tree\n")
+    assert sandbox._checkouts([repo, scratch]) == [repo, scratch / "tree"]
+
+
+def test_uvs_empty_git_marker_is_not_a_checkout(tmp_path):
+    """uv puts an empty `.git` file in its cache so git leaves the cache alone. Read as a
+    checkout, its writes were denied, and every `uvx` gate failed in the box: "failed to open
+    file `~/.cache/uv/sdists-v9/.git`: Operation not permitted" (measured 2026-11-20, two
+    projects' lint gates). Git itself reads an empty `.git` file as no repository at all."""
+    cache = tmp_path / "uv"
+    (cache / "sdists-v9").mkdir(parents=True)
+    (cache / "sdists-v9" / ".git").write_bytes(b"")
+    (cache / ".git").write_bytes(b"")
+    assert sandbox._checkouts([cache]) == []
+
+
+@pytest.mark.skipif(not hasattr(os, "mkfifo"), reason="no named pipes on this platform")
+def test_a_git_that_is_not_a_regular_file_is_never_opened(tmp_path):
+    """Boxed code may write in the checkout, so it can leave a named pipe called `.git` in a
+    folder there. Opened to look for `gitdir: `, the pipe waits for a writer forever, and the
+    next boxed command never starts."""
+    child = tmp_path / "child"
+    child.mkdir()
+    os.mkfifo(child / ".git")
+    result = []
+    t = threading.Thread(target=lambda: result.append(sandbox._checkouts([tmp_path])), daemon=True)
+    t.start()
+    t.join(5)
+    blocked = t.is_alive()
+    if blocked:                      # release the reader so the thread can end
+        os.close(os.open(child / ".git", os.O_WRONLY | os.O_NONBLOCK))
+        t.join(5)
+    assert not blocked and result == [[]]
+
+
+def test_each_run_gets_its_own_npm_cache(tmp_path):
+    """`npm ci` writes its downloads to `~/.npm` before it unpacks them. In the box that was a
+    write outside the checkout: EPERM on `~/.npm/_cacache/tmp/…`, so every install that needed
+    a package not cached failed, with network or without (measured 2026-11-20 on a Next.js
+    site, whose gates then all read red). Like uv's, npm's cache is the run's own."""
+    repo = _repo(tmp_path)
+    cmd = _script(repo, "import os\nprint(os.environ.get('npm_config_cache', ''))\n")
+    proc = sandbox.run(cmd, cwd=repo, shell=True, writable=[repo], timeout=60)
+    assert "verdict-box-" in proc.stdout and proc.stdout.strip().endswith("npm-cache")
+
+
+def test_a_profile_that_opens_the_shared_npm_cache_keeps_it(tmp_path):
+    """`sandbox_write: ~/.npm` is the owner saying npm may use its shared cache: then npm is
+    not pointed anywhere else. The script only prints; nothing is written there."""
+    repo = _repo(tmp_path)
+    cmd = _script(repo, "import os\nprint(repr(os.environ.get('npm_config_cache')))\n")
+    proc = sandbox.run(cmd, cwd=repo, shell=True, writable=[repo], timeout=60,
+                       policy=sandbox.Policy(write=[sandbox._SHARED_NPM]))
+    assert proc.stdout.strip() == "None", proc.stdout

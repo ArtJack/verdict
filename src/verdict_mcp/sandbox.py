@@ -78,6 +78,7 @@ FLOOR_ENV = "VERDICT_SANDBOX"
 OUTER_ENV = "VERDICT_OUTER_BOX"
 SANDBOX_EXEC = "/usr/bin/sandbox-exec"       # never from PATH
 ENGINE = "sandbox-exec"
+_SHARED_NPM = "~/.npm"                        # npm's cache, unless the profile opens it
 # What target code may see of the caller's environment. Everything else — every token, key,
 # login and gateway address the caller holds — is left behind.
 KEEP = frozenset({
@@ -449,13 +450,30 @@ def _checkouts(where) -> list:
     is `<scratch>/tree`, and its `.git` must stay as read-only as the repository's."""
     found = []
     for p in map(Path, where):
-        if (p / ".git").exists():
+        if _is_checkout(p):
             found.append(p)
         try:
-            found += [c for c in p.iterdir() if c.is_dir() and (c / ".git").exists()]
+            found += [c for c in p.iterdir() if c.is_dir() and _is_checkout(c)]
         except OSError:
             pass
     return found
+
+
+def _is_checkout(p: Path) -> bool:
+    """`.git` is a directory, or a file that points at one (`gitdir: …`: a worktree, a
+    submodule). uv keeps an empty `.git` file in its cache so git leaves the cache alone; git
+    reads that as no repository, and guarding it denied uv its own cache, so every `uvx` gate
+    failed in the box (2026-11-20)."""
+    git = p / ".git"
+    if git.is_dir():
+        return True
+    if not git.is_file():          # never open a pipe boxed code left there: it waits forever
+        return False
+    try:
+        with open(git, "rb") as fh:
+            return fh.read(8) == b"gitdir: "
+    except OSError:
+        return False
 
 
 def _refused(cmd, reason: str, text: bool) -> subprocess.CompletedProcess:
@@ -513,8 +531,13 @@ def run(cmd, *, cwd, shell: bool = False, writable=(), guarded=None, extra_env: 
     try:
         own_cache = not any(_inside(p, Path(_real("~/.cache/uv"))) or
                             _inside(Path(_real("~/.cache/uv")), p) for p in pol.write)
+        # npm's too: `npm ci` writes each download to its cache before unpacking it, and
+        # `~/.npm` is outside the box (EPERM, 2026-11-20). The profile can open the shared one.
+        own_npm = not any(_inside(Path(_real(p)), Path(_real(_SHARED_NPM))) or
+                          _inside(Path(_real(_SHARED_NPM)), Path(_real(p))) for p in pol.write)
         env = environment({"TMPDIR": str(tmp), "TEMP": str(tmp), "TMP": str(tmp),
                            **({"UV_CACHE_DIR": str(tmp / "uv-cache")} if own_cache else {}),
+                           **({"npm_config_cache": str(tmp / "npm-cache")} if own_npm else {}),
                            **(extra_env or {})}, names=pol.env_names, source=base_env)
         if not box or inner:
             proc = _call(cmd, cwd=cwd, env=env, shell=shell, timeout=timeout, text=text, **kwargs)

@@ -227,6 +227,8 @@ Before 0.94.0 these commands ran with the caller's whole environment (under `ver
 
 A value it cannot read keeps `auto` and says so. `sandbox_network:` names the gates that may use the network, such as an `npm ci` gate; they keep everything else. `sandbox_write:` adds writable paths; one that reaches a credential store, such as `~` itself, is ignored with a note.
 
+Each run gets a uv cache and an npm cache of its own, so a malicious suite cannot plant a package that other projects later install. An `npm ci` gate then downloads what it installs: give it `sandbox_network:`. A gate that runs `uvx --offline` needs uv's shared cache and tool folder instead: `sandbox_write: ~/.cache/uv, ~/.local/share/uv/tools`; `sandbox_write: ~/.npm` opens npm's. uv keeps an empty `.git` file in its cache; the box reads only a `.git` directory, or a file that starts with `gitdir: `, as a checkout to keep read-only (0.94.0).
+
 **The floor.** `verdict-run --sandbox auto|required` sets the least box for the run and for every process it starts (`VERDICT_SANDBOX`), and a profile can only tighten it. Under a `required` floor the profile's `sandbox_network`, `sandbox_write` and `test_env` are ignored: a repository that ships its own `.qa/` must not loosen the box it is run in. `verdict-run` pins the floor to the profile's own setting before the tester starts, so a `profile.md` edited during the run changes nothing.
 
 `facts.json` → `sandbox` records `{mode, box, environment}`, plus `floor`, the network gates, the extra writable paths and `test_env` when set. `box` is one of:
@@ -885,6 +887,18 @@ is, by construction, executed by tests that do not fail on it — the two tests 
 to review (§3: green tests are under review too), and the place a regression test belongs. A
 guard that fails on the defect is what `verification_test` names; the harness finds it on its
 own once a fix lands with its test (`added_this_run`).
+
+## Runner dialects
+
+`verdict-facts` reads the summary of pytest, `unittest`, Node's own runner (`node --test`,
+in its TAP or spec reporter), vitest, jest, cargo, `go test -v`, gotestsum, Maven surefire,
+.NET, PHPUnit and RSpec, and names the one it read in `counts_dialect`. Output it cannot read
+records `counts_unparsed`, never empty counts. surefire, gotestsum, PHPUnit, RSpec and
+`unittest` print a total and what did not pass, but no pass count: `passed` there is the total
+less failures, errors, skips, expected failures and PHPUnit's incomplete tests (0.94.0).
+Before, a suite of twelve with two skipped read as one that executed nothing, and a passing
+test re-run to verify a fix read as an error. A cancelled `node --test` test counts as an
+error.
 
 ## Structured test results before dialects — `{report}`
 

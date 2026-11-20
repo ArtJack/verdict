@@ -521,21 +521,22 @@ SUMMARIES = [
              "Tests:       2 failed, 26 passed, 1 skipped, 29 total\n"
              "Snapshots:   0 total\nTime:        1.2 s\n",
      {"collected": 29, "passed": 26, "failed": 2, "skipped": 1}),
+    # A runner that prints only a total gets its passes from it (facts_suite._with_passes).
     ("rspec", "5 examples, 1 failure, 2 pending",
-     {"collected": 5, "failed": 1, "skipped": 2}),
+     {"collected": 5, "failed": 1, "skipped": 2, "passed": 2}),
     ("phpunit", "Tests: 5, Assertions: 10, Failures: 1.",
-     {"collected": 5, "failed": 1}),
+     {"collected": 5, "failed": 1, "passed": 4}),
     ("phpunit", "OK (5 tests, 5 assertions)", {"passed": 5}),
     ("dotnet", "Passed!  - Failed:     0, Passed:     5, Skipped:     0, Total:     5",
      {"collected": 5, "passed": 5, "failed": 0, "skipped": 0}),
     ("surefire", "Tests run: 12, Failures: 1, Errors: 0, Skipped: 2",
-     {"collected": 12, "failed": 1, "errors": 0, "skipped": 2}),
-    ("gotestsum", "DONE 12 tests, 1 failure in 0.5s", {"collected": 12, "failed": 1}),
+     {"collected": 12, "failed": 1, "errors": 0, "skipped": 2, "passed": 9}),
+    ("gotestsum", "DONE 12 tests, 1 failure in 0.5s", {"collected": 12, "failed": 1, "passed": 11}),
     # The skip count: the F-65 campaign found `skipped` was the one gotestsum
     # field no row exercised, so its pattern could be renamed or broken and
     # the suite stayed green.
     ("gotestsum", "DONE 12 tests, 2 skipped, 1 failure in 0.5s",
-     {"collected": 12, "failed": 1, "skipped": 2}),
+     {"collected": 12, "failed": 1, "skipped": 2, "passed": 9}),
 ]
 
 
