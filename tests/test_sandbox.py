@@ -429,6 +429,59 @@ def test_a_shell_gate_keeps_its_pipes(tmp_path):
     assert proc.returncode == 0 and "42" in proc.stdout
 
 
+# ── a program that cannot start: said the way subprocess says it, in the box or not ──────────
+
+MISSING = "verdict-no-such-program"
+ENOENT_LINE = f"sandbox-exec: execvp() of '{MISSING}' failed: No such file or directory\n"
+
+
+@MAC_BOX
+def test_sandbox_exec_says_it_could_not_start_a_program_in_one_line_and_exits_71(tmp_path):
+    """The line `exec_failure` reads, measured on the real tool (macOS 27.0.1, 2026-11-20). If
+    a macOS release words it otherwise, this fails here, not as a repro read "not reproduced"."""
+    proc = sandbox._call([sandbox.SANDBOX_EXEC, "-p", "(version 1)(allow default)", MISSING],
+                         cwd=str(tmp_path), env=dict(os.environ), shell=False, timeout=60)
+    assert (proc.returncode, proc.stderr, proc.stdout) == (71, ENOENT_LINE, "")
+    assert isinstance(sandbox.exec_failure(proc, MISSING), FileNotFoundError)
+
+
+@pytest.mark.parametrize("mode", ["auto", "off"])
+@pytest.mark.parametrize("program", [MISSING, os.path.join("missing", "bin", "python")])
+def test_a_program_that_cannot_start_raises_in_the_box_as_outside_it(tmp_path, mode, program):
+    """2026-11-20: a repro naming `python` on a Mac whose PATH has only `python3` came back
+    from the box as exit 71, sandbox-exec's own, and was read as the repro's: "not
+    reproduced". Outside the box the same argv raises, and every caller reads that as
+    could-not-start. A program that exits 71 itself keeps its exit."""
+    repo = _repo(tmp_path)
+    with pytest.raises(FileNotFoundError):
+        sandbox.run([program, "-c", "pass"], cwd=repo, writable=[repo],
+                    policy=sandbox.Policy(mode=mode), timeout=60)
+    own = sandbox.run([sys.executable, "-c", "import sys; sys.exit(71)"], cwd=repo,
+                      writable=[repo], policy=sandbox.Policy(mode=mode), timeout=60)
+    assert own.returncode == 71
+
+
+@pytest.mark.parametrize("code, stderr, program, raised", [
+    (71, ENOENT_LINE, MISSING, FileNotFoundError),
+    (71, ENOENT_LINE.encode(), MISSING, FileNotFoundError),                  # a bytes run
+    (71, f"sandbox-exec: execvp() of '{MISSING}' failed: Operation not permitted\n", MISSING,
+     PermissionError),                                                       # the box denied it
+    (71, f"sandbox-exec: execvp() of '{MISSING}' failed: something new\n", MISSING, OSError),
+    (1, ENOENT_LINE, MISSING, None),                     # sandbox-exec's own exit only
+    (71, ENOENT_LINE, "python", None),                   # the line names another program
+    (71, "ran a while\n" + ENOENT_LINE, MISSING, None),  # the program ran and printed it
+    (71, "", MISSING, None),                             # a program's own 71
+], ids=["not-found", "not-found-bytes", "denied", "unknown-reason", "exit-1", "other-program",
+        "after-output", "own-71"])
+def test_only_sandbox_execs_own_line_about_this_program_is_a_failure_to_start(
+        code, stderr, program, raised):
+    found = sandbox.exec_failure(subprocess.CompletedProcess([], code, "", stderr), program)
+    if raised is None:
+        assert found is None
+    else:
+        assert type(found) is raised and str(program) in str(found)
+
+
 # ── the profile and the runner ────────────────────────────────────────────
 
 def test_the_profile_reads_the_box_and_a_typo_never_turns_it_off():
