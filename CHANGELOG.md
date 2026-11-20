@@ -202,6 +202,10 @@ validator couldn't inspect". The limit is most likely 256 KiB.
   - `uses: ArtJack/verdict@v0` moves to this release, and the Action now runs
     `actions/github-script` 9, which needs Actions runner 2.327.1 or newer. Only self-hosted
     runners can be older.
+- **Verdict's own suite passes in its box.** Run as its own release gate in the box, three tests
+  failed there and nowhere else. Two looked up a missing project in the developer's real
+  `~/.claude/verdict`, which the box denies; one checked a prompt for the word "verdict" with the
+  box's temp dir in it. Each now keeps to its own temp dir.
 - Pinned mutants: 8 new for the browser pass, 6 for the runner counts and 5 for the package
   caches, each killed by the whole suite; P15, P40 and "local 2" re-anchored; badge 571/571.
 

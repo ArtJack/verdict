@@ -249,7 +249,9 @@ def test_keep_leaves_the_worktree_for_a_look(tmp_path, capsys):
     subprocess.run(["git", "-C", str(repo), "worktree", "remove", "--force", row["scratch"]], check=True)
 
 
-def test_nothing_to_replay_and_no_repository_are_exit_2(tmp_path, capsys):
+def test_nothing_to_replay_and_no_repository_are_exit_2(tmp_path, capsys, monkeypatch):
+    # Never the real records: "no such project" is looked up in a home of the test's own.
+    monkeypatch.setenv("VERDICT_HOME", str(tmp_path / "home"))
     repo = _repo(tmp_path)
     _state(repo, [_finding("PRICER-F-14"), _finding("PRICER-F-15", severity="Minor")])
     assert replay.main([str(repo)]) == 2
