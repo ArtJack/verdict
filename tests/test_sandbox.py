@@ -586,3 +586,27 @@ def test_a_shipped_profile_cannot_turn_the_box_off_under_a_floor(tmp_path):
     pol = sandbox.policy_from(profile.sandbox_from(profile.load(qa)[0], notes), qa, notes,
                               floor="required")
     assert pol.mode == "required" and not pol.env_names and not pol.write
+
+
+# ── what counts as a checkout whose .git the box keeps read-only ─────────────────────────
+
+
+def test_a_checkout_and_a_fresh_tree_beside_it_keep_their_git_read_only(tmp_path):
+    repo = tmp_path / "repo"
+    (repo / ".git").mkdir(parents=True)
+    scratch = tmp_path / "scratch"
+    (scratch / "tree").mkdir(parents=True)
+    (scratch / "tree" / ".git").write_text("gitdir: /elsewhere/.git/worktrees/tree\n")
+    assert sandbox._checkouts([repo, scratch]) == [repo, scratch / "tree"]
+
+
+def test_uvs_empty_git_marker_is_not_a_checkout(tmp_path):
+    """uv puts an empty `.git` file in its cache so git leaves the cache alone. Read as a
+    checkout, its writes were denied, and every `uvx` gate failed in the box: "failed to open
+    file `~/.cache/uv/sdists-v9/.git`: Operation not permitted" (measured 2026-11-20, two
+    projects' lint gates). Git itself reads an empty `.git` file as no repository at all."""
+    cache = tmp_path / "uv"
+    (cache / "sdists-v9").mkdir(parents=True)
+    (cache / "sdists-v9" / ".git").write_bytes(b"")
+    (cache / ".git").write_bytes(b"")
+    assert sandbox._checkouts([cache]) == []

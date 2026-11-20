@@ -3409,5 +3409,17 @@
   "path": "src/verdict_mcp/facts_suite.py",
   "old": "    if name in _TOTAL_ONLY and \"passed\" not in counts and \"collected\" in counts:\n",
   "new": "    if \"passed\" not in counts and \"collected\" in counts:\n"
+ },
+ {
+  "label": "box marker 1: uv's empty .git marker is guarded like a checkout, so no uvx gate can run in the box",
+  "path": "src/verdict_mcp/sandbox.py",
+  "old": "            return fh.read(8) == b\"gitdir: \"\n",
+  "new": "            return True\n"
+ },
+ {
+  "label": "box marker 2: a checkout whose .git is a directory is not guarded",
+  "path": "src/verdict_mcp/sandbox.py",
+  "old": "    if git.is_dir():\n        return True\n",
+  "new": "    if git.is_dir():\n        return False\n"
  }
 ]

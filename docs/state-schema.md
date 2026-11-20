@@ -227,6 +227,8 @@ Before 0.94.0 these commands ran with the caller's whole environment (under `ver
 
 A value it cannot read keeps `auto` and says so. `sandbox_network:` names the gates that may use the network, such as an `npm ci` gate; they keep everything else. `sandbox_write:` adds writable paths; one that reaches a credential store, such as `~` itself, is ignored with a note.
 
+Each run gets a uv cache of its own, so a malicious suite cannot plant a wheel that other projects later install. A gate that runs `uvx --offline` needs uv's shared cache and tool folder instead: `sandbox_write: ~/.cache/uv, ~/.local/share/uv/tools`. uv keeps an empty `.git` file in its cache; the box reads only a `.git` directory, or a file that starts with `gitdir: `, as a checkout to keep read-only (0.94.0).
+
 **The floor.** `verdict-run --sandbox auto|required` sets the least box for the run and for every process it starts (`VERDICT_SANDBOX`), and a profile can only tighten it. Under a `required` floor the profile's `sandbox_network`, `sandbox_write` and `test_env` are ignored: a repository that ships its own `.qa/` must not loosen the box it is run in. `verdict-run` pins the floor to the profile's own setting before the tester starts, so a `profile.md` edited during the run changes nothing.
 
 `facts.json` → `sandbox` records `{mode, box, environment}`, plus `floor`, the network gates, the extra writable paths and `test_env` when set. `box` is one of:

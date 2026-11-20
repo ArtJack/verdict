@@ -449,13 +449,28 @@ def _checkouts(where) -> list:
     is `<scratch>/tree`, and its `.git` must stay as read-only as the repository's."""
     found = []
     for p in map(Path, where):
-        if (p / ".git").exists():
+        if _is_checkout(p):
             found.append(p)
         try:
-            found += [c for c in p.iterdir() if c.is_dir() and (c / ".git").exists()]
+            found += [c for c in p.iterdir() if c.is_dir() and _is_checkout(c)]
         except OSError:
             pass
     return found
+
+
+def _is_checkout(p: Path) -> bool:
+    """`.git` is a directory, or a file that points at one (`gitdir: …`: a worktree, a
+    submodule). uv keeps an empty `.git` file in its cache so git leaves the cache alone; git
+    reads that as no repository, and guarding it denied uv its own cache, so every `uvx` gate
+    failed in the box (2026-11-20)."""
+    git = p / ".git"
+    if git.is_dir():
+        return True
+    try:
+        with open(git, "rb") as fh:
+            return fh.read(8) == b"gitdir: "
+    except OSError:
+        return False
 
 
 def _refused(cmd, reason: str, text: bool) -> subprocess.CompletedProcess:
