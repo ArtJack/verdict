@@ -117,7 +117,8 @@ try:
                             touches_findings, _RUNNER_PYTHON as _RUNNER_PYTHON,
                             _gate_tokens as _gate_tokens)
     from .local_summary import (leads_text, not_tested_lines, print_summary, read_env_file,
-                                resolve_range, written_verdict)
+                                resolve_range, set_aside_text, written_verdict)
+    from .local_refuted import Refuter
 except ImportError:  # executed as a bare script
     from local_model import (DEFAULT_NUM_CTX, DEFAULT_TIMEOUT_S, Model, gateway_alive,
                              extract_json as extract_json)
@@ -158,7 +159,8 @@ except ImportError:  # executed as a bare script
                            probes_off, read_json, read_reference, touches_findings,
                            _RUNNER_PYTHON as _RUNNER_PYTHON, _gate_tokens as _gate_tokens)
     from local_summary import (leads_text, not_tested_lines, print_summary, read_env_file,
-                               resolve_range, written_verdict)
+                               resolve_range, set_aside_text, written_verdict)
+    from local_refuted import Refuter
 try:  # split out of this file by the structure pass; still importable here
     from .local_browser import browser_not_tested, browser_pass, browser_prose, browser_resolved
 except ImportError:  # executed as a bare script
@@ -397,16 +399,20 @@ def run(repo: Path, qa_root: Path, model: Model, limit: int, gate: str | None,
     already_open: list = []
     leads: list | None = [] if previous else None      # a project with a record to protect
     probe_ledger: list = []                            # every counterfactual, refusals too
+    set_aside: list = []                               # claims a fact of this run answers
     asked_functions: set = set()
     examined, proven, disproven = file_findings(model, repo, targets, mint, findings_dir,
                                                 filed, python, prove, budget,
                                                 prior_index=PriorIndex(previous),
                                                 already_open=already_open, leads=leads,
                                                 probes=probe_ledger, gaps=gap_functions(facts),
-                                                asked=asked_functions, focus=focus_names(facts))
+                                                asked=asked_functions, focus=focus_names(facts),
+                                                refute=Refuter(repo, facts.get("gates")).check,
+                                                set_aside=set_aside)
     # Beside `last_run`, not inside its `local` block: that block is copied into a
     # `usage.jsonl` row every run, and the ledger is a record, not a bill.
     facts["probes"] = probe_ledger
+    facts["set_aside"] = set_aside
     suite_files = ([p for p in python_in(changed) if is_test_file(p)] if ranged
                    else skip_scan_files(repo, qa_root)[:limit])
     examined += brittle_findings(model, repo, suite_files, mint, findings_dir, filed, budget,
@@ -568,7 +574,7 @@ def run(repo: Path, qa_root: Path, model: Model, limit: int, gate: str | None,
                       "stays `blocked`, until something with judgment looks at it."
                       + (" " + CARRIED_BLOCKED[0].upper() + CARRIED_BLOCKED[1:] + "."
                          if carried_blocked else "")
-                      + site_notes + leads_text(leads)),
+                      + site_notes + leads_text(leads) + set_aside_text(set_aside)),
         },
         "isolation_check": {"result": "pass",
                             "method": ("measured before the gates: no plaintext .env file at "
@@ -611,7 +617,7 @@ def run(repo: Path, qa_root: Path, model: Model, limit: int, gate: str | None,
               f"withdrawn before filing", file=sys.stderr)
     print_summary(model, files, examined, filed, refiled, resolved_ids, still_open_ids,
                   written_verdict(qa_root, verdict) if code == 0 else verdict, owed, budget,
-                  engine_verdict=verdict)
+                  engine_verdict=verdict, set_aside=set_aside)
     return code
 
 

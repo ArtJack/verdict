@@ -951,6 +951,16 @@ Claude session. The state says so rather than leaving a reader to infer it:
 | `last_run.model` | `state.json` | `local:<name>` — `verdict-local` exports `VERDICT_MODEL` before `collect()`, so the model that signed the verdict is measured here exactly as it is for an agent run |
 | `last_run.local` | `state.json` | that engine's own counters: `model`, `calls`, `tokens`, `input_tokens`, `output_tokens`, `answered`, `unanswered`, `retries`, `errors` (transport failures, counted apart from a reply the parser refused), `functions_read`, `functions_skipped`, `seconds`. Not the gateway: `last_run.model` names the judge, and the gateway's host goes to the bill alone (below). Through 0.90.10 a `host` key sat here, which in team mode committed the gateway's network address with the code; `verdict-finalize` now takes it out of a `facts.json` that still carries one |
 | `facts.needs_claude` | `facts.json` | the measured reasons a real model run is still owed — `unexercised_changed_lines: N`, `touches_open_finding: [ids]`, `unprovable_high_severity: [ids]`, `drift_unsettled: [ids]`, `non_python_diff` (the name predates reading other languages: the range holds no source the engine reads in any language, only configuration, data, styles, documentation, tests or generated files), `questions_parked: N`, `diff_over_limit`. Each entry is something the harness counted, and each one also becomes a `next_run_focus` line, which does reach the state |
+| `facts.set_aside` | `facts.json` | the claims a fact of this run already answers, set aside before they are filed (`local_refuted.py`): `path`, `line`, `function`, `title`, `severity`, `rule` and `why`. `rule` is `compiled` (a compile error in code that a gate compiled and passed this run) or `declared-non-null` (a null dereference of a C# member that the project declares non-null with nullable reference types on). `why` names the gate, or cites the declaration as `path:line`. A set-aside claim is neither filed nor a lead; the report lists them under **Set aside** |
+
+The null rule answers only what a declaration settles. It leaves a claim alone when its title
+speaks of a nullable value flowing in, when the value comes from outside the code (deserialized
+JSON, a request body, `null!`, `default(...)`, reflection), when the claim is about a method's
+result, and when the member belongs to a type that a request binds or that such a type holds. It
+also leaves a claim alone when the member has no initializer or is initialized to `null!`, and
+when any declaration of the name is nullable or in a shape the index does not read, such as a
+field, an expression-bodied property or a multi-line one. When the function or its file declares
+the receiver's type (`Ticket ticket`), only that type's declaration counts.
 
 The report gains one **Judge** line beside the Harness line: the engine, the model, the calls
 and tokens, the questions that went unanswered, and `no Claude tokens spent` — no host, even
