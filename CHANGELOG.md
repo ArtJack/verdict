@@ -56,13 +56,18 @@ validator couldn't inspect". The limit is most likely 256 KiB.
   starts, so an edited `profile.md` changes nothing mid-run. Under a `required` floor, a
   profile's loosening keys are ignored. A value the profile cannot read keeps the box on.
   `facts.json` → `sandbox` says what boxed the run.
-- **A `uvx` gate runs in the box when the profile says so.** Each run gets a uv cache of its
-  own, and `uvx --offline` needs the shared one. A gate that runs it takes
-  `sandbox_write: ~/.cache/uv, ~/.local/share/uv/tools`. Found before the release on two
-  projects' lint gates. A second defect was found with it: uv keeps an empty `.git` file in its
-  cache, which the box read as a checkout to keep read-only, so uv could not open its own
-  cache even when allowed. A checkout is now a `.git` directory, or a file that starts
-  with `gitdir: `.
+- **Package caches, found by running real projects' gates in the box before the release.**
+  - **npm gets a cache of its own, as uv already did.** `npm ci` writes each download to
+    `~/.npm` before unpacking it, and that was a write outside the box: EPERM, so an install
+    that needed one package not already cached failed, with network or without, and every gate
+    after it read red. An `npm ci` gate takes `sandbox_network:`; `sandbox_write: ~/.npm`
+    opens the shared cache.
+  - **A `uvx` gate runs when the profile says so.** `uvx --offline` needs uv's shared cache
+    and tool folder: `sandbox_write: ~/.cache/uv, ~/.local/share/uv/tools`. Even then it
+    failed, because uv keeps an empty `.git` file in its cache and the box read it as a
+    checkout to keep read-only. A checkout is now a `.git` directory, or a regular file that
+    starts with `gitdir: `. A `.git` that is neither, such as a named pipe boxed code left
+    behind, is never opened.
 - **The tester's own Bash runs in Claude Code's sandbox.** `verdict-run` passes `--settings`:
   - `network.strictAllowlist` with no domains;
   - every variable named like a credential, or whose value carries one, denied;
@@ -197,9 +202,8 @@ validator couldn't inspect". The limit is most likely 256 KiB.
   - `uses: ArtJack/verdict@v0` moves to this release, and the Action now runs
     `actions/github-script` 9, which needs Actions runner 2.327.1 or newer. Only self-hosted
     runners can be older.
-- Pinned mutants: 8 new for the browser pass, 6 for the runner counts and 2 for the box's
-  checkout test, each killed by the whole suite; P15, P40 and "local 2" re-anchored; badge
-  568/568.
+- Pinned mutants: 8 new for the browser pass, 6 for the runner counts and 5 for the package
+  caches, each killed by the whole suite; P15, P40 and "local 2" re-anchored; badge 571/571.
 
 ## 0.93.1 — 2026-10-30 · "what a team commits is the record"
 
