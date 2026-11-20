@@ -23,7 +23,9 @@ def test_the_prompt_carries_the_scope_the_risk_notes_and_the_proof_standard_and_
     assert "Proof standard: a finding at Major or worse needs execution behind it." in text
     assert "`/x/.venv/bin/python -m pytest -q`" in text and "Use `/x/.venv/bin/python` for Python" in text
     assert "about 35 tool calls; the session stops at $2.5" in text and str(tmp_path / "findings.json") in text
-    assert "verdict" not in text.lower(), "the plain arm is told nothing of Verdict"
+    # The scratch paths are the test's own temp dir, which a sandbox may name after itself.
+    told = text.replace(str(tmp_path), "<tmp>")
+    assert "verdict" not in told.lower(), "the plain arm is told nothing of Verdict"
 
 
 def test_findings_are_read_from_the_file_else_from_the_last_message(tmp_path):
