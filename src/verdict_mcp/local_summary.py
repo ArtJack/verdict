@@ -51,6 +51,21 @@ def leads_text(leads) -> str:
     return "\n".join(lines)
 
 
+def set_aside_text(items) -> str:
+    """The report's list of claims a fact of this run answered: read, set aside with that fact,
+    and neither filed nor listed as a lead. Capped like the leads, and it says so."""
+    if not items:
+        return ""
+    shown = items[:LEADS_IN_REPORT]
+    lines = [f"\n\n**Set aside — claims a fact of this run already answers ({len(items)}).** "
+             "A build that passed, or the code's own declaration; none was filed or listed as a lead."]
+    for x in shown:
+        lines.append(f"- `{x['path']}:{x['line']}` `{x['function']}` — {x['title']} ({x['why']})")
+    if len(items) > len(shown):
+        lines.append(f"- … and {len(items) - len(shown)} more, in facts.json `set_aside`")
+    return "\n".join(lines)
+
+
 def not_tested_lines(model: Model, files: list, examined: int, prior_open: list,
                      still_open: list, refiled: list, prove: bool, budget: Budget,
                      quarantine_notes: list, non_python: bool,
@@ -98,7 +113,7 @@ def not_tested_lines(model: Model, files: list, examined: int, prior_open: list,
 
 def print_summary(model: Model, files: list, examined: int, filed: list, refiled: list,
                   resolved: list, still_open: list, verdict: str, owed: dict,
-                  budget: Budget, engine_verdict: str | None = None) -> None:
+                  budget: Budget, engine_verdict: str | None = None, set_aside=None) -> None:
     """At most fifteen lines, ending on the number this whole release is about.
     `verdict` is the one the state holds; `engine_verdict`, this engine's own, is
     named when finalize capped it."""
@@ -108,7 +123,9 @@ def print_summary(model: Model, files: list, examined: int, filed: list, refiled
            "hygiene scan filed)" if engine_verdict and engine_verdict != verdict else ""),
         f"  read       {examined} function(s) in {len(files)} file(s)"
         + (f", {budget.skipped} skipped — {budget.stopped}" if budget.stopped else ""),
-        f"  filed      {len(filed)} finding(s), {len(refiled)} of them re-filed unread",
+        f"  filed      {len(filed)} finding(s), {len(refiled)} of them re-filed unread"
+        + (f" · {len(set_aside)} claim(s) set aside, answered by the build or a declaration"
+           if set_aside else ""),
         f"  carried    {len(still_open)} by id · resolved {len(resolved)} by measurement",
         f"  model      {model.name} · {model.calls} call(s) · "
         f"{model.input_tokens + model.output_tokens:,} token(s) · "

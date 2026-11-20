@@ -150,9 +150,14 @@ def file_findings(model: Model, repo: Path, targets: list, mint, findings_dir: P
                   filed: list, python: str, prove: bool, budget: Budget,
                   prior_index: PriorIndex | None = None, already_open: list | None = None,
                   leads: list | None = None, probes: list | None = None,
-                  gaps: dict | None = None, asked: set | None = None, focus=()) -> tuple:
+                  gaps: dict | None = None, asked: set | None = None, focus=(),
+                  refute=None, set_aside: list | None = None) -> tuple:
     """Read the source, one function at a time, and try to prove each claim by flipping
     the line in a scratch copy. Returns (examined, proven, disproven).
+
+    `refute(claim, chunk)`, when given, returns why a fact of this run already answers a
+    claim, or None; an answered claim goes to `set_aside` with that reason and is neither
+    filed nor listed as a lead (local_refuted.py).
 
     `targets` is `(path, the changed lines or None)`: a run over a range asks only
     about the functions the range touched, because a function nobody edited is a
@@ -173,6 +178,13 @@ def file_findings(model: Model, repo: Path, targets: list, mint, findings_dir: P
                 asked.add((rel, chunk.name))
             claim = examine(model, chunk, gap_hint(named[chunk.name]) if chunk.name in named else None)
             if not claim:
+                continue
+            aside = refute(claim, chunk) if refute else None
+            if aside is not None:
+                if set_aside is not None:
+                    set_aside.append(aside)
+                print(f"verdict-local: set aside {chunk.path}:{claim['line']} — {aside['why']}",
+                      file=sys.stderr)
                 continue
             # A counterfactual runs Python; for any other language none is attempted and none
             # of the probe budget is spent.
