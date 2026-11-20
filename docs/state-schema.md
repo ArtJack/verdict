@@ -371,7 +371,9 @@ Rows written by the harness carry `source: facts` (the previous record's open fi
 
 `result` is `reproduced` (every expectation met), `not reproduced` (one was not — the finding
 does not hold on a fresh checkout at this HEAD, or its `expect` describes the author's tree) or
-`could not run` (the command never started: exit 126/127 or `cmd.exe`'s "is not recognized", a timeout, a `cwd` outside the
+`could not run` (the command never started: exit 126/127 or `cmd.exe`'s "is not recognized", a
+program that could not be found or executed — in the box, sandbox-exec's own exit 71 and its
+`execvp() … failed` line, never read as the command's exit — a timeout, a `cwd` outside the
 checkout; or it never reached the defect: a claimed reproduction that ended in a traceback
 while `expect` names no stderr text — an exit code alone cannot tell a crash from the defect —
 and a traceback ending in `ImportError`/`ModuleNotFoundError`, which on a fresh tree is a

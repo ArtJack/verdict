@@ -374,6 +374,30 @@ def test_a_fresh_tree_that_cannot_be_imported_is_could_not_run_not_a_refutation(
     assert "compiled extensions needs its build step" in row["checks"][-1]
 
 
+@pytest.mark.skipif(os.name == "nt", reason="Windows looks for a program beside the parent's "
+                                              "own interpreter before it reads PATH")
+def test_an_unattended_repro_whose_python_is_not_on_path_could_not_run(tmp_path, monkeypatch):
+    """2026-11-20, `.venv/bin/python -m pytest` in a Claude Code worktree, on a Mac whose PATH
+    has `python3` and no `python`: the box's sandbox-exec could not exec `python`, exited 71,
+    and the repro read "not reproduced", so finalize refused a proven finding over a command
+    that never started. The venv's place under `.claude/` had nothing to do with it."""
+    repo = _repo(tmp_path)
+    empty = tmp_path / "a-path-with-no-python"
+    empty.mkdir()
+    finding = _finding("PRICER-F-3", {"command": 'python -c "from pricer.money import to_cents; '
+                                                 'assert to_cents(1.005) == 101, to_cents(1.005)"',
+                                      "expect": {"exit": 1, "stderr_contains": "AssertionError: 100"}})
+    scratch, _, _ = replay._fresh_checkout(repo)
+    try:
+        with monkeypatch.context() as env:
+            env.setenv("PATH", str(empty))
+            row = replay.replay_one(finding, repo, scratch, repo / ".qa", 60, unattended=True)
+    finally:
+        replay._remove_checkout(repo, scratch)
+    assert (row["result"], row["exit"]) == ("could not run", None), row
+    assert "'python'" in row["checks"][0]
+
+
 # ── the gate reads the ledger ─────────────────────────────────────────────
 
 def test_the_gate_marks_each_open_finding_with_its_latest_replay(tmp_path, capsys):
@@ -646,6 +670,35 @@ def test_a_new_proven_finding_whose_repro_does_not_reproduce_is_refused(repo, qa
     assert rc == 0, capsys.readouterr().err
     assert state["findings"][0]["replay"]["at_head"] == "not reproduced"
     assert state["findings"][0]["replay"]["at_previous"] is None
+
+
+# The checkout's `.venv` is untracked, so no fresh tree has one: this cannot start there.
+VENV_REPRO = {"command": '.venv/bin/python -c "import a; assert a.x == 2, a.x"', "cwd": "repo",
+              "expect": {"exit": 1, "stderr_contains": "AssertionError: 1"}}
+
+
+def test_a_proven_finding_whose_repro_cannot_start_is_neither_refused_nor_verified(
+        repo, qa_root, capsys):
+    """In the box, a repro that could not start was sandbox-exec's exit 71 read as the repro's
+    own: finalize refused the proven finding and told the tester to fix the repro or file it
+    `probable` (2026-11-20). Could-not-run refutes nothing and verifies nothing: the run
+    stands, and the finding stays open with no `last_verified_at`."""
+    _facts(repo, qa_root)
+    _finding_file(qa_root, "W-F-1", repro=VENV_REPRO)
+    rc, state = _finalize(qa_root, judgment(findings=[]))
+    err = capsys.readouterr().err
+    assert rc == 0, err
+    assert "did not reproduce" not in err and "1 could not run" in err
+    rec = state["findings"][0]["replay"]
+    assert rec["at_head"] == "could not run", rec
+    assert os.name == "nt" or ".venv/bin/python" in rec["checks_head"][0], rec
+    git(["commit", "-q", "--allow-empty", "-m", "nothing changed"], repo)
+    facts = _facts(repo, qa_root)
+    assert facts["replay"]["W-F-1"]["at_head"] == "could not run"
+    rc, state = _finalize(qa_root, judgment(findings=[], still_open=["W-F-1"]))
+    assert rc == 0, capsys.readouterr().err
+    (f,) = state["findings"]
+    assert f["status"] == "open" and "last_verified_at" not in f, f
 
 
 def test_repro_rule_on_refuses_a_proven_major_without_a_block_and_off_only_names_it(repo, qa_root, capsys):
