@@ -30,6 +30,7 @@ What the null rule leaves alone, because a declaration does not answer it:
 """
 from __future__ import annotations
 
+import posixpath
 import re
 import subprocess
 import sys
@@ -96,7 +97,9 @@ def compiling_gate(gates: dict, lang: str, rel: str) -> str | None:
     for name, gate in sorted((gates or {}).items()):
         if not isinstance(gate, dict) or gate.get("exit_code") != 0:
             continue
-        command = str(gate.get("command") or "")
+        # Paths read with forward slashes on every platform: git names `rel` that way, and a
+        # Windows gate line may write `backend\Api\Api.csproj`.
+        command = str(gate.get("command") or "").replace("\\", "/")
         steps = [s for s in _STEP.split(command) if pattern.search(s) and not _NO_BUILD.search(s)]
         if not steps:
             continue
@@ -104,7 +107,7 @@ def compiling_gate(gates: dict, lang: str, rel: str) -> str | None:
         if where and not _under(rel, where.group(1)):
             continue
         project = next((m for m in map(_PROJECT_FILE.search, steps) if m), None)
-        if project and not _under(rel, str(Path(project.group(1)).parent)):
+        if project and not _under(rel, posixpath.dirname(project.group(1))):
             continue
         return name
     return None

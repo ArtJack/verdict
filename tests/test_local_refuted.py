@@ -255,6 +255,10 @@ def test_a_gate_compiles_the_folder_or_the_project_it_names():
     api = {"api": {"command": "dotnet build backend/Api/Api.csproj", "exit_code": 0}}
     assert compiling_gate(api, "csharp", "backend/Api/Orders.cs") == "api"
     assert compiling_gate(api, "csharp", "backend/Tools/Seed.cs") is None, "another project was not built"
+    windows = {"api": {"command": r"dotnet build backend\Api\Api.csproj", "exit_code": 0}}
+    assert compiling_gate(windows, "csharp", "backend/Api/Orders.cs") == "api", \
+        "a Windows gate line names the same folder git names with forward slashes"
+    assert compiling_gate(windows, "csharp", "backend/Tools/Seed.cs") is None
     assert compiling_gate({"g": {"command": "go test ./...", "exit_code": 0}}, "go", "cmd/x.go") == "g"
     assert compiling_gate({"r": {"command": "cargo check", "exit_code": 0}}, "rust", "src/lib.rs") == "r"
     assert compiling_gate({"k": {"command": "./gradlew build", "exit_code": 0}}, "kotlin", "a/B.kt") == "k"
