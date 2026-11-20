@@ -36,12 +36,14 @@ try:
     from .readfirst import enclosing
     from .small import Model, extract_json, gateway_alive, read_env_file  # noqa: F401
     from .state import is_open, load_state, repo_for_root
+    from .gitenv import git_env
 except ImportError:  # executed as a bare script
     sys.path.insert(0, str(Path(__file__).resolve().parent))
     import clock
     from readfirst import enclosing
     from small import Model, extract_json, gateway_alive, read_env_file  # noqa: F401
     from state import is_open, load_state, repo_for_root
+    from gitenv import git_env
 
 SEVERE = ("Blocker", "Critical", "Major")
 MAX_FINDINGS = 8
@@ -112,7 +114,7 @@ def sites_of(repo: Path, token: str, own: set, cap: int = MAX_SITES) -> list[dic
     """Other places of the repository that use `token` — outside the finding's own functions,
     one per run of adjacent lines — each with a numbered excerpt."""
     proc = subprocess.run(["git", "-C", str(repo), "grep", "-n", "-I", "-F", "-e", token],
-                          capture_output=True, text=True, errors="replace")
+                          capture_output=True, text=True, errors="replace", env=git_env())
     own_functions = {(p, _function_at(repo, p, ln)) for p, ln in own}
     out = []
     for line in proc.stdout.splitlines():

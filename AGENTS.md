@@ -39,10 +39,38 @@
 - **Where things live:** the contract `agents/verdict.md`; the harness
   `src/verdict_mcp/harness.py` (facts, finalize, report), `validate.py` (the state
   contract, also the PostToolUse hook), `anchors.py` (cited lines, hashed; drift),
-  `filed.py` (findings as files), `questions.py` (the questions ledger and
-  `verdict-answer`), `accept.py`, `replay.py` (`verdict-replay`), `dupes.py` (`verdict-dupes`), `check.py` (`verdict-check`), `backfill.py` (`verdict-backfill`), `escalate.py` (`--escalate` packets), `readfirst.py`, `gate.py`, `runner.py` (headless runs), `server.py`
+  `filed.py` (findings as files), `sandbox.py` (the box every run of the project's own code
+  goes through), `questions.py` (the questions ledger and
+  `verdict-answer`), `accept.py`, `replay.py` (`verdict-replay`), `dupes.py` (`verdict-dupes`), `check.py` (`verdict-check`), `backfill.py` (`verdict-backfill`), `escalate.py` (`--escalate` packets), `readfirst.py`, `gate.py`, `runner.py` (headless runs), `browser.py` (`verdict-browse` and the
+  profile's `site:` block: a site in a real browser, GET only, no model; its parts are the
+  `browser_*` modules and `local_browser.py`), `server.py`
   (MCP); the guards `hooks/`; the state schema `docs/state-schema.md`; the evals
   `eval/`; the release notes `CHANGELOG.md` (one version line, three manifests).
 - **A release** is a tag: `release.yml` builds, publishes to PyPI and the MCP registry,
   and writes the GitHub Release from the changelog. Bump `pyproject.toml`,
   `.claude-plugin/plugin.json` and `server.json` together.
+
+## How we build
+
+The maintainer's house rules for structure, the same in every repository. They live here so that every
+agent sees them, wherever it runs. Where this repository's own rules are stricter, those win.
+
+- **A new thing is a new file.** A new flow, integration, report or model task gets its own file in its
+  feature's folder. A new source file stays under about 400 lines.
+- **No source file over 2,000 lines grows, and none crosses that line.** A fix of up to 10 added lines may
+  land in place. Anything larger goes into a new file, or follows an extraction of the part you are changing.
+- **Refactoring is its own commit,** titled `refactor: …`. Nothing changes what the code does, tests change
+  only to point at the new location, and the suite is green before and after. Code with no test gets a test
+  of its current behaviour first. Where pull requests are squash-merged, the refactor is its own pull request.
+- **Outside systems sit behind an interface** (a `Protocol` with only the methods the caller uses), built in
+  one wiring module. No default argument builds a real client.
+- **One shared fake per interface,** beside the real one: configurable, recording, with no business rules and
+  no sleeps, and held to the real implementation by a contract test. New tests pass fakes in instead of
+  patching the code's own modules by name.
+- **A failure never looks like "empty" or "not checked",** and no error handler only logs or passes.
+- **Tests land with the change.** A test named "clears" or "resets" asserts the dirty state first, and an
+  expected value is never the production expression retyped.
+- **Money is whole cents or `Decimal`,** never a float.
+- **Check before you commit:** `python3 scripts/check_structure.py`. It fails when a source file crosses
+  2,000 lines or one already over it grows by more than 10, and warns about the rest. CI runs it on every
+  pull request and, for now, only reports.

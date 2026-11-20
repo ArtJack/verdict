@@ -5,6 +5,8 @@ say what you measured, cite it, and leave the tree the way a stranger can reprod
 
 ## The short version
 
+- **Issues and pull requests.** Bugs and findings go in an issue; changes come as a pull
+  request against `main`.
 - **Run the suite before and after.** `uv run --group dev pytest -q`. It is fast (about
   80 seconds) and it is the contract — the eval fixtures under `eval/fixtures/` contain
   seeded defects on purpose and are excluded from collection.
