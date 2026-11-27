@@ -343,6 +343,41 @@ tests' last lines. The census reads the coverage JSON with contexts; on a very l
 render can exceed the harness's 300 s and the census reports itself unavailable. Survivors lead `read_first`. A lead for
 where to read, never a finding: an equivalent mutant survives too.
 
+## The version actually installed — `facts.json` → `code_census.dependencies` (0.94.0)
+
+A finding about a library's behaviour is worth exactly as much as the version it was checked
+against, and a model's recollection is of neither this project nor this pin. So the census
+resolves, for every third-party import in the range, what this checkout would actually load:
+`{environments, resolved, unresolved, reading}`. `environments` lists the site-packages
+directories found under a `.venv`/`venv` inside the repo, plus `node_modules` where it exists —
+deduplicated by inode, because a case-insensitive filesystem answers to both `lib` and `Lib` and
+would otherwise report two environments a reader can only open one of. Each `resolved` entry is
+`{distribution, version, path, cited_at}`: the distribution that owns the import root (from the
+`dist-info`'s `top_level.txt`, which is what maps `yaml` to PyYAML), the version pip recorded, a
+repo-relative path to open, and where the range imports it. `unresolved` is the same import with
+no artifact behind it — a dependency declared but not installed, a hallucinated one, or simply a
+checkout with no environment — and it caps a finding about that contract at `hypothesis` under
+§9 rather than licensing a guess. Nothing here imports anything: resolution is filesystem reads
+only, since importing a dependency would execute the code under test, which §0 forbids. Node
+packages resolve lazily by specifier (scope included, `..` refused); a crawl of `node_modules`
+would cost more than every other census together.
+
+Some JavaScript imports name no package at all, so neither this census nor the imports census
+counts them (0.95.0):
+- Node's own modules (`fs`, `node:path`, `bun:test`) and a bundler's aliases (`@/…`, `~/…`,
+  `#…`).
+- The names a project's `tsconfig.json` or `jsconfig.json` gives its own files: its `paths`
+  patterns, and what sits under its `baseUrl`. They are read from the config nearest each
+  importing file, as tsc reads them: comments and trailing commas allowed, relative `extends`
+  followed, and a `paths` of the config's own replacing the one it extends.
+
+A config that cannot be read is named in `alias_configs_unreadable`, and its names stay
+`unresolved`: an alias nobody could read is unknown, not the project's own.
+
+Like the other censuses it is a lead, not a
+finding — it tells judgment which file to open, and §9 requires that it be opened before a
+claim about third-party behaviour is filed.
+
 ## A finding replayed on a fresh checkout — `<qa-root>/replays.jsonl`
 
 `verdict-replay <key> [ID …]` takes every open finding with a `repro` block, Major+ first (0.93.0; or the
