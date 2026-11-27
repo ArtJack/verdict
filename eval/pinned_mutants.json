@@ -2572,7 +2572,7 @@
  },
  {
   "label": "0.91.0 replay-in-run 7: a shell operator outside quotes passes the unattended shape",
-  "path": "src/verdict_mcp/replay.py",
+  "path": "src/verdict_mcp/repro_shape.py",
   "old": "    for op in _SHELL_OPERATORS:\n        if op in bare:\n",
   "new": "    for op in ():\n        if op in bare:\n"
  },
@@ -2962,7 +2962,7 @@
  },
  {
   "label": "replay 0.92.0: a repro that starts with `env` and only sets variables is not run unattended",
-  "path": "src/verdict_mcp/replay.py",
+  "path": "src/verdict_mcp/repro_shape.py",
   "old": "    if len(words) > 1 and Path(words[0]).name == \"env\" and not words[1].startswith(\"-\"):\n",
   "new": "    if False:\n"
  },
@@ -3373,6 +3373,30 @@
   "path": "src/verdict_mcp/small.py",
   "old": "    site_resolved = browser_resolved(site_pass, previous, on_record, resolved_ids,\n                                     still_open_ids)\n",
   "new": "    site_resolved = []\n"
+ },
+ {
+  "label": "tester shell: a zsh login hands the tester bash, not zsh",
+  "path": "src/verdict_mcp/runner_env.py",
+  "old": "    env[\"CLAUDE_CODE_SHELL\"] = bash\n",
+  "new": "    pass\n"
+ },
+ {
+  "label": "repro shape 1: {tmp} is not filled in, so a repro gets no folder of its own",
+  "path": "src/verdict_mcp/replay.py",
+  "old": "        command = command.replace(TMP, tempfile.mkdtemp(prefix=\"repro-\", dir=scratch.parent))\n",
+  "new": "        command = command\n"
+ },
+ {
+  "label": "repro shape 2: the finding hook says nothing of a repro the harness will not run",
+  "path": "src/verdict_mcp/validate.py",
+  "old": "    note = shape_note(data, qa_root, _checkout_of(qa_root)) if _is_open(data) else \"\"\n",
+  "new": "    note = \"\"\n"
+ },
+ {
+  "label": "repro shape 3: with no checkout known, a shell repro goes unflagged too",
+  "path": "src/verdict_mcp/repro_shape.py",
+  "old": "    if argv is not None or (not repo and why.startswith(\"the script\")):\n",
+  "new": "    if argv is not None or not repo:\n"
  },
  {
   "label": "runner counts 1: Node's own test runner is not read, so a TypeScript suite measures no counts",

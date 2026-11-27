@@ -9,8 +9,11 @@ cause is configuration.
 """
 
 import json
+import os
 import sys
 from pathlib import Path
+
+import pytest
 
 REPO = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO / "src"))
@@ -167,3 +170,87 @@ def test_a_gateway_keeps_the_config_directory_the_operator_named(tmp_path):
         {"ANTHROPIC_BASE_URL": "http://gw:4000", "CLAUDE_CONFIG_DIR": str(cfg)}, repo)
     assert env["CLAUDE_CONFIG_DIR"] == str(cfg)
     assert (cfg / ".claude.json").is_file()
+
+
+# The tester's shell. The CLI runs Bash calls in CLAUDE_CODE_SHELL, else in the login SHELL; on
+# a Mac that is zsh, which stops a line at `echo =====` (an asked run lost half of 3 of its
+# first 53 calls to it on 2026-11-17). The runner hands the tester bash instead.
+
+POSIX_ONLY = pytest.mark.skipif(os.name == "nt", reason="the CLI picks its own bash on Windows")
+
+
+def _fake_bash(tmp_path):
+    bindir = tmp_path / "bin"
+    bindir.mkdir(exist_ok=True)
+    bash = bindir / "bash"
+    bash.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+    bash.chmod(0o755)
+    return bindir, bash
+
+
+@POSIX_ONLY
+def test_a_zsh_login_gets_bash_for_the_tester(tmp_path):
+    bindir, bash = _fake_bash(tmp_path)
+    env = {"SHELL": "/bin/zsh", "PATH": str(bindir)}
+    notes = runner.tester_shell(env)
+    assert env["CLAUDE_CODE_SHELL"] == str(bash), "the first bash on the session's PATH"
+    assert notes and str(bash) in notes[0] and "/bin/zsh" in notes[0], notes
+
+
+@POSIX_ONLY
+def test_a_bash_found_off_path_is_used(tmp_path):
+    """The session's PATH may hold only the venv: bash in /bin is still found."""
+    _, bash = _fake_bash(tmp_path)
+    env = {"SHELL": "/bin/zsh", "PATH": str(tmp_path / "empty")}
+    runner.tester_shell(env, fallbacks=(str(tmp_path / "missing"), str(bash)))
+    assert env["CLAUDE_CODE_SHELL"] == str(bash)
+
+
+@POSIX_ONLY
+def test_the_operators_shell_choice_is_kept(tmp_path):
+    bindir, _ = _fake_bash(tmp_path)
+    env = {"SHELL": "/bin/zsh", "PATH": str(bindir), "CLAUDE_CODE_SHELL": "/bin/zsh"}
+    notes = runner.tester_shell(env)
+    assert env["CLAUDE_CODE_SHELL"] == "/bin/zsh"
+    assert notes == ["shell: CLAUDE_CODE_SHELL=/bin/zsh (the operator's)"]
+
+
+@POSIX_ONLY
+def test_a_bash_login_needs_nothing(tmp_path):
+    bindir, _ = _fake_bash(tmp_path)
+    env = {"SHELL": "/usr/local/bin/bash", "PATH": str(bindir)}
+    assert runner.tester_shell(env) == [] and "CLAUDE_CODE_SHELL" not in env
+
+
+@POSIX_ONLY
+def test_no_bash_leaves_the_login_shell_and_says_so(tmp_path):
+    env = {"SHELL": "/bin/zsh", "PATH": str(tmp_path)}
+    notes = runner.tester_shell(env, fallbacks=())
+    assert "CLAUDE_CODE_SHELL" not in env
+    assert notes and "no bash found" in notes[0] and "/bin/zsh" in notes[0], notes
+
+
+@POSIX_ONLY
+def test_the_runner_hands_the_child_bash(tmp_path, monkeypatch):
+    repo, home = tmp_path / "repo", tmp_path / "home"
+    repo.mkdir()
+    bindir, bash = _fake_bash(tmp_path)
+    monkeypatch.setenv("VERDICT_HOME", str(home))
+    monkeypatch.setenv("SHELL", "/bin/zsh")
+    monkeypatch.setenv("PATH", f"{bindir}{os.pathsep}{os.environ.get('PATH', '')}")
+    monkeypatch.delenv("CLAUDE_CODE_SHELL", raising=False)
+    (home / "t").mkdir(parents=True)
+    (home / "t" / "profile.md").write_text(
+        f"---\ngates: {{}}\n---\n\n# QA Profile — t\n\nProject-Key: t\nRepo-Path: {repo}\n"
+        "Security-Pass: disabled\nSchema-Version: 1\n", encoding="utf-8")
+    seen = {}
+
+    def fake_stream(cmd, cwd, env, timeout_s):
+        seen.update(env)
+        return 0, ""
+
+    monkeypatch.setattr(runner, "_run_streaming", fake_stream)
+    runner.main(["t", "--repo", str(repo), "--claude-cmd",
+                 str(_noop(tmp_path, "claude-shell")), "--no-provision"])
+    assert seen.get("CLAUDE_CODE_SHELL") == str(bash), "the tester's Bash runs bash"
+    assert seen.get("SHELL") == "/bin/zsh", "the login shell itself is left as it was"

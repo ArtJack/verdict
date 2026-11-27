@@ -387,7 +387,10 @@ comes first on `PYTHONPATH`, and a `sitecustomize` the command inherits disarms,
 site-packages and before the command, an editable install of the original checkout — a `.pth`
 line naming it, or a meta-path finder carrying its build directory (meson-python) — keeping
 everything under the interpreter's own prefix, where the dependencies live. `{repo}` and
-`{qa_root}` in the command are the fresh tree and the QA root. Exit codes: 0 every replayed
+`{qa_root}` in the command are the fresh tree and the QA root, and `{tmp}` is an empty
+directory of the repro's own, made beside the fresh tree and removed with it: what a repro
+needs a folder for, without `d=$(mktemp -d) && …`, which is a shell the harness does not run
+unattended. Exit codes: 0 every replayed
 finding reproduced · 1 one did not · 2 nothing could be replayed. `verdict-gate` reads the latest row per open finding: a mark on the row (`replay ✓
 reproduced`, `✗ NOT reproduced`, `? could not run`), a `replay:` line with the tally and the
 proven Major+ findings never replayed, and `replays` in the JSON output. Why it exists: the pass

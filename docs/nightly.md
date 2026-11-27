@@ -378,6 +378,13 @@ environment — a private index URL, a cache root — name it with `--env-passth
 (repeatable); `--strict-mcp-config` is always set, so a profile that wants a user-scope MCP
 server names it with `--mcp-config`.
 
+**The tester's shell is bash.** The CLI runs the tester's Bash calls in the login shell, and
+on a Mac that is zsh, while the tester writes bash. zsh reads a word that starts with `=` as a
+command lookup, so `cat a; echo =====; cat b` stops at the separator with "not found", and `b`
+is never shown. One asked run lost half of 3 of its first 53 calls that way. So `verdict-run`
+sets `CLAUDE_CODE_SHELL` to the first bash it finds, on the session's `PATH` and then in
+`/bin`, and prints which one. An operator who sets `CLAUDE_CODE_SHELL` keeps their choice.
+
 **A dedicated account.** Sign it in once, into its own configuration directory:
 
 ```bash
