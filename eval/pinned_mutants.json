@@ -3521,7 +3521,7 @@
  {
   "label": "census js 3 (call site): the dependency census reports every specifier, built-ins and aliases too",
   "path": "src/verdict_mcp/census.py",
-  "old": "                if _js_package(m.group(1)):\n                    yield m.group(1), path, lineno, suffix\n",
+  "old": "                if _js_package(m.group(1)) and not aliases.own(m.group(1), path):\n                    yield m.group(1), path, lineno, suffix\n",
   "new": "                yield m.group(1), path, lineno, suffix\n"
  },
  {
@@ -3533,7 +3533,7 @@
  {
   "label": "census js 5: the imports census reports `node:fs` and `@/lib` as undeclared dependencies",
   "path": "src/verdict_mcp/census.py",
-  "old": "            if pattern is _JS_PACKAGE and not _js_package(root):\n                continue\n",
+  "old": "            if pattern is _JS_PACKAGE and (\n                    not _js_package(root) or aliases.own(root, path)):\n                continue\n",
   "new": ""
  },
  {
@@ -3541,5 +3541,89 @@
   "path": "src/verdict_mcp/census.py",
   "old": "            if (pattern is _PY_IMPORT and key in stdlib) or key in local \\\n",
   "new": "            if key in stdlib or key in local \\\n"
+ },
+ {
+  "label": "census alias 1: a tsconfig's paths are never read",
+  "path": "src/verdict_mcp/census_aliases.py",
+  "old": "                merged[\"paths\"] = list(own[\"paths\"])\n",
+  "new": "                pass\n"
+ },
+ {
+  "label": "census alias 2: a lone \"*\" fallback reads every package as the project's own",
+  "path": "src/verdict_mcp/census_aliases.py",
+  "old": "    if not head:\n        return False\n",
+  "new": "    if not head:\n        return True\n"
+ },
+ {
+  "label": "census alias 3: a tsconfig with comments cannot be read",
+  "path": "src/verdict_mcp/census_aliases.py",
+  "old": "    data = json.loads(_without_trailing_commas(_without_comments(text)))\n",
+  "new": "    data = json.loads(_without_trailing_commas(text))\n"
+ },
+ {
+  "label": "census alias 4: a tsconfig with a trailing comma cannot be read",
+  "path": "src/verdict_mcp/census_aliases.py",
+  "old": "    data = json.loads(_without_trailing_commas(_without_comments(text)))\n",
+  "new": "    data = json.loads(_without_comments(text))\n"
+ },
+ {
+  "label": "census alias 5: a // inside a string is cut as a comment",
+  "path": "src/verdict_mcp/census_aliases.py",
+  "old": "        if text[i] == '\"':\n            j = _string_end(text, i)\n            out.append(text[i:j])\n            i = j\n        elif text.startswith(\"//\", i):\n",
+  "new": "        if False:\n            pass\n        elif text.startswith(\"//\", i):\n"
+ },
+ {
+  "label": "census alias 6: a comma inside a string is dropped as a trailing comma",
+  "path": "src/verdict_mcp/census_aliases.py",
+  "old": "        if text[i] == '\"':\n            j = _string_end(text, i)\n            out.append(text[i:j])\n            i = j\n            continue\n",
+  "new": ""
+ },
+ {
+  "label": "census alias 7: a config's extends is never followed",
+  "path": "src/verdict_mcp/census_aliases.py",
+  "old": "                merged.update(self._options(target, seen | {path}))\n",
+  "new": "                pass\n"
+ },
+ {
+  "label": "census alias 8: an extends without .json is never found",
+  "path": "src/verdict_mcp/census_aliases.py",
+  "old": "                    target = target.with_name(target.name + \".json\")\n",
+  "new": "                    pass\n"
+ },
+ {
+  "label": "census alias 9: a config's own paths are added to what it extends, not put in its place",
+  "path": "src/verdict_mcp/census_aliases.py",
+  "old": "                merged[\"paths\"] = list(own[\"paths\"])\n",
+  "new": "                merged[\"paths\"] = merged.get(\"paths\", []) + list(own[\"paths\"])\n"
+ },
+ {
+  "label": "census alias 10: a file reads only a config in its own directory",
+  "path": "src/verdict_mcp/census_aliases.py",
+  "old": "            found = self._for(rel_dir.parent) if key not in (\"\", \".\") else {}\n",
+  "new": "            found = {}\n"
+ },
+ {
+  "label": "census alias 11: a baseUrl import reads as a package",
+  "path": "src/verdict_mcp/census_aliases.py",
+  "old": "        return base is not None and self._under(base, root)\n",
+  "new": "        return False\n"
+ },
+ {
+  "label": "census alias 12: a config that cannot be read goes unsaid",
+  "path": "src/verdict_mcp/census_aliases.py",
+  "old": "                self.unreadable.append(said)\n",
+  "new": "                pass\n"
+ },
+ {
+  "label": "census alias 13 (call site): the imports census reports a tsconfig alias as undeclared",
+  "path": "src/verdict_mcp/census.py",
+  "old": "                    not _js_package(root) or aliases.own(root, path)):\n",
+  "new": "                    not _js_package(root)):\n"
+ },
+ {
+  "label": "census alias 14 (call site): the dependency census reports a tsconfig alias as unresolved",
+  "path": "src/verdict_mcp/census.py",
+  "old": "                if _js_package(m.group(1)) and not aliases.own(m.group(1), path):\n",
+  "new": "                if _js_package(m.group(1)):\n"
  }
 ]

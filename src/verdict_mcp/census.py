@@ -44,9 +44,11 @@ import sys
 from pathlib import Path
 
 try:
+    from .census_aliases import Aliases
     from .gitenv import git_env
 except ImportError:  # imported as a plain module beside the hooks' own
     sys.path.insert(0, str(Path(__file__).resolve().parent))
+    from census_aliases import Aliases
     from gitenv import git_env
 
 _JS_SUFFIXES = {".js", ".jsx", ".ts", ".tsx", ".mjs", ".cjs"}
@@ -275,8 +277,10 @@ def _local_names(repo: Path) -> set[str]:
     return names
 
 
-def imports_census(repo: Path, lines) -> dict:
+def imports_census(repo: Path, lines, aliases: Aliases | None = None) -> dict:
     declared = _declared_dependencies(repo)
+    if aliases is None:
+        aliases = Aliases(repo)
     local = _local_names(repo)
     stdlib = {m.lower() for m in getattr(sys, "stdlib_module_names", ())}
     hits: dict[str, list[str]] = {}
@@ -292,7 +296,8 @@ def imports_census(repo: Path, lines) -> dict:
         for m in pattern.finditer(text) if pattern is _JS_PACKAGE else (
                 [m] if (m := pattern.match(text)) else []):
             root = m.group(1)
-            if pattern is _JS_PACKAGE and not _js_package(root):
+            if pattern is _JS_PACKAGE and (
+                    not _js_package(root) or aliases.own(root, path)):
                 continue
             key = root.lower().replace("-", "_")
             resolved = _normalize(_ALIASES.get(root, key))
@@ -460,7 +465,7 @@ def _node_installed(repo: Path, spec: str) -> dict | None:
 _JS_IMPORT_HOSTS = {*_JS_SUFFIXES, ".vue", ".svelte", ".astro"}
 
 
-def _iter_import_specs(lines):
+def _iter_import_specs(lines, aliases: Aliases):
     for path, lineno, text in lines:
         suffix = Path(path).suffix
         if suffix == ".py":
@@ -469,11 +474,11 @@ def _iter_import_specs(lines):
                 yield m.group(1), path, lineno, suffix
         elif suffix in _JS_IMPORT_HOSTS:
             for m in _JS_PACKAGE.finditer(text):
-                if _js_package(m.group(1)):
+                if _js_package(m.group(1)) and not aliases.own(m.group(1), path):
                     yield m.group(1), path, lineno, suffix
 
 
-def dependencies_census(repo: Path, lines) -> dict:
+def dependencies_census(repo: Path, lines, aliases: Aliases | None = None) -> dict:
     """What this checkout would actually import, at the version it would import.
 
     A finding about a library's behaviour is only as good as the version it was
@@ -483,6 +488,8 @@ def dependencies_census(repo: Path, lines) -> dict:
     rather than licensing a guess.
     """
     repo = Path(repo)
+    if aliases is None:
+        aliases = Aliases(repo)
     stdlib = {m.lower() for m in getattr(sys, "stdlib_module_names", ())}
     local = _local_names(repo)
     py_index: dict | None = None
@@ -490,7 +497,7 @@ def dependencies_census(repo: Path, lines) -> dict:
     resolved: dict[str, dict] = {}
     unresolved: dict[str, list[str]] = {}
 
-    for spec, path, lineno, suffix in _iter_import_specs(lines):
+    for spec, path, lineno, suffix in _iter_import_specs(lines, aliases):
         key = spec.lower().replace("-", "_")
         if suffix == ".py":
             if key in stdlib or key in local:
@@ -516,10 +523,14 @@ def dependencies_census(repo: Path, lines) -> dict:
     environments = [sp.relative_to(repo).as_posix() for sp in _site_packages(repo)]
     if (repo / "node_modules").is_dir():
         environments.append("node_modules")
+    unread = {"alias_configs_unreadable": list(aliases.unreadable)} if aliases.unreadable else {}
     return {
         "environments": environments,
         "resolved": dict(sorted(resolved.items())),
         "unresolved": dict(sorted(unresolved.items())),
+        # A tsconfig that could not be read leaves its aliases reading as packages: said here,
+        # so an `@app/…` above is not taken for a dependency nobody declared.
+        **unread,
         "reading": ("read the installed artifact before filing a finding about its "
                     "behaviour — recollection of an API is not evidence, and does not "
                     "know this project's pin. No environment here means the contract "
@@ -542,12 +553,13 @@ def code_census(repo: Path, sha_range: str | None) -> dict:
         lines, scanned, capped = _tree_lines(repo)
         scope = {"scope": f"tree scan of {scanned} source files"
                           + (" (capped — a sample, not a crawl)" if capped else "")}
+    aliases = Aliases(Path(repo))
     return {
         **scope,
-        "imports": imports_census(Path(repo), lines),
+        "imports": imports_census(Path(repo), lines, aliases),
         "placeholders": placeholders_census(lines),
         "provenance": provenance_census(Path(repo), sha_range),
-        "dependencies": dependencies_census(Path(repo), lines),
+        "dependencies": dependencies_census(Path(repo), lines, aliases),
         "reading": ("leads, not findings: counts tell judgment where to look; "
                     "judgment decides what they mean"),
     }

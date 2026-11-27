@@ -360,7 +360,21 @@ checkout with no environment — and it caps a finding about that contract at `h
 §9 rather than licensing a guess. Nothing here imports anything: resolution is filesystem reads
 only, since importing a dependency would execute the code under test, which §0 forbids. Node
 packages resolve lazily by specifier (scope included, `..` refused); a crawl of `node_modules`
-would cost more than every other census together. Like the other censuses it is a lead, not a
+would cost more than every other census together.
+
+Some JavaScript imports name no package at all, so neither this census nor the imports census
+counts them (0.95.0):
+- Node's own modules (`fs`, `node:path`, `bun:test`) and a bundler's aliases (`@/…`, `~/…`,
+  `#…`).
+- The names a project's `tsconfig.json` or `jsconfig.json` gives its own files: its `paths`
+  patterns, and what sits under its `baseUrl`. They are read from the config nearest each
+  importing file, as tsc reads them: comments and trailing commas allowed, relative `extends`
+  followed, and a `paths` of the config's own replacing the one it extends.
+
+A config that cannot be read is named in `alias_configs_unreadable`, and its names stay
+`unresolved`: an alias nobody could read is unknown, not the project's own.
+
+Like the other censuses it is a lead, not a
 finding — it tells judgment which file to open, and §9 requires that it be opened before a
 claim about third-party behaviour is filed.
 
