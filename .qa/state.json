@@ -1,38 +1,38 @@
 {
   "project": "verdict",
   "schema_version": 1,
-  "run_type": "re-baseline",
-  "run_number": 19,
+  "run_type": "delta",
+  "run_number": 20,
   "last_run": {
-    "timestamp_utc": "2026-11-20T10:21:45Z",
-    "git_sha": "79c603bee93f08fd4ce366baa7c21be365268e8d",
-    "git_branch": "qa/run-19",
-    "sha_range": "97e3da38880f07ea31464e53d0cb878f7f20e4bd..79c603bee93f08fd4ce366baa7c21be365268e8d",
-    "diff_stat": "136 files changed, 22064 insertions(+), 12825 deletions(-)",
+    "timestamp_utc": "2026-11-27T06:56:24Z",
+    "git_sha": "88f54dc0b128f08251c246b4dc6d0a8ae244bb73",
+    "git_branch": "qa/run-20",
+    "sha_range": "79c603b..88f54dc",
+    "diff_stat": "22 files changed, 7867 insertions(+), 431 deletions(-)",
     "harness": {
       "version": "0.94.0",
-      "path": "/Users/artjack/Projects/verdict/.claude/worktrees/qa-run-19/src/verdict_mcp/harness.py",
+      "path": "/Users/artjack/.claude/verdict-ops/verdict-pinned/src/verdict_mcp/harness.py",
       "prompt_sha256": "1bd07f7fdc6a2892d8fbdfbbdb8d43bec2df719189d757164e94b1288e9e5943"
     },
     "model": "local:chat-120b",
     "engine": "verdict-local",
     "local": {
       "model": "chat-120b",
-      "calls": 42,
-      "tokens": 46710,
-      "input_tokens": 21982,
-      "output_tokens": 24728,
-      "answered": 33,
-      "unanswered": 3,
-      "retries": 9,
+      "calls": 54,
+      "tokens": 80717,
+      "input_tokens": 44605,
+      "output_tokens": 36112,
+      "answered": 41,
+      "unanswered": 2,
+      "retries": 13,
       "errors": 0,
       "num_ctx": 8192,
       "functions_read": 24,
-      "functions_skipped": 712,
-      "seconds": 123.9
+      "functions_skipped": 125,
+      "seconds": 206.2
     },
-    "report": "reports/2026-11-20-local-delta.md",
-    "chain": "2f5301a37f8ea4c06073d6118d11a7c2c5fbac5cc46bf965827bb3093cb053c5"
+    "report": "reports/2026-11-27-local-delta.md",
+    "chain": "bcf83e1bf3e56f08434305f1e4c60ce2038bdc08b8dffef726031cb76e58eb78"
   },
   "isolation_check": {
     "result": "pass",
@@ -43,11 +43,11 @@
       "command": "uv run --group dev python -m pytest tests/",
       "exit_code": 0,
       "result": "pass",
-      "duration_s": 335.33,
-      "summary": "3533 passed, 21 skipped in 329.60s (0:05:29)",
+      "duration_s": 355.04,
+      "summary": "3563 passed, 23 skipped in 350.23s (0:05:50)",
       "counts": {
-        "passed": 3533,
-        "skipped": 21
+        "passed": 3563,
+        "skipped": 23
       },
       "counts_dialect": "pytest"
     },
@@ -55,7 +55,7 @@
       "command": "python3 eval/fixture_freshness.py",
       "exit_code": 0,
       "result": "pass",
-      "duration_s": 0.11,
+      "duration_s": 0.09,
       "summary": "fixture_freshness: OK \u2014 pricer-delta.diff still describes the fixture pair (78 lines)",
       "counts_unparsed": "no recognised runner summary \u2014 the count-drop gate and the id set-diff cannot fire for this gate"
     }
@@ -83,7 +83,7 @@
       "re_reported": "still_open",
       "hash": "d73f1257",
       "first_seen": "2026-10-15",
-      "age_days": 36,
+      "age_days": 43,
       "delta": "STILL_OPEN",
       "anchors": [
         {
@@ -117,7 +117,7 @@
       "re_reported": "still_open",
       "hash": "b0bafd7b",
       "first_seen": "2026-10-15",
-      "age_days": 36,
+      "age_days": 43,
       "delta": "STILL_OPEN",
       "anchors": [
         {
@@ -151,7 +151,7 @@
       "re_reported": "still_open",
       "hash": "f99ce8b7",
       "first_seen": "2026-10-15",
-      "age_days": 36,
+      "age_days": 43,
       "delta": "STILL_OPEN",
       "anchors": [
         {
@@ -190,7 +190,7 @@
       "re_reported": "still_open",
       "hash": "0ead4dd8",
       "first_seen": "2026-10-15",
-      "age_days": 36,
+      "age_days": 43,
       "delta": "STILL_OPEN",
       "anchors": [
         {
@@ -231,7 +231,7 @@
       "re_reported": "still_open",
       "hash": "cbfe1481",
       "first_seen": "2026-10-15",
-      "age_days": 36,
+      "age_days": 43,
       "delta": "STILL_OPEN",
       "anchors": [
         {
@@ -265,7 +265,7 @@
       "re_reported": "still_open",
       "hash": "d08cec10",
       "first_seen": "2026-10-15",
-      "age_days": 36,
+      "age_days": 43,
       "delta": "STILL_OPEN",
       "anchors": [
         {
@@ -299,7 +299,7 @@
       "re_reported": "still_open",
       "hash": "960c0897",
       "first_seen": "2026-10-15",
-      "age_days": 36,
+      "age_days": 43,
       "delta": "STILL_OPEN",
       "anchors": [
         {
@@ -333,7 +333,7 @@
       "re_reported": "still_open",
       "hash": "76642dcd",
       "first_seen": "2026-10-15",
-      "age_days": 36,
+      "age_days": 43,
       "delta": "STILL_OPEN",
       "anchors": [
         {
@@ -367,7 +367,7 @@
       "re_reported": "still_open",
       "hash": "01176523",
       "first_seen": "2026-10-15",
-      "age_days": 36,
+      "age_days": 43,
       "delta": "STILL_OPEN",
       "anchors": [
         {
@@ -409,7 +409,7 @@
       "re_reported": "still_open",
       "hash": "af135905",
       "first_seen": "2026-09-05",
-      "age_days": 76,
+      "age_days": 83,
       "delta": "STILL_OPEN",
       "anchors": [
         {
@@ -461,16 +461,16 @@
   "verdict": "pass with risks",
   "release_blockers": [],
   "not_tested": [
-    "no agent ran: 36 bounded question(s) went to chat-120b \u2014 no exploratory charter, no archaeology, no adversarial reading of the suite",
+    "no agent ran: 43 bounded question(s) went to chat-120b \u2014 no exploratory charter, no archaeology, no adversarial reading of the suite",
     "the commit history: no origin was traced, and no `git log -S` was run",
     "10 of 10 prior open finding(s) were carried unread, and 0 re-filed because the code they cite changed and no model looked at the change",
-    "8 file(s) and 24 function(s) were read; nothing else in the repository was",
+    "6 file(s) and 24 function(s) were read; nothing else in the repository was",
     "claims the counterfactual could not reach \u2014 a probe that would not run leaves its finding a hypothesis, and an unproven severity is held at Minor for a reading and at Major for a failing test the model classified",
     "nothing outside the checkout was read \u2014 no database, no MCP tools, no production numbers \u2014 so a standing blocker that quotes one was NOT re-read",
-    "3 question(s) the model did not answer",
-    "712 candidate function(s) were never asked about: the cap of 24 function(s) was reached",
-    "changed in the range and read by no question here, because none of it is program source: 11 configuration or data file(s), 9 document(s), 1 other file(s)",
-    "5 reading(s) this engine could not prove were listed as leads in the report, not filed \u2014 a lead is a question for a run that can judge it, not a finding"
+    "2 question(s) the model did not answer",
+    "125 candidate function(s) were never asked about: the cap of 24 function(s) was reached",
+    "changed in the range and read by no question here, because none of it is program source: 6 configuration or data file(s), 5 document(s), 1 other file(s)",
+    "12 reading(s) this engine could not prove were listed as leads in the report, not filed \u2014 a lead is a question for a run that can judge it, not a finding"
   ],
   "verified_intact": [
     "The full suite is green at HEAD: `uv run --group dev python -m pytest tests/` -> 1172 passed in 138.99s (facts.json gates.suite, exit 0). Test count rose 888->1172 (+284; id set-diff +293/-9, the 9 removals are renamed/renumbered parametrizations, not feature loss).",
@@ -481,6 +481,12 @@
   ],
   "next_run_focus": [
     "needs a model run \u2014 diff_over_limit: the range is larger than the caps this engine runs under; part of it was never read",
+    "needs a model run \u2014 unexercised_changed_lines: 66",
+    "lead, unproven: src/verdict_mcp/sandbox.py:540 `run` \u2014 run() always forces capture_output=True, ignoring caller's capture_output setting",
+    "lead, unproven: src/verdict_mcp/small.py:327 `mint` \u2014 Validator uses wrong directory path, mismatching write target",
+    "lead, unproven: tests/test_local_refuted.py:58 `checkout` \u2014 checkout fails on empty file set due to missing --allow-empty flag",
+    "lead, unproven: tests/test_local_refuted.py:62 `claim` \u2014 Hard\u2011coded line number always 19 misleads callers",
+    "lead, unproven: tests/test_local_refuted.py:68 `test_a_null_claim_on_a_member_declared_non_null_is_set_aside_with_its_declaration` \u2014 Refuter reports the declaration line instead of the claim line, misleading the location of the issue",
     "needs a model run \u2014 unexercised_changed_lines: 2273",
     "lead, unproven: scripts/check_structure.py:78 `git` \u2014 git() discards stdout on non\u2011zero exit when check=False",
     "lead, unproven: scripts/check_structure.py:102 `is_shared_fake` \u2014 Off\u2011by\u2011one in is_shared_fake: directory itself not checked against SHARED_FAKE_DIRS",
@@ -493,35 +499,29 @@
     "lead, unproven: tests/test_ci_surfaces.py:90 `test_no_workflow_grants_write_at_the_top` \u2014 test_no_workflow_grants_write_at_the_top may assert something incidental: The test relies on a strict regex that assumes",
     "lead, unproven: tests/test_ci_surfaces.py:111 `test_nothing_that_can_publish_runs_off_a_tag` \u2014 test_nothing_that_can_publish_runs_off_a_tag may assert something incidental: asserts the exact string \"if: startsWith(g",
     "lead, unproven: tests/test_ci_surfaces.py:124 `test_each_major_held_back_is_ignored_from_that_major_up` \u2014 test_each_major_held_back_is_ignored_from_that_major_up may assert something incidental: relies on exact string formatti",
-    "needs a model run \u2014 unexercised_changed_lines: 1332",
-    "lead, unproven: .github/directory_branch.py:95 `plugin_tree` \u2014 Extra NUL sent to git update-index creates invalid empty entry when no files are kept",
-    "lead, unproven: eval/backfill/faithful.py:38 `finding_of` \u2014 ID type mismatch causes StopIteration when finding ID is integer",
-    "lead, unproven: eval/backfill/faithful.py:76 `main` \u2014 `--only` empty list ignored due to falsy check, causing all cases to be processed",
-    "lead, unproven: eval/recall/build_cases.py:53 `main` \u2014 Missing '=' validation lets malformed run specs create cases with empty root paths",
-    "lead, unproven: eval/recall/packet_recall.py:42 `_head` \u2014 Missing git error handling in _head leads to silent failure",
-    "needs a model run \u2014 unexercised_changed_lines: 1875"
+    "needs a model run \u2014 unexercised_changed_lines: 1332"
   ],
   "flaky_quarantine": [],
   "hygiene": {
     "status": "measured",
     "scope": {
-      "files": 408,
+      "files": 410,
       "capped": false,
       "file_cap": 5000,
       "failed": 0
     },
-    "measured_at_run": 19,
+    "measured_at_run": 20,
     "summary": {
       "open": 3,
-      "new": 1,
-      "resolved": 4,
+      "new": 0,
+      "resolved": 0,
       "first_inventory": false,
       "capped": false,
       "by_kind": {
         "broad_swallow": {
           "open": 1,
-          "new": 1,
-          "resolved": 1
+          "new": 0,
+          "resolved": 0
         },
         "duplicate_function": {
           "open": 1,
@@ -531,7 +531,7 @@
         "oversized_file": {
           "open": 1,
           "new": 0,
-          "resolved": 3
+          "resolved": 0
         }
       }
     },
@@ -562,20 +562,10 @@
           "line": 73,
           "excerpt": "except Exception:       # noqa: BLE001 \u2014 the body is a courtesy, not evidence",
           "first_seen": "2026-11-20",
-          "delta": "NEW"
+          "delta": "STILL_OPEN"
         }
       ],
-      "new": [
-        {
-          "fingerprint": "8f450e27b96b2a73",
-          "kind": "broad_swallow",
-          "path": "src/verdict_mcp/local_model.py",
-          "line": 73,
-          "excerpt": "except Exception:       # noqa: BLE001 \u2014 the body is a courtesy, not evidence",
-          "first_seen": "2026-11-20",
-          "delta": "NEW"
-        }
-      ]
+      "new": []
     },
     "leads": {
       "handed": 13,
@@ -736,7 +726,7 @@
   },
   "reading_map": {
     "status": "measured",
-    "modules": 136,
+    "modules": 137,
     "functions_never_entered": [
       {
         "path": "src/verdict_mcp/browser.py",
@@ -1339,2801 +1329,123 @@
         "last_cited_run": 15
       }
     },
-    "duration_s": 475.96,
+    "duration_s": 493.87,
     "suite_exit_code": 0
   },
   "coverage": {
     "status": "measured",
     "tool": "coverage.py dynamic contexts",
     "command": "uv run --group dev python -m coverage run -m pytest tests/ -q -o addopts=",
-    "sha_range": "97e3da38880f07ea31464e53d0cb878f7f20e4bd..79c603bee93f08fd4ce366baa7c21be365268e8d",
+    "sha_range": "79c603b..88f54dc",
     "suite_exit_code": 0,
-    "duration_s": 475.96,
-    "changed_files": 115,
-    "changed_lines": 10809,
-    "changed_lines_executed": 8536,
-    "changed_lines_executed_in_subprocess": 2046,
+    "duration_s": 493.87,
+    "changed_files": 10,
+    "changed_lines": 467,
+    "changed_lines_executed": 401,
+    "changed_lines_executed_in_subprocess": 61,
     "subprocess_coverage": "measured",
     "by_kind": {
       "production": {
-        "changed_lines": 9207,
-        "changed_lines_executed": 7549,
-        "percent": 82
+        "changed_lines": 246,
+        "changed_lines_executed": 231,
+        "percent": 94
       },
       "tests": {
-        "changed_lines": 1602,
-        "changed_lines_executed": 987,
-        "percent": 62
+        "changed_lines": 221,
+        "changed_lines_executed": 170,
+        "percent": 77
       }
     },
-    "percent": 79,
+    "percent": 86,
     "per_file": {
-      "scripts/check_structure.py": {
-        "changed": 346,
-        "measured": 346,
-        "executed": 0,
-        "unexercised_ranges": [
-          [
-            1,
-            346
-          ]
-        ],
-        "tests": [],
-        "note": "no test executed it, and no subprocess the suite spawned recorded a line of it"
-      },
-      "src/verdict_mcp/accept.py": {
-        "changed": 3,
-        "measured": 2,
-        "executed": 0,
-        "unexercised_ranges": [
-          [
-            49,
-            49
-          ],
-          [
-            55,
-            55
-          ]
-        ],
-        "tests": [],
-        "unexercised_functions": []
-      },
-      "src/verdict_mcp/backfill.py": {
-        "changed": 4,
-        "measured": 2,
-        "executed": 0,
-        "unexercised_ranges": [
-          [
-            38,
-            38
-          ],
-          [
-            48,
-            48
-          ]
-        ],
-        "tests": [],
-        "unexercised_functions": []
-      },
-      "src/verdict_mcp/braces.py": {
-        "changed": 1128,
-        "measured": 777,
-        "executed": 721,
-        "executed_in_subprocess": 117,
-        "unexercised_ranges": [
-          [
-            196,
-            196
-          ],
-          [
-            208,
-            213
-          ],
-          [
-            215,
-            216
-          ],
-          [
-            229,
-            229
-          ],
-          [
-            233,
-            233
-          ],
-          [
-            250,
-            251
-          ],
-          [
-            258,
-            259
-          ],
-          [
-            263,
-            263
-          ],
-          [
-            269,
-            269
-          ],
-          [
-            285,
-            286
-          ],
-          [
-            292,
-            292
-          ],
-          [
-            298,
-            299
-          ],
-          [
-            306,
-            306
-          ],
-          [
-            315,
-            315
-          ],
-          [
-            317,
-            317
-          ],
-          [
-            319,
-            319
-          ],
-          [
-            326,
-            326
-          ],
-          [
-            338,
-            340
-          ],
-          [
-            351,
-            351
-          ],
-          [
-            355,
-            355
-          ],
-          [
-            359,
-            359
-          ],
-          [
-            393,
-            394
-          ],
-          [
-            419,
-            419
-          ],
-          [
-            426,
-            426
-          ],
-          [
-            435,
-            436
-          ],
-          [
-            440,
-            440
-          ],
-          [
-            442,
-            442
-          ],
-          [
-            473,
-            473
-          ],
-          [
-            532,
-            532
-          ],
-          [
-            549,
-            549
-          ],
-          [
-            551,
-            551
-          ],
-          [
-            558,
-            558
-          ],
-          [
-            685,
-            685
-          ],
-          [
-            726,
-            726
-          ],
-          [
-            786,
-            786
-          ],
-          [
-            815,
-            815
-          ],
-          [
-            881,
-            881
-          ],
-          [
-            1091,
-            1092
-          ],
-          [
-            1098,
-            1098
-          ],
-          [
-            1117,
-            1118
-          ]
-        ],
+      "src/verdict_mcp/local_findings.py": {
+        "changed": 13,
+        "measured": 6,
+        "executed": 6,
+        "unexercised_ranges": [],
         "tests": [
-          "test_braces.test_a_changed_field_is_its_own_statement_and_swallows_no_method",
-          "test_braces.test_a_changed_line_asks_about_the_function_it_sits_in_once",
-          "test_braces.test_a_declaration_with_nothing_to_run_asks_nothing",
-          "test_braces.test_a_function_too_long_for_one_question_is_read_around_the_change",
-          "test_braces.test_a_jsx_component_is_one_question_however_many_lines_change",
-          "test_braces.test_a_pipeline_of_top_level_calls_is_read_in_order_as_one_question",
-          "test_braces.test_an_expression_bodied_member_is_read_as_its_statement",
-          "test_braces.test_csharp_heads_are_judged_by_their_shape",
-          "test_braces.test_csharp_members_are_found_with_their_attributes_and_doc_comment",
-          "test_braces.test_csharp_strings_chars_comments_and_directives_hide_their_braces"
+          "test_local_braces.test_a_csharp_change_in_a_delta_becomes_a_lead_with_its_reason",
+          "test_local_braces.test_no_counterfactual_is_tried_on_csharp_and_the_reason_is_kept",
+          "test_local_delta.test_a_claim_about_an_open_findings_function_is_not_filed_twice",
+          "test_local_delta.test_a_resolved_finding_that_comes_back_is_regressed_not_new",
+          "test_local_delta.test_an_unproven_reading_never_reopens_a_resolved_finding",
+          "test_local_delta.test_in_a_delta_an_unproven_reading_is_a_lead_not_a_finding",
+          "test_local_delta.test_two_findings_with_one_identity_in_one_run_are_one_finding",
+          "test_local_languages.test_a_go_range_becomes_a_lead_held_below_pass",
+          "test_local_refuted.test_a_set_aside_claim_is_kept_in_the_run_and_never_filed",
+          "test_small_probes.test_a_gate_with_no_python_disables_proving_and_says_so"
         ],
         "unexercised_functions": []
       },
-      "src/verdict_mcp/browser.py": {
-        "changed": 1276,
-        "measured": 853,
-        "executed": 155,
-        "executed_in_subprocess": 82,
+      "src/verdict_mcp/local_refuted.py": {
+        "changed": 351,
+        "measured": 203,
+        "executed": 194,
+        "executed_in_subprocess": 59,
         "unexercised_ranges": [
           [
-            109,
-            109
-          ],
-          [
-            154,
-            154
-          ],
-          [
-            157,
-            162
-          ],
-          [
-            165,
-            165
-          ],
-          [
-            168,
-            168
+            41,
+            42
           ],
           [
             171,
             171
           ],
           [
-            192,
-            192
-          ],
-          [
-            194,
-            197
-          ],
-          [
-            202,
-            202
-          ],
-          [
-            204,
-            207
-          ],
-          [
-            209,
-            213
-          ],
-          [
-            220,
-            220
-          ],
-          [
-            223,
-            229
-          ],
-          [
-            237,
-            237
-          ],
-          [
-            239,
-            239
-          ],
-          [
-            245,
-            287
-          ],
-          [
-            290,
-            310
-          ],
-          [
-            313,
-            320
-          ],
-          [
-            324,
-            324
-          ],
-          [
-            327,
-            341
-          ],
-          [
-            346,
-            373
-          ],
-          [
-            376,
-            384
-          ],
-          [
-            386,
-            408
-          ],
-          [
-            410,
-            410
-          ],
-          [
-            413,
-            414
-          ],
-          [
-            418,
-            418
-          ],
-          [
-            435,
-            461
-          ],
-          [
-            471,
-            476
-          ],
-          [
-            480,
-            481
-          ],
-          [
-            484,
-            488
-          ],
-          [
-            490,
-            490
-          ],
-          [
-            507,
-            513
-          ],
-          [
-            521,
-            532
-          ],
-          [
-            540,
-            547
-          ],
-          [
-            553,
-            568
-          ],
-          [
-            571,
-            585
-          ],
-          [
-            587,
-            602
-          ],
-          [
-            604,
-            608
-          ],
-          [
-            610,
-            613
-          ],
-          [
-            616,
-            616
-          ],
-          [
-            629,
-            629
-          ],
-          [
-            631,
-            632
-          ],
-          [
-            634,
-            635
-          ],
-          [
-            637,
-            642
-          ],
-          [
-            644,
-            649
-          ],
-          [
-            651,
-            656
-          ],
-          [
-            658,
-            667
-          ],
-          [
-            669,
-            676
-          ],
-          [
-            680,
-            683
-          ],
-          [
-            685,
-            689
-          ],
-          [
-            692,
-            695
-          ],
-          [
-            697,
-            731
-          ],
-          [
-            748,
-            750
-          ],
-          [
-            752,
-            766
-          ],
-          [
-            771,
-            773
-          ],
-          [
-            775,
-            780
-          ],
-          [
-            783,
-            795
-          ],
-          [
-            797,
-            800
-          ],
-          [
-            815,
-            815
-          ],
-          [
-            817,
-            818
-          ],
-          [
-            835,
-            846
-          ],
-          [
-            848,
-            850
-          ],
-          [
-            853,
-            872
-          ],
-          [
-            888,
-            911
-          ],
-          [
-            927,
-            927
-          ],
-          [
-            932,
-            933
-          ],
-          [
-            936,
-            937
-          ],
-          [
-            939,
-            943
-          ],
-          [
-            945,
-            949
-          ],
-          [
-            951,
-            955
-          ],
-          [
-            959,
-            974
-          ],
-          [
-            976,
-            985
-          ],
-          [
-            994,
-            998
-          ],
-          [
-            1007,
-            1013
-          ],
-          [
-            1023,
-            1040
-          ],
-          [
-            1043,
-            1059
-          ],
-          [
-            1066,
-            1073
-          ],
-          [
-            1085,
-            1085
-          ],
-          [
-            1090,
-            1092
-          ],
-          [
-            1094,
-            1095
-          ],
-          [
-            1098,
-            1099
-          ],
-          [
-            1101,
-            1102
-          ],
-          [
-            1106,
-            1107
-          ],
-          [
-            1110,
-            1111
-          ],
-          [
-            1115,
-            1115
-          ],
-          [
-            1119,
-            1121
-          ],
-          [
-            1124,
-            1126
-          ],
-          [
-            1128,
-            1129
-          ],
-          [
-            1132,
-            1133
-          ],
-          [
-            1135,
-            1139
-          ],
-          [
-            1142,
-            1142
-          ],
-          [
-            1156,
-            1164
-          ],
-          [
-            1174,
-            1179
-          ],
-          [
-            1181,
-            1182
-          ],
-          [
-            1185,
-            1185
-          ],
-          [
-            1187,
-            1190
-          ],
-          [
-            1193,
-            1195
-          ],
-          [
-            1199,
-            1199
-          ],
-          [
-            1202,
-            1207
-          ],
-          [
-            1209,
-            1213
-          ],
-          [
-            1215,
-            1215
-          ],
-          [
-            1221,
-            1223
-          ],
-          [
-            1225,
-            1232
-          ],
-          [
-            1261,
-            1264
-          ],
-          [
-            1269,
-            1272
-          ],
-          [
-            1276,
-            1276
-          ]
-        ],
-        "tests": [
-          "test_browser.test_every_request_is_a_get_to_the_site_or_it_is_aborted",
-          "test_browser.test_links_that_read_like_actions_are_never_requested",
-          "test_browser.test_without_playwright_the_pass_says_so_and_measures_nothing"
-        ],
-        "unexercised_functions": [
-          "_Run.left",
-          "_Run.out_of_time",
-          "_Run.done",
-          "_Run.add",
-          "_Run.on",
-          "_Run.context",
-          "_Run.new_page",
-          "_Run.new_page.answer",
-          "_Run.src",
-          "_Run.goto"
-        ]
-      },
-      "src/verdict_mcp/browser_config.py": {
-        "changed": 248,
-        "measured": 115,
-        "executed": 113,
-        "executed_in_subprocess": 61,
-        "unexercised_ranges": [
-          [
-            170,
-            170
-          ],
-          [
-            216,
-            216
-          ]
-        ],
-        "tests": [
-          "test_browser.test_a_site_block_reads_into_a_site",
-          "test_browser.test_a_site_block_that_cannot_run_is_an_error_naming_why",
-          "test_browser.test_every_request_is_a_get_to_the_site_or_it_is_aborted",
-          "test_browser.test_links_that_read_like_actions_are_never_requested",
-          "test_browser.test_no_site_block_is_no_browser_pass",
-          "test_browser.test_port_is_one_free_port_in_both_the_url_and_the_start_command",
-          "test_browser.test_verdict_local_mints_carries_and_resolves_what_the_browser_measured",
-          "test_browser.test_without_playwright_the_pass_says_so_and_measures_nothing",
-          "test_escalate.test_the_local_tier_writes_its_leads_as_data",
-          "test_hygiene_facts.test_the_local_tier_writes_the_same_split_before_it_finalizes"
-        ],
-        "unexercised_functions": []
-      },
-      "src/verdict_mcp/browser_findings.py": {
-        "changed": 81,
-        "measured": 38,
-        "executed": 35,
-        "executed_in_subprocess": 13,
-        "unexercised_ranges": [
-          [
-            62,
-            63
-          ],
-          [
-            75,
-            75
-          ]
-        ],
-        "tests": [
-          "test_browser.test_a_browser_finding_is_validator_clean_and_cites_its_source_file_first",
-          "test_browser.test_a_finding_is_left_open_when_any_page_was_not_measured_or_it_was_found_again",
-          "test_browser.test_a_finding_measured_again_everywhere_and_not_found_is_resolved",
-          "test_browser.test_a_path_the_routing_files_mention_is_named",
-          "test_browser.test_marks_round_trip_for_every_page_a_finding_was_measured_on",
-          "test_browser.test_verdict_local_mints_carries_and_resolves_what_the_browser_measured"
-        ],
-        "unexercised_functions": []
-      },
-      "src/verdict_mcp/browser_forms.py": {
-        "changed": 93,
-        "measured": 49,
-        "executed": 46,
-        "executed_in_subprocess": 12,
-        "unexercised_ranges": [
-          [
-            52,
-            52
-          ],
-          [
-            68,
-            69
-          ]
-        ],
-        "tests": [
-          "test_browser.test_a_get_form_with_personal_fields_is_read_and_a_search_form_is_not"
-        ],
-        "unexercised_functions": []
-      },
-      "src/verdict_mcp/browser_images.py": {
-        "changed": 50,
-        "measured": 35,
-        "executed": 28,
-        "executed_in_subprocess": 3,
-        "unexercised_ranges": [
-          [
-            24,
-            24
-          ],
-          [
-            27,
-            28
-          ],
-          [
-            31,
-            31
-          ],
-          [
-            41,
-            41
-          ],
-          [
-            44,
-            45
-          ]
-        ],
-        "tests": [
-          "test_browser.test_image_sizes_are_read_from_png_gif_jpeg_and_webp_headers"
-        ],
-        "unexercised_functions": []
-      },
-      "src/verdict_mcp/browser_js.py": {
-        "changed": 320,
-        "measured": 20,
-        "executed": 20,
-        "executed_in_subprocess": 20,
-        "unexercised_ranges": [],
-        "tests": [],
-        "unexercised_functions": []
-      },
-      "src/verdict_mcp/browser_server.py": {
-        "changed": 93,
-        "measured": 66,
-        "executed": 17,
-        "executed_in_subprocess": 17,
-        "unexercised_ranges": [
-          [
-            29,
-            36
-          ],
-          [
-            40,
-            48
-          ],
-          [
-            54,
-            55
-          ],
-          [
-            57,
-            58
-          ],
-          [
-            60,
-            63
-          ],
-          [
-            67,
-            72
-          ],
-          [
-            75,
-            89
-          ],
-          [
-            91,
-            93
-          ]
-        ],
-        "tests": [],
-        "unexercised_functions": [
-          "_answers",
-          "wait_ready",
-          "start_server",
-          "stop_server"
-        ]
-      },
-      "src/verdict_mcp/browser_source.py": {
-        "changed": 157,
-        "measured": 124,
-        "executed": 103,
-        "executed_in_subprocess": 11,
-        "unexercised_ranges": [
-          [
-            35,
-            36
-          ],
-          [
-            51,
-            51
-          ],
-          [
-            61,
-            62
-          ],
-          [
-            84,
-            84
-          ],
-          [
-            96,
-            97
-          ],
-          [
-            101,
-            101
-          ],
-          [
-            104,
-            108
-          ],
-          [
-            131,
-            135
-          ],
-          [
-            156,
-            157
-          ]
-        ],
-        "tests": [
-          "test_browser.test_next_app_router_pages_resolve_through_groups_dynamics_and_catch_alls",
-          "test_browser.test_pages_router_and_static_files_resolve"
-        ],
-        "unexercised_functions": []
-      },
-      "src/verdict_mcp/census.py": {
-        "changed": 14,
-        "measured": 7,
-        "executed": 7,
-        "executed_in_subprocess": 7,
-        "unexercised_ranges": [],
-        "tests": [],
-        "unexercised_functions": []
-      },
-      "src/verdict_mcp/check.py": {
-        "changed": 3,
-        "measured": 2,
-        "executed": 0,
-        "unexercised_ranges": [
-          [
-            39,
-            39
-          ],
-          [
-            46,
-            46
-          ]
-        ],
-        "tests": [],
-        "unexercised_functions": []
-      },
-      "src/verdict_mcp/dupes.py": {
-        "changed": 3,
-        "measured": 2,
-        "executed": 1,
-        "unexercised_ranges": [
-          [
-            33,
-            33
-          ]
-        ],
-        "tests": [
-          "test_gate.test_drift_note_says_only_what_is_actionable"
-        ],
-        "unexercised_functions": []
-      },
-      "src/verdict_mcp/ends.py": {
-        "changed": 465,
-        "measured": 343,
-        "executed": 281,
-        "executed_in_subprocess": 40,
-        "unexercised_ranges": [
-          [
-            74,
-            75
-          ],
-          [
-            77,
-            78
-          ],
-          [
-            80,
-            80
-          ],
-          [
-            84,
-            84
-          ],
-          [
-            86,
-            86
-          ],
-          [
-            91,
-            105
-          ],
-          [
-            135,
-            139
-          ],
-          [
-            150,
-            150
-          ],
-          [
-            152,
-            152
-          ],
-          [
-            159,
-            162
-          ],
-          [
-            164,
-            168
-          ],
-          [
-            170,
-            170
-          ],
-          [
-            197,
-            198
-          ],
-          [
-            200,
-            200
-          ],
-          [
-            206,
-            207
-          ],
-          [
-            246,
-            247
-          ],
-          [
-            255,
-            258
-          ],
-          [
-            383,
-            383
-          ],
-          [
-            390,
-            390
-          ],
-          [
-            395,
-            395
-          ],
-          [
-            410,
-            410
-          ],
-          [
-            429,
-            429
-          ],
-          [
-            443,
-            447
-          ],
-          [
-            449,
-            449
-          ],
-          [
-            464,
-            464
-          ]
-        ],
-        "tests": [
-          "test_ends.test_a_changed_class_level_line_is_read_with_its_paragraph",
-          "test_ends.test_a_method_too_long_for_one_question_is_read_around_the_change",
-          "test_ends.test_a_ruby_method_carries_the_guards_its_class_declares",
-          "test_ends.test_elixir_defs_with_their_docs_and_the_plugs_that_guard_them",
-          "test_ends.test_heredoc_lines_are_blank_so_column_zero_ends_nothing",
-          "test_ends.test_lua_functions_past_long_strings_and_comments_that_say_end",
-          "test_ends.test_ruby_methods_run_to_their_own_end_past_heredocs_and_rescue",
-          "test_local_languages.test_a_rails_action_carries_the_guard_its_class_declares",
-          "test_reach.test_a_ruby_action_reaches_the_methods_of_its_controller"
-        ],
-        "unexercised_functions": [
-          "_hole_end"
-        ]
-      },
-      "src/verdict_mcp/facts_coverage.py": {
-        "changed": 377,
-        "measured": 182,
-        "executed": 169,
-        "executed_in_subprocess": 43,
-        "unexercised_ranges": [
-          [
-            111,
-            111
-          ],
-          [
-            143,
-            143
-          ],
-          [
-            146,
-            146
-          ],
-          [
-            264,
-            265
-          ],
-          [
-            280,
-            281
-          ],
-          [
-            284,
-            286
-          ],
-          [
-            292,
-            292
-          ],
-          [
-            296,
-            297
-          ]
-        ],
-        "tests": [
-          "test_anchors.test_a_baseline_measures_no_drift_and_finalize_says_when_it_could_not_anchor",
-          "test_anchors.test_a_previous_state_without_anchors_reads_unavailable_not_unchanged",
-          "test_anchors.test_a_reference_that_names_nothing_is_recorded_as_such_and_costs_nothing",
-          "test_anchors.test_anchors_are_carried_while_the_evidence_is_the_text_they_were_taken_from",
-          "test_anchors.test_drift_travels_into_the_state_and_the_report",
-          "test_anchors.test_facts_name_the_next_finding_id",
-          "test_anchors.test_finalize_anchors_every_cited_line",
-          "test_anchors.test_fixed_at_is_the_date_of_the_measured_fix_never_of_a_claim",
-          "test_anchors.test_introduced_at_is_the_date_of_the_commit_the_origin_names",
-          "test_anchors.test_last_verified_at_is_stamped_only_by_a_measurement"
-        ],
-        "unexercised_functions": [
-          "measure_diff_coverage"
-        ]
-      },
-      "src/verdict_mcp/facts_reading.py": {
-        "changed": 190,
-        "measured": 116,
-        "executed": 108,
-        "executed_in_subprocess": 19,
-        "unexercised_ranges": [
-          [
-            82,
-            82
-          ],
-          [
-            109,
-            109
-          ],
-          [
-            112,
-            112
-          ],
-          [
-            116,
-            116
-          ],
-          [
-            119,
-            119
-          ],
-          [
-            168,
-            168
-          ],
-          [
-            174,
-            174
-          ],
-          [
-            181,
-            181
-          ]
-        ],
-        "tests": [
-          "test_coverage_render.test_a_test_file_absent_from_a_production_render_is_not_called_unexercised",
-          "test_diff_coverage.test_a_baseline_has_no_range_to_measure",
-          "test_diff_coverage.test_a_file_the_render_cannot_read_does_not_lose_the_measurement",
-          "test_diff_coverage.test_a_line_only_a_child_process_executed_is_measured",
-          "test_diff_coverage.test_a_new_file_the_suite_never_imported_is_wholly_unexercised",
-          "test_diff_coverage.test_a_pass_over_a_change_no_test_executed_is_refused",
-          "test_diff_coverage.test_a_range_with_no_python_changes_measures_zero_honestly",
-          "test_diff_coverage.test_a_suite_that_spawns_nothing_says_so",
-          "test_diff_coverage.test_both_context_forms_become_node_ids",
-          "test_diff_coverage.test_changed_lines_are_split_into_executed_and_unexercised"
-        ],
-        "unexercised_functions": []
-      },
-      "src/verdict_mcp/facts_suite.py": {
-        "changed": 252,
-        "measured": 65,
-        "executed": 65,
-        "executed_in_subprocess": 20,
-        "unexercised_ranges": [],
-        "tests": [
-          "test_browser.test_verdict_local_mints_carries_and_resolves_what_the_browser_measured",
-          "test_coverage_render.test_a_slow_full_render_retries_on_production_files",
-          "test_coverage_render.test_the_fallback_render_runs_on_real_coverage",
-          "test_diff_coverage.test_a_baseline_has_no_range_to_measure",
-          "test_diff_coverage.test_a_file_the_render_cannot_read_does_not_lose_the_measurement",
-          "test_diff_coverage.test_a_line_only_a_child_process_executed_is_measured",
-          "test_diff_coverage.test_a_new_file_the_suite_never_imported_is_wholly_unexercised",
-          "test_diff_coverage.test_a_pass_over_a_change_no_test_executed_is_refused",
-          "test_diff_coverage.test_a_range_with_no_python_changes_measures_zero_honestly",
-          "test_diff_coverage.test_a_suite_that_spawns_nothing_says_so"
-        ],
-        "unexercised_functions": []
-      },
-      "src/verdict_mcp/facts_verify.py": {
-        "changed": 452,
-        "measured": 238,
-        "executed": 230,
-        "executed_in_subprocess": 38,
-        "unexercised_ranges": [
-          [
-            108,
-            108
-          ],
-          [
-            162,
-            162
-          ],
-          [
-            180,
-            180
-          ],
-          [
-            182,
-            182
-          ],
-          [
-            203,
-            206
-          ]
-        ],
-        "tests": [
-          "test_accept.test_accepted_findings_do_not_count_toward_the_silence_guardrail",
-          "test_accept.test_finalize_folds_the_ledger_whatever_the_tester_says",
-          "test_accept.test_the_tester_cannot_decorate_a_finding_with_an_acceptance",
-          "test_anchors.test_a_baseline_measures_no_drift_and_finalize_says_when_it_could_not_anchor",
-          "test_anchors.test_a_previous_state_without_anchors_reads_unavailable_not_unchanged",
-          "test_anchors.test_a_reference_that_names_nothing_is_recorded_as_such_and_costs_nothing",
-          "test_anchors.test_anchors_are_carried_while_the_evidence_is_the_text_they_were_taken_from",
-          "test_anchors.test_drift_travels_into_the_state_and_the_report",
-          "test_anchors.test_facts_name_the_next_finding_id",
-          "test_anchors.test_finalize_anchors_every_cited_line"
-        ],
-        "unexercised_functions": []
-      },
-      "src/verdict_mcp/finalize_bill.py": {
-        "changed": 124,
-        "measured": 61,
-        "executed": 61,
-        "executed_in_subprocess": 22,
-        "unexercised_ranges": [],
-        "tests": [
-          "test_artifact_check.test_finalize_actually_runs_the_check_it_documents",
-          "test_backfill.test_finalize_attaches_a_still_broken_repro_to_its_old_finding",
-          "test_browser.test_verdict_local_mints_carries_and_resolves_what_the_browser_measured",
-          "test_escalate.test_finalize_says_what_an_escalation_tester_was_handed_and_bills_it",
-          "test_escalate.test_the_local_tier_writes_its_leads_as_data",
-          "test_filed.test_a_finding_carried_by_silence_drops_last_runs_verb",
-          "test_filed.test_facts_move_last_runs_files_aside_and_a_retry_keeps_them",
-          "test_filed.test_files_and_inline_findings_together_are_refused",
-          "test_filed.test_finding_files_are_assembled_oldest_first_stamped_and_rendered",
-          "test_filed.test_still_open_is_refused_where_the_cited_code_changed_and_allowed_where_it_moved"
-        ],
-        "unexercised_functions": []
-      },
-      "src/verdict_mcp/finalize_carry.py": {
-        "changed": 362,
-        "measured": 179,
-        "executed": 175,
-        "executed_in_subprocess": 27,
-        "unexercised_ranges": [
-          [
-            42,
-            42
-          ],
-          [
-            61,
-            61
-          ],
-          [
-            94,
-            94
-          ],
-          [
-            105,
-            105
-          ]
-        ],
-        "tests": [
-          "test_accept.test_a_revoked_acceptance_reopens_the_finding_at_the_next_run",
-          "test_accept.test_accepted_findings_do_not_count_toward_the_silence_guardrail",
-          "test_accept.test_finalize_folds_the_ledger_whatever_the_tester_says",
-          "test_accept.test_the_tester_cannot_decorate_a_finding_with_an_acceptance",
-          "test_anchors.test_a_baseline_measures_no_drift_and_finalize_says_when_it_could_not_anchor",
-          "test_anchors.test_a_previous_state_without_anchors_reads_unavailable_not_unchanged",
-          "test_anchors.test_a_reference_that_names_nothing_is_recorded_as_such_and_costs_nothing",
-          "test_anchors.test_anchors_are_carried_while_the_evidence_is_the_text_they_were_taken_from",
-          "test_anchors.test_drift_travels_into_the_state_and_the_report",
-          "test_anchors.test_facts_name_the_next_finding_id"
-        ],
-        "unexercised_functions": []
-      },
-      "src/verdict_mcp/finalize_ids.py": {
-        "changed": 163,
-        "measured": 88,
-        "executed": 83,
-        "executed_in_subprocess": 25,
-        "unexercised_ranges": [
-          [
-            63,
-            63
-          ],
-          [
-            134,
-            137
-          ]
-        ],
-        "tests": [
-          "test_accept.test_a_revoked_acceptance_reopens_the_finding_at_the_next_run",
-          "test_accept.test_accept_refuses_an_unknown_or_closed_finding",
-          "test_accept.test_accept_writes_the_ledger_and_the_finding_leaves_the_open_counts",
-          "test_accept.test_accepted_findings_do_not_count_toward_the_silence_guardrail",
-          "test_accept.test_an_accepted_critical_does_not_block_a_pass",
-          "test_accept.test_finalize_folds_the_ledger_whatever_the_tester_says",
-          "test_accept.test_state_requires_a_citation_on_an_accepted_finding",
-          "test_accept.test_the_banner_counts_accepted_risks_apart",
-          "test_accept.test_the_report_lists_accepted_risks_apart",
-          "test_accept.test_the_tester_cannot_decorate_a_finding_with_an_acceptance"
-        ],
-        "unexercised_functions": []
-      },
-      "src/verdict_mcp/finalize_merge.py": {
-        "changed": 357,
-        "measured": 178,
-        "executed": 176,
-        "executed_in_subprocess": 25,
-        "unexercised_ranges": [
-          [
-            103,
-            104
-          ]
-        ],
-        "tests": [
-          "test_accept.test_a_revoked_acceptance_reopens_the_finding_at_the_next_run",
-          "test_accept.test_accepted_findings_do_not_count_toward_the_silence_guardrail",
-          "test_accept.test_finalize_folds_the_ledger_whatever_the_tester_says",
-          "test_accept.test_the_tester_cannot_decorate_a_finding_with_an_acceptance",
-          "test_anchors.test_a_baseline_measures_no_drift_and_finalize_says_when_it_could_not_anchor",
-          "test_anchors.test_a_previous_state_without_anchors_reads_unavailable_not_unchanged",
-          "test_anchors.test_a_reference_that_names_nothing_is_recorded_as_such_and_costs_nothing",
-          "test_anchors.test_anchors_are_carried_while_the_evidence_is_the_text_they_were_taken_from",
-          "test_anchors.test_drift_travels_into_the_state_and_the_report",
-          "test_anchors.test_facts_name_the_next_finding_id"
-        ],
-        "unexercised_functions": []
-      },
-      "src/verdict_mcp/finalize_policy.py": {
-        "changed": 183,
-        "measured": 100,
-        "executed": 100,
-        "executed_in_subprocess": 19,
-        "unexercised_ranges": [],
-        "tests": [
-          "test_artifact_check.test_finalize_actually_runs_the_check_it_documents",
-          "test_backfill.test_finalize_attaches_a_still_broken_repro_to_its_old_finding",
-          "test_browser.test_verdict_local_mints_carries_and_resolves_what_the_browser_measured",
-          "test_escalate.test_finalize_says_what_an_escalation_tester_was_handed_and_bills_it",
-          "test_escalate.test_the_local_tier_writes_its_leads_as_data",
-          "test_filed.test_a_finding_carried_by_silence_drops_last_runs_verb",
-          "test_filed.test_facts_move_last_runs_files_aside_and_a_retry_keeps_them",
-          "test_filed.test_finding_files_are_assembled_oldest_first_stamped_and_rendered",
-          "test_filed.test_still_open_is_refused_where_the_cited_code_changed_and_allowed_where_it_moved",
-          "test_filed.test_the_class_rule_reaches_a_finding_carried_by_id"
-        ],
-        "unexercised_functions": []
-      },
-      "src/verdict_mcp/finalize_write.py": {
-        "changed": 226,
-        "measured": 114,
-        "executed": 107,
-        "executed_in_subprocess": 21,
-        "unexercised_ranges": [
-          [
-            76,
-            77
-          ],
-          [
-            189,
-            189
-          ],
-          [
-            201,
-            201
-          ],
-          [
-            210,
-            210
-          ],
-          [
-            218,
-            218
-          ],
-          [
-            225,
-            225
-          ]
-        ],
-        "tests": [
-          "test_accept.test_a_revoked_acceptance_reopens_the_finding_at_the_next_run",
-          "test_accept.test_accepted_findings_do_not_count_toward_the_silence_guardrail",
-          "test_accept.test_finalize_folds_the_ledger_whatever_the_tester_says",
-          "test_accept.test_the_tester_cannot_decorate_a_finding_with_an_acceptance",
-          "test_anchors.test_a_baseline_measures_no_drift_and_finalize_says_when_it_could_not_anchor",
-          "test_anchors.test_a_previous_state_without_anchors_reads_unavailable_not_unchanged",
-          "test_anchors.test_a_reference_that_names_nothing_is_recorded_as_such_and_costs_nothing",
-          "test_anchors.test_anchors_are_carried_while_the_evidence_is_the_text_they_were_taken_from",
-          "test_anchors.test_drift_travels_into_the_state_and_the_report",
-          "test_anchors.test_facts_name_the_next_finding_id"
-        ],
-        "unexercised_functions": []
-      },
-      "src/verdict_mcp/focus.py": {
-        "changed": 55,
-        "measured": 29,
-        "executed": 27,
-        "executed_in_subprocess": 9,
-        "unexercised_ranges": [
-          [
-            117,
-            117
-          ],
-          [
-            127,
-            127
-          ]
-        ],
-        "tests": [
-          "test_focus.test_a_bare_file_name_is_read_in_the_directory_its_bullet_named",
-          "test_focus.test_a_file_named_outright_ranks_first_and_specific_names_beat_generic_ones",
-          "test_focus.test_facts_record_the_scope_the_profile_names",
-          "test_focus.test_files_that_define_named_code_come_first_then_named_paths_then_named_words",
-          "test_focus.test_the_risk_section_gives_paths_names_and_words_and_nothing_out_of_scope"
-        ],
-        "unexercised_functions": []
-      },
-      "src/verdict_mcp/gaps.py": {
-        "changed": 8,
-        "measured": 4,
-        "executed": 4,
-        "executed_in_subprocess": 2,
-        "unexercised_ranges": [],
-        "tests": [
-          "test_gaps.test_a_function_whose_tests_fail_on_the_clean_tree_is_skipped_and_says_why",
-          "test_gaps.test_a_line_the_tests_run_without_checking_survives_and_a_checked_one_is_killed",
-          "test_gaps.test_a_test_that_fails_beside_a_passing_one_is_dropped_not_the_function",
-          "test_gaps.test_tests_that_import_the_original_checkout_are_caught_by_the_canary",
-          "test_gaps.test_the_last_argument_of_a_split_call_is_never_run_as_a_statement",
-          "test_sandbox.test_a_census_mutants_tests_do_not_see_the_callers_secret"
-        ],
-        "unexercised_functions": []
-      },
-      "src/verdict_mcp/gitenv.py": {
-        "changed": 45,
-        "measured": 5,
-        "executed": 5,
-        "executed_in_subprocess": 4,
-        "unexercised_ranges": [],
-        "tests": [
-          "test_accept.test_accept_refuses_a_duplicate_and_revoke_reverses_it",
-          "test_anchors.test_a_baseline_measures_no_drift_and_finalize_says_when_it_could_not_anchor",
-          "test_anchors.test_a_previous_state_without_anchors_reads_unavailable_not_unchanged",
-          "test_anchors.test_a_reference_that_names_nothing_is_recorded_as_such_and_costs_nothing",
-          "test_anchors.test_anchors_are_carried_while_the_evidence_is_the_text_they_were_taken_from",
-          "test_anchors.test_drift_travels_into_the_state_and_the_report",
-          "test_anchors.test_facts_name_the_next_finding_id",
-          "test_anchors.test_finalize_anchors_every_cited_line",
-          "test_anchors.test_fixed_at_is_the_date_of_the_measured_fix_never_of_a_claim",
-          "test_anchors.test_introduced_at_is_the_date_of_the_commit_the_origin_names"
-        ],
-        "unexercised_functions": []
-      },
-      "src/verdict_mcp/harness.py": {
-        "changed": 95,
-        "measured": 54,
-        "executed": 54,
-        "executed_in_subprocess": 49,
-        "unexercised_ranges": [],
-        "tests": [
-          "test_artifact_check.test_finalize_actually_runs_the_check_it_documents",
-          "test_backfill.test_finalize_attaches_a_still_broken_repro_to_its_old_finding",
-          "test_browser.test_verdict_local_mints_carries_and_resolves_what_the_browser_measured",
-          "test_escalate.test_a_capped_normal_run_is_told_its_cap_and_an_uncapped_one_nothing",
-          "test_escalate.test_a_lite_run_is_a_capped_normal_run_told_its_budget_and_billed",
-          "test_escalate.test_a_run_stopped_at_its_dollar_cap_is_not_retried",
-          "test_escalate.test_a_session_ending_without_state_is_still_retried_once",
-          "test_escalate.test_an_escalation_run_hands_the_tester_the_packet_and_a_cap",
-          "test_escalate.test_an_operator_names_the_tool_calls_the_packet_asks_for",
-          "test_escalate.test_an_operators_cap_after_the_double_dash_is_the_one_the_packet_names"
-        ],
-        "unexercised_functions": []
-      },
-      "src/verdict_mcp/harness_common.py": {
-        "changed": 102,
-        "measured": 57,
-        "executed": 53,
-        "executed_in_subprocess": 26,
-        "unexercised_ranges": [
-          [
-            65,
-            66
-          ],
-          [
-            83,
-            84
-          ]
-        ],
-        "tests": [
-          "test_anchors.test_a_baseline_measures_no_drift_and_finalize_says_when_it_could_not_anchor",
-          "test_anchors.test_a_previous_state_without_anchors_reads_unavailable_not_unchanged",
-          "test_anchors.test_a_reference_that_names_nothing_is_recorded_as_such_and_costs_nothing",
-          "test_anchors.test_anchors_are_carried_while_the_evidence_is_the_text_they_were_taken_from",
-          "test_anchors.test_drift_travels_into_the_state_and_the_report",
-          "test_anchors.test_facts_name_the_next_finding_id",
-          "test_anchors.test_finalize_anchors_every_cited_line",
-          "test_anchors.test_fixed_at_is_the_date_of_the_measured_fix_never_of_a_claim",
-          "test_anchors.test_introduced_at_is_the_date_of_the_commit_the_origin_names",
-          "test_anchors.test_last_verified_at_is_stamped_only_by_a_measurement"
-        ],
-        "unexercised_functions": []
-      },
-      "src/verdict_mcp/hygiene.py": {
-        "changed": 42,
-        "measured": 26,
-        "executed": 26,
-        "executed_in_subprocess": 26,
-        "unexercised_ranges": [],
-        "tests": [],
-        "unexercised_functions": []
-      },
-      "src/verdict_mcp/hygiene_const.py": {
-        "changed": 71,
-        "measured": 25,
-        "executed": 25,
-        "executed_in_subprocess": 25,
-        "unexercised_ranges": [],
-        "tests": [],
-        "unexercised_functions": []
-      },
-      "src/verdict_mcp/hygiene_evidence.py": {
-        "changed": 152,
-        "measured": 80,
-        "executed": 73,
-        "executed_in_subprocess": 23,
-        "unexercised_ranges": [
-          [
-            49,
-            49
-          ],
-          [
-            54,
-            55
-          ],
-          [
-            87,
-            88
-          ],
-          [
-            106,
-            106
-          ],
-          [
-            131,
-            131
-          ]
-        ],
-        "tests": [
-          "test_accept.test_a_revoked_acceptance_reopens_the_finding_at_the_next_run",
-          "test_accept.test_accepted_findings_do_not_count_toward_the_silence_guardrail",
-          "test_accept.test_finalize_folds_the_ledger_whatever_the_tester_says",
-          "test_accept.test_the_tester_cannot_decorate_a_finding_with_an_acceptance",
-          "test_anchors.test_a_baseline_measures_no_drift_and_finalize_says_when_it_could_not_anchor",
-          "test_anchors.test_a_previous_state_without_anchors_reads_unavailable_not_unchanged",
-          "test_anchors.test_a_reference_that_names_nothing_is_recorded_as_such_and_costs_nothing",
-          "test_anchors.test_anchors_are_carried_while_the_evidence_is_the_text_they_were_taken_from",
-          "test_anchors.test_drift_travels_into_the_state_and_the_report",
-          "test_anchors.test_facts_name_the_next_finding_id"
-        ],
-        "unexercised_functions": []
-      },
-      "src/verdict_mcp/hygiene_facts.py": {
-        "changed": 163,
-        "measured": 74,
-        "executed": 74,
-        "executed_in_subprocess": 19,
-        "unexercised_ranges": [],
-        "tests": [
-          "test_accept.test_a_revoked_acceptance_reopens_the_finding_at_the_next_run",
-          "test_accept.test_accepted_findings_do_not_count_toward_the_silence_guardrail",
-          "test_accept.test_finalize_folds_the_ledger_whatever_the_tester_says",
-          "test_accept.test_the_tester_cannot_decorate_a_finding_with_an_acceptance",
-          "test_anchors.test_a_baseline_measures_no_drift_and_finalize_says_when_it_could_not_anchor",
-          "test_anchors.test_a_previous_state_without_anchors_reads_unavailable_not_unchanged",
-          "test_anchors.test_a_reference_that_names_nothing_is_recorded_as_such_and_costs_nothing",
-          "test_anchors.test_anchors_are_carried_while_the_evidence_is_the_text_they_were_taken_from",
-          "test_anchors.test_drift_travels_into_the_state_and_the_report",
-          "test_anchors.test_facts_name_the_next_finding_id"
-        ],
-        "unexercised_functions": []
-      },
-      "src/verdict_mcp/hygiene_git.py": {
-        "changed": 134,
-        "measured": 83,
-        "executed": 70,
-        "executed_in_subprocess": 20,
-        "unexercised_ranges": [
-          [
-            46,
-            47
-          ],
-          [
-            66,
-            66
-          ],
-          [
-            80,
-            81
-          ],
-          [
-            101,
-            101
-          ],
-          [
-            108,
-            108
-          ],
-          [
-            115,
-            115
-          ],
-          [
-            124,
-            125
-          ],
-          [
-            128,
-            130
-          ]
-        ],
-        "tests": [
-          "test_anchors.test_a_baseline_measures_no_drift_and_finalize_says_when_it_could_not_anchor",
-          "test_anchors.test_a_previous_state_without_anchors_reads_unavailable_not_unchanged",
-          "test_anchors.test_a_reference_that_names_nothing_is_recorded_as_such_and_costs_nothing",
-          "test_anchors.test_anchors_are_carried_while_the_evidence_is_the_text_they_were_taken_from",
-          "test_anchors.test_drift_travels_into_the_state_and_the_report",
-          "test_anchors.test_facts_name_the_next_finding_id",
-          "test_anchors.test_finalize_anchors_every_cited_line",
-          "test_anchors.test_fixed_at_is_the_date_of_the_measured_fix_never_of_a_claim",
-          "test_anchors.test_introduced_at_is_the_date_of_the_commit_the_origin_names",
-          "test_anchors.test_last_verified_at_is_stamped_only_by_a_measurement"
-        ],
-        "unexercised_functions": []
-      },
-      "src/verdict_mcp/hygiene_js.py": {
-        "changed": 90,
-        "measured": 61,
-        "executed": 59,
-        "executed_in_subprocess": 19,
-        "unexercised_ranges": [
-          [
-            33,
-            33
-          ],
-          [
-            89,
-            89
-          ]
-        ],
-        "tests": [
-          "test_hygiene.test_a_client_secret_is_reported_where_the_app_reads_it",
-          "test_hygiene.test_a_client_secret_named_only_in_a_comment_is_not_a_finding",
-          "test_hygiene.test_a_debugger_in_a_comment_a_docstring_or_a_block_comment_is_not_a_finding",
-          "test_hygiene.test_a_debugger_inside_a_multi_line_template_literal_is_text",
-          "test_hygiene.test_a_debugger_left_in_app_code_is_tier_one_minor_but_not_in_tests",
-          "test_hygiene.test_a_google_key_is_one_lead_per_platform_across_the_repository",
-          "test_hygiene.test_a_minified_line_is_skipped_by_junk_and_lead_checks_but_not_by_the_secret_scan",
-          "test_hygiene.test_a_paid_api_called_from_browser_code_is_a_lead_and_from_the_server_is_not",
-          "test_hygiene.test_a_secret_named_client_variable_is_tier_one_but_anon_keys_are_not",
-          "test_hygiene.test_a_service_role_jwt_is_a_secret_and_an_anon_jwt_is_not"
-        ],
-        "unexercised_functions": []
-      },
-      "src/verdict_mcp/hygiene_lines.py": {
-        "changed": 232,
-        "measured": 149,
-        "executed": 145,
-        "executed_in_subprocess": 25,
-        "unexercised_ranges": [
-          [
-            57,
-            57
-          ],
-          [
-            61,
-            61
-          ],
-          [
-            72,
-            72
-          ],
-          [
-            170,
-            170
-          ]
-        ],
-        "tests": [
-          "test_anchors.test_a_baseline_measures_no_drift_and_finalize_says_when_it_could_not_anchor",
-          "test_anchors.test_a_previous_state_without_anchors_reads_unavailable_not_unchanged",
-          "test_anchors.test_a_reference_that_names_nothing_is_recorded_as_such_and_costs_nothing",
-          "test_anchors.test_anchors_are_carried_while_the_evidence_is_the_text_they_were_taken_from",
-          "test_anchors.test_drift_travels_into_the_state_and_the_report",
-          "test_anchors.test_facts_name_the_next_finding_id",
-          "test_anchors.test_finalize_anchors_every_cited_line",
-          "test_anchors.test_fixed_at_is_the_date_of_the_measured_fix_never_of_a_claim",
-          "test_anchors.test_introduced_at_is_the_date_of_the_commit_the_origin_names",
-          "test_anchors.test_last_verified_at_is_stamped_only_by_a_measurement"
-        ],
-        "unexercised_functions": []
-      },
-      "src/verdict_mcp/hygiene_paths.py": {
-        "changed": 63,
-        "measured": 33,
-        "executed": 33,
-        "executed_in_subprocess": 16,
-        "unexercised_ranges": [],
-        "tests": [
-          "test_anchors.test_a_baseline_measures_no_drift_and_finalize_says_when_it_could_not_anchor",
-          "test_anchors.test_a_previous_state_without_anchors_reads_unavailable_not_unchanged",
-          "test_anchors.test_a_reference_that_names_nothing_is_recorded_as_such_and_costs_nothing",
-          "test_anchors.test_anchors_are_carried_while_the_evidence_is_the_text_they_were_taken_from",
-          "test_anchors.test_drift_travels_into_the_state_and_the_report",
-          "test_anchors.test_facts_name_the_next_finding_id",
-          "test_anchors.test_finalize_anchors_every_cited_line",
-          "test_anchors.test_fixed_at_is_the_date_of_the_measured_fix_never_of_a_claim",
-          "test_anchors.test_introduced_at_is_the_date_of_the_commit_the_origin_names",
-          "test_anchors.test_last_verified_at_is_stamped_only_by_a_measurement"
-        ],
-        "unexercised_functions": []
-      },
-      "src/verdict_mcp/hygiene_patterns.py": {
-        "changed": 247,
-        "measured": 86,
-        "executed": 86,
-        "executed_in_subprocess": 86,
-        "unexercised_ranges": [],
-        "tests": [],
-        "unexercised_functions": []
-      },
-      "src/verdict_mcp/hygiene_python.py": {
-        "changed": 238,
-        "measured": 180,
-        "executed": 175,
-        "executed_in_subprocess": 34,
-        "unexercised_ranges": [
-          [
-            52,
-            52
-          ],
-          [
-            136,
-            136
-          ],
-          [
-            190,
-            191
-          ],
-          [
-            234,
-            234
-          ]
-        ],
-        "tests": [
-          "test_anchors.test_a_baseline_measures_no_drift_and_finalize_says_when_it_could_not_anchor",
-          "test_anchors.test_a_previous_state_without_anchors_reads_unavailable_not_unchanged",
-          "test_anchors.test_a_reference_that_names_nothing_is_recorded_as_such_and_costs_nothing",
-          "test_anchors.test_anchors_are_carried_while_the_evidence_is_the_text_they_were_taken_from",
-          "test_anchors.test_drift_travels_into_the_state_and_the_report",
-          "test_anchors.test_facts_name_the_next_finding_id",
-          "test_anchors.test_finalize_anchors_every_cited_line",
-          "test_anchors.test_fixed_at_is_the_date_of_the_measured_fix_never_of_a_claim",
-          "test_anchors.test_introduced_at_is_the_date_of_the_commit_the_origin_names",
-          "test_anchors.test_last_verified_at_is_stamped_only_by_a_measurement"
-        ],
-        "unexercised_functions": []
-      },
-      "src/verdict_mcp/hygiene_reconcile.py": {
-        "changed": 328,
-        "measured": 176,
-        "executed": 171,
-        "executed_in_subprocess": 32,
-        "unexercised_ranges": [
-          [
-            37,
-            38
-          ],
-          [
-            154,
-            154
-          ],
-          [
-            203,
-            203
-          ],
-          [
-            258,
-            258
-          ]
-        ],
-        "tests": [
-          "test_accept.test_a_revoked_acceptance_reopens_the_finding_at_the_next_run",
-          "test_accept.test_accepted_findings_do_not_count_toward_the_silence_guardrail",
-          "test_accept.test_finalize_folds_the_ledger_whatever_the_tester_says",
-          "test_accept.test_the_tester_cannot_decorate_a_finding_with_an_acceptance",
-          "test_anchors.test_a_baseline_measures_no_drift_and_finalize_says_when_it_could_not_anchor",
-          "test_anchors.test_a_previous_state_without_anchors_reads_unavailable_not_unchanged",
-          "test_anchors.test_a_reference_that_names_nothing_is_recorded_as_such_and_costs_nothing",
-          "test_anchors.test_anchors_are_carried_while_the_evidence_is_the_text_they_were_taken_from",
-          "test_anchors.test_drift_travels_into_the_state_and_the_report",
-          "test_anchors.test_facts_name_the_next_finding_id"
-        ],
-        "unexercised_functions": []
-      },
-      "src/verdict_mcp/hygiene_rules.py": {
-        "changed": 161,
-        "measured": 93,
-        "executed": 93,
-        "executed_in_subprocess": 30,
-        "unexercised_ranges": [],
-        "tests": [
-          "test_anchors.test_a_baseline_measures_no_drift_and_finalize_says_when_it_could_not_anchor",
-          "test_anchors.test_a_previous_state_without_anchors_reads_unavailable_not_unchanged",
-          "test_anchors.test_a_reference_that_names_nothing_is_recorded_as_such_and_costs_nothing",
-          "test_anchors.test_anchors_are_carried_while_the_evidence_is_the_text_they_were_taken_from",
-          "test_anchors.test_drift_travels_into_the_state_and_the_report",
-          "test_anchors.test_facts_name_the_next_finding_id",
-          "test_anchors.test_finalize_anchors_every_cited_line",
-          "test_anchors.test_fixed_at_is_the_date_of_the_measured_fix_never_of_a_claim",
-          "test_anchors.test_introduced_at_is_the_date_of_the_commit_the_origin_names",
-          "test_anchors.test_last_verified_at_is_stamped_only_by_a_measurement"
-        ],
-        "unexercised_functions": []
-      },
-      "src/verdict_mcp/hygiene_scrub.py": {
-        "changed": 109,
-        "measured": 66,
-        "executed": 62,
-        "executed_in_subprocess": 22,
-        "unexercised_ranges": [
-          [
-            81,
-            81
-          ],
-          [
-            90,
-            90
-          ],
-          [
-            103,
-            104
-          ]
-        ],
-        "tests": [
-          "test_anchors.test_a_baseline_measures_no_drift_and_finalize_says_when_it_could_not_anchor",
-          "test_anchors.test_a_previous_state_without_anchors_reads_unavailable_not_unchanged",
-          "test_anchors.test_a_reference_that_names_nothing_is_recorded_as_such_and_costs_nothing",
-          "test_anchors.test_anchors_are_carried_while_the_evidence_is_the_text_they_were_taken_from",
-          "test_anchors.test_drift_travels_into_the_state_and_the_report",
-          "test_anchors.test_facts_name_the_next_finding_id",
-          "test_anchors.test_finalize_anchors_every_cited_line",
-          "test_anchors.test_fixed_at_is_the_date_of_the_measured_fix_never_of_a_claim",
-          "test_anchors.test_introduced_at_is_the_date_of_the_commit_the_origin_names",
-          "test_anchors.test_last_verified_at_is_stamped_only_by_a_measurement"
-        ],
-        "unexercised_functions": []
-      },
-      "src/verdict_mcp/hygiene_secrets.py": {
-        "changed": 343,
-        "measured": 207,
-        "executed": 200,
-        "executed_in_subprocess": 37,
-        "unexercised_ranges": [
-          [
-            59,
-            61
-          ],
-          [
-            106,
-            106
-          ],
-          [
-            135,
-            135
-          ],
-          [
-            139,
-            139
-          ],
-          [
-            153,
-            153
-          ]
-        ],
-        "tests": [
-          "test_anchors.test_a_baseline_measures_no_drift_and_finalize_says_when_it_could_not_anchor",
-          "test_anchors.test_a_previous_state_without_anchors_reads_unavailable_not_unchanged",
-          "test_anchors.test_a_reference_that_names_nothing_is_recorded_as_such_and_costs_nothing",
-          "test_anchors.test_anchors_are_carried_while_the_evidence_is_the_text_they_were_taken_from",
-          "test_anchors.test_drift_travels_into_the_state_and_the_report",
-          "test_anchors.test_facts_name_the_next_finding_id",
-          "test_anchors.test_finalize_anchors_every_cited_line",
-          "test_anchors.test_fixed_at_is_the_date_of_the_measured_fix_never_of_a_claim",
-          "test_anchors.test_introduced_at_is_the_date_of_the_commit_the_origin_names",
-          "test_anchors.test_last_verified_at_is_stamped_only_by_a_measurement"
-        ],
-        "unexercised_functions": []
-      },
-      "src/verdict_mcp/languages.py": {
-        "changed": 278,
-        "measured": 82,
-        "executed": 81,
-        "executed_in_subprocess": 36,
-        "unexercised_ranges": [
-          [
-            266,
-            266
-          ]
-        ],
-        "tests": [
-          "test_braces.test_hand_written_source_is_read",
-          "test_braces.test_tests_generated_and_vendored_code_are_not_read",
-          "test_braces.test_the_language_comes_from_the_extension",
-          "test_browser.test_verdict_local_mints_carries_and_resolves_what_the_browser_measured",
-          "test_escalate.test_the_local_tier_writes_its_leads_as_data",
-          "test_focus.test_a_bare_file_name_is_read_in_the_directory_its_bullet_named",
-          "test_focus.test_a_file_named_outright_ranks_first_and_specific_names_beat_generic_ones",
-          "test_focus.test_facts_record_the_scope_the_profile_names",
-          "test_focus.test_files_that_define_named_code_come_first_then_named_paths_then_named_words",
-          "test_focus.test_the_breadth_pass_reads_survivors_then_the_named_scope_then_the_coverage_order"
-        ],
-        "unexercised_functions": []
-      },
-      "src/verdict_mcp/local_browser.py": {
-        "changed": 73,
-        "measured": 39,
-        "executed": 39,
-        "executed_in_subprocess": 14,
-        "unexercised_ranges": [],
-        "tests": [
-          "test_browser.test_verdict_local_mints_carries_and_resolves_what_the_browser_measured",
-          "test_escalate.test_the_local_tier_writes_its_leads_as_data",
-          "test_hygiene_facts.test_the_local_tier_writes_the_same_split_before_it_finalizes",
-          "test_hygiene_lifecycle.test_the_local_tier_finalizes_a_night_the_scan_files_a_critical_on",
-          "test_hygiene_state.test_a_local_night_names_no_hygiene_id_and_says_the_verdict_written",
-          "test_local_braces.test_a_csharp_change_in_a_delta_becomes_a_lead_with_its_reason",
-          "test_local_braces.test_the_run_reads_csharp_through_the_command_line_seam",
-          "test_local_delta.test_a_carried_blocked_verdict_says_why_it_was_carried",
-          "test_local_delta.test_a_claim_about_an_open_findings_function_is_not_filed_twice",
-          "test_local_delta.test_a_drifted_finding_is_refiled_and_never_left_silent"
-        ],
-        "unexercised_functions": []
-      },
-      "src/verdict_mcp/local_budget.py": {
-        "changed": 66,
-        "measured": 31,
-        "executed": 31,
-        "executed_in_subprocess": 8,
-        "unexercised_ranges": [],
-        "tests": [
-          "test_browser.test_verdict_local_mints_carries_and_resolves_what_the_browser_measured",
-          "test_escalate.test_the_local_tier_writes_its_leads_as_data",
-          "test_hygiene_facts.test_the_local_tier_writes_the_same_split_before_it_finalizes",
-          "test_hygiene_lifecycle.test_the_local_tier_finalizes_a_night_the_scan_files_a_critical_on",
-          "test_hygiene_state.test_a_local_night_names_no_hygiene_id_and_says_the_verdict_written",
-          "test_local_braces.test_a_csharp_change_in_a_delta_becomes_a_lead_with_its_reason",
-          "test_local_braces.test_no_counterfactual_is_tried_on_csharp_and_the_reason_is_kept",
-          "test_local_braces.test_the_run_reads_csharp_through_the_command_line_seam",
-          "test_local_delta.test_a_carried_blocked_verdict_says_why_it_was_carried",
-          "test_local_delta.test_a_claim_about_an_open_findings_function_is_not_filed_twice"
-        ],
-        "unexercised_functions": []
-      },
-      "src/verdict_mcp/local_candidates.py": {
-        "changed": 285,
-        "measured": 156,
-        "executed": 145,
-        "executed_in_subprocess": 29,
-        "unexercised_ranges": [
-          [
-            16,
-            18
-          ],
-          [
-            105,
-            106
-          ],
-          [
-            132,
-            132
-          ],
-          [
-            137,
-            138
-          ],
-          [
-            154,
-            154
-          ],
-          [
-            212,
-            212
-          ],
-          [
-            234,
-            234
-          ]
-        ],
-        "tests": [
-          "test_browser.test_verdict_local_mints_carries_and_resolves_what_the_browser_measured",
-          "test_escalate.test_the_local_tier_writes_its_leads_as_data",
-          "test_focus.test_the_breadth_pass_reads_survivors_then_the_named_scope_then_the_coverage_order",
-          "test_gitenv.test_under_another_repositorys_git_dir_every_reader_answers_for_the_one_asked",
-          "test_hygiene_facts.test_the_local_tier_writes_the_same_split_before_it_finalizes",
-          "test_hygiene_lifecycle.test_the_local_tier_finalizes_a_night_the_scan_files_a_critical_on",
-          "test_hygiene_state.test_a_local_night_names_no_hygiene_id_and_says_the_verdict_written",
-          "test_local_braces.test_a_csharp_change_in_a_delta_becomes_a_lead_with_its_reason",
-          "test_local_braces.test_a_csharp_question_names_its_language_lines_and_the_type_around_it",
-          "test_local_braces.test_a_file_that_fails_to_parse_still_asks_and_never_raises"
-        ],
-        "unexercised_functions": []
-      },
-      "src/verdict_mcp/local_carry.py": {
-        "changed": 138,
-        "measured": 58,
-        "executed": 56,
-        "executed_in_subprocess": 17,
-        "unexercised_ranges": [
-          [
-            82,
-            82
-          ],
-          [
-            119,
-            119
-          ]
-        ],
-        "tests": [
-          "test_browser.test_verdict_local_mints_carries_and_resolves_what_the_browser_measured",
-          "test_escalate.test_the_local_tier_writes_its_leads_as_data",
-          "test_hygiene_facts.test_the_local_tier_writes_the_same_split_before_it_finalizes",
-          "test_hygiene_lifecycle.test_the_local_tier_finalizes_a_night_the_scan_files_a_critical_on",
-          "test_hygiene_state.test_a_local_night_names_no_hygiene_id_and_says_the_verdict_written",
-          "test_hygiene_state.test_the_engines_that_judge_without_a_model_name_no_hygiene_id",
-          "test_local_braces.test_a_csharp_change_in_a_delta_becomes_a_lead_with_its_reason",
-          "test_local_braces.test_the_run_reads_csharp_through_the_command_line_seam",
-          "test_local_delta.test_a_carried_blocked_verdict_says_why_it_was_carried",
-          "test_local_delta.test_a_claim_about_an_open_findings_function_is_not_filed_twice"
-        ],
-        "unexercised_functions": []
-      },
-      "src/verdict_mcp/local_chunks.py": {
-        "changed": 188,
-        "measured": 92,
-        "executed": 89,
-        "executed_in_subprocess": 27,
-        "unexercised_ranges": [
-          [
-            130,
-            131
-          ],
-          [
-            175,
-            175
-          ]
-        ],
-        "tests": [
-          "test_browser.test_verdict_local_mints_carries_and_resolves_what_the_browser_measured",
-          "test_escalate.test_the_local_tier_writes_its_leads_as_data",
-          "test_focus.test_the_breadth_pass_reads_survivors_then_the_named_scope_then_the_coverage_order",
-          "test_hygiene_facts.test_the_local_tier_writes_the_same_split_before_it_finalizes",
-          "test_hygiene_lifecycle.test_the_local_tier_finalizes_a_night_the_scan_files_a_critical_on",
-          "test_hygiene_state.test_a_local_night_names_no_hygiene_id_and_says_the_verdict_written",
-          "test_local_braces.test_a_csharp_change_in_a_delta_becomes_a_lead_with_its_reason",
-          "test_local_braces.test_a_csharp_question_names_its_language_lines_and_the_type_around_it",
-          "test_local_braces.test_a_file_that_fails_to_parse_still_asks_and_never_raises",
-          "test_local_braces.test_a_mixed_diff_ranks_by_lines_added_not_by_language"
-        ],
-        "unexercised_functions": []
-      },
-      "src/verdict_mcp/local_env.py": {
-        "changed": 330,
-        "measured": 166,
-        "executed": 149,
-        "executed_in_subprocess": 41,
-        "unexercised_ranges": [
-          [
-            20,
-            24
-          ],
-          [
-            134,
-            135
-          ],
-          [
-            163,
-            163
-          ],
-          [
-            178,
-            179
-          ],
-          [
-            181,
-            181
-          ],
-          [
-            221,
-            222
-          ],
-          [
-            247,
-            247
-          ],
-          [
-            252,
-            252
-          ],
-          [
-            255,
-            255
-          ],
-          [
-            289,
-            289
-          ]
-        ],
-        "tests": [
-          "test_backfill.test_the_command_drafts_runs_and_writes_one_row_per_finding",
-          "test_browser.test_verdict_local_mints_carries_and_resolves_what_the_browser_measured",
-          "test_escalate.test_the_local_tier_writes_its_leads_as_data",
-          "test_hygiene_facts.test_a_setting_it_cannot_read_leaves_filing_on_and_says_so",
-          "test_hygiene_facts.test_false_and_no_turn_filing_off_in_any_case",
-          "test_hygiene_facts.test_the_local_tier_honours_hygiene_off",
-          "test_hygiene_facts.test_the_local_tier_writes_the_same_split_before_it_finalizes",
-          "test_hygiene_lifecycle.test_the_local_tier_finalizes_a_night_the_scan_files_a_critical_on",
-          "test_hygiene_state.test_a_local_night_names_no_hygiene_id_and_says_the_verdict_written",
-          "test_local_braces.test_a_csharp_change_in_a_delta_becomes_a_lead_with_its_reason"
-        ],
-        "unexercised_functions": []
-      },
-      "src/verdict_mcp/local_findings.py": {
-        "changed": 244,
-        "measured": 121,
-        "executed": 104,
-        "executed_in_subprocess": 28,
-        "unexercised_ranges": [
-          [
-            16,
-            24
-          ],
-          [
-            75,
-            75
-          ],
-          [
-            94,
-            95
-          ],
-          [
-            189,
-            189
-          ],
-          [
-            194,
-            195
-          ],
-          [
-            197,
-            197
-          ],
-          [
-            216,
-            216
-          ]
-        ],
-        "tests": [
-          "test_browser.test_verdict_local_mints_carries_and_resolves_what_the_browser_measured",
-          "test_escalate.test_the_local_tier_writes_its_leads_as_data",
-          "test_focus.test_the_breadth_pass_reads_survivors_then_the_named_scope_then_the_coverage_order",
-          "test_hygiene_facts.test_the_local_tier_writes_the_same_split_before_it_finalizes",
-          "test_hygiene_lifecycle.test_the_local_tier_finalizes_a_night_the_scan_files_a_critical_on",
-          "test_hygiene_state.test_a_local_night_names_no_hygiene_id_and_says_the_verdict_written",
-          "test_local_braces.test_a_csharp_change_in_a_delta_becomes_a_lead_with_its_reason",
-          "test_local_braces.test_no_counterfactual_is_tried_on_csharp_and_the_reason_is_kept",
-          "test_local_braces.test_the_run_reads_csharp_through_the_command_line_seam",
-          "test_local_delta.test_a_carried_blocked_verdict_says_why_it_was_carried"
-        ],
-        "unexercised_functions": []
-      },
-      "src/verdict_mcp/local_leads.py": {
-        "changed": 99,
-        "measured": 43,
-        "executed": 43,
-        "executed_in_subprocess": 17,
-        "unexercised_ranges": [],
-        "tests": [
-          "test_browser.test_verdict_local_mints_carries_and_resolves_what_the_browser_measured",
-          "test_escalate.test_the_local_tier_writes_its_leads_as_data",
-          "test_hygiene_facts.test_the_local_tier_writes_the_same_split_before_it_finalizes",
-          "test_hygiene_lifecycle.test_the_local_tier_finalizes_a_night_the_scan_files_a_critical_on",
-          "test_hygiene_state.test_a_local_night_names_no_hygiene_id_and_says_the_verdict_written",
-          "test_local_braces.test_a_csharp_change_in_a_delta_becomes_a_lead_with_its_reason",
-          "test_local_braces.test_the_run_reads_csharp_through_the_command_line_seam",
-          "test_local_delta.test_a_carried_blocked_verdict_says_why_it_was_carried",
-          "test_local_delta.test_a_claim_about_an_open_findings_function_is_not_filed_twice",
-          "test_local_delta.test_a_drifted_finding_is_refiled_and_never_left_silent"
-        ],
-        "unexercised_functions": []
-      },
-      "src/verdict_mcp/local_model.py": {
-        "changed": 153,
-        "measured": 81,
-        "executed": 75,
-        "executed_in_subprocess": 14,
-        "unexercised_ranges": [
-          [
-            73,
-            74
-          ],
-          [
-            81,
-            81
-          ],
-          [
-            131,
-            131
-          ],
-          [
-            149,
-            150
-          ]
-        ],
-        "tests": [
-          "test_browser.test_verdict_local_mints_carries_and_resolves_what_the_browser_measured",
-          "test_escalate.test_the_local_tier_writes_its_leads_as_data",
-          "test_hygiene_facts.test_the_local_tier_writes_the_same_split_before_it_finalizes",
-          "test_hygiene_lifecycle.test_the_local_tier_finalizes_a_night_the_scan_files_a_critical_on",
-          "test_hygiene_state.test_a_local_night_names_no_hygiene_id_and_says_the_verdict_written",
-          "test_local_braces.test_a_csharp_change_in_a_delta_becomes_a_lead_with_its_reason",
-          "test_local_braces.test_a_csharp_question_names_its_language_lines_and_the_type_around_it",
-          "test_local_braces.test_no_counterfactual_is_tried_on_csharp_and_the_reason_is_kept",
-          "test_local_braces.test_the_run_reads_csharp_through_the_command_line_seam",
-          "test_local_delta.test_a_carried_blocked_verdict_says_why_it_was_carried"
-        ],
-        "unexercised_functions": []
-      },
-      "src/verdict_mcp/local_probes.py": {
-        "changed": 471,
-        "measured": 249,
-        "executed": 222,
-        "executed_in_subprocess": 43,
-        "unexercised_ranges": [
-          [
-            27,
-            29
-          ],
-          [
-            156,
-            156
-          ],
-          [
-            177,
-            178
-          ],
-          [
-            197,
-            197
-          ],
-          [
-            201,
-            202
-          ],
-          [
-            231,
-            231
-          ],
-          [
-            257,
-            258
-          ],
-          [
-            264,
-            265
-          ],
-          [
-            304,
-            304
-          ],
-          [
-            320,
-            321
-          ],
-          [
-            323,
-            323
-          ],
-          [
-            363,
-            363
-          ],
-          [
-            379,
-            380
-          ],
-          [
-            385,
-            386
-          ],
-          [
-            413,
-            413
-          ],
-          [
-            444,
-            444
-          ],
-          [
-            449,
-            449
-          ],
-          [
-            453,
-            453
-          ]
-        ],
-        "tests": [
-          "test_backfill.test_a_draft_that_crashes_on_a_wrong_argument_gets_one_repair",
-          "test_backfill.test_a_draft_that_dies_on_an_import_gets_one_repair",
-          "test_backfill.test_a_draft_that_never_touches_the_cited_code_is_refused_and_redrafted",
-          "test_backfill.test_a_draft_that_reproduces_nowhere_is_discarded",
-          "test_backfill.test_a_finding_gets_another_draft_told_why_the_last_one_failed",
-          "test_backfill.test_a_finding_left_without_a_repro_keeps_what_the_last_draft_ran_into",
-          "test_backfill.test_a_refused_draft_is_never_written_or_run",
-          "test_backfill.test_a_repro_that_never_runs_the_cited_function_is_refused",
-          "test_backfill.test_a_repro_that_reproduces_at_head_says_still_broken",
-          "test_backfill.test_a_repro_that_reproduces_only_at_the_anchored_commit_says_looks_fixed"
-        ],
-        "unexercised_functions": []
-      },
-      "src/verdict_mcp/local_quarantine.py": {
-        "changed": 138,
-        "measured": 68,
-        "executed": 63,
-        "executed_in_subprocess": 18,
-        "unexercised_ranges": [
-          [
-            15,
-            16
-          ],
-          [
-            49,
-            49
-          ],
-          [
-            111,
-            111
-          ],
-          [
-            113,
-            113
-          ]
-        ],
-        "tests": [
-          "test_browser.test_verdict_local_mints_carries_and_resolves_what_the_browser_measured",
-          "test_escalate.test_the_local_tier_writes_its_leads_as_data",
-          "test_hygiene_facts.test_the_local_tier_writes_the_same_split_before_it_finalizes",
-          "test_hygiene_lifecycle.test_the_local_tier_finalizes_a_night_the_scan_files_a_critical_on",
-          "test_hygiene_state.test_a_local_night_names_no_hygiene_id_and_says_the_verdict_written",
-          "test_local_braces.test_a_csharp_change_in_a_delta_becomes_a_lead_with_its_reason",
-          "test_local_braces.test_the_run_reads_csharp_through_the_command_line_seam",
-          "test_local_delta.test_a_carried_blocked_verdict_says_why_it_was_carried",
-          "test_local_delta.test_a_claim_about_an_open_findings_function_is_not_filed_twice",
-          "test_local_delta.test_a_drifted_finding_is_refiled_and_never_left_silent"
-        ],
-        "unexercised_functions": []
-      },
-      "src/verdict_mcp/local_questions.py": {
-        "changed": 313,
-        "measured": 80,
-        "executed": 77,
-        "executed_in_subprocess": 28,
-        "unexercised_ranges": [
-          [
-            14,
-            15
-          ],
-          [
-            194,
-            194
-          ]
-        ],
-        "tests": [
-          "test_browser.test_verdict_local_mints_carries_and_resolves_what_the_browser_measured",
-          "test_escalate.test_the_local_tier_writes_its_leads_as_data",
-          "test_hygiene_facts.test_the_local_tier_writes_the_same_split_before_it_finalizes",
-          "test_hygiene_lifecycle.test_the_local_tier_finalizes_a_night_the_scan_files_a_critical_on",
-          "test_hygiene_state.test_a_local_night_names_no_hygiene_id_and_says_the_verdict_written",
-          "test_local_braces.test_a_csharp_change_in_a_delta_becomes_a_lead_with_its_reason",
-          "test_local_braces.test_a_csharp_question_names_its_language_lines_and_the_type_around_it",
-          "test_local_braces.test_no_counterfactual_is_tried_on_csharp_and_the_reason_is_kept",
-          "test_local_braces.test_python_questions_are_worded_exactly_as_before",
-          "test_local_braces.test_the_projects_own_null_settings_reach_the_question"
-        ],
-        "unexercised_functions": []
-      },
-      "src/verdict_mcp/local_skips.py": {
-        "changed": 187,
-        "measured": 95,
-        "executed": 90,
-        "executed_in_subprocess": 26,
-        "unexercised_ranges": [
-          [
-            17,
-            17
-          ],
-          [
-            44,
-            45
-          ],
-          [
-            85,
-            85
-          ],
-          [
-            146,
-            146
-          ]
-        ],
-        "tests": [
-          "test_browser.test_verdict_local_mints_carries_and_resolves_what_the_browser_measured",
-          "test_escalate.test_the_local_tier_writes_its_leads_as_data",
-          "test_hygiene_facts.test_the_local_tier_writes_the_same_split_before_it_finalizes",
-          "test_hygiene_lifecycle.test_the_local_tier_finalizes_a_night_the_scan_files_a_critical_on",
-          "test_hygiene_state.test_a_local_night_names_no_hygiene_id_and_says_the_verdict_written",
-          "test_local_braces.test_a_csharp_change_in_a_delta_becomes_a_lead_with_its_reason",
-          "test_local_braces.test_the_run_reads_csharp_through_the_command_line_seam",
-          "test_local_delta.test_a_carried_blocked_verdict_says_why_it_was_carried",
-          "test_local_delta.test_a_claim_about_an_open_findings_function_is_not_filed_twice",
-          "test_local_delta.test_a_drifted_finding_is_refiled_and_never_left_silent"
-        ],
-        "unexercised_functions": []
-      },
-      "src/verdict_mcp/local_suite.py": {
-        "changed": 355,
-        "measured": 140,
-        "executed": 114,
-        "executed_in_subprocess": 33,
-        "unexercised_ranges": [
-          [
-            16,
-            20
-          ],
-          [
-            64,
-            66
-          ],
-          [
-            68,
-            68
-          ],
-          [
-            70,
-            70
-          ],
-          [
-            81,
-            82
-          ],
-          [
-            126,
-            126
-          ],
-          [
-            128,
-            128
-          ],
-          [
-            136,
-            136
-          ],
-          [
-            147,
-            147
-          ],
-          [
-            195,
-            195
-          ],
-          [
-            209,
-            210
-          ],
-          [
-            212,
-            213
-          ],
-          [
-            258,
-            259
-          ],
-          [
-            276,
-            276
-          ],
-          [
-            282,
-            282
-          ],
-          [
-            296,
-            296
-          ]
-        ],
-        "tests": [
-          "test_browser.test_verdict_local_mints_carries_and_resolves_what_the_browser_measured",
-          "test_escalate.test_the_local_tier_writes_its_leads_as_data",
-          "test_hygiene_facts.test_the_local_tier_writes_the_same_split_before_it_finalizes",
-          "test_hygiene_lifecycle.test_the_local_tier_finalizes_a_night_the_scan_files_a_critical_on",
-          "test_hygiene_state.test_a_local_night_names_no_hygiene_id_and_says_the_verdict_written",
-          "test_local_braces.test_a_csharp_change_in_a_delta_becomes_a_lead_with_its_reason",
-          "test_local_braces.test_the_run_reads_csharp_through_the_command_line_seam",
-          "test_local_delta.test_a_carried_blocked_verdict_says_why_it_was_carried",
-          "test_local_delta.test_a_claim_about_an_open_findings_function_is_not_filed_twice",
-          "test_local_delta.test_a_drifted_finding_is_refiled_and_never_left_silent"
-        ],
-        "unexercised_functions": [
-          "ids_in_report"
-        ]
-      },
-      "src/verdict_mcp/local_summary.py": {
-        "changed": 149,
-        "measured": 66,
-        "executed": 60,
-        "executed_in_subprocess": 19,
-        "unexercised_ranges": [
-          [
-            15,
-            18
-          ],
-          [
-            33,
-            34
-          ]
-        ],
-        "tests": [
-          "test_browser.test_verdict_local_mints_carries_and_resolves_what_the_browser_measured",
-          "test_escalate.test_the_local_tier_writes_its_leads_as_data",
-          "test_hygiene_facts.test_the_local_tier_writes_the_same_split_before_it_finalizes",
-          "test_hygiene_lifecycle.test_the_local_tier_finalizes_a_night_the_scan_files_a_critical_on",
-          "test_hygiene_state.test_a_local_night_names_no_hygiene_id_and_says_the_verdict_written",
-          "test_local_braces.test_a_csharp_change_in_a_delta_becomes_a_lead_with_its_reason",
-          "test_local_braces.test_the_run_reads_csharp_through_the_command_line_seam",
-          "test_local_delta.test_a_carried_blocked_verdict_says_why_it_was_carried",
-          "test_local_delta.test_a_claim_about_an_open_findings_function_is_not_filed_twice",
-          "test_local_delta.test_a_dead_gateway_is_named_before_the_suite_runs"
-        ],
-        "unexercised_functions": []
-      },
-      "src/verdict_mcp/local_verdict.py": {
-        "changed": 98,
-        "measured": 39,
-        "executed": 39,
-        "executed_in_subprocess": 7,
-        "unexercised_ranges": [],
-        "tests": [
-          "test_browser.test_verdict_local_mints_carries_and_resolves_what_the_browser_measured",
-          "test_escalate.test_the_local_tier_writes_its_leads_as_data",
-          "test_hygiene_facts.test_the_local_tier_writes_the_same_split_before_it_finalizes",
-          "test_hygiene_lifecycle.test_the_local_tier_finalizes_a_night_the_scan_files_a_critical_on",
-          "test_hygiene_state.test_a_local_night_names_no_hygiene_id_and_says_the_verdict_written",
-          "test_local_braces.test_a_csharp_change_in_a_delta_becomes_a_lead_with_its_reason",
-          "test_local_braces.test_the_run_reads_csharp_through_the_command_line_seam",
-          "test_local_delta.test_a_baseline_keeps_this_engines_own_arithmetic",
-          "test_local_delta.test_a_carried_blocked_verdict_says_why_it_was_carried",
-          "test_local_delta.test_a_claim_about_an_open_findings_function_is_not_filed_twice"
-        ],
-        "unexercised_functions": []
-      },
-      "src/verdict_mcp/profile.py": {
-        "changed": 41,
-        "measured": 20,
-        "executed": 19,
-        "executed_in_subprocess": 3,
-        "unexercised_ranges": [
-          [
-            284,
-            284
-          ]
-        ],
-        "tests": [
-          "test_artifact_check.test_finalize_actually_runs_the_check_it_documents",
-          "test_backfill.test_finalize_attaches_a_still_broken_repro_to_its_old_finding",
-          "test_browser.test_verdict_local_mints_carries_and_resolves_what_the_browser_measured",
-          "test_escalate.test_a_capped_normal_run_is_told_its_cap_and_an_uncapped_one_nothing",
-          "test_escalate.test_a_lite_run_is_a_capped_normal_run_told_its_budget_and_billed",
-          "test_escalate.test_a_run_stopped_at_its_dollar_cap_is_not_retried",
-          "test_escalate.test_a_session_ending_without_state_is_still_retried_once",
-          "test_escalate.test_an_escalation_run_hands_the_tester_the_packet_and_a_cap",
-          "test_escalate.test_an_operator_names_the_tool_calls_the_packet_asks_for",
-          "test_escalate.test_an_operators_cap_after_the_double_dash_is_the_one_the_packet_names"
-        ],
-        "unexercised_functions": []
-      },
-      "src/verdict_mcp/project_key.py": {
-        "changed": 8,
-        "measured": 6,
-        "executed": 6,
-        "unexercised_ranges": [],
-        "tests": [
-          "test_gate.test_drift_note_says_only_what_is_actionable"
-        ],
-        "unexercised_functions": []
-      },
-      "src/verdict_mcp/questions.py": {
-        "changed": 3,
-        "measured": 2,
-        "executed": 2,
-        "executed_in_subprocess": 1,
-        "unexercised_ranges": [],
-        "tests": [
-          "test_gate.test_drift_note_says_only_what_is_actionable"
-        ],
-        "unexercised_functions": []
-      },
-      "src/verdict_mcp/reach.py": {
-        "changed": 285,
-        "measured": 189,
-        "executed": 169,
-        "executed_in_subprocess": 39,
-        "unexercised_ranges": [
-          [
-            84,
-            84
-          ],
-          [
-            131,
-            131
-          ],
-          [
-            135,
-            136
-          ],
-          [
-            165,
-            165
-          ],
-          [
-            169,
-            169
-          ],
-          [
             173,
             173
           ],
           [
-            200,
-            201
+            207,
+            208
           ],
           [
-            212,
-            212
+            241,
+            241
           ],
           [
-            215,
-            216
-          ],
-          [
-            242,
-            242
-          ],
-          [
-            253,
-            253
-          ],
-          [
-            256,
-            257
-          ],
-          [
-            259,
-            259
-          ],
-          [
-            263,
-            263
-          ],
-          [
-            269,
-            269
-          ],
-          [
-            271,
-            271
+            345,
+            346
           ]
         ],
         "tests": [
+          "test_browser.test_verdict_local_mints_carries_and_resolves_what_the_browser_measured",
+          "test_escalate.test_the_local_tier_writes_its_leads_as_data",
+          "test_hygiene_facts.test_the_local_tier_writes_the_same_split_before_it_finalizes",
+          "test_hygiene_lifecycle.test_the_local_tier_finalizes_a_night_the_scan_files_a_critical_on",
+          "test_hygiene_state.test_a_local_night_names_no_hygiene_id_and_says_the_verdict_written",
           "test_local_braces.test_a_csharp_change_in_a_delta_becomes_a_lead_with_its_reason",
-          "test_local_braces.test_a_csharp_question_names_its_language_lines_and_the_type_around_it",
-          "test_local_braces.test_a_file_that_fails_to_parse_still_asks_and_never_raises",
-          "test_local_braces.test_no_counterfactual_is_tried_on_csharp_and_the_reason_is_kept",
-          "test_local_braces.test_the_projects_own_null_settings_reach_the_question",
           "test_local_braces.test_the_run_reads_csharp_through_the_command_line_seam",
-          "test_local_gate.test_a_typescript_diff_is_read_and_held_below_pass",
-          "test_local_languages.test_a_go_function_is_asked_about_in_go",
-          "test_local_languages.test_a_go_range_becomes_a_lead_held_below_pass",
-          "test_local_languages.test_a_language_with_no_reader_of_its_own_is_asked_about_as_an_excerpt"
-        ],
-        "unexercised_functions": [
-          "_default_export"
-        ]
-      },
-      "src/verdict_mcp/readers.py": {
-        "changed": 44,
-        "measured": 25,
-        "executed": 25,
-        "executed_in_subprocess": 10,
-        "unexercised_ranges": [],
-        "tests": [
-          "test_local_braces.test_a_csharp_change_in_a_delta_becomes_a_lead_with_its_reason",
-          "test_local_braces.test_a_csharp_question_names_its_language_lines_and_the_type_around_it",
-          "test_local_braces.test_a_file_that_fails_to_parse_still_asks_and_never_raises",
-          "test_local_braces.test_no_counterfactual_is_tried_on_csharp_and_the_reason_is_kept",
-          "test_local_braces.test_the_projects_own_null_settings_reach_the_question",
-          "test_local_braces.test_the_run_reads_csharp_through_the_command_line_seam",
-          "test_local_gate.test_a_typescript_diff_is_read_and_held_below_pass",
-          "test_local_languages.test_a_go_function_is_asked_about_in_go",
-          "test_local_languages.test_a_go_range_becomes_a_lead_held_below_pass",
-          "test_local_languages.test_a_language_with_no_reader_of_its_own_is_asked_about_as_an_excerpt"
+          "test_local_delta.test_a_carried_blocked_verdict_says_why_it_was_carried",
+          "test_local_delta.test_a_claim_about_an_open_findings_function_is_not_filed_twice",
+          "test_local_delta.test_a_drifted_finding_is_refiled_and_never_left_silent"
         ],
         "unexercised_functions": []
       },
-      "src/verdict_mcp/regions.py": {
-        "changed": 258,
-        "measured": 178,
-        "executed": 173,
-        "executed_in_subprocess": 39,
-        "unexercised_ranges": [
-          [
-            119,
-            119
-          ],
-          [
-            223,
-            223
-          ],
-          [
-            251,
-            252
-          ],
-          [
-            254,
-            254
-          ]
-        ],
+      "src/verdict_mcp/local_summary.py": {
+        "changed": 19,
+        "measured": 10,
+        "executed": 10,
+        "executed_in_subprocess": 1,
+        "unexercised_ranges": [],
         "tests": [
-          "test_local_languages.test_a_language_with_no_reader_of_its_own_is_asked_about_as_an_excerpt",
-          "test_local_languages.test_a_template_is_asked_what_a_template_gets_wrong",
-          "test_regions.test_a_language_with_no_reader_of_its_own_is_read_as_excerpts",
-          "test_regions.test_a_razor_view_reads_its_code_block_as_csharp_and_its_markup_as_a_template",
-          "test_regions.test_a_template_excerpt_prints_the_files_own_lines",
-          "test_regions.test_a_vue_component_is_read_as_typescript_and_as_a_template",
-          "test_regions.test_an_astro_page_reads_its_front_matter_as_typescript",
-          "test_regions.test_an_end_tag_closes_its_script_whatever_follows_its_name",
-          "test_regions.test_an_html_page_reads_its_scripts_and_not_its_json_or_plain_markup",
-          "test_regions.test_an_html_template_reads_its_markup"
+          "test_browser.test_verdict_local_mints_carries_and_resolves_what_the_browser_measured",
+          "test_escalate.test_the_local_tier_writes_its_leads_as_data",
+          "test_hygiene_facts.test_the_local_tier_writes_the_same_split_before_it_finalizes",
+          "test_hygiene_lifecycle.test_the_local_tier_finalizes_a_night_the_scan_files_a_critical_on",
+          "test_hygiene_state.test_a_local_night_names_no_hygiene_id_and_says_the_verdict_written",
+          "test_local_braces.test_a_csharp_change_in_a_delta_becomes_a_lead_with_its_reason",
+          "test_local_braces.test_the_run_reads_csharp_through_the_command_line_seam",
+          "test_local_delta.test_a_carried_blocked_verdict_says_why_it_was_carried",
+          "test_local_delta.test_a_claim_about_an_open_findings_function_is_not_filed_twice",
+          "test_local_delta.test_a_drifted_finding_is_refiled_and_never_left_silent"
         ],
         "unexercised_functions": []
       },
       "src/verdict_mcp/replay.py": {
-        "changed": 46,
-        "measured": 22,
-        "executed": 22,
-        "executed_in_subprocess": 2,
+        "changed": 3,
+        "measured": 3,
+        "executed": 3,
         "unexercised_ranges": [],
         "tests": [
           "test_backfill.test_a_draft_that_crashes_on_a_wrong_argument_gets_one_repair",
@@ -4144,580 +1456,30 @@
           "test_backfill.test_a_finding_left_without_a_repro_keeps_what_the_last_draft_ran_into",
           "test_backfill.test_a_model_written_repro_never_runs_without_the_sandbox",
           "test_backfill.test_a_model_written_repro_sees_none_of_the_callers_secrets",
-          "test_backfill.test_a_repro_that_never_runs_the_cited_function_is_refused",
-          "test_backfill.test_a_repro_that_reproduces_at_head_says_still_broken"
-        ],
-        "unexercised_functions": []
-      },
-      "src/verdict_mcp/report_names.py": {
-        "changed": 133,
-        "measured": 68,
-        "executed": 61,
-        "executed_in_subprocess": 19,
-        "unexercised_ranges": [
-          [
-            32,
-            33
-          ],
-          [
-            66,
-            69
-          ],
-          [
-            118,
-            118
-          ]
-        ],
-        "tests": [
-          "test_artifact_check.test_finalize_actually_runs_the_check_it_documents",
-          "test_backfill.test_finalize_attaches_a_still_broken_repro_to_its_old_finding",
-          "test_browser.test_verdict_local_mints_carries_and_resolves_what_the_browser_measured",
-          "test_escalate.test_finalize_says_what_an_escalation_tester_was_handed_and_bills_it",
-          "test_escalate.test_the_local_tier_writes_its_leads_as_data",
-          "test_filed.test_a_finding_carried_by_silence_drops_last_runs_verb",
-          "test_filed.test_facts_move_last_runs_files_aside_and_a_retry_keeps_them",
-          "test_filed.test_finding_files_are_assembled_oldest_first_stamped_and_rendered",
-          "test_filed.test_still_open_is_refused_where_the_cited_code_changed_and_allowed_where_it_moved",
-          "test_filed.test_the_class_rule_reaches_a_finding_carried_by_id"
-        ],
-        "unexercised_functions": []
-      },
-      "src/verdict_mcp/report_render.py": {
-        "changed": 279,
-        "measured": 164,
-        "executed": 160,
-        "executed_in_subprocess": 14,
-        "unexercised_ranges": [
-          [
-            108,
-            108
-          ],
-          [
-            159,
-            159
-          ],
-          [
-            220,
-            221
-          ]
-        ],
-        "tests": [
-          "test_accept.test_the_report_lists_accepted_risks_apart",
-          "test_anchors.test_drift_travels_into_the_state_and_the_report",
-          "test_anchors.test_last_verified_at_is_stamped_only_by_a_measurement",
-          "test_anchors.test_the_report_dates_the_measurement_and_its_result",
-          "test_anchors.test_the_report_prints_both_clocks_and_the_ledger_keeps_them",
-          "test_artifact_check.test_finalize_actually_runs_the_check_it_documents",
-          "test_backfill.test_finalize_attaches_a_still_broken_repro_to_its_old_finding",
-          "test_browser.test_verdict_local_mints_carries_and_resolves_what_the_browser_measured",
-          "test_calibration.test_a_torn_write_cannot_leave_a_half_written_state",
-          "test_calibration.test_internal_keys_never_reach_the_written_state"
-        ],
-        "unexercised_functions": []
-      },
-      "src/verdict_mcp/report_sections.py": {
-        "changed": 280,
-        "measured": 152,
-        "executed": 149,
-        "executed_in_subprocess": 22,
-        "unexercised_ranges": [
-          [
-            59,
-            59
-          ],
-          [
-            97,
-            97
-          ],
-          [
-            260,
-            260
-          ]
-        ],
-        "tests": [
-          "test_accept.test_the_report_lists_accepted_risks_apart",
-          "test_anchors.test_drift_travels_into_the_state_and_the_report",
-          "test_anchors.test_last_verified_at_is_stamped_only_by_a_measurement",
-          "test_anchors.test_the_report_dates_the_measurement_and_its_result",
-          "test_anchors.test_the_report_prints_both_clocks_and_the_ledger_keeps_them",
-          "test_artifact_check.test_finalize_actually_runs_the_check_it_documents",
-          "test_backfill.test_finalize_attaches_a_still_broken_repro_to_its_old_finding",
-          "test_browser.test_verdict_local_mints_carries_and_resolves_what_the_browser_measured",
-          "test_calibration.test_a_project_with_nothing_claimed_keeps_the_plain_table",
-          "test_calibration.test_a_torn_write_cannot_leave_a_half_written_state"
-        ],
-        "unexercised_functions": []
-      },
-      "src/verdict_mcp/runner.py": {
-        "changed": 67,
-        "measured": 31,
-        "executed": 21,
-        "executed_in_subprocess": 14,
-        "unexercised_ranges": [
-          [
-            64,
-            64
-          ],
-          [
-            67,
-            67
-          ],
-          [
-            81,
-            81
-          ],
-          [
-            83,
-            83
-          ],
-          [
-            86,
-            86
-          ],
-          [
-            88,
-            88
-          ],
-          [
-            91,
-            91
-          ],
-          [
-            96,
-            96
-          ],
-          [
-            99,
-            99
-          ],
-          [
-            503,
-            503
-          ]
-        ],
-        "tests": [
-          "test_escalate.test_a_capped_normal_run_is_told_its_cap_and_an_uncapped_one_nothing",
-          "test_escalate.test_a_lite_run_is_a_capped_normal_run_told_its_budget_and_billed",
-          "test_escalate.test_a_run_stopped_at_its_dollar_cap_is_not_retried",
-          "test_escalate.test_a_session_ending_without_state_is_still_retried_once",
-          "test_escalate.test_an_escalation_run_hands_the_tester_the_packet_and_a_cap",
-          "test_escalate.test_an_escalation_run_without_a_gateway_is_refused_before_anything_runs",
-          "test_escalate.test_an_operator_names_the_tool_calls_the_packet_asks_for",
-          "test_escalate.test_an_operators_cap_after_the_double_dash_is_the_one_the_packet_names",
-          "test_escalate.test_calls_and_an_operators_cap_shape_the_budget_line",
-          "test_escalate.test_lite_and_calls_shape_an_asked_run_and_a_local_night_has_none"
-        ],
-        "unexercised_functions": []
-      },
-      "src/verdict_mcp/runner_agent.py": {
-        "changed": 133,
-        "measured": 64,
-        "executed": 63,
-        "executed_in_subprocess": 14,
-        "unexercised_ranges": [
-          [
-            127,
-            127
-          ]
-        ],
-        "tests": [
-          "test_escalate.test_a_capped_normal_run_is_told_its_cap_and_an_uncapped_one_nothing",
-          "test_escalate.test_a_lite_run_is_a_capped_normal_run_told_its_budget_and_billed",
-          "test_escalate.test_a_run_stopped_at_its_dollar_cap_is_not_retried",
-          "test_escalate.test_a_session_ending_without_state_is_still_retried_once",
-          "test_escalate.test_an_escalation_run_hands_the_tester_the_packet_and_a_cap",
-          "test_escalate.test_an_operator_names_the_tool_calls_the_packet_asks_for",
-          "test_escalate.test_an_operators_cap_after_the_double_dash_is_the_one_the_packet_names",
-          "test_escalate.test_calls_and_an_operators_cap_shape_the_budget_line",
-          "test_escalate.test_no_tester_is_started_when_the_breadth_pass_fails",
-          "test_escalate.test_no_tester_is_started_when_the_gateway_is_down"
-        ],
-        "unexercised_functions": []
-      },
-      "src/verdict_mcp/runner_env.py": {
-        "changed": 207,
-        "measured": 87,
-        "executed": 86,
-        "executed_in_subprocess": 26,
-        "unexercised_ranges": [
-          [
-            89,
-            89
-          ]
-        ],
-        "tests": [
-          "test_escalate.test_a_capped_normal_run_is_told_its_cap_and_an_uncapped_one_nothing",
-          "test_escalate.test_a_lite_run_is_a_capped_normal_run_told_its_budget_and_billed",
-          "test_escalate.test_a_run_stopped_at_its_dollar_cap_is_not_retried",
-          "test_escalate.test_a_session_ending_without_state_is_still_retried_once",
-          "test_escalate.test_an_escalation_run_hands_the_tester_the_packet_and_a_cap",
-          "test_escalate.test_an_operator_names_the_tool_calls_the_packet_asks_for",
-          "test_escalate.test_an_operators_cap_after_the_double_dash_is_the_one_the_packet_names",
-          "test_escalate.test_calls_and_an_operators_cap_shape_the_budget_line",
-          "test_escalate.test_no_tester_is_started_when_the_breadth_pass_fails",
-          "test_escalate.test_no_tester_is_started_when_the_gateway_is_down"
-        ],
-        "unexercised_functions": []
-      },
-      "src/verdict_mcp/runner_escalate.py": {
-        "changed": 116,
-        "measured": 73,
-        "executed": 62,
-        "executed_in_subprocess": 16,
-        "unexercised_ranges": [
-          [
-            17,
-            17
-          ],
-          [
-            33,
-            34
-          ],
-          [
-            53,
-            54
-          ],
-          [
-            56,
-            56
-          ],
-          [
-            68,
-            68
-          ],
-          [
-            71,
-            71
-          ],
-          [
-            74,
-            75
-          ],
-          [
-            107,
-            107
-          ]
-        ],
-        "tests": [
-          "test_escalate.test_a_capped_normal_run_is_told_its_cap_and_an_uncapped_one_nothing",
-          "test_escalate.test_a_lite_run_is_a_capped_normal_run_told_its_budget_and_billed",
-          "test_escalate.test_a_run_stopped_at_its_dollar_cap_is_not_retried",
-          "test_escalate.test_a_session_ending_without_state_is_still_retried_once",
-          "test_escalate.test_an_escalation_run_hands_the_tester_the_packet_and_a_cap",
-          "test_escalate.test_an_escalation_run_without_a_gateway_is_refused_before_anything_runs",
-          "test_escalate.test_an_operator_names_the_tool_calls_the_packet_asks_for",
-          "test_escalate.test_an_operators_cap_after_the_double_dash_is_the_one_the_packet_names",
-          "test_escalate.test_calls_and_an_operators_cap_shape_the_budget_line",
-          "test_escalate.test_lite_and_calls_shape_an_asked_run_and_a_local_night_has_none"
-        ],
-        "unexercised_functions": []
-      },
-      "src/verdict_mcp/runner_limits.py": {
-        "changed": 126,
-        "measured": 70,
-        "executed": 65,
-        "executed_in_subprocess": 22,
-        "unexercised_ranges": [
-          [
-            98,
-            98
-          ],
-          [
-            100,
-            101
-          ],
-          [
-            121,
-            122
-          ]
-        ],
-        "tests": [
-          "test_escalate.test_a_capped_normal_run_is_told_its_cap_and_an_uncapped_one_nothing",
-          "test_escalate.test_a_lite_run_is_a_capped_normal_run_told_its_budget_and_billed",
-          "test_escalate.test_a_run_stopped_at_its_dollar_cap_is_not_retried",
-          "test_escalate.test_a_session_ending_without_state_is_still_retried_once",
-          "test_escalate.test_an_escalation_run_hands_the_tester_the_packet_and_a_cap",
-          "test_escalate.test_an_operator_names_the_tool_calls_the_packet_asks_for",
-          "test_escalate.test_an_operators_cap_after_the_double_dash_is_the_one_the_packet_names",
-          "test_escalate.test_calls_and_an_operators_cap_shape_the_budget_line",
-          "test_escalate.test_no_tester_is_started_when_the_breadth_pass_fails",
-          "test_escalate.test_no_tester_is_started_when_the_gateway_is_down"
-        ],
-        "unexercised_functions": []
-      },
-      "src/verdict_mcp/runner_local.py": {
-        "changed": 129,
-        "measured": 60,
-        "executed": 53,
-        "executed_in_subprocess": 19,
-        "unexercised_ranges": [
-          [
-            17,
-            18
-          ],
-          [
-            94,
-            95
-          ],
-          [
-            97,
-            97
-          ],
-          [
-            114,
-            115
-          ]
-        ],
-        "tests": [
-          "test_escalate.test_a_capped_normal_run_is_told_its_cap_and_an_uncapped_one_nothing",
-          "test_escalate.test_a_lite_run_is_a_capped_normal_run_told_its_budget_and_billed",
-          "test_escalate.test_a_run_stopped_at_its_dollar_cap_is_not_retried",
-          "test_escalate.test_a_session_ending_without_state_is_still_retried_once",
-          "test_escalate.test_an_escalation_run_hands_the_tester_the_packet_and_a_cap",
-          "test_escalate.test_an_escalation_run_without_a_gateway_is_refused_before_anything_runs",
-          "test_escalate.test_an_operator_names_the_tool_calls_the_packet_asks_for",
-          "test_escalate.test_an_operators_cap_after_the_double_dash_is_the_one_the_packet_names",
-          "test_escalate.test_calls_and_an_operators_cap_shape_the_budget_line",
-          "test_escalate.test_no_tester_is_started_when_the_breadth_pass_fails"
-        ],
-        "unexercised_functions": []
-      },
-      "src/verdict_mcp/runner_provision.py": {
-        "changed": 378,
-        "measured": 201,
-        "executed": 177,
-        "executed_in_subprocess": 107,
-        "unexercised_ranges": [
-          [
-            18,
-            19
-          ],
-          [
-            60,
-            60
-          ],
-          [
-            138,
-            139
-          ],
-          [
-            151,
-            152
-          ],
-          [
-            157,
-            157
-          ],
-          [
-            173,
-            174
-          ],
-          [
-            181,
-            182
-          ],
-          [
-            239,
-            240
-          ],
-          [
-            286,
-            287
-          ],
-          [
-            289,
-            289
-          ],
-          [
-            327,
-            328
-          ],
-          [
-            330,
-            331
-          ],
-          [
-            355,
-            355
-          ],
-          [
-            377,
-            378
-          ]
-        ],
-        "tests": [
-          "test_escalate.test_a_capped_normal_run_is_told_its_cap_and_an_uncapped_one_nothing",
-          "test_escalate.test_a_lite_run_is_a_capped_normal_run_told_its_budget_and_billed",
-          "test_escalate.test_a_run_stopped_at_its_dollar_cap_is_not_retried",
-          "test_escalate.test_a_session_ending_without_state_is_still_retried_once",
-          "test_escalate.test_an_escalation_run_hands_the_tester_the_packet_and_a_cap",
-          "test_escalate.test_an_operator_names_the_tool_calls_the_packet_asks_for",
-          "test_escalate.test_an_operators_cap_after_the_double_dash_is_the_one_the_packet_names",
-          "test_escalate.test_calls_and_an_operators_cap_shape_the_budget_line",
-          "test_escalate.test_no_tester_is_started_when_the_breadth_pass_fails",
-          "test_escalate.test_no_tester_is_started_when_the_gateway_is_down"
-        ],
-        "unexercised_functions": [
-          "_raise"
-        ]
-      },
-      "src/verdict_mcp/runner_stream.py": {
-        "changed": 71,
-        "measured": 43,
-        "executed": 38,
-        "executed_in_subprocess": 14,
-        "unexercised_ranges": [
-          [
-            20,
-            21
-          ],
-          [
-            54,
-            56
-          ]
-        ],
-        "tests": [
-          "test_limits.test_a_run_that_wrote_its_state_is_never_retried_over_a_session_limit_notice",
-          "test_limits.test_the_runner_still_waits_out_a_session_limit",
-          "test_limits.test_the_runner_stops_on_a_weekly_limit_instead_of_spending_its_retry",
-          "test_swebench_plain.test_a_reply_without_an_answer_block_is_retried_once",
-          "test_swebench_plain.test_a_session_limit_is_slept_through_and_retried",
-          "test_swebench_plain.test_the_plain_launch_is_the_runners_launch_without_the_plugin"
-        ],
-        "unexercised_functions": []
-      },
-      "src/verdict_mcp/runner_sweep.py": {
-        "changed": 260,
-        "measured": 136,
-        "executed": 116,
-        "executed_in_subprocess": 58,
-        "unexercised_ranges": [
-          [
-            16,
-            18
-          ],
-          [
-            67,
-            67
-          ],
-          [
-            98,
-            98
-          ],
-          [
-            105,
-            105
-          ],
-          [
-            114,
-            114
-          ],
-          [
-            119,
-            119
-          ],
-          [
-            199,
-            200
-          ],
-          [
-            214,
-            215
-          ],
-          [
-            217,
-            217
-          ],
-          [
-            220,
-            220
-          ],
-          [
-            223,
-            223
-          ],
-          [
-            226,
-            228
-          ],
-          [
-            243,
-            243
-          ],
-          [
-            245,
-            245
-          ]
-        ],
-        "tests": [
-          "test_gitenv.test_under_another_repositorys_git_dir_every_reader_answers_for_the_one_asked",
-          "test_hygiene_lifecycle.test_a_file_only_hygiene_cites_does_not_block_the_free_sweep",
-          "test_hygiene_state.test_the_engines_that_judge_without_a_model_name_no_hygiene_id",
-          "test_sweep.test_a_sweep_carries_verified_intact_and_says_nothing_outside_was_read",
-          "test_sweep.test_every_blocker_is_a_measurement",
-          "test_sweep.test_the_harness_bootstrap_runs_the_subcommand_it_is_given",
-          "test_sweep.test_the_harness_child_imports_the_code_the_runner_is",
-          "test_sweep.test_the_synthetic_judgment_carries_every_open_finding_by_id_and_nothing_else"
+          "test_backfill.test_a_model_written_repro_that_cannot_start_could_not_run",
+          "test_backfill.test_a_repro_that_never_runs_the_cited_function_is_refused"
         ],
         "unexercised_functions": []
       },
       "src/verdict_mcp/sandbox.py": {
-        "changed": 559,
-        "measured": 283,
-        "executed": 253,
-        "executed_in_subprocess": 2,
+        "changed": 38,
+        "measured": 20,
+        "executed": 15,
         "unexercised_ranges": [
           [
-            201,
-            204
+            580,
+            580
           ],
           [
-            206,
-            206
+            582,
+            582
           ],
           [
-            214,
-            214
-          ],
-          [
-            297,
-            298
-          ],
-          [
-            324,
-            325
-          ],
-          [
-            393,
-            398
-          ],
-          [
-            457,
-            458
-          ],
-          [
-            475,
-            476
-          ],
-          [
-            517,
-            517
-          ],
-          [
-            547,
-            550
-          ],
-          [
-            552,
-            552
-          ],
-          [
-            554,
-            557
+            586,
+            588
           ]
         ],
         "tests": [
-          "test_artifact_check.test_finalize_actually_runs_the_check_it_documents",
           "test_backfill.test_a_draft_that_crashes_on_a_wrong_argument_gets_one_repair",
           "test_backfill.test_a_draft_that_dies_on_an_import_gets_one_repair",
           "test_backfill.test_a_draft_that_never_touches_the_cited_code_is_refused_and_redrafted",
@@ -4726,123 +1488,20 @@
           "test_backfill.test_a_finding_left_without_a_repro_keeps_what_the_last_draft_ran_into",
           "test_backfill.test_a_model_written_repro_never_runs_without_the_sandbox",
           "test_backfill.test_a_model_written_repro_sees_none_of_the_callers_secrets",
+          "test_backfill.test_a_model_written_repro_that_cannot_start_could_not_run",
           "test_backfill.test_a_repro_that_never_runs_the_cited_function_is_refused"
         ],
-        "unexercised_functions": [
-          "_limit"
-        ]
+        "unexercised_functions": []
       },
       "src/verdict_mcp/small.py": {
-        "changed": 138,
-        "measured": 64,
-        "executed": 46,
-        "executed_in_subprocess": 29,
+        "changed": 11,
+        "measured": 4,
+        "executed": 3,
+        "executed_in_subprocess": 1,
         "unexercised_ranges": [
-          [
-            56,
-            57
-          ],
-          [
-            63,
-            63
-          ],
-          [
-            82,
-            82
-          ],
-          [
-            84,
-            84
-          ],
-          [
-            87,
-            87
-          ],
-          [
-            92,
-            92
-          ],
-          [
-            97,
-            97
-          ],
-          [
-            100,
-            100
-          ],
-          [
-            104,
-            104
-          ],
-          [
-            106,
-            106
-          ],
-          [
-            108,
-            108
-          ],
-          [
-            110,
-            110
-          ],
-          [
-            112,
-            113
-          ],
-          [
-            115,
-            115
-          ],
-          [
-            119,
-            119
-          ],
-          [
-            204,
-            204
-          ]
-        ],
-        "tests": [
-          "test_browser.test_verdict_local_mints_carries_and_resolves_what_the_browser_measured",
-          "test_escalate.test_the_local_tier_writes_its_leads_as_data",
-          "test_hygiene_facts.test_the_local_tier_writes_the_same_split_before_it_finalizes",
-          "test_hygiene_lifecycle.test_the_local_tier_finalizes_a_night_the_scan_files_a_critical_on",
-          "test_hygiene_state.test_a_local_night_names_no_hygiene_id_and_says_the_verdict_written",
-          "test_local_braces.test_a_csharp_change_in_a_delta_becomes_a_lead_with_its_reason",
-          "test_local_braces.test_the_run_reads_csharp_through_the_command_line_seam",
-          "test_local_delta.test_a_carried_blocked_verdict_says_why_it_was_carried",
-          "test_local_delta.test_a_claim_about_an_open_findings_function_is_not_filed_twice",
-          "test_local_delta.test_a_drifted_finding_is_refiled_and_never_left_silent"
-        ],
-        "unexercised_functions": []
-      },
-      "src/verdict_mcp/state.py": {
-        "changed": 9,
-        "measured": 6,
-        "executed": 6,
-        "executed_in_subprocess": 6,
-        "unexercised_ranges": [],
-        "tests": [],
-        "unexercised_functions": []
-      },
-      "src/verdict_mcp/testmarks.py": {
-        "changed": 186,
-        "measured": 67,
-        "executed": 64,
-        "executed_in_subprocess": 19,
-        "unexercised_ranges": [
-          [
-            118,
-            118
-          ],
           [
             121,
             121
-          ],
-          [
-            138,
-            138
           ]
         ],
         "tests": [
@@ -4856,1204 +1515,51 @@
           "test_local_delta.test_a_carried_blocked_verdict_says_why_it_was_carried",
           "test_local_delta.test_a_claim_about_an_open_findings_function_is_not_filed_twice",
           "test_local_delta.test_a_drifted_finding_is_refiled_and_never_left_silent"
-        ],
-        "unexercised_functions": []
-      },
-      "tests/browser_site.py": {
-        "changed": 228,
-        "measured": 55,
-        "executed": 4,
-        "unexercised_ranges": [
-          [
-            8,
-            8
-          ],
-          [
-            10,
-            16
-          ],
-          [
-            19,
-            19
-          ],
-          [
-            30,
-            31
-          ],
-          [
-            36,
-            36
-          ],
-          [
-            39,
-            39
-          ],
-          [
-            162,
-            162
-          ],
-          [
-            167,
-            167
-          ],
-          [
-            181,
-            189
-          ],
-          [
-            192,
-            193
-          ],
-          [
-            195,
-            196
-          ],
-          [
-            198,
-            199
-          ],
-          [
-            201,
-            203
-          ],
-          [
-            205,
-            207
-          ],
-          [
-            209,
-            212
-          ],
-          [
-            215,
-            216
-          ],
-          [
-            218,
-            220
-          ],
-          [
-            222,
-            225
-          ],
-          [
-            227,
-            228
-          ]
-        ],
-        "tests": [
-          "test_browser.test_image_sizes_are_read_from_png_gif_jpeg_and_webp_headers"
-        ],
-        "unexercised_functions": [
-          "build",
-          "_Recorder.log_message",
-          "_Recorder._record",
-          "_Recorder.do_GET",
-          "_Recorder.do_HEAD",
-          "_Recorder.do_POST",
-          "serve"
-        ]
-      },
-      "tests/conftest.py": {
-        "changed": 16,
-        "measured": 10,
-        "executed": 0,
-        "unexercised_ranges": [
-          [
-            24,
-            25
-          ],
-          [
-            29,
-            36
-          ]
-        ],
-        "tests": [],
-        "unexercised_functions": []
-      },
-      "tests/test_accept.py": {
-        "changed": 3,
-        "measured": 2,
-        "executed": 1,
-        "unexercised_ranges": [
-          [
-            154,
-            154
-          ]
-        ],
-        "tests": [
-          "test_accept.test_no_state_is_exit_4"
         ],
         "unexercised_functions": []
       },
       "tests/test_backfill.py": {
-        "changed": 10,
-        "measured": 8,
-        "executed": 7,
-        "unexercised_ranges": [
-          [
-            4,
-            4
-          ]
-        ],
-        "tests": [
-          "test_backfill.test_the_sandbox_is_sandbox_exec_on_macos_and_nothing_elsewhere"
-        ],
-        "unexercised_functions": []
-      },
-      "tests/test_braces.py": {
-        "changed": 305,
-        "measured": 85,
-        "executed": 49,
-        "unexercised_ranges": [
-          [
-            9,
-            10
-          ],
-          [
-            12,
-            12
-          ],
-          [
-            14,
-            16
-          ],
-          [
-            19,
-            19
-          ],
-          [
-            25,
-            25
-          ],
-          [
-            30,
-            30
-          ],
-          [
-            34,
-            34
-          ],
-          [
-            41,
-            41
-          ],
-          [
-            45,
-            45
-          ],
-          [
-            47,
-            47
-          ],
-          [
-            53,
-            53
-          ],
-          [
-            70,
-            70
-          ],
-          [
-            78,
-            78
-          ],
-          [
-            87,
-            87
-          ],
-          [
-            97,
-            97
-          ],
-          [
-            153,
-            153
-          ],
-          [
-            165,
-            165
-          ],
-          [
-            176,
-            176
-          ],
-          [
-            181,
-            181
-          ],
-          [
-            217,
-            217
-          ],
-          [
-            224,
-            224
-          ],
-          [
-            229,
-            229
-          ],
-          [
-            234,
-            234
-          ],
-          [
-            238,
-            238
-          ],
-          [
-            244,
-            244
-          ],
-          [
-            257,
-            257
-          ],
-          [
-            261,
-            261
-          ],
-          [
-            267,
-            267
-          ],
-          [
-            272,
-            272
-          ],
-          [
-            276,
-            276
-          ],
-          [
-            291,
-            291
-          ],
-          [
-            297,
-            297
-          ],
-          [
-            302,
-            302
-          ]
-        ],
-        "tests": [
-          "test_braces.test_a_changed_field_is_its_own_statement_and_swallows_no_method",
-          "test_braces.test_a_changed_line_asks_about_the_function_it_sits_in_once",
-          "test_braces.test_a_declaration_with_nothing_to_run_asks_nothing",
-          "test_braces.test_a_function_too_long_for_one_question_is_read_around_the_change",
-          "test_braces.test_a_jsx_component_is_one_question_however_many_lines_change",
-          "test_braces.test_a_pipeline_of_top_level_calls_is_read_in_order_as_one_question",
-          "test_braces.test_an_expression_bodied_member_is_read_as_its_statement",
-          "test_braces.test_csharp_heads_are_judged_by_their_shape",
-          "test_braces.test_csharp_members_are_found_with_their_attributes_and_doc_comment",
-          "test_braces.test_csharp_strings_chars_comments_and_directives_hide_their_braces"
-        ],
-        "unexercised_functions": []
-      },
-      "tests/test_braces_languages.py": {
-        "changed": 477,
-        "measured": 115,
-        "executed": 70,
-        "unexercised_ranges": [
-          [
-            12,
-            13
-          ],
-          [
-            15,
-            15
-          ],
-          [
-            17,
-            19
-          ],
-          [
-            22,
-            22
-          ],
-          [
-            26,
-            26
-          ],
-          [
-            32,
-            32
-          ],
-          [
-            45,
-            45
-          ],
-          [
-            52,
-            52
-          ],
-          [
-            58,
-            58
-          ],
-          [
-            65,
-            65
-          ],
-          [
-            73,
-            73
-          ],
-          [
-            109,
-            109
-          ],
-          [
-            117,
-            117
-          ],
-          [
-            122,
-            122
-          ],
-          [
-            157,
-            157
-          ],
-          [
-            163,
-            163
-          ],
-          [
-            187,
-            187
-          ],
-          [
-            194,
-            194
-          ],
-          [
-            224,
-            224
-          ],
-          [
-            229,
-            229
-          ],
-          [
-            234,
-            234
-          ],
-          [
-            257,
-            257
-          ],
-          [
-            263,
-            263
-          ],
-          [
-            279,
-            279
-          ],
-          [
-            284,
-            284
-          ],
-          [
-            304,
-            304
-          ],
-          [
-            308,
-            308
-          ],
-          [
-            324,
-            324
-          ],
-          [
-            330,
-            330
-          ],
-          [
-            353,
-            353
-          ],
-          [
-            360,
-            360
-          ],
-          [
-            381,
-            381
-          ],
-          [
-            387,
-            387
-          ],
-          [
-            399,
-            399
-          ],
-          [
-            403,
-            403
-          ],
-          [
-            429,
-            429
-          ],
-          [
-            433,
-            433
-          ],
-          [
-            441,
-            441
-          ],
-          [
-            452,
-            452
-          ],
-          [
-            460,
-            460
-          ],
-          [
-            463,
-            463
-          ],
-          [
-            473,
-            473
-          ]
-        ],
-        "tests": [
-          "test_braces_languages.test_a_c_function_returning_a_struct_is_a_function_not_the_struct",
-          "test_braces_languages.test_a_call_closed_on_its_own_line_ends_its_statement_and_an_annotation_does_not",
-          "test_braces_languages.test_a_changed_java_field_asks_nothing_and_a_changed_body_line_asks_about_its_method",
-          "test_braces_languages.test_a_class_behind_a_decorator_with_arguments_is_still_a_type",
-          "test_braces_languages.test_a_function_too_long_for_one_question_is_read_as_the_functions_inside_it",
-          "test_braces_languages.test_a_hostile_head_is_read_in_linear_time",
-          "test_braces_languages.test_a_rust_lifetime_is_not_a_character_and_hides_nothing",
-          "test_braces_languages.test_a_statement_without_a_semicolon_ends_at_its_line",
-          "test_braces_languages.test_cpp_constructors_with_initializer_lists_and_const_methods",
-          "test_braces_languages.test_cpp_qualifiers_and_trailing_return_types_still_come_off"
-        ],
-        "unexercised_functions": []
-      },
-      "tests/test_browser.py": {
-        "changed": 443,
-        "measured": 269,
-        "executed": 126,
-        "unexercised_ranges": [
-          [
-            10,
-            10
-          ],
-          [
-            12,
-            16
-          ],
-          [
-            18,
-            18
-          ],
-          [
-            20,
-            26
-          ],
-          [
-            28,
-            28
-          ],
-          [
-            33,
-            33
-          ],
-          [
-            37,
-            37
-          ],
-          [
-            41,
-            41
-          ],
-          [
-            51,
-            51
-          ],
-          [
-            58,
-            58
-          ],
-          [
-            68,
-            68
-          ],
-          [
-            73,
-            73
-          ],
-          [
-            84,
-            84
-          ],
-          [
-            91,
-            91
-          ],
-          [
-            103,
-            103
-          ],
-          [
-            119,
-            119
-          ],
-          [
-            134,
-            134
-          ],
-          [
-            149,
-            149
-          ],
-          [
-            159,
-            159
-          ],
-          [
-            171,
-            171
-          ],
-          [
-            177,
-            177
-          ],
-          [
-            181,
-            181
-          ],
-          [
-            187,
-            187
-          ],
-          [
-            198,
-            198
-          ],
-          [
-            209,
-            210
-          ],
-          [
-            213,
-            213
-          ],
-          [
-            216,
-            216
-          ],
-          [
-            220,
-            220
-          ],
-          [
-            225,
-            225
-          ],
-          [
-            237,
-            237
-          ],
-          [
-            245,
-            245
-          ],
-          [
-            254,
-            254
-          ],
-          [
-            265,
-            276
-          ],
-          [
-            279,
-            280
-          ],
-          [
-            283,
-            284
-          ],
-          [
-            286,
-            290
-          ],
-          [
-            293,
-            298
-          ],
-          [
-            301,
-            307
-          ],
-          [
-            310,
-            315
-          ],
-          [
-            318,
-            325
-          ],
-          [
-            328,
-            334
-          ],
-          [
-            337,
-            342
-          ],
-          [
-            344,
-            346
-          ],
-          [
-            348,
-            348
-          ],
-          [
-            353,
-            354
-          ],
-          [
-            359,
-            361
-          ],
-          [
-            363,
-            366
-          ],
-          [
-            368,
-            370
-          ],
-          [
-            372,
-            373
-          ],
-          [
-            377,
-            378
-          ],
-          [
-            380,
-            383
-          ],
-          [
-            385,
-            386
-          ],
-          [
-            388,
-            392
-          ],
-          [
-            395,
-            401
-          ],
-          [
-            404,
-            404
-          ]
-        ],
-        "tests": [
-          "test_browser.test_a_browser_finding_is_validator_clean_and_cites_its_source_file_first",
-          "test_browser.test_a_finding_is_left_open_when_any_page_was_not_measured_or_it_was_found_again",
-          "test_browser.test_a_finding_measured_again_everywhere_and_not_found_is_resolved",
-          "test_browser.test_a_get_form_with_personal_fields_is_read_and_a_search_form_is_not",
-          "test_browser.test_a_path_the_routing_files_mention_is_named",
-          "test_browser.test_a_site_block_reads_into_a_site",
-          "test_browser.test_a_site_block_that_cannot_run_is_an_error_naming_why",
-          "test_browser.test_every_request_is_a_get_to_the_site_or_it_is_aborted",
-          "test_browser.test_image_sizes_are_read_from_png_gif_jpeg_and_webp_headers",
-          "test_browser.test_links_that_read_like_actions_are_never_requested"
-        ],
-        "unexercised_functions": [
-          "site_run",
-          "_found",
-          "test_each_seeded_defect_is_found_on_its_page",
-          "test_no_clean_twin_is_flagged",
-          "test_no_write_reached_the_server_and_no_action_link_was_followed",
-          "test_every_finding_is_a_validator_clean_measurement",
-          "test_verdict_browse_writes_its_result_and_exits_zero",
-          "test_verdict_local_files_a_browser_finding_carries_it_unmeasured_and_resolves_it_measured",
-          "test_verdict_local_files_a_browser_finding_carries_it_unmeasured_and_resolves_it_measured.profile",
-          "test_verdict_local_files_a_browser_finding_carries_it_unmeasured_and_resolves_it_measured.run"
-        ]
-      },
-      "tests/test_coverage_render.py": {
-        "changed": 7,
-        "measured": 5,
-        "executed": 4,
-        "unexercised_ranges": [
-          [
-            6,
-            6
-          ]
-        ],
-        "tests": [
-          "test_coverage_render.test_a_slow_full_render_retries_on_production_files",
-          "test_coverage_render.test_the_fallback_render_runs_on_real_coverage"
-        ],
-        "unexercised_functions": []
-      },
-      "tests/test_ends.py": {
-        "changed": 135,
-        "measured": 35,
-        "executed": 19,
-        "unexercised_ranges": [
-          [
-            9,
-            10
-          ],
-          [
-            12,
-            14
-          ],
-          [
-            17,
-            17
-          ],
-          [
-            21,
-            21
-          ],
-          [
-            55,
-            55
-          ],
-          [
-            60,
-            60
-          ],
-          [
-            68,
-            68
-          ],
-          [
-            73,
-            73
-          ],
-          [
-            79,
-            79
-          ],
-          [
-            98,
-            98
-          ],
-          [
-            105,
-            105
-          ],
-          [
-            126,
-            126
-          ],
-          [
-            131,
-            131
-          ]
-        ],
-        "tests": [
-          "test_ends.test_a_changed_class_level_line_is_read_with_its_paragraph",
-          "test_ends.test_a_method_too_long_for_one_question_is_read_around_the_change",
-          "test_ends.test_a_ruby_method_carries_the_guards_its_class_declares",
-          "test_ends.test_elixir_defs_with_their_docs_and_the_plugs_that_guard_them",
-          "test_ends.test_heredoc_lines_are_blank_so_column_zero_ends_nothing",
-          "test_ends.test_lua_functions_past_long_strings_and_comments_that_say_end",
-          "test_ends.test_ruby_methods_run_to_their_own_end_past_heredocs_and_rescue"
-        ],
-        "unexercised_functions": []
-      },
-      "tests/test_escalate.py": {
-        "changed": 2,
-        "measured": 2,
-        "executed": 0,
-        "unexercised_ranges": [
-          [
-            10,
-            10
-          ],
-          [
-            169,
-            169
-          ]
-        ],
-        "tests": [],
-        "unexercised_functions": []
-      },
-      "tests/test_gaps.py": {
-        "changed": 4,
-        "measured": 4,
-        "executed": 4,
-        "unexercised_ranges": [],
-        "tests": [
-          "test_gaps.test_inside_an_agent_call_the_census_takes_what_is_left_of_the_window"
-        ],
-        "unexercised_functions": []
-      },
-      "tests/test_gitenv.py": {
-        "changed": 194,
-        "measured": 93,
-        "executed": 52,
-        "unexercised_ranges": [
-          [
-            13,
-            17
-          ],
-          [
-            19,
-            19
-          ],
-          [
-            21,
-            21
-          ],
-          [
-            23,
-            23
-          ],
-          [
-            25,
-            25
-          ],
-          [
-            29,
-            29
-          ],
-          [
-            33,
-            33
-          ],
-          [
-            38,
-            39
-          ],
-          [
-            44,
-            61
-          ],
-          [
-            65,
-            65
-          ],
-          [
-            76,
-            76
-          ],
-          [
-            103,
-            103
-          ],
-          [
-            119,
-            120
-          ],
-          [
-            128,
-            128
-          ],
-          [
-            161,
-            161
-          ],
-          [
-            173,
-            173
-          ],
-          [
-            181,
-            181
-          ],
-          [
-            185,
-            185
-          ]
-        ],
-        "tests": [
-          "test_gitenv.test_a_signature_is_the_name_the_working_repository_configures",
-          "test_gitenv.test_each_variable_that_misdirects_a_reader_on_its_own_is_dropped",
-          "test_gitenv.test_every_git_call_in_the_package_names_its_environment",
-          "test_gitenv.test_git_env_is_the_environment_without_the_seven",
-          "test_gitenv.test_the_scratch_checkout_is_a_worktree_of_the_repository_asked",
-          "test_gitenv.test_the_sweep_sees_the_calls_it_is_meant_to_see",
-          "test_gitenv.test_under_another_repositorys_git_dir_every_reader_answers_for_the_one_asked"
-        ],
-        "unexercised_functions": []
-      },
-      "tests/test_harness.py": {
-        "changed": 11,
-        "measured": 4,
-        "executed": 4,
-        "unexercised_ranges": [],
-        "tests": [
-          "test_harness.test_collect_reports_duration_regression_from_history",
-          "test_harness.test_fix_verification_runs_with_bytecode_writing_off"
-        ],
-        "unexercised_functions": []
-      },
-      "tests/test_hygiene_lifecycle.py": {
-        "changed": 2,
-        "measured": 2,
-        "executed": 1,
-        "unexercised_ranges": [
-          [
-            7,
-            7
-          ]
-        ],
-        "tests": [
-          "test_hygiene_lifecycle.test_past_the_cap_the_rows_with_a_history_are_kept_and_the_counts_stay_exact"
-        ],
-        "unexercised_functions": []
-      },
-      "tests/test_languages.py": {
-        "changed": 100,
-        "measured": 42,
-        "executed": 22,
-        "unexercised_ranges": [
-          [
-            9,
-            10
-          ],
-          [
-            12,
-            12
-          ],
-          [
-            14,
-            16
-          ],
-          [
-            19,
-            19
-          ],
-          [
-            32,
-            32
-          ],
-          [
-            37,
-            37
-          ],
-          [
-            40,
-            40
-          ],
-          [
-            45,
-            45
-          ],
-          [
-            53,
-            53
-          ],
-          [
-            58,
-            58
-          ],
-          [
-            61,
-            61
-          ],
-          [
-            66,
-            66
-          ],
-          [
-            73,
-            73
-          ],
-          [
-            78,
-            78
-          ],
-          [
-            83,
-            83
-          ],
-          [
-            91,
-            91
-          ],
-          [
-            98,
-            98
-          ]
-        ],
-        "tests": [
-          "test_languages.test_a_generated_file_or_a_bundle_is_known_by_its_content",
-          "test_languages.test_a_name_that_only_contains_test_is_code",
-          "test_languages.test_a_source_folder_named_like_build_output_is_still_read",
-          "test_languages.test_every_language_a_website_is_built_in_has_a_reader",
-          "test_languages.test_generated_vendored_and_built_code_is_not_read",
-          "test_languages.test_templates_are_named_as_templates",
-          "test_languages.test_tests_are_known_by_every_ecosystems_own_conventions",
-          "test_languages.test_what_a_range_changed_that_no_reader_reads_is_counted_by_kind",
-          "test_languages.test_what_is_not_program_source_is_not_read"
-        ],
-        "unexercised_functions": []
-      },
-      "tests/test_local_braces.py": {
-        "changed": 185,
-        "measured": 115,
-        "executed": 93,
-        "unexercised_ranges": [
-          [
-            10,
-            13
-          ],
-          [
-            15,
-            17
-          ],
-          [
-            19,
-            19
-          ],
-          [
-            21,
-            21
-          ],
-          [
-            23,
-            23
-          ],
-          [
-            26,
-            26
-          ],
-          [
-            46,
-            46
-          ],
-          [
-            53,
-            53
-          ],
-          [
-            68,
-            68
-          ],
-          [
-            76,
-            76
-          ],
-          [
-            91,
-            91
-          ],
-          [
-            111,
-            111
-          ],
-          [
-            118,
-            118
-          ],
-          [
-            136,
-            136
-          ],
-          [
-            154,
-            154
-          ],
-          [
-            160,
-            160
-          ],
-          [
-            172,
-            172
-          ]
-        ],
-        "tests": [
-          "test_local_braces.test_a_csharp_change_in_a_delta_becomes_a_lead_with_its_reason",
-          "test_local_braces.test_a_csharp_question_names_its_language_lines_and_the_type_around_it",
-          "test_local_braces.test_a_file_that_fails_to_parse_still_asks_and_never_raises",
-          "test_local_braces.test_a_mixed_diff_ranks_by_lines_added_not_by_language",
-          "test_local_braces.test_a_python_only_diff_is_ranked_exactly_as_before",
-          "test_local_braces.test_changed_lines_come_from_the_diff_in_the_new_files_numbering",
-          "test_local_braces.test_no_counterfactual_is_tried_on_csharp_and_the_reason_is_kept",
-          "test_local_braces.test_python_questions_are_worded_exactly_as_before",
-          "test_local_braces.test_the_projects_own_null_settings_reach_the_question",
-          "test_local_braces.test_the_run_reads_csharp_through_the_command_line_seam"
-        ],
-        "unexercised_functions": []
-      },
-      "tests/test_local_delta.py": {
-        "changed": 2,
-        "measured": 2,
-        "executed": 1,
-        "unexercised_ranges": [
-          [
-            26,
-            26
-          ]
-        ],
-        "tests": [
-          "test_local_delta.test_a_gateway_that_refuses_the_window_is_asked_again_without_it",
-          "test_local_delta.test_each_question_asks_for_a_window_it_fits_in"
-        ],
-        "unexercised_functions": []
-      },
-      "tests/test_local_gate.py": {
-        "changed": 31,
-        "measured": 18,
-        "executed": 15,
-        "unexercised_ranges": [
-          [
-            24,
-            24
-          ],
-          [
-            107,
-            107
-          ],
-          [
-            124,
-            124
-          ]
-        ],
-        "tests": [
-          "test_local_gate.test_a_range_run_reads_the_diff_not_the_reading_map",
-          "test_local_gate.test_a_typescript_diff_is_read_and_held_below_pass",
-          "test_local_gate.test_the_model_budget_is_model_time_not_the_suite_before_it"
-        ],
-        "unexercised_functions": []
-      },
-      "tests/test_local_languages.py": {
-        "changed": 183,
-        "measured": 107,
-        "executed": 82,
+        "changed": 25,
+        "measured": 16,
+        "executed": 12,
         "unexercised_ranges": [
           [
             11,
-            14
+            11
           ],
           [
-            16,
-            18
+            19,
+            19
           ],
           [
-            20,
-            20
+            195,
+            196
+          ]
+        ],
+        "tests": [
+          "test_backfill.test_a_model_written_repro_that_cannot_start_could_not_run"
+        ],
+        "unexercised_functions": []
+      },
+      "tests/test_local_refuted.py": {
+        "changed": 304,
+        "measured": 152,
+        "executed": 121,
+        "unexercised_ranges": [
+          [
+            9,
+            12
           ],
           [
-            22,
+            14,
+            17
+          ],
+          [
+            19,
+            19
+          ],
+          [
+            21,
             22
           ],
           [
@@ -6061,841 +1567,168 @@
             24
           ],
           [
-            27,
-            27
-          ],
-          [
-            38,
-            38
-          ],
-          [
             47,
             47
-          ],
-          [
-            54,
-            54
-          ],
-          [
-            61,
-            61
-          ],
-          [
-            73,
-            73
-          ],
-          [
-            82,
-            82
-          ],
-          [
-            92,
-            92
-          ],
-          [
-            101,
-            101
-          ],
-          [
-            110,
-            110
-          ],
-          [
-            127,
-            127
-          ],
-          [
-            134,
-            134
-          ],
-          [
-            153,
-            153
-          ],
-          [
-            166,
-            166
-          ],
-          [
-            175,
-            175
-          ]
-        ],
-        "tests": [
-          "test_local_languages.test_a_changed_site_reads_money_and_sign_in_before_its_copy",
-          "test_local_languages.test_a_focused_jest_test_is_filed_by_a_regular_expression",
-          "test_local_languages.test_a_go_function_is_asked_about_in_go",
-          "test_local_languages.test_a_go_range_becomes_a_lead_held_below_pass",
-          "test_local_languages.test_a_language_with_no_reader_of_its_own_is_asked_about_as_an_excerpt",
-          "test_local_languages.test_a_python_project_is_read_exactly_as_before",
-          "test_local_languages.test_a_rails_action_carries_the_guard_its_class_declares",
-          "test_local_languages.test_a_template_is_asked_what_a_template_gets_wrong",
-          "test_local_languages.test_a_website_with_no_range_and_no_map_is_read_by_risk",
-          "test_local_languages.test_kotlin_swift_rust_and_dart_say_what_their_types_already_rule_out"
-        ],
-        "unexercised_functions": []
-      },
-      "tests/test_plain_arm.py": {
-        "changed": 3,
-        "measured": 2,
-        "executed": 2,
-        "unexercised_ranges": [],
-        "tests": [
-          "test_plain_arm.test_the_prompt_carries_the_scope_the_risk_notes_and_the_proof_standard_and_nothing_of_verdict"
-        ],
-        "unexercised_functions": []
-      },
-      "tests/test_reach.py": {
-        "changed": 122,
-        "measured": 63,
-        "executed": 50,
-        "unexercised_ranges": [
-          [
-            9,
-            10
-          ],
-          [
-            12,
-            14
-          ],
-          [
-            16,
-            16
           ],
           [
             50,
             50
           ],
           [
-            57,
-            57
+            62,
+            62
           ],
           [
-            65,
-            65
+            68,
+            68
+          ],
+          [
+            78,
+            78
           ],
           [
             84,
             84
           ],
           [
-            97,
-            97
+            95,
+            95
           ],
           [
-            105,
-            105
-          ],
-          [
-            112,
-            112
-          ]
-        ],
-        "tests": [
-          "test_reach.test_a_file_defines_its_functions_state_and_shapes",
-          "test_reach.test_a_function_reaches_its_callee_its_state_and_its_imports",
-          "test_reach.test_a_long_definition_is_shown_by_its_head_and_the_budget_holds",
-          "test_reach.test_a_ruby_action_reaches_the_methods_of_its_controller",
-          "test_reach.test_an_import_never_leaves_the_repository",
-          "test_reach.test_the_question_carries_what_the_function_reaches_for"
-        ],
-        "unexercised_functions": []
-      },
-      "tests/test_regions.py": {
-        "changed": 164,
-        "measured": 50,
-        "executed": 29,
-        "unexercised_ranges": [
-          [
-            9,
-            10
-          ],
-          [
-            12,
-            14
-          ],
-          [
-            17,
-            17
-          ],
-          [
-            21,
-            21
-          ],
-          [
-            42,
-            42
-          ],
-          [
-            50,
-            50
-          ],
-          [
-            56,
-            56
-          ],
-          [
-            73,
-            73
-          ],
-          [
-            79,
-            79
-          ],
-          [
-            85,
-            85
-          ],
-          [
-            102,
-            102
-          ],
-          [
-            109,
-            109
-          ],
-          [
-            119,
-            119
-          ],
-          [
-            124,
-            124
-          ],
-          [
-            135,
-            135
-          ],
-          [
-            143,
-            143
-          ],
-          [
-            152,
-            152
-          ],
-          [
-            158,
-            158
-          ]
-        ],
-        "tests": [
-          "test_regions.test_a_generated_file_raises_no_question",
-          "test_regions.test_a_language_with_no_reader_of_its_own_is_read_as_excerpts",
-          "test_regions.test_a_razor_view_reads_its_code_block_as_csharp_and_its_markup_as_a_template",
-          "test_regions.test_a_template_excerpt_prints_the_files_own_lines",
-          "test_regions.test_a_vue_component_is_read_as_typescript_and_as_a_template",
-          "test_regions.test_an_astro_page_reads_its_front_matter_as_typescript",
-          "test_regions.test_an_end_tag_closes_its_script_whatever_follows_its_name",
-          "test_regions.test_an_html_page_reads_its_scripts_and_not_its_json_or_plain_markup",
-          "test_regions.test_an_html_template_reads_its_markup",
-          "test_regions.test_excerpts_merge_while_they_fit_and_never_run_past_one_question"
-        ],
-        "unexercised_functions": []
-      },
-      "tests/test_replay.py": {
-        "changed": 16,
-        "measured": 10,
-        "executed": 8,
-        "unexercised_ranges": [
-          [
-            134,
-            134
-          ],
-          [
-            252,
-            252
-          ]
-        ],
-        "tests": [
-          "test_replay.test_a_testers_repro_runs_without_the_callers_secret",
-          "test_replay.test_nothing_to_replay_and_no_repository_are_exit_2"
-        ],
-        "unexercised_functions": []
-      },
-      "tests/test_sandbox.py": {
-        "changed": 653,
-        "measured": 406,
-        "executed": 298,
-        "unexercised_ranges": [
-          [
-            17,
-            22
-          ],
-          [
-            24,
-            24
-          ],
-          [
-            26,
-            27
-          ],
-          [
-            30,
-            30
-          ],
-          [
-            33,
-            35
-          ],
-          [
-            37,
-            37
-          ],
-          [
-            40,
-            40
-          ],
-          [
-            42,
-            42
-          ],
-          [
-            45,
-            45
-          ],
-          [
-            47,
-            47
-          ],
-          [
-            50,
-            50
-          ],
-          [
-            53,
-            53
-          ],
-          [
-            63,
-            63
-          ],
-          [
-            71,
-            71
-          ],
-          [
-            85,
-            85
-          ],
-          [
-            98,
-            98
-          ],
-          [
-            113,
-            113
+            108,
+            108
           ],
           [
             123,
             123
           ],
           [
-            135,
-            135
-          ],
-          [
-            142,
-            142
-          ],
-          [
-            157,
-            157
-          ],
-          [
-            171,
-            171
-          ],
-          [
-            183,
-            183
-          ],
-          [
-            193,
-            193
-          ],
-          [
-            202,
-            202
-          ],
-          [
-            214,
-            214
-          ],
-          [
-            240,
-            240
-          ],
-          [
-            250,
-            250
-          ],
-          [
-            255,
-            255
-          ],
-          [
-            270,
-            270
-          ],
-          [
-            278,
-            278
-          ],
-          [
-            288,
-            288
-          ],
-          [
-            305,
-            305
-          ],
-          [
-            338,
-            346
-          ],
-          [
-            349,
-            350
-          ],
-          [
-            352,
-            357
-          ],
-          [
-            359,
-            362
-          ],
-          [
-            364,
-            366
-          ],
-          [
-            369,
-            374
-          ],
-          [
-            376,
-            376
-          ],
-          [
-            378,
-            379
-          ],
-          [
-            382,
-            387
-          ],
-          [
-            389,
-            391
-          ],
-          [
-            394,
-            395
-          ],
-          [
-            410,
-            411
-          ],
-          [
-            414,
-            414
-          ],
-          [
-            425,
-            425
-          ],
-          [
-            434,
-            434
-          ],
-          [
-            449,
-            449
-          ],
-          [
-            457,
-            457
-          ],
-          [
-            490,
-            490
-          ],
-          [
-            494,
-            494
-          ],
-          [
-            513,
-            513
-          ],
-          [
-            532,
-            533
-          ],
-          [
-            555,
-            555
-          ],
-          [
-            561,
-            561
-          ],
-          [
-            579,
-            579
-          ],
-          [
-            595,
-            595
-          ],
-          [
-            604,
-            604
-          ],
-          [
-            616,
-            617
-          ],
-          [
-            630,
-            631
-          ],
-          [
-            635,
-            635
-          ],
-          [
-            646,
-            646
-          ]
-        ],
-        "tests": [
-          "test_sandbox.test_a_census_mutants_tests_do_not_see_the_callers_secret",
-          "test_sandbox.test_a_checkout_and_a_fresh_tree_beside_it_keep_their_git_read_only",
-          "test_sandbox.test_a_daemon_does_not_outlive_its_run",
-          "test_sandbox.test_a_fix_verification_test_does_not_see_the_callers_secret",
-          "test_sandbox.test_a_floor_outranks_the_profile_and_required_drops_its_loosening",
-          "test_sandbox.test_a_gate_does_not_see_the_callers_secret_and_off_restores_the_old_way",
-          "test_sandbox.test_a_git_that_is_not_a_regular_file_is_never_opened",
-          "test_sandbox.test_a_nested_box_is_detected_not_stacked",
-          "test_sandbox.test_a_nested_harness_runs_only_inside_a_box_verdict_set_up",
-          "test_sandbox.test_a_profile_that_opens_the_shared_npm_cache_keeps_it"
-        ],
-        "unexercised_functions": [
-          "test_the_ci_machine_that_must_have_the_box_has_it",
-          "_home",
-          "test_inside_the_box_the_code_reaches_nothing_but_its_checkout_and_loopback",
-          "test_a_writable_home_does_not_reopen_the_credential_stores",
-          "test_a_gate_named_for_the_network_keeps_it_and_nothing_else"
-        ]
-      },
-      "tests/test_small.py": {
-        "changed": 5,
-        "measured": 5,
-        "executed": 4,
-        "unexercised_ranges": [
-          [
-            16,
-            16
-          ]
-        ],
-        "tests": [
-          "test_small.test_ids_from_a_report_use_the_harnesss_own_parser",
-          "test_small.test_the_judgment_says_what_local_mode_did_not_do",
-          "test_small.test_the_local_engine_runs_the_census_its_profile_asks_for"
-        ],
-        "unexercised_functions": []
-      },
-      "tests/test_small_probes.py": {
-        "changed": 30,
-        "measured": 17,
-        "executed": 7,
-        "unexercised_ranges": [
-          [
-            26,
-            26
-          ],
-          [
-            188,
-            188
-          ],
-          [
-            190,
-            190
-          ],
-          [
-            194,
-            197
-          ],
-          [
-            199,
-            199
-          ],
-          [
-            201,
-            202
-          ]
-        ],
-        "tests": [
-          "test_small_probes.test_a_bare_tool_is_found_on_path_and_a_non_python_gate_is_none",
-          "test_small_probes.test_a_fix_that_introduces_a_name_is_refused_before_any_copy",
-          "test_small_probes.test_a_gate_with_no_python_disables_proving_and_says_so",
-          "test_small_probes.test_a_secret_in_the_expression_is_scrubbed_from_the_record",
-          "test_small_probes.test_anything_else_is_refused_as_probe_unsafe_and_never_run",
-          "test_small_probes.test_both_probes_run_in_the_scratch_copy_and_the_checkout_is_untouched",
-          "test_small_probes.test_probes_off_means_no_counterfactual_is_ever_called",
-          "test_small_probes.test_run_probe_itself_refuses_an_unsafe_expression",
-          "test_small_probes.test_the_audits_proof_expression_is_refused_before_any_subprocess",
-          "test_small_probes.test_uv_run_asks_uv_once_for_its_interpreter"
-        ],
-        "unexercised_functions": [
-          "test_in_the_box_a_probe_cannot_write_outside_its_copy"
-        ]
-      },
-      "tests/test_suite_dialects.py": {
-        "changed": 200,
-        "measured": 39,
-        "executed": 17,
-        "unexercised_ranges": [
-          [
-            14,
-            14
-          ],
-          [
-            16,
-            16
-          ],
-          [
-            18,
-            19
-          ],
-          [
-            21,
-            21
-          ],
-          [
-            62,
-            62
-          ],
-          [
-            89,
-            89
-          ],
-          [
-            101,
-            101
-          ],
-          [
-            109,
-            109
-          ],
-          [
-            114,
-            114
-          ],
-          [
-            122,
-            122
-          ],
-          [
-            133,
-            133
-          ],
-          [
-            138,
-            138
-          ],
-          [
             144,
             144
           ],
           [
-            152,
-            152
+            201,
+            201
           ],
           [
-            159,
-            159
+            218,
+            218
           ],
           [
-            166,
-            166
+            227,
+            227
           ],
           [
-            173,
-            173
+            230,
+            230
           ],
           [
-            178,
-            178
+            248,
+            248
           ],
           [
-            183,
-            183
+            271,
+            271
           ],
           [
-            187,
-            187
+            273,
+            273
           ],
           [
-            197,
-            197
+            277,
+            277
+          ],
+          [
+            299,
+            299
           ]
         ],
         "tests": [
-          "test_suite_dialects.test_a_node_test_named_like_another_runners_summary_does_not_steal_the_reading",
-          "test_suite_dialects.test_a_runner_that_prints_its_passes_is_never_given_derived_ones",
-          "test_suite_dialects.test_a_runner_that_prints_only_a_total_gets_its_passes_from_it",
-          "test_suite_dialects.test_a_suite_that_ran_with_a_few_skips_is_not_called_empty",
-          "test_suite_dialects.test_a_suite_that_skipped_everything_is_still_called_empty",
-          "test_suite_dialects.test_node_test_runner_is_read_in_both_reporters",
-          "test_suite_dialects.test_one_test_re_run_to_verify_a_fix_reads_as_what_it_did",
-          "test_suite_dialects.test_unittest_is_read"
+          "test_local_refuted.test_a_compile_claim_is_set_aside_only_when_a_gate_that_compiles_passed",
+          "test_local_refuted.test_a_declaration_in_a_shape_the_index_cannot_read_keeps_the_claim",
+          "test_local_refuted.test_a_gate_compiles_the_folder_or_the_project_it_names",
+          "test_local_refuted.test_a_member_a_request_binds_is_never_taken_as_non_null",
+          "test_local_refuted.test_a_name_declared_nullable_anywhere_keeps_the_claim_unless_the_receiver_is_typed",
+          "test_local_refuted.test_a_null_claim_on_a_member_declared_non_null_is_set_aside_with_its_declaration",
+          "test_local_refuted.test_a_set_aside_claim_is_kept_in_the_run_and_never_filed",
+          "test_local_refuted.test_claims_a_declaration_does_not_answer_are_left_alone",
+          "test_local_refuted.test_null_claims_in_other_languages_are_not_touched",
+          "test_local_refuted.test_only_a_non_null_type_with_a_value_counts_as_declared_non_null"
         ],
         "unexercised_functions": []
       },
-      "tests/test_swebench_plain.py": {
-        "changed": 3,
-        "measured": 0,
-        "executed": 0,
-        "unexercised_ranges": [],
-        "tests": [],
-        "unexercised_functions": []
-      },
-      "tests/test_testmarks.py": {
-        "changed": 119,
-        "measured": 33,
-        "executed": 15,
+      "tests/test_replay.py": {
+        "changed": 53,
+        "measured": 32,
+        "executed": 28,
         "unexercised_ranges": [
           [
-            8,
-            9
+            377,
+            377
           ],
           [
-            11,
-            11
+            379,
+            379
           ],
           [
-            13,
-            15
+            676,
+            676
           ],
           [
-            18,
-            18
-          ],
-          [
-            22,
-            22
-          ],
-          [
-            36,
-            36
-          ],
-          [
-            43,
-            43
-          ],
-          [
-            60,
-            60
-          ],
-          [
-            65,
-            65
-          ],
-          [
-            77,
-            77
-          ],
-          [
-            81,
-            81
-          ],
-          [
-            94,
-            94
-          ],
-          [
-            98,
-            98
-          ],
-          [
-            113,
-            113
-          ],
-          [
-            118,
-            118
+            680,
+            680
           ]
         ],
         "tests": [
-          "test_testmarks.test_a_skip_with_a_future_expiry_is_a_decision_and_a_focus_is_always_filed",
-          "test_testmarks.test_every_framework_marks_its_skips",
-          "test_testmarks.test_go_skips_count_only_when_nothing_guards_them",
-          "test_testmarks.test_jest_vitest_mocha_and_playwright_markers",
-          "test_testmarks.test_rspec_and_minitest_markers_and_their_guards",
-          "test_testmarks.test_the_suite_is_the_projects_own_tests_not_its_fixtures"
+          "test_replay.test_a_proven_finding_whose_repro_cannot_start_is_neither_refused_nor_verified",
+          "test_replay.test_an_unattended_repro_whose_python_is_not_on_path_could_not_run"
         ],
         "unexercised_functions": []
       },
-      "tests/test_verification.py": {
-        "changed": 4,
-        "measured": 4,
-        "executed": 3,
+      "tests/test_sandbox.py": {
+        "changed": 53,
+        "measured": 21,
+        "executed": 9,
         "unexercised_ranges": [
           [
-            14,
-            14
+            434,
+            435
+          ],
+          [
+            438,
+            439
+          ],
+          [
+            442,
+            442
+          ],
+          [
+            444,
+            445
+          ],
+          [
+            448,
+            450
+          ],
+          [
+            464,
+            464
+          ],
+          [
+            476,
+            476
           ]
         ],
         "tests": [
-          "test_verification.test_a_stale_cache_planted_in_the_scratch_does_not_survive_the_run",
-          "test_verification.test_verification_is_bounded"
+          "test_sandbox.test_a_program_that_cannot_start_raises_in_the_box_as_outside_it",
+          "test_sandbox.test_only_sandbox_execs_own_line_about_this_program_is_a_failure_to_start"
         ],
-        "unexercised_functions": []
+        "unexercised_functions": [
+          "test_sandbox_exec_says_it_could_not_start_a_program_in_one_line_and_exits_71"
+        ]
       }
     },
     "tests_touching_diff": [
-      "test_accept.test_a_revoked_acceptance_reopens_the_finding_at_the_next_run",
-      "test_accept.test_accept_refuses_a_duplicate_and_revoke_reverses_it",
-      "test_accept.test_accept_refuses_an_unknown_or_closed_finding",
-      "test_accept.test_accept_writes_the_ledger_and_the_finding_leaves_the_open_counts",
-      "test_accept.test_accepted_findings_do_not_count_toward_the_silence_guardrail",
-      "test_accept.test_an_accepted_critical_does_not_block_a_pass",
-      "test_accept.test_finalize_folds_the_ledger_whatever_the_tester_says",
-      "test_accept.test_no_state_is_exit_4",
-      "test_accept.test_state_requires_a_citation_on_an_accepted_finding",
-      "test_accept.test_the_banner_counts_accepted_risks_apart",
-      "test_accept.test_the_report_lists_accepted_risks_apart",
-      "test_accept.test_the_tester_cannot_decorate_a_finding_with_an_acceptance",
-      "test_accept.test_the_tester_cannot_write_the_status",
-      "test_accept.test_the_track_record_counts_an_acceptance_apart",
-      "test_anchors.test_a_baseline_measures_no_drift_and_finalize_says_when_it_could_not_anchor",
-      "test_anchors.test_a_previous_state_without_anchors_reads_unavailable_not_unchanged",
-      "test_anchors.test_a_reference_that_names_nothing_is_recorded_as_such_and_costs_nothing",
-      "test_anchors.test_anchors_are_carried_while_the_evidence_is_the_text_they_were_taken_from",
-      "test_anchors.test_drift_travels_into_the_state_and_the_report",
-      "test_anchors.test_facts_name_the_next_finding_id",
-      "test_anchors.test_finalize_anchors_every_cited_line",
-      "test_anchors.test_fixed_at_is_the_date_of_the_measured_fix_never_of_a_claim",
-      "test_anchors.test_introduced_at_is_the_date_of_the_commit_the_origin_names",
-      "test_anchors.test_last_verified_at_is_stamped_only_by_a_measurement",
-      "test_anchors.test_the_class_sites_and_the_verified_intact_items_are_anchored_too",
-      "test_anchors.test_the_code_under_an_accepted_risk_is_measured_in_its_own_bucket",
-      "test_anchors.test_the_next_facts_say_where_the_cited_code_went",
-      "test_anchors.test_the_report_dates_the_measurement_and_its_result",
-      "test_anchors.test_the_report_prints_both_clocks_and_the_ledger_keeps_them",
-      "test_artifact_check.test_a_clean_finalize_has_nothing_to_report",
-      "test_artifact_check.test_a_history_row_that_does_not_carry_the_signed_link_is_named",
-      "test_artifact_check.test_a_missing_history_row_is_named",
-      "test_artifact_check.test_a_report_that_went_missing_is_named",
-      "test_artifact_check.test_an_index_row_dated_from_the_wrong_clock_is_named",
-      "test_artifact_check.test_an_index_row_naming_another_project_is_named",
-      "test_artifact_check.test_finalize_actually_runs_the_check_it_documents",
-      "test_artifact_check.test_the_cli_says_it_out_loud_and_still_records_the_run",
-      "test_backfill.test_a_bare_cited_file_name_is_found_in_the_tree",
       "test_backfill.test_a_draft_that_crashes_on_a_wrong_argument_gets_one_repair",
       "test_backfill.test_a_draft_that_dies_on_an_import_gets_one_repair",
       "test_backfill.test_a_draft_that_never_touches_the_cited_code_is_refused_and_redrafted",
@@ -6904,39 +1737,58 @@
       "test_backfill.test_a_finding_left_without_a_repro_keeps_what_the_last_draft_ran_into",
       "test_backfill.test_a_model_written_repro_never_runs_without_the_sandbox",
       "test_backfill.test_a_model_written_repro_sees_none_of_the_callers_secrets",
-      "test_backfill.test_a_model_written_repro_that_stops_reproducing_never_closes_its_finding",
-      "test_backfill.test_a_refused_draft_is_never_written_or_run",
+      "test_backfill.test_a_model_written_repro_that_cannot_start_could_not_run",
       "test_backfill.test_a_repro_that_never_runs_the_cited_function_is_refused",
-      "test_backfill.test_a_repro_that_reproduces_at_head_says_still_broken"
+      "test_backfill.test_a_repro_that_reproduces_at_head_says_still_broken",
+      "test_backfill.test_a_repro_that_reproduces_only_at_the_anchored_commit_says_looks_fixed",
+      "test_backfill.test_attempts_stop_at_the_limit",
+      "test_backfill.test_the_command_drafts_runs_and_writes_one_row_per_finding",
+      "test_backfill.test_the_draft_is_shown_how_the_projects_own_tests_set_up",
+      "test_browser.test_verdict_local_mints_carries_and_resolves_what_the_browser_measured",
+      "test_escalate.test_the_local_tier_writes_its_leads_as_data",
+      "test_gate.test_drift_note_says_only_what_is_actionable",
+      "test_hygiene_facts.test_the_local_tier_writes_the_same_split_before_it_finalizes",
+      "test_hygiene_lifecycle.test_the_local_tier_finalizes_a_night_the_scan_files_a_critical_on",
+      "test_hygiene_state.test_a_local_night_names_no_hygiene_id_and_says_the_verdict_written",
+      "test_local_braces.test_a_csharp_change_in_a_delta_becomes_a_lead_with_its_reason",
+      "test_local_braces.test_no_counterfactual_is_tried_on_csharp_and_the_reason_is_kept",
+      "test_local_braces.test_the_run_reads_csharp_through_the_command_line_seam",
+      "test_local_delta.test_a_carried_blocked_verdict_says_why_it_was_carried",
+      "test_local_delta.test_a_claim_about_an_open_findings_function_is_not_filed_twice",
+      "test_local_delta.test_a_drifted_finding_is_refiled_and_never_left_silent",
+      "test_local_delta.test_a_failing_test_this_engine_filed_is_not_classified_again",
+      "test_local_delta.test_a_first_run_in_an_empty_root_is_a_baseline_with_nothing_carried",
+      "test_local_delta.test_a_project_whose_ids_carry_no_prefix_files_and_finalizes",
+      "test_local_delta.test_a_range_with_nothing_in_it_reads_nothing",
+      "test_local_delta.test_a_resolved_finding_that_comes_back_is_regressed_not_new",
+      "test_local_delta.test_a_resolved_identity_that_comes_back_is_regressed_under_its_own_id",
+      "test_local_delta.test_a_run_that_got_no_answers_writes_no_state",
+      "test_local_delta.test_a_state_on_disk_is_carried_even_when_the_delta_flag_was_forgotten",
+      "test_local_delta.test_an_unproven_reading_never_reopens_a_resolved_finding",
+      "test_local_delta.test_facts_for_another_commit_are_measured_again",
+      "test_local_delta.test_in_a_delta_a_models_opinion_that_a_green_test_is_brittle_is_a_lead",
+      "test_local_delta.test_in_a_delta_an_unproven_reading_is_a_lead_not_a_finding",
+      "test_local_delta.test_silence_never_resolves_a_finding_in_a_local_delta",
+      "test_local_delta.test_the_engine_and_its_counters_land_in_last_run_and_in_the_report",
+      "test_local_delta.test_the_engine_keeps_the_sweep_attempts_measurement_and_its_test_delta",
+      "test_local_delta.test_the_gateway_reaches_the_bill_and_nothing_a_team_commits",
+      "test_local_delta.test_the_night_with_an_inherited_conflict_finalizes_and_asks_once",
+      "test_local_delta.test_the_not_tested_list_is_counted_not_described",
+      "test_local_delta.test_the_previous_quarantine_and_verified_intact_survive_a_local_delta",
+      "test_local_delta.test_the_report_says_what_this_run_did_not_what_an_old_one_did",
+      "test_local_delta.test_the_second_night_carries_what_the_first_filed_and_is_not_refused",
+      "test_local_delta.test_the_skip_scan_reads_only_what_the_suite_collects",
+      "test_local_delta.test_two_findings_with_one_identity_in_one_run_are_one_finding"
     ],
     "unexercised_functions": [
-      "src/verdict_mcp/browser.py:_Run.left",
-      "src/verdict_mcp/browser.py:_Run.out_of_time",
-      "src/verdict_mcp/browser.py:_Run.done",
-      "src/verdict_mcp/browser.py:_Run.add",
-      "src/verdict_mcp/browser.py:_Run.on",
-      "src/verdict_mcp/browser.py:_Run.context",
-      "src/verdict_mcp/browser.py:_Run.new_page",
-      "src/verdict_mcp/browser.py:_Run.new_page.answer",
-      "src/verdict_mcp/browser.py:_Run.src",
-      "src/verdict_mcp/browser.py:_Run.goto",
-      "src/verdict_mcp/browser.py:_Run.crawl",
-      "src/verdict_mcp/browser.py:_Run._asset",
-      "src/verdict_mcp/browser.py:_Run.autofill",
-      "src/verdict_mcp/browser.py:_Run.hidden_at_load",
-      "src/verdict_mcp/browser.py:_Run.report_hidden",
-      "src/verdict_mcp/browser.py:_Run.settle_scroll",
-      "src/verdict_mcp/browser.py:_Run.focused",
-      "src/verdict_mcp/browser.py:_Run.still",
-      "src/verdict_mcp/browser.py:_Run.scroll_through",
-      "src/verdict_mcp/browser.py:_Run.focus_visible"
+      "tests/test_sandbox.py:test_sandbox_exec_says_it_could_not_start_a_program_in_one_line_and_exits_71"
     ]
   },
   "tests": {
-    "passed": 3533,
-    "skipped": 21,
-    "duration_s": 335.33,
-    "collected": 3554
+    "passed": 3563,
+    "skipped": 23,
+    "duration_s": 355.04,
+    "collected": 3586
   },
   "calibration": {
     "min_sample": 30,
@@ -6989,65 +1841,45 @@
   },
   "test_ids": {
     "status": "measured",
-    "count": 3554,
-    "added_count": 533,
-    "removed_count": 1,
+    "count": 3586,
+    "added_count": 32,
+    "removed_count": 0,
     "added": [
-      "tests/test_braces.py::test_a_changed_field_is_its_own_statement_and_swallows_no_method",
-      "tests/test_braces.py::test_a_changed_line_asks_about_the_function_it_sits_in_once",
-      "tests/test_braces.py::test_a_declaration_with_nothing_to_run_asks_nothing",
-      "tests/test_braces.py::test_a_function_too_long_for_one_question_is_read_around_the_change",
-      "tests/test_braces.py::test_a_jsx_component_is_one_question_however_many_lines_change",
-      "tests/test_braces.py::test_a_pipeline_of_top_level_calls_is_read_in_order_as_one_question",
-      "tests/test_braces.py::test_an_expression_bodied_member_is_read_as_its_statement",
-      "tests/test_braces.py::test_csharp_heads_are_judged_by_their_shape[app.MapGet(\"/x\", async (HttpContext c) =>-lambda]",
-      "tests/test_braces.py::test_csharp_heads_are_judged_by_their_shape[catch (Exception e) when (e.Retry)-control]",
-      "tests/test_braces.py::test_csharp_heads_are_judged_by_their_shape[else-control]",
-      "tests/test_braces.py::test_csharp_heads_are_judged_by_their_shape[for (var i = 0; i < n; i++)-control]",
-      "tests/test_braces.py::test_csharp_heads_are_judged_by_their_shape[get-accessor]",
-      "tests/test_braces.py::test_csharp_heads_are_judged_by_their_shape[if (order is null)-control]",
-      "tests/test_braces.py::test_csharp_heads_are_judged_by_their_shape[public Thing(int a) : base(a)-function]",
-      "tests/test_braces.py::test_csharp_heads_are_judged_by_their_shape[public decimal Total-property]",
-      "tests/test_braces.py::test_csharp_heads_are_judged_by_their_shape[public enum State-shape]",
-      "tests/test_braces.py::test_csharp_heads_are_judged_by_their_shape[public int this[int index]-property]",
-      "tests/test_braces.py::test_csharp_heads_are_judged_by_their_shape[public interface IOrders-shape]",
-      "tests/test_braces.py::test_csharp_heads_are_judged_by_their_shape[public sealed record Order(Guid Id)-type]",
-      "tests/test_braces.py::test_csharp_heads_are_judged_by_their_shape[public static IResult Handle<T>(T body) where T : class, new()-function]",
-      "tests/test_braces.py::test_csharp_heads_are_judged_by_their_shape[return Ok(new OrderView-object]",
-      "tests/test_braces.py::test_csharp_heads_are_judged_by_their_shape[switch (state)-control]",
-      "tests/test_braces.py::test_csharp_heads_are_judged_by_their_shape[var v = new()-object]",
-      "tests/test_braces.py::test_csharp_heads_are_judged_by_their_shape[x switch-object]",
-      "tests/test_braces.py::test_csharp_members_are_found_with_their_attributes_and_doc_comment",
-      "tests/test_braces.py::test_csharp_strings_chars_comments_and_directives_hide_their_braces",
-      "tests/test_braces.py::test_hand_written_source_is_read[src/Api/OrdersController.cs]",
-      "tests/test_braces.py::test_hand_written_source_is_read[src/Api/wwwroot/js/site.js]",
-      "tests/test_braces.py::test_hand_written_source_is_read[web/src/pages/Checkout.tsx]",
-      "tests/test_braces.py::test_hand_written_source_is_read[web/src/testing-utils-free.ts]",
-      "tests/test_braces.py::test_imports_type_heads_auto_properties_and_shapes_ask_nothing",
-      "tests/test_braces.py::test_line_numbers_are_the_files_own",
-      "tests/test_braces.py::test_neighbouring_one_line_members_are_one_question",
-      "tests/test_braces.py::test_tests_generated_and_vendored_code_are_not_read[src/Api.Tests/OrdersTests.cs]",
-      "tests/test_braces.py::test_tests_generated_and_vendored_code_are_not_read[src/Api/Form1.Designer.cs]",
-      "tests/test_braces.py::test_tests_generated_and_vendored_code_are_not_read[src/Api/Migrations/20260101_Init.cs]",
-      "tests/test_braces.py::test_tests_generated_and_vendored_code_are_not_read[src/Api/obj/Debug/Api.AssemblyInfo.cs]",
-      "tests/test_braces.py::test_tests_generated_and_vendored_code_are_not_read[src/Api/wwwroot/lib/jquery/jquery.js]",
-      "tests/test_braces.py::test_tests_generated_and_vendored_code_are_not_read[tests/Orders.cs]",
-      "tests/test_braces.py::test_tests_generated_and_vendored_code_are_not_read[web/dist/app.js]",
-      "tests/test_braces.py::test_tests_generated_and_vendored_code_are_not_read[web/e2e/login.ts]",
-      "tests/test_braces.py::test_tests_generated_and_vendored_code_are_not_read[web/node_modules/react/index.js]",
-      "tests/test_braces.py::test_tests_generated_and_vendored_code_are_not_read[web/public/vendor.min.js]",
-      "tests/test_braces.py::test_tests_generated_and_vendored_code_are_not_read[web/src/App.test.tsx]",
-      "tests/test_braces.py::test_tests_generated_and_vendored_code_are_not_read[web/src/__tests__/App.tsx]",
-      "tests/test_braces.py::test_tests_generated_and_vendored_code_are_not_read[web/src/app.spec.ts]",
-      "tests/test_braces.py::test_tests_generated_and_vendored_code_are_not_read[web/src/types.d.ts]",
-      "tests/test_braces.py::test_the_language_comes_from_the_extension[README.md-None]",
-      "tests/test_braces.py::test_the_language_comes_from_the_extension[appsettings.json-None]",
-      "tests/test_braces.py::test_the_language_comes_from_the_extension[scripts/seed.py-python]"
+      "tests/test_backfill.py::test_a_model_written_repro_that_cannot_start_could_not_run[sandbox-exec]",
+      "tests/test_backfill.py::test_a_model_written_repro_that_cannot_start_could_not_run[stand-in]",
+      "tests/test_interpreter_floor.py::test_new_style_unions_are_lazy[local_refuted.py]",
+      "tests/test_interpreter_floor.py::test_no_syntax_the_floor_cannot_parse[local_refuted.py]",
+      "tests/test_local_refuted.py::test_a_compile_claim_is_set_aside_only_when_a_gate_that_compiles_passed",
+      "tests/test_local_refuted.py::test_a_declaration_in_a_shape_the_index_cannot_read_keeps_the_claim",
+      "tests/test_local_refuted.py::test_a_gate_compiles_the_folder_or_the_project_it_names",
+      "tests/test_local_refuted.py::test_a_member_a_request_binds_is_never_taken_as_non_null",
+      "tests/test_local_refuted.py::test_a_name_declared_nullable_anywhere_keeps_the_claim_unless_the_receiver_is_typed",
+      "tests/test_local_refuted.py::test_a_null_claim_on_a_member_declared_non_null_is_set_aside_with_its_declaration",
+      "tests/test_local_refuted.py::test_a_set_aside_claim_is_kept_in_the_run_and_never_filed",
+      "tests/test_local_refuted.py::test_claims_a_declaration_does_not_answer_are_left_alone",
+      "tests/test_local_refuted.py::test_null_claims_in_other_languages_are_not_touched",
+      "tests/test_local_refuted.py::test_only_a_non_null_type_with_a_value_counts_as_declared_non_null",
+      "tests/test_local_refuted.py::test_the_null_rule_needs_the_projects_own_nullable_setting",
+      "tests/test_local_refuted.py::test_the_reports_list_of_set_aside_claims_is_capped_and_says_so",
+      "tests/test_local_refuted.py::test_what_the_claim_says_is_null_is_its_subject",
+      "tests/test_replay.py::test_a_proven_finding_whose_repro_cannot_start_is_neither_refused_nor_verified",
+      "tests/test_replay.py::test_an_unattended_repro_whose_python_is_not_on_path_could_not_run",
+      "tests/test_sandbox.py::test_a_program_that_cannot_start_raises_in_the_box_as_outside_it[missing/bin/python-auto]",
+      "tests/test_sandbox.py::test_a_program_that_cannot_start_raises_in_the_box_as_outside_it[missing/bin/python-off]",
+      "tests/test_sandbox.py::test_a_program_that_cannot_start_raises_in_the_box_as_outside_it[verdict-no-such-program-auto]",
+      "tests/test_sandbox.py::test_a_program_that_cannot_start_raises_in_the_box_as_outside_it[verdict-no-such-program-off]",
+      "tests/test_sandbox.py::test_only_sandbox_execs_own_line_about_this_program_is_a_failure_to_start[after-output]",
+      "tests/test_sandbox.py::test_only_sandbox_execs_own_line_about_this_program_is_a_failure_to_start[denied]",
+      "tests/test_sandbox.py::test_only_sandbox_execs_own_line_about_this_program_is_a_failure_to_start[exit-1]",
+      "tests/test_sandbox.py::test_only_sandbox_execs_own_line_about_this_program_is_a_failure_to_start[not-found-bytes]",
+      "tests/test_sandbox.py::test_only_sandbox_execs_own_line_about_this_program_is_a_failure_to_start[not-found]",
+      "tests/test_sandbox.py::test_only_sandbox_execs_own_line_about_this_program_is_a_failure_to_start[other-program]",
+      "tests/test_sandbox.py::test_only_sandbox_execs_own_line_about_this_program_is_a_failure_to_start[own-71]",
+      "tests/test_sandbox.py::test_only_sandbox_execs_own_line_about_this_program_is_a_failure_to_start[unknown-reason]",
+      "tests/test_sandbox.py::test_sandbox_exec_says_it_could_not_start_a_program_in_one_line_and_exits_71"
     ],
-    "removed": [
-      "tests/test_local_gate.py::test_a_typescript_only_diff_reads_nothing_and_says_so"
-    ],
-    "truncated": true,
+    "removed": [],
+    "truncated": false,
     "source": "id set-diff, not summary arithmetic"
   },
   "questions": {
@@ -7058,7 +1890,7 @@
         "finding": "VERDICT-F-74",
         "asked_on": "2026-09-13",
         "asked_at_run": 15,
-        "age_days": 68
+        "age_days": 75
       },
       {
         "id": "VERDICT-Q-2",
@@ -7066,7 +1898,7 @@
         "finding": null,
         "asked_on": "2026-09-13",
         "asked_at_run": 15,
-        "age_days": 68
+        "age_days": 75
       },
       {
         "id": "VERDICT-Q-3",
@@ -7074,7 +1906,7 @@
         "finding": null,
         "asked_on": "2026-09-13",
         "asked_at_run": 15,
-        "age_days": 68
+        "age_days": 75
       }
     ],
     "answered_since_last_run": []
