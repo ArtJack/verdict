@@ -3,44 +3,100 @@
  "model": "chat-120b",
  "leads": [
   {
-   "path": "scripts/check_structure.py",
+   "path": "src/verdict_mcp/sandbox.py",
+   "line": 540,
+   "function": "run",
+   "title": "run() always forces capture_output=True, ignoring caller's capture_output setting",
+   "severity": "Major",
+   "why": "probe failed on the original: FileNotFoundError: [Errno 2] No such file or directory: 'python'"
+  },
+  {
+   "path": "src/verdict_mcp/small.py",
+   "line": 327,
+   "function": "mint",
+   "title": "Validator uses wrong directory path, mismatching write target",
+   "severity": "Major",
+   "why": "the model did not answer with JSON"
+  },
+  {
+   "path": "tests/test_local_refuted.py",
+   "line": 58,
+   "function": "checkout",
+   "title": "checkout fails on empty file set due to missing --allow-empty flag",
+   "severity": "Blocker",
+   "why": "probe_unsafe: argument 1 is not a literal (m.Path('/tmp/checkout_empty'))"
+  },
+  {
+   "path": "tests/test_local_refuted.py",
+   "line": 62,
+   "function": "claim",
+   "title": "Hard\u2011coded line number always 19 misleads callers",
+   "severity": "Minor",
+   "why": "fix_unsafe: introduces `inspect`, a name the function never uses"
+  },
+  {
+   "path": "tests/test_local_refuted.py",
+   "line": 68,
+   "function": "test_a_null_claim_on_a_member_declared_non_null_is_set_aside_with_its_declaration",
+   "title": "Refuter reports the declaration line instead of the claim line, misleading the location of the issue",
+   "severity": "Minor",
+   "why": "the line to flip (112) is outside test_a_null_claim_on_a_member_declared_non_null_is_set_aside_with_its_declaration"
+  },
+  {
+   "path": "tests/test_local_refuted.py",
    "line": 78,
-   "function": "git",
-   "title": "git() discards stdout on non\u2011zero exit when check=False",
+   "function": "test_the_null_rule_needs_the_projects_own_nullable_setting",
+   "title": "Missing <Nullable> setting treated as enabled, causing false null reference warnings",
    "severity": "Major",
-   "why": "the model did not answer with JSON"
+   "why": "the line to flip (143) is outside test_the_null_rule_needs_the_projects_own_nullable_setting"
   },
   {
-   "path": "scripts/check_structure.py",
-   "line": 102,
-   "function": "is_shared_fake",
-   "title": "Off\u2011by\u2011one in is_shared_fake: directory itself not checked against SHARED_FAKE_DIRS",
-   "severity": "Major",
-   "why": "probe_unsafe: argument 1 is not a literal (next(iter(m.SHARED_FAKE_DIRS)))"
+   "path": "tests/test_local_refuted.py",
+   "line": 88,
+   "function": "test_only_a_non_null_type_with_a_value_counts_as_declared_non_null",
+   "title": "Refuter returns empty dict instead of None for non\u2011null declarations",
+   "severity": "Blocker",
+   "why": "the proof budget was spent"
   },
   {
-   "path": "scripts/check_structure.py",
-   "line": 185,
-   "function": "silent",
-   "title": "silent() misclassifies bare Name expression statements as non\u2011silent",
+   "path": "tests/test_local_refuted.py",
+   "line": 117,
+   "function": "test_a_name_declared_nullable_anywhere_keeps_the_claim_unless_the_receiver_is_typed",
+   "title": "Off\u2011by\u2011one line number reported for Ticket.AssignedTo declaration",
    "severity": "Minor",
-   "why": "probe_unsafe: argument 1 is not a literal (__import__('ast').Expr(value=__import__('ast').Name(id='x', )"
+   "why": "the proof budget was spent"
   },
   {
-   "path": "src/verdict_mcp/accept.py",
-   "line": 210,
-   "function": "main",
-   "title": "Missing validation of --reason when using --revoke allows empty revocation reason",
+   "path": "tests/test_local_refuted.py",
+   "line": 201,
+   "function": "test_claims_a_declaration_does_not_answer_are_left_alone",
+   "title": "Refuter misclassifies any claim with the word \"null\" as a null\u2011claim, causing false refutation failures",
+   "severity": "Blocker",
+   "why": "the proof budget was spent"
+  },
+  {
+   "path": "tests/test_local_refuted.py",
+   "line": 222,
+   "function": "test_null_claims_in_other_languages_are_not_touched",
+   "title": "Refuter.check returns empty list instead of None for non\u2011C# languages",
    "severity": "Minor",
-   "why": "the model did not answer with JSON"
+   "why": "the proof budget was spent"
   },
   {
-   "path": "src/verdict_mcp/backfill.py",
-   "line": 113,
-   "function": "_tree",
-   "title": "Silent failure of _tree returns empty list, hiding git errors",
+   "path": "tests/test_local_refuted.py",
+   "line": 259,
+   "function": "test_a_gate_compiles_the_folder_or_the_project_it_names",
+   "title": "compiling_gate fails to match Windows-style backslash paths",
    "severity": "Major",
-   "why": "the model did not answer with JSON"
+   "why": "the proof budget was spent"
+  },
+  {
+   "path": "tests/test_local_refuted.py",
+   "line": 299,
+   "function": "test_the_reports_list_of_set_aside_claims_is_capped_and_says_so",
+   "title": "set_aside_text caps list at 24 items instead of 25, yielding wrong line count and truncation message",
+   "severity": "Minor",
+   "why": "the proof budget was spent"
   }
  ]
 }
