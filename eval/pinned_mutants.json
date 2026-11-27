@@ -3595,5 +3595,41 @@
   "path": "src/verdict_mcp/local_skip_close.py",
   "old": "        if not path.endswith(\".py\"):\n            return False  # the ledger is pytest's collection: it says nothing of a Jest or JUnit file\n",
   "new": ""
+ },
+ {
+  "label": "skip marker 1: a bare skip decorator is never matched",
+  "path": "src/verdict_mcp/local_skips.py",
+  "old": "    r\"(?:\\(\\s*(?P<args>[^)]*)|(?(call)(?!)|[ \\t]*(?P<note>#[^\\n]*)?$))\", re.M)\n",
+  "new": "    r\"(?:\\(\\s*(?P<args>[^)]*)|(?(call)(?!)|(?!)[ \\t]*(?P<note>#[^\\n]*)?$))\", re.M)\n"
+ },
+ {
+  "label": "skip marker 2: a bare pytest.skip name reads as a skip call",
+  "path": "src/verdict_mcp/local_skips.py",
+  "old": "    r\"(?:\\(\\s*(?P<args>[^)]*)|(?(call)(?!)|[ \\t]*(?P<note>#[^\\n]*)?$))\", re.M)\n",
+  "new": "    r\"(?:\\(\\s*(?P<args>[^)]*)|(?(call)|[ \\t]*(?P<note>#[^\\n]*)?$))\", re.M)\n"
+ },
+ {
+  "label": "skip marker 3: a skipif with no condition reads as a guard",
+  "path": "src/verdict_mcp/local_skips.py",
+  "old": "                    _ALWAYS.match(args) or _NO_CONDITION.match(args)):\n",
+  "new": "                    _ALWAYS.match(args)):\n"
+ },
+ {
+  "label": "skip marker 4: a skipif with only a reason reads as a guard",
+  "path": "src/verdict_mcp/local_skips.py",
+  "old": "_NO_CONDITION = re.compile(r\"^\\s*(?:reason\\s*=|$)\")\n",
+  "new": "_NO_CONDITION = re.compile(r\"^\\s*(?:$)\")\n"
+ },
+ {
+  "label": "skip marker 5: a bare marker's dated note is not read as its reason",
+  "path": "src/verdict_mcp/local_skips.py",
+  "old": "            reason = args if m.group(\"args\") is not None else (m.group(\"note\") or \"\")\n",
+  "new": "            reason = args\n"
+ },
+ {
+  "label": "skip marker 6: a bare marker with a comment beside it is not matched",
+  "path": "src/verdict_mcp/local_skips.py",
+  "old": "    r\"(?:\\(\\s*(?P<args>[^)]*)|(?(call)(?!)|[ \\t]*(?P<note>#[^\\n]*)?$))\", re.M)\n",
+  "new": "    r\"(?:\\(\\s*(?P<args>[^)]*)|(?(call)(?!)|[ \\t]*(?P<note>)$))\", re.M)\n"
  }
 ]
