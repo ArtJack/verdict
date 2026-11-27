@@ -23,7 +23,7 @@ import pytest
 
 REPO = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO / "src"))
-from verdict_mcp import small  # noqa: E402
+from verdict_mcp import local_env, local_findings, local_probes, sandbox, small  # noqa: E402
 from verdict_mcp.validate import validate_finding  # noqa: E402
 
 from test_local_delta import _ByPrompt, git  # noqa: E402
@@ -41,7 +41,7 @@ def _refuse_subprocess(monkeypatch):
     """Any child process started is the failure under test."""
     def boom(*a, **k):
         raise AssertionError(f"a subprocess was started: {a[0] if a else k}")
-    monkeypatch.setattr(small.subprocess, "run", boom)
+    monkeypatch.setattr(local_probes.subprocess, "run", boom)
 
 
 def _recorder_repo(tmp_path, marker: Path):
@@ -155,7 +155,11 @@ def test_both_probes_run_in_the_scratch_copy_and_the_checkout_is_untouched(tmp_p
     """Measured 2026-10-02: the "before" probe ran with `cwd=<repo>` and the real tree on
     `PYTHONPATH`, so a function with a side effect — or one that talks to a marketplace —
     ran against the checkout and whatever its config imports. Now the tree is copied once,
-    the original is probed in the copy, the copy is patched, and the patched copy is probed."""
+    the original is probed in the copy, the copy is patched, and the patched copy is probed.
+
+    The recorder writes outside the tree, the one channel 0.94.0's box closes (the test after
+    this one), so here the OS half of `sandbox.py` stays out and the environment half stays in."""
+    monkeypatch.setattr(sandbox, "available", lambda: False)
     monkeypatch.setenv("ANTHROPIC_AUTH_TOKEN", "fake")   # as runner.run_local leaves it
     marker = tmp_path / "probe-runs.log"
     repo = _recorder_repo(tmp_path, marker)
@@ -179,6 +183,23 @@ def test_both_probes_run_in_the_scratch_copy_and_the_checkout_is_untouched(tmp_p
         assert token == "token=False", f"the gateway token reached the probe: {line}"
     assert git(repo, "status", "--porcelain") == "", "the checkout must come back untouched"
     assert proof["expression"] == "m.f(1)" and "verdict-cf-" in proof["scratch"]
+
+
+@pytest.mark.skipif(not sandbox.available() or sandbox.nested(),
+                    reason="needs macOS sandbox-exec, outside another sandbox")
+def test_in_the_box_a_probe_cannot_write_outside_its_copy(tmp_path):
+    """0.94.0: the recorder's write outside the tree was the last channel a probe had once its
+    environment was an allowlist and its expression a literal call. In the box it is gone: the
+    probe cannot run as written, and says so, and nothing lands outside the copy."""
+    marker = tmp_path / "probe-runs.log"
+    repo = _recorder_repo(tmp_path, marker)
+    chunk = small.chunks_of(repo, "m.py")[0]
+    model = FakeModel([{"expression": "m.f(1)", "fix_line": 12,
+                        "fix_replacement": "    return x + 2"}])
+    proof = small.counterfactual(model, repo, chunk, {"mechanism": "adds one, not two",
+                                                      "line": 12}, sys.executable)
+    assert proof["status"] == "unavailable" and "not permitted" in proof["reason"], proof
+    assert not marker.exists()
 
 
 # ── O-S-1 (2): the child's environment is an allowlist ────────────────────────
@@ -370,7 +391,7 @@ def test_probes_off_means_no_counterfactual_is_ever_called(tmp_path, monkeypatch
     nothing is executed, and `not_tested` says which switch did it."""
     def never(*a, **k):
         raise AssertionError("counterfactual was called with probes off")
-    monkeypatch.setattr(small, "counterfactual", never)
+    monkeypatch.setattr(local_findings, "counterfactual", never)
     repo, sha_range = branch_repo(tmp_path)
     qa = _gate_root(tmp_path, "probes: off\n" if how == "profile" else "")
     budget = small.Budget(probes=0) if how == "flag" else None
@@ -441,7 +462,8 @@ def test_uv_run_asks_uv_once_for_its_interpreter(tmp_path, monkeypatch):
         calls.append((argv, kw))
         return subprocess.CompletedProcess(argv, 0, stdout="/proj/.venv/bin/python\n", stderr="")
 
-    monkeypatch.setattr(small.subprocess, "run", fake_run)
+    # 0.94.0: the question goes through the box (`uv run` syncs, and a sync builds the project).
+    monkeypatch.setattr(local_env.sandbox, "run", fake_run)
     small._RUNNER_PYTHON.clear()
     assert small.interpreter_of("uv run pytest -q", tmp_path) == "/proj/.venv/bin/python"
     assert small.interpreter_of("uv run pytest -q", tmp_path) == "/proj/.venv/bin/python"
@@ -453,13 +475,13 @@ def test_uv_run_asks_uv_once_for_its_interpreter(tmp_path, monkeypatch):
     def failing(argv, **kw):
         return subprocess.CompletedProcess(argv, 1, stdout="", stderr="no project found")
 
-    monkeypatch.setattr(small.subprocess, "run", failing)
+    monkeypatch.setattr(local_env.sandbox, "run", failing)
     small._RUNNER_PYTHON.clear()
     assert small.interpreter_of("uv run pytest", tmp_path) is None
 
 
 def test_a_bare_tool_is_found_on_path_and_a_non_python_gate_is_none(monkeypatch):
-    monkeypatch.setattr(small.shutil, "which",
+    monkeypatch.setattr(local_env.shutil, "which",
                         lambda name: {"pytest": "/w/bin/pytest", "python": "/w/bin/python"}.get(name))
     assert small.interpreter_of("pytest -q") == "/w/bin/python"
     assert small.interpreter_of("python -m pytest") == "/w/bin/python"
@@ -473,7 +495,7 @@ def test_a_gate_with_no_python_disables_proving_and_says_so(tmp_path, monkeypatc
     monkeypatch.setattr(small, "interpreter_of", lambda command, repo=None: None)
     def never(*a, **k):
         raise AssertionError("counterfactual was called with no interpreter")
-    monkeypatch.setattr(small, "counterfactual", never)
+    monkeypatch.setattr(local_findings, "counterfactual", never)
     repo, sha_range = branch_repo(tmp_path)
     qa = _gate_root(tmp_path)
     assert small.run(repo, qa, _claiming_model(), limit=4, gate=None, reruns=0, prove=True,

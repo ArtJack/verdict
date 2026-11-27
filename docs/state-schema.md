@@ -196,6 +196,58 @@ the record (0.91.1). The local engine's runs and a model-free sweep are told, ne
 Off, the default, the same findings are accepted and named once. Either way a `repro` that does
 not reproduce on a fresh worktree refuses `proven`.
 
+**The project's own code runs in a box (0.94.0, `sandbox.py`).**
+
+What counts as the project's code: every command the harness starts from it.
+- the gates and the test-id collection;
+- one-test fix verification;
+- the coverage run and its render;
+- the census's mutants;
+- a tester's or a model's repro;
+- the local tier's probes, flake re-runs and its `<runner> run python` question.
+
+Where macOS's `/usr/bin/sandbox-exec` exists, that code runs with these limits:
+- no network but loopback (none at all for a model-written repro), and no DNS;
+- writes only to the checkout it runs in, a private temp dir and uv cache, and what `sandbox_write:` adds;
+- never a write to a checkout's `.git`, `.claude` or `.mcp.json`, or to the QA root, because git and Claude Code run those later, outside any box;
+- no reads of the owner's credential stores (`~/.ssh`, `~/.aws`, `~/.config/op-agent`, plaintext `.env` files under `~/.config`, and the others in `CREDENTIAL_PATHS`), of the Claude login the caller runs under, or of other projects' QA records. The credential stores are denied again after every read-back, so a writable path cannot reopen one;
+- a 4 GiB file-size ceiling;
+- its whole process group killed when it returns.
+
+Its environment is built from an allowlist on every machine, never inherited. `test_env:` names the variables a suite needs beyond it, comma-separated, and never passes one named like a credential.
+
+On macOS a process can read the start-up environment of any process of the same user (`sysctl(KERN_PROCARGS2)`), and no sandbox rule tried stopped it. So `verdict-run` starts its premeasure with no credential in its environment. The Claude CLI's own `ANTHROPIC_API_KEY`, when it authenticates that way, is the exception the box cannot close; the box denies it the network only. For a repository you do not trust, authenticate the CLI some other way.
+
+Before 0.94.0 these commands ran with the caller's whole environment (under `verdict-paid`, the API key), the network and the owner's files, measured 2026-11-03.
+
+`sandbox:` takes three values:
+- `auto` (unset) boxes the code where a box exists.
+- `required` runs nothing where none exists. The gate is `unavailable` and says why. Use it on a stranger's repository.
+- `off` restores the pre-0.94.0 behaviour for a suite that needs the network or the owner's files.
+
+A value it cannot read keeps `auto` and says so. `sandbox_network:` names the gates that may use the network, such as an `npm ci` gate; they keep everything else. `sandbox_write:` adds writable paths; one that reaches a credential store, such as `~` itself, is ignored with a note.
+
+Each run gets a uv cache and an npm cache of its own, so a malicious suite cannot plant a package that other projects later install. An `npm ci` gate then downloads what it installs: give it `sandbox_network:`. A gate that runs `uvx --offline` needs uv's shared cache and tool folder instead: `sandbox_write: ~/.cache/uv, ~/.local/share/uv/tools`; `sandbox_write: ~/.npm` opens npm's. uv keeps an empty `.git` file in its cache; the box reads only a `.git` directory, or a file that starts with `gitdir: `, as a checkout to keep read-only (0.94.0).
+
+**The floor.** `verdict-run --sandbox auto|required` sets the least box for the run and for every process it starts (`VERDICT_SANDBOX`), and a profile can only tighten it. Under a `required` floor the profile's `sandbox_network`, `sandbox_write` and `test_env` are ignored: a repository that ships its own `.qa/` must not loosen the box it is run in. `verdict-run` pins the floor to the profile's own setting before the tester starts, so a `profile.md` edited during the run changes nothing.
+
+`facts.json` → `sandbox` records `{mode, box, environment}`, plus `floor`, the network gates, the extra writable paths and `test_env` when set. `box` is one of:
+- `sandbox-exec`;
+- `none on this machine…`;
+- `off…`;
+- `the caller's sandbox…`, when the harness itself runs inside the tester's Claude Code sandbox, which macOS will not stack (`sandbox.nested`). Under `required` that counts only when `verdict-run` set the outer box up (`VERDICT_OUTER_BOX`).
+
+`verdict-run` also puts the tester's own Bash in Claude Code's sandbox through `--settings`. The settings:
+- `network.strictAllowlist` with no allowed domains;
+- `credentials.envVars` deny for every variable named like a credential, or whose value carries one (`scheme://user:password@host`);
+- `denyRead` for the credential stores and every `.env` file under `~/.config`;
+- writes to the checkout, the QA root and the repository's git directory;
+- the harness commands excluded, because they box the project's code themselves.
+
+`--no-sandbox` or `sandbox: off` leaves the tester outside the sandbox.
+
+**The checkout's Claude Code configuration.** A session started with `--setting-sources project,local` runs a tracked `.claude/settings.json` hook before the tester's first turn, outside every box (measured). Under `required`, `verdict-run` refuses a checkout holding anything under `.claude` that `provision` did not write, whatever its case or symlink, tracked or not. It fails closed when git or the disk cannot be read, and reads again after premeasure. Under `auto` it names what the repository tracks there.
+
 **A fix that fails the project's own green tests is a contract dispute (0.90.11).** A finding carrying `fix_breaks_tests` above 0 is capped at Major, taken out of the release blockers and parked as a question; the verdict is lowered from `fail` to `pass with risks` only when nothing else blocks. The project's tests are evidence of intent: on 2026-10-17 a django-oscar baseline called a Critical what 22 green tests and the tracker's history had settled the other way.
 
 A run whose tester answered on more than one model (its own
@@ -204,6 +256,26 @@ after two safety-filter refusals the CLI once carried a security gate on to anot
 and said nothing. A `verdict-local` run has no such transcript — its judge is the model
 behind the gateway — so the session that launched it is not billed, and its models are not
 read as the tester's (0.90.6).
+
+**`site:` names a website for the browser pass.** `verdict-local` runs it after the gates
+(`src/verdict_mcp/browser.py`, also `verdict-browse`):
+
+```
+site:
+  url: http://127.0.0.1:{port}/
+  start: npx next start -p {port}
+  pages: /contact /pay
+```
+
+`url` is required. `start` serves the site from the checkout under test, and only a URL on this
+machine is accepted with it; `{port}` becomes one free port in both. `pages`, `max_pages`,
+`checks`, `skip`, `ready_s` and `budget_s` are optional. The browser's findings are filed
+`proven`, each with a `measured by the browser check \`<check>\` on \`<page>\`` evidence line
+per page. A later run resolves a finding when it has measured every one of those pages with the
+same check and did not find it, and the run's notes name it. What the pass measured goes to
+`facts.json` → `site`: the pages and their statuses, the browser, the hosts and writes it
+aborted, and seconds per phase. What it did not do goes to `not_tested` as `browser pass: …`
+lines.
 
 Explicit `--gate` still wins, and the override is recorded in the facts; a run that ends up
 with no gates at all records `no_gates` and says every count and duration gate is
@@ -320,7 +392,9 @@ Rows written by the harness carry `source: facts` (the previous record's open fi
 
 `result` is `reproduced` (every expectation met), `not reproduced` (one was not — the finding
 does not hold on a fresh checkout at this HEAD, or its `expect` describes the author's tree) or
-`could not run` (the command never started: exit 126/127 or `cmd.exe`'s "is not recognized", a timeout, a `cwd` outside the
+`could not run` (the command never started: exit 126/127 or `cmd.exe`'s "is not recognized", a
+program that could not be found or executed — in the box, sandbox-exec's own exit 71 and its
+`execvp() … failed` line, never read as the command's exit — a timeout, a `cwd` outside the
 checkout; or it never reached the defect: a claimed reproduction that ended in a traceback
 while `expect` names no stderr text — an exit code alone cannot tell a crash from the defect —
 and a traceback ending in `ImportError`/`ModuleNotFoundError`, which on a fresh tree is a
@@ -837,6 +911,18 @@ to review (§3: green tests are under review too), and the place a regression te
 guard that fails on the defect is what `verification_test` names; the harness finds it on its
 own once a fix lands with its test (`added_this_run`).
 
+## Runner dialects
+
+`verdict-facts` reads the summary of pytest, `unittest`, Node's own runner (`node --test`,
+in its TAP or spec reporter), vitest, jest, cargo, `go test -v`, gotestsum, Maven surefire,
+.NET, PHPUnit and RSpec, and names the one it read in `counts_dialect`. Output it cannot read
+records `counts_unparsed`, never empty counts. surefire, gotestsum, PHPUnit, RSpec and
+`unittest` print a total and what did not pass, but no pass count: `passed` there is the total
+less failures, errors, skips, expected failures and PHPUnit's incomplete tests (0.94.0).
+Before, a suite of twelve with two skipped read as one that executed nothing, and a passing
+test re-run to verify a fix read as an error. A cancelled `node --test` test counts as an
+error.
+
 ## Structured test results before dialects — `{report}`
 
 `verdict-facts` reads a dozen runner dialects off the summary line, and a dialect is a
@@ -885,7 +971,17 @@ Claude session. The state says so rather than leaving a reader to infer it:
 | `last_run.engine` | `state.json` | `verdict-local` when the harness drove the run and a small model answered its questions. Absent for an agent run, so an older state is unchanged |
 | `last_run.model` | `state.json` | `local:<name>` — `verdict-local` exports `VERDICT_MODEL` before `collect()`, so the model that signed the verdict is measured here exactly as it is for an agent run |
 | `last_run.local` | `state.json` | that engine's own counters: `model`, `calls`, `tokens`, `input_tokens`, `output_tokens`, `answered`, `unanswered`, `retries`, `errors` (transport failures, counted apart from a reply the parser refused), `functions_read`, `functions_skipped`, `seconds`. Not the gateway: `last_run.model` names the judge, and the gateway's host goes to the bill alone (below). Through 0.90.10 a `host` key sat here, which in team mode committed the gateway's network address with the code; `verdict-finalize` now takes it out of a `facts.json` that still carries one |
-| `facts.needs_claude` | `facts.json` | the measured reasons a real model run is still owed — `unexercised_changed_lines: N`, `touches_open_finding: [ids]`, `unprovable_high_severity: [ids]`, `drift_unsettled: [ids]`, `non_python_diff`, `questions_parked: N`, `diff_over_limit`. Each entry is something the harness counted, and each one also becomes a `next_run_focus` line, which does reach the state |
+| `facts.needs_claude` | `facts.json` | the measured reasons a real model run is still owed — `unexercised_changed_lines: N`, `touches_open_finding: [ids]`, `unprovable_high_severity: [ids]`, `drift_unsettled: [ids]`, `non_python_diff` (the name predates reading other languages: the range holds no source the engine reads in any language, only configuration, data, styles, documentation, tests or generated files), `questions_parked: N`, `diff_over_limit`. Each entry is something the harness counted, and each one also becomes a `next_run_focus` line, which does reach the state |
+| `facts.set_aside` | `facts.json` | the claims a fact of this run already answers, set aside before they are filed (`local_refuted.py`): `path`, `line`, `function`, `title`, `severity`, `rule` and `why`. `rule` is `compiled` (a compile error in code that a gate compiled and passed this run) or `declared-non-null` (a null dereference of a C# member that the project declares non-null with nullable reference types on). `why` names the gate, or cites the declaration as `path:line`. A set-aside claim is neither filed nor a lead; the report lists them under **Set aside** |
+
+The null rule answers only what a declaration settles. It leaves a claim alone when its title
+speaks of a nullable value flowing in, when the value comes from outside the code (deserialized
+JSON, a request body, `null!`, `default(...)`, reflection), when the claim is about a method's
+result, and when the member belongs to a type that a request binds or that such a type holds. It
+also leaves a claim alone when the member has no initializer or is initialized to `null!`, and
+when any declaration of the name is nullable or in a shape the index does not read, such as a
+field, an expression-bodied property or a multi-line one. When the function or its file declares
+the receiver's type (`Ticket ticket`), only that type's declaration counts.
 
 The report gains one **Judge** line beside the Harness line: the engine, the model, the calls
 and tokens, the questions that went unanswered, and `no Claude tokens spent` — no host, even

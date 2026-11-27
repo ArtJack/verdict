@@ -23,7 +23,7 @@ import pytest
 
 REPO = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO / "src"))
-from verdict_mcp import small  # noqa: E402
+from verdict_mcp import local_model, small  # noqa: E402
 from verdict_mcp.harness import render_report  # noqa: E402
 
 PY = f'"{sys.executable}"'
@@ -679,7 +679,7 @@ def _gateway(monkeypatch, refuse_num_ctx=False):
         return _Reply({"content": [{"type": "text", "text": '{"ok": true}'}],
                        "usage": {"input_tokens": 10, "output_tokens": 3}})
 
-    monkeypatch.setattr(small.urllib.request, "urlopen", urlopen)
+    monkeypatch.setattr(local_model.urllib.request, "urlopen", urlopen)
     return bodies
 
 

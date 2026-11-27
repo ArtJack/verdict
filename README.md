@@ -3,7 +3,7 @@
 [CI](https://github.com/ArtJack/verdict/actions/workflows/ci.yml) ·
 [verdict on itself](.qa/reports/INDEX.md) ·
 [eval: 8/8 seeded defects](eval/README.md#published-results) ·
-[pinned rules: 527/527 killed](eval/README.md#suite-fault-detection-power--mutation-testing-on-ourselves) ·
+[pinned rules: 582/582 killed](eval/README.md#suite-fault-detection-power--mutation-testing-on-ourselves) ·
 [PyPI: verdict-qa-mcp](https://pypi.org/project/verdict-qa-mcp/) ·
 [OpenSSF Best Practices: passing](https://www.bestpractices.dev/projects/16149) ·
 [MIT license](LICENSE)
@@ -655,6 +655,29 @@ interpreter (`python3 -c`, `node -e`), a build or package step (`pip`, `npm`, `c
 read from a file or a pipe, a shell function or alias. Unknown commands run, because a QA
 pass needs pytest, coverage and linters. The real boundary is OS-level sandboxing or running
 the tester against a throwaway copy; the guard raises the cost of the *accidental* mutation.
+
+From 0.94.0 that OS boundary is in place in two places.
+- **The project's own code**, wherever the harness runs it: gates, test collection, fix
+  verification, coverage, the census and repros, through `src/verdict_mcp/sandbox.py`. On
+  macOS it gets:
+  - no network but loopback;
+  - writes only to its checkout and a private temp dir, never to the checkout's `.git` or
+    `.claude`;
+  - no reads of the owner's credential stores;
+  - an environment built from an allowlist.
+- **The tester's Bash under `verdict-run`**, which runs inside Claude Code's own sandbox
+  (strict network allowlist, credential-like variables denied).
+
+`verdict-run --sandbox required` is the setting for a repository you do not trust. The
+project's code then runs only inside a box, and a profile the repository ships cannot loosen
+it. A checkout carrying its own Claude Code configuration is refused.
+
+What the box does not close: on macOS a process can read the start-up environment of another
+process of the same user, so a key the Claude CLI holds in its environment stays readable from
+inside, with no network to send it on. In an interactive `/verdict:run`, the tester's Bash runs
+under your own Claude Code sandbox setting: turn it on for a repository you do not trust.
+
+
 Malformed hook input fails open; once armed, a command the guard cannot read is refused
 rather than waved through. Tested in CI on Python 3.9, the `python3` a stock Mac starts them with
 ([tests/test_hooks.py](tests/test_hooks.py), [tests/test_hooks_0903.py](tests/test_hooks_0903.py),
@@ -681,8 +704,30 @@ measured fail→pass on a test somebody chose, carried by id, or re-filed under 
 the drift that moved it — never left unmentioned, because the harness reads silence as
 resolution. Its verdict is monotone: it can make a verdict worse or leave it alone, and both a
 `fail` and a `blocked` stand until something with judgment looks at them. `--range`/`--base` with a
-throwaway `--qa-root` judge a branch without touching the project's own state, and a range with
-no Python in it reads nothing and says so rather than reporting a clean pass. Wire it into a
+throwaway `--qa-root` judge a branch without touching the project's own state. It reads every
+language a website is built in, one function at a time, with readers that need no parser
+dependency ([src/verdict_mcp/languages.py](src/verdict_mcp/languages.py) names them):
+
+- **Python** through `ast`.
+- **The brace languages** (C#, TypeScript, JavaScript, Java, Kotlin, Scala, Groovy, Go, Rust, Swift,
+  Dart, C, C++, PHP, Solidity) through [braces.py](src/verdict_mcp/braces.py).
+- **Ruby, Elixir and Lua** through [ends.py](src/verdict_mcp/ends.py), which reads their `end` blocks
+  by indentation. A Rails `before_action` and a Phoenix `plug` travel with the methods they guard.
+- **Vue, Svelte and Astro components, HTML pages and Razor views** through
+  [regions.py](src/verdict_mcp/regions.py): their scripts and `@code` blocks by their own language's
+  reader, their templates as templates.
+- **Every other language** (SQL, shell, PowerShell, Perl, Haskell and the rest) and every template
+  language (Blade, ERB, Jinja, Twig, Liquid, Handlebars) as excerpts: the changed lines with the
+  lines around them, and a question that says it shows lines, not a function.
+
+Each question carries the file's own line numbers and the head of the type around the function.
+Counterfactuals run in Python only, so a reading in any other language stays unproven, and the
+verdict over that code stays below `pass`. Skipped and focused tests are found in every framework
+a website is tested with (Jest, Vitest, Mocha, Playwright, Cypress, RSpec, JUnit, xUnit, NUnit,
+PHPUnit, Go, Rust, XCTest, ExUnit, Dart). A committed `it.only` is filed like a skip with no expiry,
+because it silently switches off the rest of its suite. A range with nothing it reads (only
+configuration, styles, documentation or tests) reads nothing and says so rather than reporting a
+clean pass. Wire it into a
 night with `verdict-run --on-drift local`, which can never reach the `claude` CLI at all.
 **The full agent through a gateway** (`verdict-run --env-file`, `ANTHROPIC_BASE_URL` → LiteLLM →
 your model server, [docs/nightly.md](docs/nightly.md)) needs a model with the window for a
@@ -691,6 +736,58 @@ one. Which model may sign a verdict is the eval's decision, never a default's: S
 on the honesty fixture and was at parity on root cause at n=3, with one run that wrote no state
 ([the model axis](eval/README.md#the-model-axis--opus-against-sonnet-paired)). Run it, publish
 the score, then decide.
+
+**Can it test a website, not just read its code?** Yes: `verdict-browse`, or a `site:` block
+in the profile that `verdict-local` runs after its gates
+([src/verdict_mcp/browser.py](src/verdict_mcp/browser.py)). It drives a real Chrome over the
+site, and every finding is something the browser measured. No model is asked anything:
+
+| Check | What the browser measures |
+|---|---|
+| `autofill-trap` | Chrome's own address autofill, driven through the DevTools protocol, fills each form; a field it fills that nobody can see is filed |
+| `phone-width`, `long-input` | at 375 px the page scrolls sideways, at load or after a long file name or entry |
+| `ios-zoom` | a form field whose CSS size is under 16 px, which makes iOS Safari zoom in on tap |
+| `hidden-at-load` | text and controls kept `visibility: hidden` until scrolled to, so out of the accessibility tree and the Tab order |
+| `focus-visible` | a control the Tab key reaches looks pixel for pixel the same focused and unfocused |
+| `keyboard` | a control that reacts to a click and not to Enter or Space |
+| `get-form` | without JavaScript, a form that sends personal fields in the address bar |
+| `social-image`, `links` | a preview image that is missing or not the size declared; a broken link or missing file; a live page answering 5xx |
+
+It only ever sends GET requests. Every request a page makes with another method is aborted in
+the browser, and so is every request to another origin, so a form is never submitted and no
+third party is called. Links that read like actions (log out, delete, unsubscribe) are never
+followed. That makes it safe to point at a live site:
+
+```
+pip install 'verdict-qa-mcp[browser]'
+verdict-browse https://example.com
+verdict-browse 'http://127.0.0.1:{port}/' --start 'npx next start -p {port}' --repo .
+```
+
+In a profile, `site:` takes `url`, an optional `start` (a command that serves the site on this
+machine, from the checkout under test), `pages`, `max_pages`, `checks`, `skip`, `ready_s` and
+`budget_s`. A later run that measures every page a browser finding was filed on, with the same
+check, and does not find it again resolves it. A page it could not reach leaves the finding
+open. The report's `not_tested` names what the pass did not do: submissions, the blocked third
+parties, Safari and Firefox, and frames.
+
+On a production Next.js site, at the commit a full manual audit covered and before its fixes,
+it checked 25 pages in 333 seconds and filed 11 findings, all of them real. Nine cover seven
+defects the audit had proven:
+- the bot trap Chrome's autofill fills, on both forms (the audit's one Critical);
+- content kept from screen readers until it is scrolled to;
+- a file picker that ignores Enter and Space, beside a file input with no visible focus;
+- a long file name that widens a form past a phone;
+- a contact form that, without JavaScript, puts the name, email and message in the URL;
+- 14 px fields that make iOS zoom;
+- a 1586×992 social image declared as 1200×630.
+
+The other two are the same no-JavaScript form defect on two forms the audit had not listed.
+Pointed at the live site three days and the Critical's fix later, it found the bot trap gone
+and the rest still there. The same commit's local model readings had found 1 of the audit's 35
+code-reachable defects. The checks were written after reading that audit, so
+this was a test of whether each check works on a real site, not of how much a blind run would
+find.
 
 **Why won't it fix the bugs it finds?** Independence. The agent that patches the code and
 then declares it healthy is grading its own homework. Verdict returns an ordered,

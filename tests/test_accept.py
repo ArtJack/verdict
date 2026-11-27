@@ -151,7 +151,9 @@ def test_list_prints_the_ledger(root, capsys):
     assert "D-F-1" in out and "in force" in out and CITE in out
 
 
-def test_no_state_is_exit_4(tmp_path, capsys):
+def test_no_state_is_exit_4(tmp_path, capsys, monkeypatch):
+    # Never the real records: "no such project" is looked up in a home of the test's own.
+    monkeypatch.setenv("VERDICT_HOME", str(tmp_path / "home"))
     assert accept_cli.main([str(tmp_path / "nowhere"), "D-F-1", "--cite", CITE,
                             "--reason", WHY]) == 4
 

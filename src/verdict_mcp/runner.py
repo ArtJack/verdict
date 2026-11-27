@@ -49,27 +49,22 @@ the `claude` CLI verbatim (MCP configs, permission modes, extra flags).
 from __future__ import annotations
 
 import argparse
-import hashlib
 import json
 import os
-import queue
-import re
 import shutil
 import subprocess
 import sys
-import threading
 import time
-from datetime import datetime, timedelta
 from pathlib import Path
-from urllib.parse import urlparse
 
 try:
     from .gate import evaluate, news_line
     from .project_key import derive_key
     from .state import home as state_home
-    from .state import is_path_like, norm_status, resolve_root
+    from .state import is_path_like, resolve_root
     from . import clock
     from . import escalate
+    from .gitenv import git_env
 except ImportError:  # bare-script execution
     sys.path.insert(0, str(Path(__file__).resolve().parent))
     import clock
@@ -77,69 +72,57 @@ except ImportError:  # bare-script execution
     from gate import evaluate, news_line
     from project_key import derive_key
     from state import home as state_home
-    from state import is_path_like, norm_status, resolve_root
-
-def _heartbeat_s() -> int:
-    try:
-        return max(1, int(os.environ.get("VERDICT_HEARTBEAT_S", "60")))
-    except ValueError:
-        return 60
-
-
-def _run_streaming(cmd, repo, env, timeout_s):
-    """Run the claude CLI, echoing its output live, with a heartbeat.
-
-    The previous shape — `subprocess.run(capture_output=True)` — was a black
-    box: the nightly log stayed empty for the whole run, a killed parent left
-    no trace at all, and the first external user reported being bitten by
-    exactly that, twice. Lines are echoed to stderr as they arrive (so a
-    redirected log grows in real time and survives a kill mid-run), and when
-    the child says nothing for VERDICT_HEARTBEAT_S seconds (default 60) a
-    heartbeat line says the run is alive and how long it has been quiet.
-
-    Returns (returncode, combined_output); returncode is None on timeout.
-    """
-    proc = subprocess.Popen(cmd, cwd=repo, env=env, stdout=subprocess.PIPE,
-                            stderr=subprocess.STDOUT, text=True,
-                            encoding="utf-8", errors="replace")
-    lines: queue.Queue = queue.Queue()
-
-    def _pump():
-        for line in proc.stdout:
-            lines.put(line)
-        lines.put(None)
-
-    threading.Thread(target=_pump, daemon=True).start()
-    buf = []
-    start = last_output = time.monotonic()
-    heartbeat = _heartbeat_s()
-    while True:
-        remaining = timeout_s - (time.monotonic() - start)
-        if remaining <= 0:
-            proc.kill()
-            proc.wait()
-            return None, "".join(buf)
-        try:
-            item = lines.get(timeout=min(heartbeat, remaining))
-        except queue.Empty:
-            quiet = int(time.monotonic() - last_output)
-            elapsed = int((time.monotonic() - start) // 60)
-            print(f"verdict-run: still running — {elapsed}m elapsed, "
-                  f"no output for {quiet}s", file=sys.stderr, flush=True)
-            continue
-        if item is None:
-            break
-        buf.append(item)
-        last_output = time.monotonic()
-        sys.stderr.write(item)
-        sys.stderr.flush()
-    return proc.wait(), "".join(buf)
+    from state import is_path_like, resolve_root
+    from gitenv import git_env
+# Split out of this file by the structure pass (2026-11-15), and imported back for the code
+# below and for callers that import these names from runner.
+try:
+    from .runner_stream import _run_streaming
+    from .runner_limits import (final_stop, flag_refused, resolve_cap, seconds_until_reset,
+                                limit_kind as limit_kind, limit_line as limit_line)
+    from .runner_env import (BG_WAIT_ENV, GAPS_DEFAULT_ENV, child_env, passthrough_names,
+                             pin_model_aliases, read_env_file, session_env,
+                             is_gateway as is_gateway, seed_config as seed_config)
+    from .runner_sweep import (sweep, _harness as _harness, sweep_blockers as sweep_blockers,
+                               sweep_judgment as sweep_judgment)
+    from .runner_agent import (DEFAULT_PROMPT, agent_flags, budget_line, print_bill, tester_prompt,
+                               AGENT_PROMPT as AGENT_PROMPT, agent_effort as agent_effort,
+                               bill_line as bill_line)
+    from .runner_provision import (_PERMISSION_FLAGS, pin_box_floor, plugin_root, provision,
+                                   shipped_config_allowed, tester_box_mode, tester_sandbox,
+                                   HARNESS_COMMANDS as HARNESS_COMMANDS,
+                                   PROVISION_RECORD as PROVISION_RECORD, _sha as _sha,
+                                   repo_claude_config as repo_claude_config)
+    from .runner_local import (PREMEASURED_ENV as PREMEASURED_ENV, clear_marker,
+                               local_endpoint, measure_first, run_local,
+                               premeasure as premeasure)
+    from .runner_escalate import asked_preflight, escalate_preflight, start_escalation
+except ImportError:  # executed as a bare script
+    from runner_stream import _run_streaming
+    from runner_limits import (final_stop, flag_refused, resolve_cap, seconds_until_reset,
+                               limit_kind as limit_kind, limit_line as limit_line)
+    from runner_env import (BG_WAIT_ENV, GAPS_DEFAULT_ENV, child_env, passthrough_names,
+                            pin_model_aliases, read_env_file, session_env,
+                            is_gateway as is_gateway, seed_config as seed_config)
+    from runner_sweep import (sweep, _harness as _harness, sweep_blockers as sweep_blockers,
+                              sweep_judgment as sweep_judgment)
+    from runner_agent import (DEFAULT_PROMPT, agent_flags, budget_line, print_bill, tester_prompt,
+                              AGENT_PROMPT as AGENT_PROMPT, agent_effort as agent_effort,
+                              bill_line as bill_line)
+    from runner_provision import (_PERMISSION_FLAGS, pin_box_floor, plugin_root, provision,
+                                  shipped_config_allowed, tester_box_mode, tester_sandbox,
+                                  HARNESS_COMMANDS as HARNESS_COMMANDS,
+                                  PROVISION_RECORD as PROVISION_RECORD, _sha as _sha,
+                                  repo_claude_config as repo_claude_config)
+    from runner_local import (PREMEASURED_ENV as PREMEASURED_ENV, clear_marker, local_endpoint,
+                              measure_first, run_local, premeasure as premeasure)
+    from runner_escalate import asked_preflight, escalate_preflight, start_escalation
 
 
 def _head_sha(repo):
     try:
         proc = subprocess.run(["git", "-C", str(repo), "rev-parse", "HEAD"],
-                              capture_output=True, text=True, timeout=10)
+                              capture_output=True, text=True, timeout=10, env=git_env())
     except (OSError, subprocess.SubprocessError):
         return None
     return proc.stdout.strip() if proc.returncode == 0 else None
@@ -177,146 +160,6 @@ def _unchanged_reason(qa_root, repo):
             "verdict without a model call")
 
 
-DEFAULT_PROMPT = (
-    "Use the verdict agent to run today's QA pass on this repository — a delta run "
-    "against the stored baseline, or a baseline if none exists. Run the agent to "
-    "completion IN THIS SESSION: do not spawn it in the background, and do not end "
-    "your turn until its state file and report are written — there is no 'later' in "
-    "a headless run. Verdict reports and specifies; it does not fix. Relay the agent's "
-    "handoff verbatim and add nothing of your own: no summary, no offer to write fixes "
-    "— an offer to fix under Verdict's name is the one sentence its position cannot "
-    "afford.")
-
-# The prompt when the session IS the tester (`--agent verdict`): there is no outer
-# session left to relay, delegate or offer anything.
-AGENT_PROMPT = (
-    "Run today's QA pass on this repository — a delta run against the stored baseline, or "
-    "a baseline if none exists. This is a run: start with verdict-facts and end with "
-    "verdict-finalize, in this session and in the foreground; an answer without state is "
-    "not accepted, and there is no 'later' in a headless run.")
-
-# The tester is the session itself, not a subagent the session may or may not spawn. On
-# 2026-10-06 four asked money gates ran from a packet that never asked for the agent: a
-# generic session at effort `medium`, without Verdict's prompt, and two of the four ended
-# their turn with no state. `--agent` makes the provisioned agent file the main thread —
-# its prompt, its tools, and the scope guards that know it by name — and `--effort` pins
-# the effort its frontmatter pins.
-AGENT_NAME = "verdict"
-AGENT_EFFORT_DEFAULT = "xhigh"
-
-
-def agent_effort(repo) -> str:
-    """The effort the provisioned agent file pins (`effort:` in its frontmatter)."""
-    try:
-        text = (Path(repo) / ".claude" / "agents" / f"{AGENT_NAME}.md").read_text(encoding="utf-8")
-    except OSError:
-        return AGENT_EFFORT_DEFAULT
-    head = text.split("\n---", 1)[0] if text.startswith("---") else ""
-    for line in head.splitlines():
-        if line.strip().startswith("effort:"):
-            value = line.split(":", 1)[1].strip().strip("'\"")
-            return value or AGENT_EFFORT_DEFAULT
-    return AGENT_EFFORT_DEFAULT
-
-
-def agent_flags(repo, passthrough) -> list:
-    """`--agent verdict --effort <pinned>`, when the agent file is there to load. Without
-    it (`--no-provision` on a repository that has none) the session is told in words, as
-    before. An operator's own `--agent` or `--effort` after `--` is theirs to keep."""
-    if not (Path(repo) / ".claude" / "agents" / f"{AGENT_NAME}.md").is_file():
-        return []
-    def given(flag):
-        return any(p == flag or p.startswith(flag + "=") for p in passthrough)
-
-    flags = []
-    if not given("--agent"):
-        flags += ["--agent", AGENT_NAME]
-    if not given("--effort"):
-        flags += ["--effort", agent_effort(repo)]
-    return flags
-
-
-_FLAG_REFUSED = re.compile(r"error: unknown option '--(?:agent|effort)'")
-_BUDGET_STOP = re.compile(r"Exceeded USD budget|error_max_budget_usd")
-
-
-def final_stop(output) -> str | None:
-    """Why a finished attempt must not be tried again → the message, or None. A weekly limit is
-    days away; a session stopped at its dollar cap would spend the cap again."""
-    if limit_kind(output) == "weekly":
-        return (f"verdict-run: {limit_line(output)} — no model run is possible until then; the "
-                "standing verdict is left as it is")
-    if budget_exhausted(output):
-        return ("verdict-run: the session stopped at its dollar cap — not retried, since a second "
-                "attempt would spend the cap again; whatever state it wrote stands")
-    return None
-
-
-def budget_exhausted(output) -> bool:
-    """The CLI stopped the session at its `--max-budget-usd` ceiling. Such a run is not
-    retried: a second attempt spends the same ceiling again for the same missing state."""
-    return bool(_BUDGET_STOP.search(output or ""))
-
-
-def flag_refused(output) -> bool:
-    """An older claude CLI refuses an option it does not know before it calls any model
-    (`error: unknown option '--agent'`, exit 1): nothing was spent, and it is no attempt."""
-    return bool(_FLAG_REFUSED.search(output or ""))
-
-
-def limit_kind(output: str) -> str | None:
-    """Which allowance the CLI says is spent: `session` (a window that reopens
-    within hours) or `weekly` (days away), or None.
-
-    The difference decides whether waiting is sensible. A session limit is worth
-    sleeping through; a weekly one is not — the first version knew only the word
-    "session", so a weekly limit read as an ordinary failure, and the runner
-    spent its retry, reported a lost run, and left the operator to find the real
-    reason in the log.
-    """
-    low = output.lower()
-    if "weekly limit" in low:
-        return "weekly"
-    if "session limit" in low or "usage limit" in low:
-        return "session"
-    return None
-
-
-def limit_line(output: str) -> str:
-    """The CLI's own sentence about the limit, for a message that explains itself."""
-    for line in output.splitlines():
-        if "limit" in line.lower() and "reset" in line.lower():
-            return line.strip()[:200]
-    return "the CLI reported a usage limit"
-
-
-def seconds_until_reset(output: str, ceiling_s: int = 10800) -> int | None:
-    """Parse 'resets 2:40am' / 'resets 23:15' from a session-limit error.
-
-    None when the output is not a limit this runner should wait out — no limit
-    at all, or a weekly one, which reopens in days and must be reported rather
-    than slept through. A bounded wait when the window exists but its edge
-    cannot be read.
-    """
-    if limit_kind(output) != "session":
-        return None
-    m = re.search(r"resets\s+([0-9]{1,2}:[0-9]{2}(?:am|pm)?)", output, re.I)
-    if not m:
-        return min(3600, ceiling_s)
-    raw = m.group(1).lower()
-    now = clock.local_now()     # the CLI prints its reset time in the user's wall-clock
-    try:
-        fmt = "%I:%M%p" if raw.endswith(("am", "pm")) else "%H:%M"
-        t = datetime.strptime(raw, fmt).time()
-        target = now.replace(hour=t.hour, minute=t.minute, second=0, microsecond=0)
-        if target <= now:
-            target += timedelta(days=1)
-        wait = int((target - now).total_seconds()) + 180
-    except ValueError:
-        wait = 3600
-    return max(60, min(wait, ceiling_s))
-
-
 def _read_run_number(qa_root: Path) -> int:
     try:
         return int(json.loads(
@@ -352,845 +195,6 @@ def _qa_root_for(project, repo) -> Path:
     if root is not None:
         return root
     return state_home() / project       # first run: the agent will create it
-
-
-_PERMISSION_FLAGS = ("--dangerously-skip-permissions", "--permission-mode", "--allowedTools",
-                     "--allowed-tools")
-
-
-def plugin_root(explicit=None):
-    """Where `agents/verdict.md` and `hooks/hooks.json` live, or None.
-
-    Three places, in order: an explicit path, `CLAUDE_PLUGIN_ROOT` (set when a
-    plugin command invokes this), the checkout this file sits in (the plugin
-    cache and a source clone both have that shape), and finally the newest
-    version in the plugin cache — for the common pairing of the plugin
-    installed for the editor and `verdict-qa-mcp` from PyPI for the CLI, whose
-    wheel ships neither directory.
-    """
-    def _has(root):
-        return (root / "agents" / "verdict.md").is_file() and \
-               (root / "hooks" / "hooks.json").is_file()
-
-    # An explicit root is authoritative. Falling through from a wrong path to
-    # "whatever else is lying around" would run the agent from a checkout the
-    # operator did not name — and make a wrong path impossible to notice.
-    if explicit:
-        return Path(explicit) if _has(Path(explicit)) else None
-
-    candidates = [os.environ.get("CLAUDE_PLUGIN_ROOT"), Path(__file__).resolve().parents[2]]
-    cache = Path.home() / ".claude" / "plugins" / "cache" / "verdict" / "verdict"
-    if cache.is_dir():
-        def _ver(p):
-            return tuple(int(x) if x.isdigit() else -1 for x in p.name.split("."))
-        candidates += sorted((p for p in cache.iterdir() if p.is_dir()), key=_ver, reverse=True)
-    for cand in candidates:
-        if cand and _has(Path(cand)):
-            return Path(cand)
-    return None
-
-
-# `0` = wait for background tasks indefinitely (the CLI's own wording on stderr).
-BG_WAIT_ENV = "CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS"
-GAPS_DEFAULT_ENV = "VERDICT_ASSERTION_GAPS"
-
-GATEWAY_FLAGS = {
-    # A model that is not Anthropic's behind the base URL rejects the `thinking`
-    # block and any pre-release field, and cannot be named from the CLI's built-in
-    # catalogue. Without these three a gateway run fails with a 400 that names
-    # none of this.
-    "CLAUDE_CODE_DISABLE_ADAPTIVE_THINKING": "1",
-    "CLAUDE_CODE_DISABLE_EXPERIMENTAL_BETAS": "1",
-    "CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY": "1",
-}
-
-
-def is_gateway(url) -> bool:
-    """True only for a base URL that is *not* Anthropic's own.
-
-    `ANTHROPIC_BASE_URL` is routinely set to `https://api.anthropic.com` by
-    tooling that never intended to redirect anything. Treating any value as a
-    gateway sent a run to an empty config directory with no login in it, and the
-    session came back "Not logged in" — the operator's named account ignored
-    because of a variable that changed nothing.
-    """
-    if not url:
-        return False
-    host = urlparse(str(url)).hostname or ""
-    return not (host == "anthropic.com" or host.endswith(".anthropic.com"))
-
-
-def read_env_file(path) -> dict:
-    """`KEY=VALUE` lines from a file the operator owns.
-
-    A nightly should be able to say *which account or endpoint it spends* without
-    that credential appearing in a command line, a crontab, or a log. Blank lines
-    and `#` comments are skipped; surrounding quotes are stripped.
-    """
-    out = {}
-    for line in Path(path).read_text(encoding="utf-8").splitlines():
-        line = line.strip()
-        if not line or line.startswith("#") or "=" not in line:
-            continue
-        key, _, value = line.partition("=")
-        out[key.strip()] = value.strip().strip('"').strip("'")
-    return out
-
-
-def seed_config(config_dir, repo) -> None:
-    """Mark `repo` trusted inside a config directory the CLI may never have seen.
-
-    A fresh `CLAUDE_CONFIG_DIR` has accepted neither the trust dialog nor
-    bypass-permissions mode, and this runner always passes
-    `--dangerously-skip-permissions`: the session then exits 0 having done
-    nothing at all — no output, no state — which the gate reports as a lost run
-    while the real cause is configuration. Measured 2026-09-08: identical
-    command, empty config directory silent, seeded one answers.
-    """
-    config_dir = Path(config_dir)
-    doc_path = config_dir / ".claude.json"
-    try:
-        doc = json.loads(doc_path.read_text(encoding="utf-8")) if doc_path.is_file() else {}
-    except (OSError, json.JSONDecodeError):
-        doc = {}
-    if not isinstance(doc, dict):
-        doc = {}
-    doc["bypassPermissionsModeAccepted"] = True
-    projects = doc.setdefault("projects", {})
-    if isinstance(projects, dict):
-        entry = projects.setdefault(str(Path(repo).resolve()), {})
-        if isinstance(entry, dict):
-            entry.update({"hasTrustDialogAccepted": True,
-                          "hasCompletedProjectOnboarding": True})
-    config_dir.mkdir(parents=True, exist_ok=True)
-    doc_path.write_text(json.dumps(doc, indent=1) + "\n", encoding="utf-8")
-
-
-# The aliases a main session can hand the Agent tool. Named here so a run launched on one
-# model stays on it: twice (2026-10-04, 2026-10-11) the main session read "asked = Sonnet" in
-# an old packet and spawned the tester with `model: sonnet` under `--model opus`.
-_ALIAS_ENV = ("ANTHROPIC_DEFAULT_OPUS_MODEL", "ANTHROPIC_DEFAULT_SONNET_MODEL")
-
-
-def pin_model_aliases(env: dict, model: str) -> list:
-    """When `--model` names a model by its id (`claude-opus-5-5`), point the `opus` and
-    `sonnet` aliases at it too, so a subagent spawned with either alias runs on the model
-    the operator chose → notes. An alias given as `--model` cannot be pinned (the runner
-    does not know what it resolves to), and an alias the operator set is theirs."""
-    if not str(model).startswith("claude-"):
-        return []
-    pinned = [name for name in _ALIAS_ENV if not env.get(name)]
-    for name in pinned:
-        env[name] = model
-    return [f"model aliases pinned to {model}: {', '.join(pinned)}"] if pinned else []
-
-
-def session_env(env: dict, repo) -> tuple[dict, list]:
-    """Apply the operator's account or endpoint choice → (env, notes).
-
-    `CLAUDE_CONFIG_DIR` chooses *which stored login pays* — a second
-    subscription, a machine account — and is seeded so the headless run is not
-    refused in silence. `ANTHROPIC_BASE_URL` chooses a different endpoint
-    entirely (an LLM gateway, a local model server): the CLI ignores
-    `ANTHROPIC_AUTH_TOKEN` while it has a login of its own to prefer, so a
-    gateway run needs a config directory with no login in it.
-    """
-    notes = []
-    if is_gateway(env.get("ANTHROPIC_BASE_URL")):
-        for key, value in GATEWAY_FLAGS.items():
-            env.setdefault(key, value)
-        if env.get("ANTHROPIC_AUTH_TOKEN") and not env.get("ANTHROPIC_API_KEY"):
-            env["ANTHROPIC_API_KEY"] = env["ANTHROPIC_AUTH_TOKEN"]
-        if not env.get("CLAUDE_CONFIG_DIR"):
-            notes.append("endpoint: ANTHROPIC_BASE_URL is set but CLAUDE_CONFIG_DIR is not — "
-                         "a CLI with a stored login sends that credential instead of the "
-                         "gateway's and the gateway answers 401")
-        notes.append(f"endpoint: {env['ANTHROPIC_BASE_URL']}")
-    config_dir = env.get("CLAUDE_CONFIG_DIR")
-    if config_dir:
-        seed_config(config_dir, repo)
-        notes.append(f"account: CLAUDE_CONFIG_DIR {config_dir} (trust seeded)")
-    return env, notes
-
-
-# The environment a headless session may see. Everything else the operator's
-# shell holds stays out — cloud and `gh`/`op` tokens, a `GIT_DIR` exported by
-# a git hook, the `PYTHONPATH` 0.90.1 stopped leaking — because the session
-# hands its environment to every Bash call the tester makes, hence to the
-# project's own test suite and whatever that spawns (audit 2026-10-02, O-S-2).
-# The owner's hand recipe for asked gates was `env -i` with exactly these
-# names; the runner does it itself now. `--env-passthrough` is the door for a
-# project whose gates need one more.
-_ENV_KEEP = frozenset({
-    "PATH", "HOME", "USER", "LOGNAME", "SHELL", "LANG", "LANGUAGE", "TMPDIR", "TEMP",
-    "TMP", "TERM", "COLORTERM", "TZ",
-    # Windows needs these to run anything at all.
-    "SYSTEMROOT", "SystemRoot", "COMSPEC", "ComSpec", "PATHEXT", "APPDATA",
-    "LOCALAPPDATA", "USERPROFILE", "HOMEDRIVE", "HOMEPATH", "PROGRAMDATA", "ProgramData",
-    "WINDIR", "PROGRAMFILES", "PROGRAMFILES(X86)", "COMMONPROGRAMFILES", "ALLUSERSPROFILE",
-    "PUBLIC", "USERNAME", "USERDOMAIN", "OS", "PROCESSOR_ARCHITECTURE", "NUMBER_OF_PROCESSORS",
-    # A corporate proxy or a private CA is how the CLI reaches the API.
-    "SSL_CERT_FILE", "SSL_CERT_DIR", "REQUESTS_CA_BUNDLE", "NODE_EXTRA_CA_CERTS",
-    "HTTP_PROXY", "HTTPS_PROXY", "NO_PROXY", "http_proxy", "https_proxy", "no_proxy",
-})
-_ENV_KEEP_PREFIXES = ("LC_", "CLAUDE_", "ANTHROPIC_", "VERDICT_", "XDG_")
-
-
-def child_env(source, passthrough=()) -> dict:
-    """The allowlisted subset of `source`, plus the names in `passthrough`."""
-    # `.union`, not `|`: the hooks' interpreter-floor test reads a `|` between two
-    # expressions as a 3.10 type union, and this file shares that floor.
-    keep = set(_ENV_KEEP).union(name.strip() for name in passthrough if name and name.strip())
-    return {k: v for k, v in source.items()
-            if k in keep or k.startswith(_ENV_KEEP_PREFIXES)}
-
-
-def passthrough_names(args) -> list:
-    """`--env-passthrough A,B` (repeatable) and `$VERDICT_ENV_PASSTHROUGH`, split."""
-    raw = [*(args.env_passthrough or []), os.environ.get("VERDICT_ENV_PASSTHROUGH", "")]
-    return [name.strip() for chunk in raw for name in chunk.split(",") if name.strip()]
-
-
-PROVISION_RECORD = "verdict-provision.json"   # under .claude/, beside what it describes
-
-
-def _sha(text: str) -> str:
-    return hashlib.sha256(text.encode("utf-8")).hexdigest()
-
-
-def provision(repo: Path, root) -> tuple[str | None, list[str]]:
-    """Make the agent and its guards visible to an isolated headless session.
-
-    The run is launched with `--setting-sources project,local`, so the
-    user-scope plugin is never loaded — that isolation is deliberate, and it is
-    also why a bare checkout cannot run the agent: the first self-run from a
-    fresh clone came back `blocked`, with "Agent type 'verdict' not found",
-    no hooks enforcing, and every tool denied. The model ran the contract
-    inline from `agents/verdict.md`, self-imposed the guards, and reported its
-    own self-check as failed rather than write state by hand — the right
-    behaviour, in an environment the runner had built wrong. The nightly and
-    the eval each hand-roll these same steps; the runner owns them now.
-
-    Writes what is absent, and re-writes what it wrote itself when the source
-    moved. `.claude/verdict-provision.json` records the root and the hash of
-    every file the runner rendered, so a run with a different `--plugin-root`,
-    or the same root after a plugin upgrade, replaces the runner's own copy and
-    says so. It used to keep whatever was there: a control run launched from
-    the installed 0.82.0 plugin kept a prompt rendered from a development
-    checkout, resolved that checkout as its plugin root, and measured half of
-    itself with code that was being edited at the time — under the installed
-    version's name. A file the runner did not write, or one edited since, is
-    the operator's (the nightly provisions its own from a pinned checkout) and
-    is kept, named on stderr. Hooks go in `settings.local.json`, the file a
-    project's `.gitignore` conventionally excludes, so provisioning does not
-    dirty a tracked `settings.json`. Returns (fatal problem or None, notes).
-    """
-    notes = []
-    dot = repo / ".claude"
-    record_path = dot / PROVISION_RECORD
-    record = {}
-    if record_path.is_file():
-        try:
-            record = json.loads(record_path.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError):
-            record = {}
-    if not isinstance(record, dict):
-        record = {}
-
-    agent = dot / "agents" / "verdict.md"
-    rendered = None
-    if root is not None:
-        rendered = (root / "agents" / "verdict.md").read_text(encoding="utf-8") \
-            .replace("${CLAUDE_PLUGIN_ROOT}", str(root))
-    mine = record.get("agent") if isinstance(record.get("agent"), dict) else {}
-    if agent.is_file():
-        current = agent.read_text(encoding="utf-8")
-        owned = bool(mine.get("sha256")) and mine["sha256"] == _sha(current)
-        if owned and rendered is not None and _sha(rendered) != mine["sha256"]:
-            agent.write_text(rendered, encoding="utf-8")
-            why = (f"the plugin root moved from {mine.get('root')} to {root}"
-                   if str(mine.get("root")) != str(root) else "the prompt at that root changed")
-            notes.append(f"provision: re-provisioned .claude/agents/verdict.md from {root} — {why}")
-            record["agent"] = {"root": str(root), "sha256": _sha(rendered)}
-        elif owned:
-            notes.append(f"provision: .claude/agents/verdict.md is current (from {root})")
-        else:
-            notes.append("provision: kept existing .claude/agents/verdict.md — not written by "
-                         "verdict-run, or edited since, so it is the operator's")
-    elif root is None:
-        return ("the `verdict` agent is not available to an isolated session and no "
-                "plugin root was found — install the plugin (agents/ and hooks/ are not "
-                "in the PyPI wheel), pass --plugin-root, or provision "
-                ".claude/agents/verdict.md yourself", notes)
-    else:
-        agent.parent.mkdir(parents=True, exist_ok=True)
-        agent.write_text(rendered, encoding="utf-8")
-        notes.append(f"provision: wrote .claude/agents/verdict.md from {root}")
-        record["agent"] = {"root": str(root), "sha256": _sha(rendered)}
-
-    local = dot / "settings.local.json"
-    current = {}
-    if local.is_file():
-        try:
-            current = json.loads(local.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError):
-            notes.append("provision: .claude/settings.local.json is unreadable — left "
-                         "alone; the write/bash guards may not be enforcing")
-            _save_record(record_path, record)
-            return None, notes
-    hooks_rendered = None
-    if root is not None:
-        hooks_rendered = json.loads(
-            (root / "hooks" / "hooks.json").read_text(encoding="utf-8")
-            .replace("${CLAUDE_PLUGIN_ROOT}", str(root).replace("\\", "\\\\")))["hooks"]
-    mine = record.get("hooks") if isinstance(record.get("hooks"), dict) else {}
-    if isinstance(current, dict) and "hooks" in current:
-        owned = bool(mine.get("sha256")) and \
-            mine["sha256"] == _sha(json.dumps(current["hooks"], sort_keys=True))
-        if owned and hooks_rendered is not None and \
-                _sha(json.dumps(hooks_rendered, sort_keys=True)) != mine["sha256"]:
-            current["hooks"] = hooks_rendered
-            local.write_text(json.dumps(current, indent=2) + "\n", encoding="utf-8")
-            notes.append(f"provision: re-installed hooks into .claude/settings.local.json from "
-                         f"{root} — they pointed at {mine.get('root')}")
-            record["hooks"] = {"root": str(root),
-                               "sha256": _sha(json.dumps(hooks_rendered, sort_keys=True))}
-        elif owned:
-            notes.append(f"provision: hooks are current (from {root})")
-        else:
-            notes.append("provision: kept existing hooks in .claude/settings.local.json — not "
-                         "installed by verdict-run, or edited since, so they are the operator's")
-    elif root is None:
-        notes.append("provision: no plugin root, hooks NOT installed — the write/bash "
-                     "guards are not enforcing this run")
-    else:
-        current = current if isinstance(current, dict) else {}
-        current["hooks"] = hooks_rendered
-        local.parent.mkdir(parents=True, exist_ok=True)
-        local.write_text(json.dumps(current, indent=2) + "\n", encoding="utf-8")
-        notes.append("provision: installed hooks into .claude/settings.local.json")
-        record["hooks"] = {"root": str(root),
-                           "sha256": _sha(json.dumps(hooks_rendered, sort_keys=True))}
-    _save_record(record_path, record)
-    return None, notes
-
-
-def _save_record(path: Path, record: dict) -> None:
-    """What the runner rendered, so the next run can tell its own copy from the
-    operator's. Written only when there is something to record."""
-    if not record:
-        return
-    try:
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(json.dumps(record, indent=2, sort_keys=True) + "\n", encoding="utf-8")
-    except OSError:
-        pass
-
-
-# ── the model-free night ──────────────────────────────────────────────────
-#
-# "I don't change code every day" is the objection every low-churn project
-# raises against a nightly, and --skip-unchanged answered the exact-sha half of
-# it. The other half: HEAD moved, but by a commit that touched nothing any
-# finding cites. The harness can tell — it hashes every cited line (0.83.0),
-# runs the gates, diffs the test-id set, and knows the quarantine dates — so
-# the runner asks it, and when every condition holds it finalizes a sweep: the
-# previous verdict carried by id (the 0.84.0 verb), signed by no model, a run
-# number advanced so the gate's freshness reads true. Any condition failing
-# prints why and runs the model. The judgment is synthetic and says so in every
-# field a reader would look at.
-
-#: The harness child's first act: put the runner's own source root on ITS path, and only there.
-_BOOT = ("import sys; sys.path.insert(0, sys.argv.pop(1)); "
-         "from verdict_mcp.harness import main; sys.exit(main())")
-
-
-def _harness(sub: str, *args: str) -> subprocess.CompletedProcess:
-    # The child runs the code this runner is, installed or not. Measured on the Sales nightly:
-    # `python3 src/verdict_mcp/runner.py`, started by an interpreter that never installed the
-    # package, could not `-m verdict_mcp.harness`, and every sweep from 2026-09-17 ended
-    # "No module named 'verdict_mcp'" — exit 5, nothing measured, for two nights.
-    #
-    # 0.90.0 fixed that with PYTHONPATH, and every grandchild inherited it: from an installed
-    # verdict the root is the whole site-packages of Verdict's own environment, and the
-    # project's test command imported Verdict's packages ahead of its own. Measured the same
-    # day on the pinned nightly's lab-down drill: Sales' pytest exited 2 with 925 of ~3,450
-    # tests collected, the gate read as failed and the sweep was refused. The path goes into
-    # the child's sys.path and nowhere else; the environment is inherited untouched.
-    src = str(Path(__file__).resolve().parent.parent)
-    return subprocess.run([sys.executable, "-c", _BOOT, src, sub, *args],
-                          capture_output=True, text=True, encoding="utf-8", errors="replace")
-
-
-def _changed_files(repo, sha_range: str):
-    proc = subprocess.run(["git", "-C", str(repo), "diff", "--name-only", sha_range],
-                          capture_output=True, text=True)
-    if proc.returncode != 0:
-        return None
-    return sorted({ln.strip().replace("\\", "/") for ln in proc.stdout.splitlines() if ln.strip()})
-
-
-def sweep_blockers(facts: dict, previous: dict, changed, today) -> list[str]:
-    """Every reason this run cannot be swept — empty means it can. Each
-    condition is a measurement the harness already made; none is a guess."""
-    why = []
-    drift = facts.get("evidence_drift") if isinstance(facts.get("evidence_drift"), dict) else {}
-    if drift.get("status") != "measured":
-        why.append("evidence drift not measured"
-                   + (f" ({drift['reason']})" if drift.get("reason") else ""))
-    else:
-        summ = drift.get("summary") or {}
-        moved = list(summ.get("drifted_findings") or []) + list(summ.get("drifted_accepted") or [])
-        if moved or summ.get("drifted_intact"):
-            why.append("cited code moved or changed: "
-                       + ", ".join(moved[:5] or ["a verified-intact item"]))
-    if changed is None:
-        why.append("no commit range to compare")
-    else:
-        cited = set()
-        for f in previous.get("findings") or []:
-            # A hygiene finding is re-measured by the sweep's own scan: a file only it
-            # cites has nothing a model must read.
-            if not isinstance(f, dict) or f.get("source") == "hygiene" \
-                    or norm_status(f.get("status")) in ("resolved", "withdrawn"):
-                continue
-            cited |= {str(a.get("path")).replace("\\", "/") for a in (f.get("anchors") or [])
-                      if isinstance(a, dict) and a.get("path")}
-        for group in previous.get("verified_intact_anchors") or []:
-            cited |= {str(a.get("path")).replace("\\", "/") for a in (group or [])
-                      if isinstance(a, dict) and a.get("path")}
-        hit = sorted(set(changed) & cited)
-        if hit:
-            why.append("changed files a finding cites: " + ", ".join(hit[:5]))
-    gates = facts.get("gates") or {}
-    if not gates:
-        why.append("no gate ran")
-    for name, g in gates.items():
-        if g.get("result") == "unavailable":
-            why.append(f"gate {name} could not start (exit {g.get('exit_code')})")
-        elif g.get("result") != "pass":
-            why.append(f"gate {name} failed")
-        if "counts_unparsed" in g:
-            why.append(f"gate {name}: counts unparsed")
-        if g.get("executed_nothing"):
-            why.append(f"gate {name}: {g['executed_nothing']}")
-    if gates and not any(g.get("counts") for g in gates.values()):
-        why.append("no gate produced test counts")
-    ids = facts.get("test_ids") if isinstance(facts.get("test_ids"), dict) else {}
-    if ids.get("status") != "measured":
-        why.append("the test-id set was not measured")
-    elif ids.get("added_count") or ids.get("removed_count"):
-        why.append(f"the test-id set changed (+{ids.get('added_count')}/-{ids.get('removed_count')})")
-    for q in previous.get("flaky_quarantine") or []:
-        until = str((q or {}).get("quarantined_until") or "")
-        if not until or until <= today.isoformat():
-            why.append(f"quarantine due: {(q or {}).get('test_id')}")
-    if facts.get("previous_run_incomplete"):
-        why.append("the previous run never finished")
-    cov = facts.get("coverage") if isinstance(facts.get("coverage"), dict) else {}
-    if cov.get("status") == "measured" and cov.get("changed_lines") \
-            and not cov.get("changed_lines_executed"):
-        why.append("the diff has changed lines no test executed")
-    return why
-
-
-def uncapped_verdict(previous: dict):
-    """The verdict a sweep carries: the tester's own, from before finalize capped it
-    over a Critical the hygiene scan filed. The cap belongs to the Critical, not to
-    the verdict — finalize applies it again while the Critical is open, and a sweep
-    that carried the capped verdict would keep `pass with risks` long after the key
-    was gone. Read only when the record says the verdict it holds is that cap."""
-    capped = (previous.get("hygiene") or {}).get("verdict_capped") \
-        if isinstance(previous.get("hygiene"), dict) else None
-    if isinstance(capped, dict) and capped.get("to") == previous.get("verdict") and capped.get("from"):
-        return capped["from"]
-    return previous.get("verdict")
-
-
-def sweep_judgment(facts: dict, previous: dict, changed: list, commits,
-                   notes: list | None = None) -> dict:
-    """The synthetic judgment of a sweep: the previous verdict, every open
-    finding carried by id, and a not_tested that says what a sweep does not do.
-
-    `verified_intact` is carried, not emptied. It used to be written `[]`, so a
-    sweep silently dropped the list of invariants the NEXT sweep is supposed to
-    guard — the one thing the first external user said he was paying for, deleted
-    by the cheapest run in the system (P-32). `notes` carries anything the caller
-    measured and the sweep itself cannot know, such as a gateway that was down.
-    """
-    # A hygiene finding is not carried by id: the sweep's own scan re-measures it, and
-    # naming it would only record it as ignored (state.hygiene.ignored_judgment_ids).
-    open_ids = [str(f["id"]) for f in previous.get("findings") or []
-                if isinstance(f, dict) and f.get("id") and norm_status(f.get("status")) == "open"
-                and f.get("source") != "hygiene"]
-    sha_range = (facts.get("last_run") or {}).get("sha_range")
-    n = f"{commits} commit{'' if commits == 1 else 's'}" if commits is not None else "commits"
-    m = f"{len(changed)} file{'' if len(changed) == 1 else 's'}"
-    return {
-        "topic": "sweep",
-        "verdict": uncapped_verdict(previous),
-        "isolation_check": {"result": "n/a", "method": "model-free sweep: no agent ran; "
-                            "verdict-facts read the checkout and wrote only inside the QA root"},
-        "full_sweep": False,
-        "release_blockers": list(previous.get("release_blockers") or []),
-        "findings": [], "still_open": open_ids, "resolved": [], "questions": [],
-        "not_tested": [f"everything a judgment covers — this run measured only: HEAD moved {n} "
-                       f"({m} changed, none cited by a finding), every gate green, the collected "
-                       "test-id set unchanged, no quarantine due, no cited line moved",
-                       "nothing outside the checkout was read — no database, no MCP tools, no "
-                       "production numbers — so a standing blocker that quotes one was NOT "
-                       "re-read"] + [str(x) for x in (notes or [])],
-        "verified_intact": list(previous.get("verified_intact") or []),
-        "next_run_focus": list(previous.get("next_run_focus") or []),
-        "flaky_quarantine": list(previous.get("flaky_quarantine") or []),
-        "prose": {"scope": f"Model-free sweep over `{sha_range}`: {n}, {m} changed, none cited by "
-                           "an open or accepted finding or a verified-intact item.",
-                  "notes": "No agent ran. The previous verdict is carried because nothing it "
-                           "rested on moved; the next model run judges the change on its merits."},
-    }
-
-
-def swept_verdict(qa_root, previous: dict) -> str:
-    """What the sweep wrote, said as such. It carries the tester's verdict
-    (`uncapped_verdict`), and a Critical the hygiene scan files, or still sees, caps a
-    `pass` at `pass with risks`: the line said "'pass' carried" over a state that held
-    the cap."""
-    carried = uncapped_verdict(previous)
-    try:
-        state = json.loads((Path(qa_root) / "state.json").read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
-        state = {}
-    written = state.get("verdict") if isinstance(state, dict) else None
-    if written is None or written == carried:
-        return f"verdict {carried!r} carried"
-    capped = ((state.get("hygiene") or {}).get("verdict_capped") or {}).get("by") or []
-    return (f"verdict {written!r} written, not the carried {carried!r}"
-            + (f" — capped by {', '.join(map(str, capped))}, filed by the hygiene scan"
-               if capped else ""))
-
-
-def sweep(repo, qa_root, project, fail_on, require_harness, before, notes=None) -> int | None:
-    """Try the model-free sweep → the gate's exit code, or None to run the model."""
-    try:
-        previous = json.loads((Path(qa_root) / "state.json").read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
-        print("verdict-run: no sweep — no previous state to carry; running the model",
-              file=sys.stderr)
-        return None
-    facts_proc = _harness("facts", "--repo", str(repo), "--qa-root", str(qa_root))
-    if facts_proc.returncode != 0:
-        print("verdict-run: no sweep — verdict-facts failed: "
-              + (facts_proc.stderr or "").strip().splitlines()[-1:][0] if facts_proc.stderr
-              else "verdict-run: no sweep — verdict-facts failed", file=sys.stderr)
-        return None
-    try:
-        facts = json.loads((Path(qa_root) / "facts.json").read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
-        print("verdict-run: no sweep — facts.json unreadable; running the model", file=sys.stderr)
-        return None
-    sha_range = (facts.get("last_run") or {}).get("sha_range")
-    changed = _changed_files(repo, sha_range) if sha_range else None
-    why = sweep_blockers(facts, previous, changed, clock.today())
-    if why:
-        print("verdict-run: no sweep — " + "; ".join(why) + " — running the model", file=sys.stderr)
-        return None
-    count = subprocess.run(["git", "-C", str(repo), "rev-list", "--count", sha_range],
-                           capture_output=True, text=True)
-    commits = int(count.stdout.strip()) if count.returncode == 0 and count.stdout.strip().isdigit() else None
-    judgment = sweep_judgment(facts, previous, changed or [], commits, notes)
-    jpath = Path(qa_root) / "judgment.json"
-    jpath.write_text(json.dumps(judgment, indent=2) + "\n", encoding="utf-8")
-    fin = _harness("finalize", "--qa-root", str(qa_root), "--judgment", str(jpath), "--sweep")
-    if fin.returncode != 0:
-        print("verdict-run: no sweep — finalize refused the sweep; running the model:\n"
-              + (fin.stderr or "").strip()[-600:], file=sys.stderr)
-        return None
-    counts = " · ".join(f"{name} {g.get('summary') or g.get('result')}"
-                        for name, g in (facts.get("gates") or {}).items())
-    print(f"verdict-run: swept — run {before + 1}: HEAD moved "
-          f"{commits if commits is not None else '?'} commit(s), {len(changed or [])} file(s) "
-          f"changed, none cited by a finding; gates green ({counts}); test-id set unchanged; "
-          f"no quarantine due; no cited line moved — {swept_verdict(qa_root, previous)}, "
-          "no model call", file=sys.stderr)
-    result = evaluate(project, fail_on, None, before + 1, require_harness=require_harness)
-    print(f"verdict-run: verdict {result.get('verdict')!r} → exit {result['exit_code']} "
-          f"({result['reason']})")
-    if news := news_line(result):
-        print(f"verdict-run: {news}")
-    if result.get("report"):
-        print(f"verdict-run: report {result['report']}")
-    return result["exit_code"]
-
-
-# ── the tier below the sweep ──────────────────────────────────────────────
-#
-# The sweep answers "nothing a finding cites moved". `--on-drift` answers the
-# harder half: something DID move, and the owner has decided that a run nobody
-# asked for spends no Claude tokens at all. So the night steps down a tier
-# instead of reaching for the expensive model — skip, then sweep, then the local
-# engine, and if that cannot run, nothing, loudly. What it may never do is fall
-# through to `claude` quietly: an unattended run that silently costs money is the
-# exact failure this release was measured to close.
-
-
-def local_endpoint(env_file, env: dict) -> tuple:
-    """(base_url, token) for the local engine, from an env file or the ambient
-    environment — the same `KEY=VALUE` file the rest of the runner reads."""
-    values = dict(env)
-    if env_file:
-        if not Path(env_file).is_file():
-            return None, None
-        values.update(read_env_file(env_file))
-    return values.get("ANTHROPIC_BASE_URL"), values.get("ANTHROPIC_AUTH_TOKEN")
-
-
-def clear_marker(qa_root) -> None:
-    """Drop the run marker this runner's own facts pass left behind.
-
-    A sweep that was refused has already run `verdict-facts`, which stakes a
-    claim on the QA root before the gates. When nothing follows it — the local
-    engine cannot run and no model will — that marker would tell tomorrow's run
-    that tonight died mid-flight, which is a lie about a night that never
-    started.
-    """
-    try:
-        (Path(qa_root) / "run-in-progress.json").unlink()
-    except OSError:
-        pass
-
-
-PREMEASURED_ENV = "VERDICT_FACTS_PREMEASURED"
-PREMEASURE_TIMEOUT_S = 3600
-
-
-def premeasure(repo, qa_root, env, sha_range=None, run=subprocess.run) -> str | None:
-    """`verdict-facts` before the tester starts → the HEAD it measured, or None (0.91.1).
-
-    The tester's first command is verdict-facts, and its Bash call ends at 10 minutes; a large
-    suite under coverage plus the assertion-gap census does not fit. Measured here, outside any
-    Claude Code session, the census gets its whole budget; the tester's call adopts the result.
-    A measurement that fails is said and left to the tester, which measures as before."""
-    child = {k: v for k, v in env.items() if k not in ("CLAUDECODE", "CLAUDE_CODE_ENTRYPOINT")}
-    cmd = [sys.executable, "-m", "verdict_mcp.harness", "facts", "--repo", str(repo),
-           "--qa-root", str(qa_root)] + (["--range", sha_range] if sha_range else [])
-    started = time.monotonic()
-    try:
-        proc = run(cmd, env=child, capture_output=True, text=True, timeout=PREMEASURE_TIMEOUT_S)
-    except (subprocess.TimeoutExpired, OSError) as exc:
-        print(f"verdict-run: measuring before the tester failed ({type(exc).__name__}); the tester "
-              "measures on its own", file=sys.stderr)
-        return None
-    if proc.returncode != 0:
-        tail = (proc.stderr or proc.stdout or "").strip().splitlines()[-1:] or [""]
-        print(f"verdict-run: measuring before the tester exited {proc.returncode} ({tail[0][:160]}); "
-              "the tester measures on its own", file=sys.stderr)
-        return None
-    head = subprocess.run(["git", "-C", str(repo), "rev-parse", "HEAD"], capture_output=True,
-                          text=True).stdout.strip()
-    print(f"verdict-run: facts measured before the tester started ({time.monotonic() - started:.0f} s); "
-          "its verdict-facts adopts them", file=sys.stderr)
-    return head or None
-
-
-def run_local(repo, qa_root, args, base_url, token) -> int:
-    """Hand the night to `verdict-local` → its exit code. No `claude` is launched."""
-    try:
-        from .small import main as local_main
-    except ImportError:  # bare-script execution
-        from small import main as local_main
-    # The sweep attempt has just measured this HEAD; measuring again ran the suite twice
-    # and lost the test-id delta the first measurement had recorded (2026-10-15).
-    argv = ["--repo", str(repo), "--qa-root", str(qa_root), "--delta", "--reuse-facts",
-            "--model", args.local_model, "--limit", str(args.local_limit), "--reruns", "0"]
-    if args.local_env_file:
-        argv += ["--env-file", str(args.local_env_file)]
-    # The endpoint reaches verdict-local the way it reached this runner: from
-    # the env file (passed on as --env-file, which small.main reads into a local
-    # copy) or from the ambient environment it already shares. It used to be
-    # written into this process's os.environ for the whole night as well, from
-    # where every gate, re-run and probe inherited the token (audit 2026-10-02,
-    # O-S-2). `base_url` and `token` are what the liveness check above used.
-    del base_url, token
-    return local_main(argv)
-
-
-def escalation_packet(repo, qa_root, args, budget_usd, local_main=None) -> tuple:
-    """The breadth pass and the tester's packet → (packet text or None, exit code).
-
-    `verdict-local` reads in a scratch copy of the QA root, on the facts verdict-run has just
-    measured, so the real record is written once, by the tester. The copy is removed whatever
-    happens; the packet and its summary are kept beside the record."""
-    if local_main is None:
-        try:
-            from .small import main as local_main
-        except ImportError:  # bare-script execution
-            from small import main as local_main
-    scratch = escalate.scratch_copy(qa_root)
-    try:
-        argv = escalate.local_argv(repo, scratch, qa_root, args.local_model, args.local_limit,
-                                   args.sha_range, args.local_env_file)
-        code = local_main(argv)
-        if code != 0:
-            print(f"verdict-run: the breadth pass exited {code} — no packet, so no escalation run "
-                  "was started; run without --escalate for a full asked run", file=sys.stderr)
-            return None, 5
-        facts = json.loads((Path(qa_root) / "facts.json").read_text(encoding="utf-8"))
-        text, summary = escalate.compose(scratch, facts, budget_usd,
-                                         args.calls or escalate.CALLS_DEFAULT)
-        escalate.record(qa_root, text, summary)
-        print(f"verdict-run: escalation — {summary['leads']} item(s) for the tester from "
-              f"{summary['local_model']} ({summary['functions_read']} function(s) read, "
-              f"{summary['proven_local']} proven by counterfactual, {summary['survivor_functions']} "
-              f"census survivor function(s)); packet {escalate.PACKET_FILE}", file=sys.stderr)
-        return text, 0
-    except (OSError, json.JSONDecodeError) as exc:
-        print(f"verdict-run: the breadth pass left no readable facts ({type(exc).__name__}) — no "
-              "escalation run was started", file=sys.stderr)
-        return None, 5
-    finally:
-        shutil.rmtree(scratch, ignore_errors=True)
-
-
-def resolve_cap(args, passthrough) -> tuple:
-    """The run's dollar ceiling → (cap or None, the flags to add, an error or None).
-
-    An operator's `--max-budget-usd` after `--` stays where it is and names the cap. An
-    escalation run with none gets the default: it is the cheap run by construction, and the
-    ceiling is what makes "cheap" a guarantee rather than a hope."""
-    cap = None
-    if args.max_budget_usd not in (None, ""):
-        try:
-            cap = float(args.max_budget_usd)
-        except ValueError:
-            return None, [], f"--max-budget-usd {args.max_budget_usd!r} is not a number"
-    given = [i for i, p in enumerate(passthrough) if p == "--max-budget-usd"]
-    if cap is None and given and given[-1] + 1 < len(passthrough):
-        try:
-            cap = float(passthrough[given[-1] + 1])
-        except ValueError:
-            pass
-    elif cap is None and (args.escalate or args.lite):
-        cap = escalate.BUDGET_DEFAULT_USD
-    flags = ["--max-budget-usd", f"{cap:g}"] if cap is not None and not given else []
-    return cap, flags, None
-
-
-def start_escalation(repo, qa_root, args, env, base_url, token, cap) -> tuple:
-    """The checks and the breadth pass before an escalation run's tester → (packet, exit code
-    or None to go on). Every refusal here starts nothing, and never a full run in its place.
-    Without --escalate there is nothing to do: ("", None)."""
-    if not args.escalate:
-        return "", None
-    if not env.get(PREMEASURED_ENV):
-        print("verdict-run: --escalate reads on the facts measured before the tester starts, "
-              "and that measurement failed — no escalation run was started, and no full run "
-              "in its place", file=sys.stderr)
-        return "", 2
-    try:
-        from .small import gateway_alive
-    except ImportError:  # bare-script execution
-        from small import gateway_alive
-    alive, detail = gateway_alive(base_url, token)
-    print(f"verdict-run: local engine — {detail}", file=sys.stderr)
-    if not alive:
-        clear_marker(qa_root)
-        print("verdict-run: the local gateway is down, so there is no breadth pass — no "
-              "escalation run was started, and no full run in its place", file=sys.stderr)
-        return "", 5
-    packet, code = escalation_packet(repo, qa_root, args, cap)
-    if packet is None:
-        clear_marker(qa_root)
-        return "", code
-    return packet, None
-
-
-def asked_preflight(args, ap) -> None:
-    """`--lite`, `--escalate` and `--calls` shape an asked run, a model run; a local or
-    model-free night has no tester to tell. One cheap mode at a time."""
-    if args.lite and args.escalate:
-        ap.error("--lite and --escalate are two cheap asked runs: pick one")
-    if (args.lite or args.calls is not None) and args.on_drift != "model":
-        ap.error("--lite and --calls shape an asked run's tester; --on-drift local/none runs none")
-    if args.calls is not None and args.calls < 1:
-        ap.error("--calls takes a positive number")
-
-
-def escalate_preflight(args, ap) -> tuple:
-    """(base_url, token, exit code or None) for `--escalate`, before anything runs; without
-    the flag, (None, None, None)."""
-    if not args.escalate:
-        return None, None, None
-    if args.on_drift != "model" or args.no_premeasure:
-        ap.error("--escalate is an asked run: it measures first and launches the tester, so it "
-                 "takes neither --on-drift local/none nor --no-premeasure")
-    base_url, token = local_endpoint(args.local_env_file, dict(os.environ))
-    if not base_url or not token:
-        print("verdict-run: --escalate needs the local gateway — ANTHROPIC_BASE_URL and "
-              "ANTHROPIC_AUTH_TOKEN in --local-env-file or in the environment. Refusing before "
-              "anything runs: an escalation run with no breadth pass would be a full asked run "
-              "nobody asked for.", file=sys.stderr)
-        return None, None, 2
-    return base_url, token, None
-
-
-# Opus 5.5 list rates, $/MTok: what an escalation run's bill line prices its tokens at.
-OPUS_RATES = {"input_tokens": 4.0, "output_tokens": 20.0, "cache_read_input_tokens": 0.20,
-              "cache_creation_input_tokens": 5.0}
-
-
-def budget_line(cap, calls) -> str:
-    """What a capped asked run's tester is told about its budget (0.93.0). A session stopped at its
-    dollar cap writes no state, so the tester paces itself and keeps room to finalize; the
-    2026-10-19 runs that were told so all finalized under the cap."""
-    if cap is None:
-        return ""
-    aim = f"Aim for about {calls} tool calls. " if calls else ""
-    return f"{aim}The run stops at ${cap:g}: keep enough of it to finalize."
-
-
-def tester_prompt(prompt, told, tester, packet, budget="") -> str:
-    """The words the session is launched with: the operator's, else the agent's or the
-    delegating prompt, then an escalation run's packet or a capped run's budget line."""
-    text = prompt if told else (AGENT_PROMPT if tester else DEFAULT_PROMPT)
-    if packet:
-        return f"{text}\n\n{packet}"
-    # The budget joins on the same line: a `.cmd` shim on Windows (an npm-installed `claude`)
-    # ends an argument at its first newline, and every flag after the prompt would be lost.
-    return f"{text} {budget}" if budget else text
-
-
-def print_bill(args, qa_root, before=0, capped=False) -> None:
-    """A capped asked run (--lite, --escalate, --max-budget-usd) closes with what it cost; every
-    run's bill is in usage.jsonl as before."""
-    bill = bill_line(qa_root, before) if (args.escalate or capped) else None
-    if bill:
-        print(f"verdict-run: {'escalation run' if args.escalate else 'run'} bill — {bill}")
-
-
-def bill_line(qa_root, before=0) -> str | None:
-    """The bill of every run this invocation wrote (run_number above `before`), summed from
-    usage.jsonl and priced when the model is Opus 5.5: a session that finalized twice spent twice."""
-    try:
-        rows = [json.loads(line) for line in
-                (Path(qa_root) / "usage.jsonl").read_text(encoding="utf-8").splitlines() if line.strip()]
-    except (OSError, json.JSONDecodeError):
-        return None
-    usage: dict = {}
-    for row in rows:
-        if isinstance(row.get("run_number"), int) and row["run_number"] > before:
-            for key, value in (row.get("usage") or {}).items():
-                if isinstance(value, (int, float)) and not isinstance(value, bool):
-                    usage[key] = usage.get(key, 0) + value
-                elif key == "model":
-                    usage[key] = value
-    if not usage.get("requests"):
-        return None
-    line = (f"{usage['requests']} request(s), {usage.get('output_tokens', 0):,} output and "
-            f"{usage.get('cache_read_input_tokens', 0):,} cache-read token(s)")
-    if str(usage.get("model") or "").startswith("claude-opus-5-5"):
-        dollars = sum(usage.get(k, 0) * rate for k, rate in OPUS_RATES.items()) / 1e6
-        line += f", about ${dollars:.2f} at list price"
-    return line
 
 
 def main(argv=None) -> int:
@@ -1239,6 +243,15 @@ def main(argv=None) -> int:
     ap.add_argument("--calls", "--escalate-calls", dest="calls", type=int, default=None, metavar="N",
                     help="the tool calls an asked run's tester is asked to aim for (default "
                          f"{escalate.CALLS_DEFAULT} with --lite or --escalate); the dollar cap still stops the run")
+    ap.add_argument("--sandbox", choices=("auto", "required"), default=None,
+                    help="the least box the project's code runs in, for this run and every "
+                         "process it starts; a profile can only tighten it, and under `required` "
+                         "a profile's sandbox_network, sandbox_write and test_env are ignored — "
+                         "the setting for a repository you do not trust")
+    ap.add_argument("--no-sandbox", action="store_true",
+                    help="run the tester's Bash outside Claude Code's sandbox (default: inside it, "
+                         "with no network, the caller's secrets hidden and writes kept to the "
+                         "checkout, the QA root and temp; the profile's `sandbox: off` does the same)")
     ap.add_argument("--no-premeasure", action="store_true",
                     help="let the tester run verdict-facts itself instead of measuring before it "
                          "starts (default: measure first, so a long census is not cut by the "
@@ -1402,6 +415,11 @@ def main(argv=None) -> int:
             print(f"verdict-run: report {result['report']}")
         return result["exit_code"]
 
+    harness_mode = pin_box_floor(args, qa_root)
+    box_mode = tester_box_mode(args, qa_root)
+    if not shipped_config_allowed(repo, harness_mode):
+        return 2
+
     if args.provision:
         problem, notes = provision(repo, plugin_root(args.plugin_root))
         for note in notes:
@@ -1470,6 +488,7 @@ def main(argv=None) -> int:
     strict = [] if "--strict-mcp-config" in passthrough else ["--strict-mcp-config"]
     tester = agent_flags(repo, passthrough)
     told = bool(args.prompt_file or args.prompt)    # the operator's words, in either mode
+    box = tester_sandbox(repo, qa_root, env, box_mode)
 
     packet = ""
 
@@ -1477,12 +496,11 @@ def main(argv=None) -> int:
         text = tester_prompt(prompt, told, tester, packet,
                              budget_line(cap, args.calls or (escalate.CALLS_DEFAULT if args.lite else None)))
         return [args.claude_cmd, "-p", text, "--model", args.model, *tester,
-                "--setting-sources", "project,local", *strict, *mcp, *budget, *passthrough]
+                "--setting-sources", "project,local", *strict, *mcp, *box, *budget, *passthrough]
 
-    if not args.no_premeasure:
-        head = premeasure(repo, qa_root, env, args.sha_range)
-        if head:
-            env[PREMEASURED_ENV] = head
+    if not args.no_premeasure and not measure_first(repo, qa_root, env, args.sha_range,
+                                                    harness_mode):
+        return 2
     packet, refused = start_escalation(repo, qa_root, args, env, base_url, token, cap)
     if refused is not None:
         return refused

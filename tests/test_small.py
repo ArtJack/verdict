@@ -13,7 +13,7 @@ import pytest
 
 REPO = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO / "src"))
-from verdict_mcp import small  # noqa: E402
+from verdict_mcp import local_env, small  # noqa: E402
 from verdict_mcp.validate import validate_finding  # noqa: E402
 
 MODULE = '''"""A module."""
@@ -219,7 +219,8 @@ def test_the_console_script_is_declared():
 def test_the_judgment_says_what_local_mode_did_not_do():
     source = (REPO / "src" / "verdict_mcp" / "small.py").read_text(encoding="utf-8")
     assert '"not_tested"' in source
-    assert "no origin was traced" in source, \
+    lines = (REPO / "src" / "verdict_mcp" / "local_summary.py").read_text(encoding="utf-8")
+    assert "no origin was traced" in lines, \
         "a pass must always name what was not tested; local mode tests almost nothing"
 
 
@@ -278,7 +279,7 @@ def test_the_verdict_is_arithmetic_over_the_findings():
 
 
 def test_ids_from_a_report_use_the_harnesss_own_parser():
-    source = (REPO / "src" / "verdict_mcp" / "small.py").read_text(encoding="utf-8")
+    source = (REPO / "src" / "verdict_mcp" / "local_suite.py").read_text(encoding="utf-8")
     assert "read_report(path)" in source, \
         "a second parser gave a second id shape, and every rerun looked unstable"
 
@@ -581,7 +582,7 @@ def test_the_local_engine_runs_the_census_its_profile_asks_for(tmp_path, monkeyp
         seen.update(kw)
         return {"last_run": {}}
 
-    monkeypatch.setattr(small, "collect", fake_collect)
+    monkeypatch.setattr(local_env, "collect", fake_collect)
     config = {"assertion_gaps": "on", "test_one_cmd": "pytest {id}", "risk_paths": "shop/*",
               "coverage_suite_cmd": "python -m coverage run -m pytest"}
     small.measure(repo, qa, [], config, None, [])

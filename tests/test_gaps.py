@@ -266,13 +266,13 @@ def test_verdict_run_sets_the_census_default_for_the_child():
 
 
 def test_inside_an_agent_call_the_census_takes_what_is_left_of_the_window(tmp_path, monkeypatch):
-    from verdict_mcp import harness
+    from verdict_mcp import facts_coverage, harness
     seen = {}
-    monkeypatch.setattr(harness, "measure_coverage",
+    monkeypatch.setattr(facts_coverage, "measure_coverage",
                         lambda repo, rng, cmd, findings, on_files=None: (on_files({}, None), ({}, None, None))[1])
-    monkeypatch.setattr(harness, "gap_census_of",
+    monkeypatch.setattr(facts_coverage, "gap_census_of",
                         lambda *a, budget_s=None, **kw: seen.setdefault("budget", budget_s) and {"status": "measured"})
-    monkeypatch.setattr(harness, "FACTS_WINDOW_S", 100)
+    monkeypatch.setattr(facts_coverage, "FACTS_WINDOW_S", 100)
     monkeypatch.setenv("CLAUDECODE", "1")
     harness._coverage_with_gaps(tmp_path, None, "cov", [], {"test_one_cmd": "x {id}", "budget_s": 480})
     assert harness.GAPS_MIN_S <= seen["budget"] <= 100

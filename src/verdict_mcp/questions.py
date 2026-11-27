@@ -32,10 +32,12 @@ from pathlib import Path
 try:
     from . import clock
     from .state import load_state, root_refusal
+    from .gitenv import git_env
 except ImportError:  # bare-script execution
     sys.path.insert(0, str(Path(__file__).resolve().parent))
     import clock
     from state import load_state, root_refusal
+    from gitenv import git_env
 
 QUESTIONS_FILE = "questions.json"
 ANSWERS_FILE = "answers.json"
@@ -206,7 +208,7 @@ def save(qa_root, ledger: dict) -> None:
 def _who() -> str:
     try:
         out = subprocess.run(["git", "config", "user.name"], capture_output=True,
-                             text=True, timeout=3)
+                             text=True, timeout=3, env=git_env())
         if out.returncode == 0 and out.stdout.strip():
             return out.stdout.strip()
     except (OSError, subprocess.SubprocessError):

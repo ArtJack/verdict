@@ -30,10 +30,12 @@ from pathlib import Path
 try:
     from . import clock
     from .state import is_open, load_state, repo_for_root
+    from .gitenv import git_env
 except ImportError:  # executed as a bare script
     sys.path.insert(0, str(Path(__file__).resolve().parent))
     import clock
     from state import is_open, load_state, repo_for_root
+    from gitenv import git_env
 
 RELATED_FILE = "related.jsonl"
 SEVERITIES_ASKED = ("Blocker", "Critical", "Major")
@@ -144,7 +146,7 @@ def remote_of(profile_text: str, repo: Path | None) -> str | None:
     url = m.group(1).strip() if m else ""
     if not url and repo is not None:
         proc = subprocess.run(["git", "-C", str(repo), "remote", "get-url", "origin"],
-                              capture_output=True, text=True)
+                              capture_output=True, text=True, env=git_env())
         url = proc.stdout.strip() if proc.returncode == 0 else ""
     hit = _REMOTE.search(url)
     return f"{hit.group(1)}/{hit.group(2)}" if hit else None

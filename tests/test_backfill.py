@@ -1,18 +1,24 @@
 """verdict-backfill: a repro for an old finding, drafted by the local model, kept only if it reproduces (0.92.0)."""
 
 import json
+import os
 import subprocess
 import sys
 
 import pytest
 
 from conftest import git, judgment
-from verdict_mcp import backfill, gate, replay
+from verdict_mcp import backfill, gate, replay, sandbox
 from verdict_mcp.harness import facts_main, finalize_main
 
 PY = sys.executable
 PASS_THROUGH = lambda writable: ["env"]          # a stand-in sandbox that runs the command as is
 NO_SANDBOX = lambda writable: None
+# sandbox-exec when it cannot start the program: its one line and its exit, 71. The real tool
+# is held to the same line in test_sandbox.py.
+_EXEC_FAILS = ("import sys; sys.stderr.write(\"sandbox-exec: execvp() of '%s' failed: "
+               "No such file or directory\\n\" % sys.argv[1]); sys.exit(71)")
+CANNOT_EXEC = lambda writable: [PY, "-c", _EXEC_FAILS]
 
 GOOD = "import a\nassert a.x == 2, f\"DEFECT: x is {a.x}, the spec says 2\"\n"
 
@@ -186,6 +192,25 @@ def test_a_model_written_repro_sees_none_of_the_callers_secrets(repo, tmp_path, 
     assert "s3cret-value" not in row["output_tail"] and str(scratch.parent) in row["output_tail"]
 
 
+@pytest.mark.parametrize("box", ["stand-in", "sandbox-exec"])
+def test_a_model_written_repro_that_cannot_start_could_not_run(repo, tmp_path, box):
+    """Never "not reproduced": the draft never ran, so it says nothing of the finding
+    (2026-11-20: sandbox-exec's own exit 71 was read as the repro's)."""
+    if box == "sandbox-exec" and (not sandbox.available() or sandbox.nested()):
+        pytest.skip("needs macOS sandbox-exec, outside another sandbox")
+    wrap = CANNOT_EXEC if box == "stand-in" else replay.sandbox_prefix
+    command = '.venv/bin/python -c "import a; assert a.x == 2, \'DEFECT: x\'"'
+    finding = {"id": "W-F-9", "repro": {"command": command, "cwd": "repo", "expect": dict(backfill.EXPECT),
+                                        "origin": "backfill 2026-10-18 (fake)"}}
+    scratch, _, _ = replay._fresh_checkout(repo)
+    try:
+        row = replay.replay_one(finding, repo, scratch, tmp_path, 60, sandbox=wrap)
+    finally:
+        replay._remove_checkout(repo, scratch)
+    assert (row["result"], row["exit"]) == ("could not run", None), row
+    assert ".venv/bin/python" in row["checks"][0]
+
+
 def test_the_prompt_names_each_cited_files_import_path_and_what_it_defines(repo):
     (repo / "pkg").mkdir()
     (repo / "pkg" / "fees.py").write_text("RATE = 2\n\nclass Fees:\n    def total(self, a):\n        return a * RATE\n",
@@ -268,15 +293,16 @@ def test_the_gate_names_a_suspected_fix_with_the_findings_that_look_fixed(tmp_pa
 
 
 def test_the_sandbox_is_sandbox_exec_on_macos_and_nothing_elsewhere(tmp_path, monkeypatch):
-    monkeypatch.setattr(replay.sys, "platform", "darwin")
-    monkeypatch.setattr(replay.shutil, "which", lambda name: "/usr/bin/sandbox-exec")
+    """0.94.0: the same SBPL every run of the project's code gets (`sandbox.profile`), from
+    `/usr/bin/sandbox-exec` only, minus loopback: a model-written repro has no network at all."""
+    from verdict_mcp import sandbox
+    monkeypatch.setattr(sandbox, "available", lambda: True)
     prefix = replay.sandbox_prefix(tmp_path)
-    assert prefix[:2] == ["sandbox-exec", "-p"] and "(deny network*)" in prefix[2]
-    assert f'(allow file-write* (subpath "{tmp_path.resolve()}")' in prefix[2]
-    monkeypatch.setattr(replay.sys, "platform", "linux")
-    assert replay.sandbox_prefix(tmp_path) is None
-    monkeypatch.setattr(replay.sys, "platform", "darwin")
-    monkeypatch.setattr(replay.shutil, "which", lambda name: None)
+    assert prefix[:2] == ["/usr/bin/sandbox-exec", "-p"] and "(deny network*)" in prefix[2]
+    assert "(allow network-outbound" not in prefix[2]
+    assert f"(allow file-write* (subpath {sandbox._quote(os.path.realpath(str(tmp_path)))})" in prefix[2]
+    assert "(deny file-read* " in prefix[2]
+    monkeypatch.setattr(sandbox, "available", lambda: False)
     assert replay.sandbox_prefix(tmp_path) is None
 
 

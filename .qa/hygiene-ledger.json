@@ -1,6 +1,6 @@
 {
  "schema": 1,
- "run_number": 17,
+ "run_number": 19,
  "rows": [
   {
    "fingerprint": "97ae9dc68fab0b10",
@@ -14,7 +14,7 @@
    "first_seen_run": 16,
    "sites": [
     "eval/run_eval.py",
-    "src/verdict_mcp/runner.py"
+    "src/verdict_mcp/runner_env.py"
    ]
   },
   {
@@ -29,15 +29,29 @@
    "first_seen_run": 16
   },
   {
+   "fingerprint": "8f450e27b96b2a73",
+   "kind": "broad_swallow",
+   "path": "src/verdict_mcp/local_model.py",
+   "line": 73,
+   "excerpt": "except Exception:       # noqa: BLE001 \u2014 the body is a courtesy, not evidence",
+   "status": "open",
+   "delta": "NEW",
+   "first_seen": "2026-11-20",
+   "first_seen_run": 19
+  },
+  {
    "fingerprint": "6580bd98599ea67b",
    "kind": "oversized_file",
    "path": "src/verdict_mcp/harness.py",
    "line": 4312,
    "excerpt": "4312 lines",
-   "status": "open",
-   "delta": "STILL_OPEN",
+   "status": "resolved",
+   "delta": "RESOLVED",
    "first_seen": "2026-10-15",
-   "first_seen_run": 16
+   "first_seen_run": 16,
+   "resolved_on": "2026-11-20",
+   "resolved_at_run": 19,
+   "resolved_sha": "79c603bee93f08fd4ce366baa7c21be365268e8d"
   },
   {
    "fingerprint": "65c3e52b1a4fc21c",
@@ -45,10 +59,13 @@
    "path": "src/verdict_mcp/hygiene.py",
    "line": 2217,
    "excerpt": "2217 lines",
-   "status": "open",
-   "delta": "NEW",
+   "status": "resolved",
+   "delta": "RESOLVED",
    "first_seen": "2026-10-30",
-   "first_seen_run": 17
+   "first_seen_run": 17,
+   "resolved_on": "2026-11-20",
+   "resolved_at_run": 19,
+   "resolved_sha": "79c603bee93f08fd4ce366baa7c21be365268e8d"
   },
   {
    "fingerprint": "573591e6d3f3c5f0",
@@ -56,10 +73,13 @@
    "path": "src/verdict_mcp/small.py",
    "line": 182,
    "excerpt": "except Exception:       # noqa: BLE001 \u2014 the body is a courtesy, not evidence",
-   "status": "open",
-   "delta": "STILL_OPEN",
+   "status": "resolved",
+   "delta": "RESOLVED",
    "first_seen": "2026-10-15",
-   "first_seen_run": 16
+   "first_seen_run": 16,
+   "resolved_on": "2026-11-20",
+   "resolved_at_run": 19,
+   "resolved_sha": "79c603bee93f08fd4ce366baa7c21be365268e8d"
   },
   {
    "fingerprint": "1dd848b03506ddea",
@@ -67,10 +87,13 @@
    "path": "src/verdict_mcp/small.py",
    "line": 3035,
    "excerpt": "3035 lines",
-   "status": "open",
-   "delta": "STILL_OPEN",
+   "status": "resolved",
+   "delta": "RESOLVED",
    "first_seen": "2026-10-15",
-   "first_seen_run": 16
+   "first_seen_run": 16,
+   "resolved_on": "2026-11-20",
+   "resolved_at_run": 19,
+   "resolved_sha": "79c603bee93f08fd4ce366baa7c21be365268e8d"
   }
  ]
 }

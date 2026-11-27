@@ -1,6 +1,6 @@
 {
   "chain": {
-    "last_link": "9d5df577504a4073b5de94b059a88950129fa5aefbd612e417a9db5eddec23d5",
+    "last_link": "2f5301a37f8ea4c06073d6118d11a7c2c5fbac5cc46bf965827bb3093cb053c5",
     "since_run": 8
   },
   "findings": {
@@ -76,7 +76,7 @@
     },
     "1009c259": {
       "confidence": "proven",
-      "decided_on": "2026-10-30",
+      "decided_on": "2026-11-20",
       "first_seen": "2026-09-01",
       "hash": "1009c259",
       "id": "VERDICT-F-21",

@@ -5,7 +5,7 @@
 # package (`verdict_mcp`), every console script, and the plugin are unchanged,
 # so nothing a user types or imports is affected.
 name = "verdict-qa-mcp"
-version = "0.93.1"
+version = "0.94.0"
 description = "Read-only MCP server and release gate over Verdict QA state: verdicts, findings, flaky quarantine, run history."
 # Not README.md: that one sells the Claude Code plugin and is full of links
 # relative to the repo, which resolve to nothing on PyPI. README-pypi.md
@@ -30,6 +30,12 @@ classifiers = [
     "Topic :: Software Development :: Testing",
 ]
 
+[project.optional-dependencies]
+# `verdict-browse` and the profile's `site:` block drive a real browser. Without it
+# the browser pass says so and measures nothing; the installed Google Chrome is used
+# when there is one (its autofill is what the autofill check drives).
+browser = ["playwright>=1.49"]
+
 [project.urls]
 Homepage = "https://github.com/ArtJack/verdict"
 Repository = "https://github.com/ArtJack/verdict"
@@ -51,6 +57,7 @@ verdict-replay = "verdict_mcp.replay:main"
 verdict-dupes = "verdict_mcp.dupes:main"
 verdict-check = "verdict_mcp.check:main"
 verdict-backfill = "verdict_mcp.backfill:main"
+verdict-browse = "verdict_mcp.browser:main"
 
 [build-system]
 requires = ["hatchling"]
