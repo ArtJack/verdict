@@ -49,6 +49,26 @@ def cannot_start(returncode, output: str) -> bool:
 # cares about.
 _DIALECTS = (
     # signature                          name            fields
+    # Node's own runner (`node --test`), whose totals close both of its reporters: `# tests 6`
+    # in TAP, `ℹ tests 6` in spec. First, because a test's own name can carry another
+    # runner's words ("3 failed retries") and these totals are the one reading that is
+    # Node's. A cancelled test did not finish: an error. Unread, every TypeScript project
+    # tested this way measured no counts at all (45 gate runs, 2026-11-20).
+    (r"(?m)^(?:# |ℹ )tests \d+\s*$", "node", {
+        "collected": r"(?m)^(?:# |ℹ )tests (\d+)\s*$",
+        "passed": r"(?m)^(?:# |ℹ )pass (\d+)\s*$",
+        "failed": r"(?m)^(?:# |ℹ )fail (\d+)\s*$",
+        "errors": r"(?m)^(?:# |ℹ )cancelled (\d+)\s*$",
+        "skipped": r"(?m)^(?:# |ℹ )skipped (\d+)\s*$"}),
+    # Python's `unittest`: `Ran 7 tests in 0.001s`, then `OK`, `OK (skipped=1)` or
+    # `FAILED (failures=1, errors=1, skipped=1, expected failures=1, …)`. `expected
+    # failures=` is not `failures=`.
+    (r"(?m)^Ran \d+ tests? in ", "unittest", {
+        "collected": r"(?m)^Ran (\d+) tests? in ",
+        "failed": r"(?m)^FAILED \(.*?(?<!expected )\bfailures=(\d+)",
+        "errors": r"(?m)^FAILED \(.*?\berrors=(\d+)",
+        "skipped": r"(?m)^(?:OK|FAILED) \(.*?\bskipped=(\d+)",
+        "xfailed": r"(?m)^(?:OK|FAILED) \(.*?\bexpected failures=(\d+)"}),
     (r"Tests run:\s*\d+", "surefire", {                 # JUnit / Maven surefire
         "collected": r"Tests run:\s*(\d+)", "failed": r"Failures:\s*(\d+)",
         "errors": r"Errors:\s*(\d+)", "skipped": r"Skipped:\s*(\d+)"}),
@@ -60,7 +80,8 @@ _DIALECTS = (
         "failed": r"Failed:\s*(\d+)", "skipped": r"Skipped:\s*(\d+)"}),
     (r"Assertions:\s*\d+", "phpunit", {                 # Tests: 5, Assertions: 10, Failures: 1.
         "collected": r"Tests:\s*(\d+)", "failed": r"Failures:\s*(\d+)",
-        "errors": r"Errors:\s*(\d+)", "skipped": r"Skipped:\s*(\d+)"}),
+        "errors": r"Errors:\s*(\d+)", "skipped": r"Skipped:\s*(\d+)",
+        "incomplete": r"Incomplete:\s*(\d+)"}),
     (r"OK \(\d+ tests?", "phpunit", {                    # OK (5 tests, 5 assertions)
         "passed": r"OK \((\d+) tests?", "failed": r"^(?!)"}),
     (r"\d+ examples?\b", "rspec", {                     # 5 examples, 1 failure, 2 pending
@@ -191,6 +212,22 @@ def executed_nothing(counts: dict) -> str | None:
     return None
 
 
+# Runners that print a total and what did not pass, but never a pass count. The passes are
+# what the total leaves. Without them a suite of twelve with two pending read as "all 2
+# collected tests were skipped", and a passing test re-run to verify a fix read as an error.
+# A runner that prints passes is never given derived ones: vitest's `5 failed (5)` has none.
+_TOTAL_ONLY = ("surefire", "gotestsum", "phpunit", "rspec", "unittest")
+
+
+def _with_passes(counts: dict, name: str) -> dict:
+    """`counts` with `passed` derived from the total, for a runner that prints none."""
+    if name in _TOTAL_ONLY and "passed" not in counts and "collected" in counts:
+        rest = sum(counts.get(k, 0) for k in ("failed", "errors", "skipped", "xfailed",
+                                              "incomplete"))
+        counts["passed"] = max(0, counts["collected"] - rest)
+    return counts
+
+
 def _counts(output: str) -> tuple[dict, str | None]:
     """Parse a runner's summary into counts, and say which dialect was read.
 
@@ -208,7 +245,7 @@ def _counts(output: str) -> tuple[dict, str | None]:
             if m:
                 counts[field] = int(m.group(1))
         if counts:
-            return counts, name
+            return _with_passes(counts, name), name
     passed, failed, skipped = (len(p.findall(output)) for p in _GO_VERBOSE)
     if passed or failed or skipped:
         return {"passed": passed, "failed": failed, "skipped": skipped}, "go test -v"

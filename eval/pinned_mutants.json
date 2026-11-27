@@ -3397,5 +3397,137 @@
   "path": "src/verdict_mcp/repro_shape.py",
   "old": "    if argv is not None or (not repo and why.startswith(\"the script\")):\n",
   "new": "    if argv is not None or not repo:\n"
+ },
+ {
+  "label": "runner counts 1: Node's own test runner is not read, so a TypeScript suite measures no counts",
+  "path": "src/verdict_mcp/facts_suite.py",
+  "old": "    (r\"(?m)^(?:# |ℹ )tests \\d+\\s*$\", \"node\", {\n",
+  "new": "    (r\"(?m)^(?:# |ℹ )tests \\d+\\s*$UNREAD\", \"node\", {\n"
+ },
+ {
+  "label": "runner counts 2: a test Node's runner cancelled is not counted as an error",
+  "path": "src/verdict_mcp/facts_suite.py",
+  "old": "        \"errors\": r\"(?m)^(?:# |ℹ )cancelled (\\d+)\\s*$\",\n",
+  "new": "        \"cancelled\": r\"(?m)^(?:# |ℹ )cancelled (\\d+)\\s*$\",\n"
+ },
+ {
+  "label": "runner counts 3: unittest is not read, so a stdlib suite measures no counts",
+  "path": "src/verdict_mcp/facts_suite.py",
+  "old": "    (r\"(?m)^Ran \\d+ tests? in \", \"unittest\", {\n",
+  "new": "    (r\"(?m)^Ran \\d+ tests? in UNREAD\", \"unittest\", {\n"
+ },
+ {
+  "label": "runner counts 4: unittest's expected failures are read as failures",
+  "path": "src/verdict_mcp/facts_suite.py",
+  "old": "        \"failed\": r\"(?m)^FAILED \\(.*?(?<!expected )\\bfailures=(\\d+)\",\n",
+  "new": "        \"failed\": r\"(?m)^FAILED \\(.*?\\bfailures=(\\d+)\",\n"
+ },
+ {
+  "label": "runner counts 5: a runner that prints only a total gets no passes, so a few skips read as an empty suite",
+  "path": "src/verdict_mcp/facts_suite.py",
+  "old": "        counts[\"passed\"] = max(0, counts[\"collected\"] - rest)\n",
+  "new": "        pass\n"
+ },
+ {
+  "label": "runner counts 6: derived passes are given to a runner that prints its own",
+  "path": "src/verdict_mcp/facts_suite.py",
+  "old": "    if name in _TOTAL_ONLY and \"passed\" not in counts and \"collected\" in counts:\n",
+  "new": "    if \"passed\" not in counts and \"collected\" in counts:\n"
+ },
+ {
+  "label": "box marker 1: uv's empty .git marker is guarded like a checkout, so no uvx gate can run in the box",
+  "path": "src/verdict_mcp/sandbox.py",
+  "old": "            return fh.read(8) == b\"gitdir: \"\n",
+  "new": "            return True\n"
+ },
+ {
+  "label": "box marker 2: a checkout whose .git is a directory is not guarded",
+  "path": "src/verdict_mcp/sandbox.py",
+  "old": "    if git.is_dir():\n        return True\n",
+  "new": "    if git.is_dir():\n        return False\n"
+ },
+ {
+  "label": "box marker 3: a .git that is a named pipe is opened, and the next boxed command waits forever",
+  "path": "src/verdict_mcp/sandbox.py",
+  "old": "    if not git.is_file():          # never open a pipe boxed code left there: it waits forever\n        return False\n",
+  "new": ""
+ },
+ {
+  "label": "box npm 1: npm writes to the shared ~/.npm cache, so an install needing a download fails in the box",
+  "path": "src/verdict_mcp/sandbox.py",
+  "old": "                           **({\"npm_config_cache\": str(tmp / \"npm-cache\")} if own_npm else {}),\n",
+  "new": ""
+ },
+ {
+  "label": "box npm 2: a profile that opens ~/.npm still gets a private npm cache",
+  "path": "src/verdict_mcp/sandbox.py",
+  "old": "        own_npm = not any(_inside(Path(_real(p)), Path(_real(_SHARED_NPM))) or\n",
+  "new": "        own_npm = True or not any(_inside(Path(_real(p)), Path(_real(_SHARED_NPM))) or\n"
+ },
+ {
+  "label": "refuted 1: a red build answers a compile claim",
+  "path": "src/verdict_mcp/local_refuted.py",
+  "old": "        if not isinstance(gate, dict) or gate.get(\"exit_code\") != 0:\n",
+  "new": "        if not isinstance(gate, dict):\n"
+ },
+ {
+  "label": "refuted 2: `dotnet test --no-build` counts as compiling",
+  "path": "src/verdict_mcp/local_refuted.py",
+  "old": "        steps = [s for s in _STEP.split(command) if pattern.search(s) and not _NO_BUILD.search(s)]\n",
+  "new": "        steps = [s for s in _STEP.split(command) if pattern.search(s)]\n"
+ },
+ {
+  "label": "refuted 3: a gate that changes into one folder answers for every folder",
+  "path": "src/verdict_mcp/local_refuted.py",
+  "old": "        if where and not _under(rel, where.group(1)):\n",
+  "new": "        if False:\n"
+ },
+ {
+  "label": "refuted 4: a `?` type counts as declared non-null",
+  "path": "src/verdict_mcp/local_refuted.py",
+  "old": "                non_null = not kind.endswith(\"?\") and (\n",
+  "new": "                non_null = (\n"
+ },
+ {
+  "label": "refuted 5: an initializer of `null!` counts as a value",
+  "path": "src/verdict_mcp/local_refuted.py",
+  "old": "                    (init is not None and not _NULL_INIT.match(init)) or \"required\" in modifiers.split())\n",
+  "new": "                    (init is not None) or \"required\" in modifiers.split())\n"
+ },
+ {
+  "label": "refuted 6: a member of a type a request binds counts as non-null",
+  "path": "src/verdict_mcp/local_refuted.py",
+  "old": "        if not decls or any(not ok or of in self.bound for ok, _r, _l, _t, of, _k in decls):\n",
+  "new": "        if not decls or any(not ok for ok, _r, _l, _t, of, _k in decls):\n"
+ },
+ {
+  "label": "refuted 7: a declaration in a shape the index cannot read is ignored",
+  "path": "src/verdict_mcp/local_refuted.py",
+  "old": "            if self.lines.get(name, 0) > self.properties.get(name, 0):\n",
+  "new": "            if False:\n"
+ },
+ {
+  "label": "refuted 8: a claim that a nullable value flows in is answered by the declaration",
+  "path": "src/verdict_mcp/local_refuted.py",
+  "old": "        if (chunk.lang == \"csharp\" and _DEREFERENCE.search(title) and not _FLOW.search(title)\n",
+  "new": "        if (chunk.lang == \"csharp\" and _DEREFERENCE.search(title)\n"
+ },
+ {
+  "label": "refuted 9: the null rule runs without the project's nullable setting",
+  "path": "src/verdict_mcp/local_refuted.py",
+  "old": "                and language_note(self.repo, chunk.path, \"csharp\")):\n",
+  "new": "                and True):\n"
+ },
+ {
+  "label": "refuted 10: a claim set aside is filed anyway",
+  "path": "src/verdict_mcp/local_findings.py",
+  "old": "                print(f\"verdict-local: set aside {chunk.path}:{claim['line']} — {aside['why']}\",\n                      file=sys.stderr)\n                continue\n",
+  "new": "                print(f\"verdict-local: set aside {chunk.path}:{claim['line']} — {aside['why']}\",\n                      file=sys.stderr)\n"
+ },
+ {
+  "label": "refuted 11: the run forgets what it set aside",
+  "path": "src/verdict_mcp/small.py",
+  "old": "    facts[\"set_aside\"] = set_aside\n",
+  "new": "    facts[\"set_aside\"] = []\n"
  }
 ]

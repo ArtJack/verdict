@@ -18,6 +18,7 @@ import json
 import os
 import subprocess
 import sys
+import threading
 import time
 
 import pytest
@@ -428,6 +429,59 @@ def test_a_shell_gate_keeps_its_pipes(tmp_path):
     assert proc.returncode == 0 and "42" in proc.stdout
 
 
+# ── a program that cannot start: said the way subprocess says it, in the box or not ──────────
+
+MISSING = "verdict-no-such-program"
+ENOENT_LINE = f"sandbox-exec: execvp() of '{MISSING}' failed: No such file or directory\n"
+
+
+@MAC_BOX
+def test_sandbox_exec_says_it_could_not_start_a_program_in_one_line_and_exits_71(tmp_path):
+    """The line `exec_failure` reads, measured on the real tool (macOS 27.0.1, 2026-11-20). If
+    a macOS release words it otherwise, this fails here, not as a repro read "not reproduced"."""
+    proc = sandbox._call([sandbox.SANDBOX_EXEC, "-p", "(version 1)(allow default)", MISSING],
+                         cwd=str(tmp_path), env=dict(os.environ), shell=False, timeout=60)
+    assert (proc.returncode, proc.stderr, proc.stdout) == (71, ENOENT_LINE, "")
+    assert isinstance(sandbox.exec_failure(proc, MISSING), FileNotFoundError)
+
+
+@pytest.mark.parametrize("mode", ["auto", "off"])
+@pytest.mark.parametrize("program", [MISSING, os.path.join("missing", "bin", "python")])
+def test_a_program_that_cannot_start_raises_in_the_box_as_outside_it(tmp_path, mode, program):
+    """2026-11-20: a repro naming `python` on a Mac whose PATH has only `python3` came back
+    from the box as exit 71, sandbox-exec's own, and was read as the repro's: "not
+    reproduced". Outside the box the same argv raises, and every caller reads that as
+    could-not-start. A program that exits 71 itself keeps its exit."""
+    repo = _repo(tmp_path)
+    with pytest.raises(FileNotFoundError):
+        sandbox.run([program, "-c", "pass"], cwd=repo, writable=[repo],
+                    policy=sandbox.Policy(mode=mode), timeout=60)
+    own = sandbox.run([sys.executable, "-c", "import sys; sys.exit(71)"], cwd=repo,
+                      writable=[repo], policy=sandbox.Policy(mode=mode), timeout=60)
+    assert own.returncode == 71
+
+
+@pytest.mark.parametrize("code, stderr, program, raised", [
+    (71, ENOENT_LINE, MISSING, FileNotFoundError),
+    (71, ENOENT_LINE.encode(), MISSING, FileNotFoundError),                  # a bytes run
+    (71, f"sandbox-exec: execvp() of '{MISSING}' failed: Operation not permitted\n", MISSING,
+     PermissionError),                                                       # the box denied it
+    (71, f"sandbox-exec: execvp() of '{MISSING}' failed: something new\n", MISSING, OSError),
+    (1, ENOENT_LINE, MISSING, None),                     # sandbox-exec's own exit only
+    (71, ENOENT_LINE, "python", None),                   # the line names another program
+    (71, "ran a while\n" + ENOENT_LINE, MISSING, None),  # the program ran and printed it
+    (71, "", MISSING, None),                             # a program's own 71
+], ids=["not-found", "not-found-bytes", "denied", "unknown-reason", "exit-1", "other-program",
+        "after-output", "own-71"])
+def test_only_sandbox_execs_own_line_about_this_program_is_a_failure_to_start(
+        code, stderr, program, raised):
+    found = sandbox.exec_failure(subprocess.CompletedProcess([], code, "", stderr), program)
+    if raised is None:
+        assert found is None
+    else:
+        assert type(found) is raised and str(program) in str(found)
+
+
 # ── the profile and the runner ────────────────────────────────────────────
 
 def test_the_profile_reads_the_box_and_a_typo_never_turns_it_off():
@@ -586,3 +640,67 @@ def test_a_shipped_profile_cannot_turn_the_box_off_under_a_floor(tmp_path):
     pol = sandbox.policy_from(profile.sandbox_from(profile.load(qa)[0], notes), qa, notes,
                               floor="required")
     assert pol.mode == "required" and not pol.env_names and not pol.write
+
+
+# ── what counts as a checkout whose .git the box keeps read-only ─────────────────────────
+
+
+def test_a_checkout_and_a_fresh_tree_beside_it_keep_their_git_read_only(tmp_path):
+    repo = tmp_path / "repo"
+    (repo / ".git").mkdir(parents=True)
+    scratch = tmp_path / "scratch"
+    (scratch / "tree").mkdir(parents=True)
+    (scratch / "tree" / ".git").write_text("gitdir: /elsewhere/.git/worktrees/tree\n")
+    assert sandbox._checkouts([repo, scratch]) == [repo, scratch / "tree"]
+
+
+def test_uvs_empty_git_marker_is_not_a_checkout(tmp_path):
+    """uv puts an empty `.git` file in its cache so git leaves the cache alone. Read as a
+    checkout, its writes were denied, and every `uvx` gate failed in the box: "failed to open
+    file `~/.cache/uv/sdists-v9/.git`: Operation not permitted" (measured 2026-11-20, two
+    projects' lint gates). Git itself reads an empty `.git` file as no repository at all."""
+    cache = tmp_path / "uv"
+    (cache / "sdists-v9").mkdir(parents=True)
+    (cache / "sdists-v9" / ".git").write_bytes(b"")
+    (cache / ".git").write_bytes(b"")
+    assert sandbox._checkouts([cache]) == []
+
+
+@pytest.mark.skipif(not hasattr(os, "mkfifo"), reason="no named pipes on this platform")
+def test_a_git_that_is_not_a_regular_file_is_never_opened(tmp_path):
+    """Boxed code may write in the checkout, so it can leave a named pipe called `.git` in a
+    folder there. Opened to look for `gitdir: `, the pipe waits for a writer forever, and the
+    next boxed command never starts."""
+    child = tmp_path / "child"
+    child.mkdir()
+    os.mkfifo(child / ".git")
+    result = []
+    t = threading.Thread(target=lambda: result.append(sandbox._checkouts([tmp_path])), daemon=True)
+    t.start()
+    t.join(5)
+    blocked = t.is_alive()
+    if blocked:                      # release the reader so the thread can end
+        os.close(os.open(child / ".git", os.O_WRONLY | os.O_NONBLOCK))
+        t.join(5)
+    assert not blocked and result == [[]]
+
+
+def test_each_run_gets_its_own_npm_cache(tmp_path):
+    """`npm ci` writes its downloads to `~/.npm` before it unpacks them. In the box that was a
+    write outside the checkout: EPERM on `~/.npm/_cacache/tmp/…`, so every install that needed
+    a package not cached failed, with network or without (measured 2026-11-20 on a Next.js
+    site, whose gates then all read red). Like uv's, npm's cache is the run's own."""
+    repo = _repo(tmp_path)
+    cmd = _script(repo, "import os\nprint(os.environ.get('npm_config_cache', ''))\n")
+    proc = sandbox.run(cmd, cwd=repo, shell=True, writable=[repo], timeout=60)
+    assert "verdict-box-" in proc.stdout and proc.stdout.strip().endswith("npm-cache")
+
+
+def test_a_profile_that_opens_the_shared_npm_cache_keeps_it(tmp_path):
+    """`sandbox_write: ~/.npm` is the owner saying npm may use its shared cache: then npm is
+    not pointed anywhere else. The script only prints; nothing is written there."""
+    repo = _repo(tmp_path)
+    cmd = _script(repo, "import os\nprint(repr(os.environ.get('npm_config_cache')))\n")
+    proc = sandbox.run(cmd, cwd=repo, shell=True, writable=[repo], timeout=60,
+                       policy=sandbox.Policy(write=[sandbox._SHARED_NPM]))
+    assert proc.stdout.strip() == "None", proc.stdout

@@ -227,6 +227,8 @@ Before 0.94.0 these commands ran with the caller's whole environment (under `ver
 
 A value it cannot read keeps `auto` and says so. `sandbox_network:` names the gates that may use the network, such as an `npm ci` gate; they keep everything else. `sandbox_write:` adds writable paths; one that reaches a credential store, such as `~` itself, is ignored with a note.
 
+Each run gets a uv cache and an npm cache of its own, so a malicious suite cannot plant a package that other projects later install. An `npm ci` gate then downloads what it installs: give it `sandbox_network:`. A gate that runs `uvx --offline` needs uv's shared cache and tool folder instead: `sandbox_write: ~/.cache/uv, ~/.local/share/uv/tools`; `sandbox_write: ~/.npm` opens npm's. uv keeps an empty `.git` file in its cache; the box reads only a `.git` directory, or a file that starts with `gitdir: `, as a checkout to keep read-only (0.94.0).
+
 **The floor.** `verdict-run --sandbox auto|required` sets the least box for the run and for every process it starts (`VERDICT_SANDBOX`), and a profile can only tighten it. Under a `required` floor the profile's `sandbox_network`, `sandbox_write` and `test_env` are ignored: a repository that ships its own `.qa/` must not loosen the box it is run in. `verdict-run` pins the floor to the profile's own setting before the tester starts, so a `profile.md` edited during the run changes nothing.
 
 `facts.json` → `sandbox` records `{mode, box, environment}`, plus `floor`, the network gates, the extra writable paths and `test_env` when set. `box` is one of:
@@ -369,7 +371,9 @@ Rows written by the harness carry `source: facts` (the previous record's open fi
 
 `result` is `reproduced` (every expectation met), `not reproduced` (one was not — the finding
 does not hold on a fresh checkout at this HEAD, or its `expect` describes the author's tree) or
-`could not run` (the command never started: exit 126/127 or `cmd.exe`'s "is not recognized", a timeout, a `cwd` outside the
+`could not run` (the command never started: exit 126/127 or `cmd.exe`'s "is not recognized", a
+program that could not be found or executed — in the box, sandbox-exec's own exit 71 and its
+`execvp() … failed` line, never read as the command's exit — a timeout, a `cwd` outside the
 checkout; or it never reached the defect: a claimed reproduction that ended in a traceback
 while `expect` names no stderr text — an exit code alone cannot tell a crash from the defect —
 and a traceback ending in `ImportError`/`ModuleNotFoundError`, which on a fresh tree is a
@@ -889,6 +893,18 @@ to review (§3: green tests are under review too), and the place a regression te
 guard that fails on the defect is what `verification_test` names; the harness finds it on its
 own once a fix lands with its test (`added_this_run`).
 
+## Runner dialects
+
+`verdict-facts` reads the summary of pytest, `unittest`, Node's own runner (`node --test`,
+in its TAP or spec reporter), vitest, jest, cargo, `go test -v`, gotestsum, Maven surefire,
+.NET, PHPUnit and RSpec, and names the one it read in `counts_dialect`. Output it cannot read
+records `counts_unparsed`, never empty counts. surefire, gotestsum, PHPUnit, RSpec and
+`unittest` print a total and what did not pass, but no pass count: `passed` there is the total
+less failures, errors, skips, expected failures and PHPUnit's incomplete tests (0.94.0).
+Before, a suite of twelve with two skipped read as one that executed nothing, and a passing
+test re-run to verify a fix read as an error. A cancelled `node --test` test counts as an
+error.
+
 ## Structured test results before dialects — `{report}`
 
 `verdict-facts` reads a dozen runner dialects off the summary line, and a dialect is a
@@ -938,6 +954,16 @@ Claude session. The state says so rather than leaving a reader to infer it:
 | `last_run.model` | `state.json` | `local:<name>` — `verdict-local` exports `VERDICT_MODEL` before `collect()`, so the model that signed the verdict is measured here exactly as it is for an agent run |
 | `last_run.local` | `state.json` | that engine's own counters: `model`, `calls`, `tokens`, `input_tokens`, `output_tokens`, `answered`, `unanswered`, `retries`, `errors` (transport failures, counted apart from a reply the parser refused), `functions_read`, `functions_skipped`, `seconds`. Not the gateway: `last_run.model` names the judge, and the gateway's host goes to the bill alone (below). Through 0.90.10 a `host` key sat here, which in team mode committed the gateway's network address with the code; `verdict-finalize` now takes it out of a `facts.json` that still carries one |
 | `facts.needs_claude` | `facts.json` | the measured reasons a real model run is still owed — `unexercised_changed_lines: N`, `touches_open_finding: [ids]`, `unprovable_high_severity: [ids]`, `drift_unsettled: [ids]`, `non_python_diff` (the name predates reading other languages: the range holds no source the engine reads in any language, only configuration, data, styles, documentation, tests or generated files), `questions_parked: N`, `diff_over_limit`. Each entry is something the harness counted, and each one also becomes a `next_run_focus` line, which does reach the state |
+| `facts.set_aside` | `facts.json` | the claims a fact of this run already answers, set aside before they are filed (`local_refuted.py`): `path`, `line`, `function`, `title`, `severity`, `rule` and `why`. `rule` is `compiled` (a compile error in code that a gate compiled and passed this run) or `declared-non-null` (a null dereference of a C# member that the project declares non-null with nullable reference types on). `why` names the gate, or cites the declaration as `path:line`. A set-aside claim is neither filed nor a lead; the report lists them under **Set aside** |
+
+The null rule answers only what a declaration settles. It leaves a claim alone when its title
+speaks of a nullable value flowing in, when the value comes from outside the code (deserialized
+JSON, a request body, `null!`, `default(...)`, reflection), when the claim is about a method's
+result, and when the member belongs to a type that a request binds or that such a type holds. It
+also leaves a claim alone when the member has no initializer or is initialized to `null!`, and
+when any declaration of the name is nullable or in a shape the index does not read, such as a
+field, an expression-bodied property or a multi-line one. When the function or its file declares
+the receiver's type (`Ticket ticket`), only that type's declaration counts.
 
 The report gains one **Judge** line beside the Harness line: the engine, the model, the calls
 and tokens, the questions that went unanswered, and `no Claude tokens spent` — no host, even
