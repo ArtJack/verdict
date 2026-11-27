@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 import os
+import shutil
 import sys
 from pathlib import Path
 from urllib.parse import urlparse
@@ -143,6 +144,43 @@ def session_env(env: dict, repo) -> tuple[dict, list]:
         seed_config(config_dir, repo)
         notes.append(f"account: CLAUDE_CONFIG_DIR {config_dir} (trust seeded)")
     return env, notes
+
+
+# Where the CLI looks for bash when the session's PATH has none.
+BASH_FALLBACKS = ("/bin/bash", "/usr/bin/bash")
+
+
+def tester_shell(env: dict, which=shutil.which, fallbacks=BASH_FALLBACKS) -> list:
+    """Run the tester's Bash tool in bash when the login shell is another one → notes.
+
+    The CLI runs every Bash call in `CLAUDE_CODE_SHELL` if that is set, else in the login
+    `SHELL`, and on a Mac that is zsh. The tester writes bash. zsh reads a word that starts
+    with `=` as a lookup of the command it names, so `cat a; echo =====; cat b` stops at the
+    separator with "==== not found": `b` is never printed and the call exits 1 with half its
+    output. An asked run on 2026-11-17 lost the second half of 3 of its first 53 calls that way,
+    one of them a file the packet had told it to read. bash is also the shell the Bash guard
+    assumes: it reads each command with POSIX rules, and zsh's `=cmd` and `=(…)` expansions
+    are not among them.
+
+    An operator who set `CLAUDE_CODE_SHELL` keeps it. A login shell that is bash needs nothing.
+    With no bash anywhere, the CLI's own choice stands and the note says so. On Windows the CLI
+    picks its own bash, and this does nothing.
+    """
+    if os.name == "nt":
+        return []
+    if env.get("CLAUDE_CODE_SHELL"):
+        return [f"shell: CLAUDE_CODE_SHELL={env['CLAUDE_CODE_SHELL']} (the operator's)"]
+    login = env.get("SHELL") or ""
+    if os.path.basename(login) == "bash":
+        return []
+    bash = which("bash", path=env.get("PATH")) or next(
+        (p for p in fallbacks if os.path.isfile(p) and os.access(p, os.X_OK)), None)
+    if not bash:
+        return [f"shell: no bash found, so the tester's Bash runs {login or 'the CLI default'}; "
+                "zsh drops the rest of a command line at a word like `=====`"]
+    env["CLAUDE_CODE_SHELL"] = bash
+    return [f"shell: the tester's Bash runs {bash}, not the login shell "
+            f"{login or '(unset)'} (CLAUDE_CODE_SHELL)"]
 
 
 # The environment a headless session may see. Everything else the operator's

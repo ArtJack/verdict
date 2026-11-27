@@ -38,11 +38,13 @@ try:
     from . import clock
     from .anchors import refs_in
     from .filed import FINDINGS_DIR, finding_file
+    from .repro_shape import shape_note
 except ImportError:  # bare-script execution
     sys.path.insert(0, str(Path(__file__).resolve().parent))
     import clock
     from anchors import refs_in
     from filed import FINDINGS_DIR, finding_file
+    from repro_shape import shape_note
 
 VERDICTS = {"pass", "pass with risks", "blocked", "fail"}
 # `sweep` is the model-free run: HEAD moved, nothing any finding cites
@@ -925,13 +927,26 @@ def _hook_finding(path: Path, qa_root: Path, fid: str) -> int:
     if str(data.get("id") or "") != fid:
         bad.append(f"{where} carries id {data.get('id')!r}, but the filename says {fid!r} — "
                    "one finding, one file, one id")
+    # Advice, not a violation: a repro the harness will not replay is still a command a person
+    # can run, and a project that is not Python may have no other shape to offer.
+    note = shape_note(data, qa_root, _checkout_of(qa_root)) if _is_open(data) else ""
     if not bad:
+        if note:
+            print(json.dumps({"hookSpecificOutput": {"hookEventName": "PostToolUse",
+                                                     "additionalContext": f"verdict-validate: {note}"}}))
         return 0
     sys.stderr.write(
         "verdict-validate: the finding you just wrote violates the contract "
         f"({len(bad)} problem(s)) — fix this file now, while the evidence is in front of "
-        "you:\n  " + "\n  ".join(bad) + "\n")
+        "you:\n  " + "\n  ".join(bad) + "\n" + (f"Also: {note}\n" if note else ""))
     return 2
+
+
+def _checkout_of(qa_root: Path):
+    """The checkout this run measured, as `verdict-facts` recorded it, or None."""
+    facts, _ = _load(qa_root / "facts.json") if (qa_root / "facts.json").is_file() else ({}, None)
+    repo = (facts or {}).get("repo") if isinstance(facts, dict) else None
+    return repo if isinstance(repo, str) and repo else None
 
 
 def main(argv=None) -> int:

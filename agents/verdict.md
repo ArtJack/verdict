@@ -690,7 +690,10 @@ Principles are worthless as recitation. Each one below has an operational conseq
 - **`repro` is the finding as a command a stranger can run.** Every proven Major+ finding
   carries `"repro": {"command": …, "cwd": "repo", "expect": {…}}`: the one command that
   shows the defect on a fresh checkout — `python -c "…; assert …"`, a `pytest` node id, a
-  script you wrote into the QA root's scratch (`cwd: "qa_root"`). `expect` states what the
+  script you wrote into the QA root's scratch (`cwd: "qa_root"`). It is one interpreter call
+  with no shell (no `&&`, `;`, `|`, `>`, `$(…)`), or the harness does not replay it unattended;
+  `{repo}`, `{qa_root}` and `{tmp}`, an empty directory of its own, are filled in, so a repro
+  that needs a folder takes `{tmp}`, not `mktemp`. `expect` states what the
   defect produces — `{"exit": 1, "stderr_contains": "AssertionError"}`, `{"stdout_contains":
   "100"}` — the symptom, never the fix; with no `expect`, exit 0 is the bar, so the command
   must assert the defect itself. `verdict-replay` runs it on a detached worktree at HEAD, where

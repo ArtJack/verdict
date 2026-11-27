@@ -1,7 +1,7 @@
 {
  "schema": 1,
- "git_sha": "79c603bee93f08fd4ce366baa7c21be365268e8d",
- "measured_at": "2026-11-20T10:21:45Z",
+ "git_sha": "88f54dc0b128f08251c246b4dc6d0a8ae244bb73",
+ "measured_at": "2026-11-27T06:56:24Z",
  "items": [
   {
    "kind": "duplicate_function",
@@ -301,6 +301,7 @@
   "src/verdict_mcp/local_probes.py",
   "src/verdict_mcp/local_quarantine.py",
   "src/verdict_mcp/local_questions.py",
+  "src/verdict_mcp/local_refuted.py",
   "src/verdict_mcp/local_skips.py",
   "src/verdict_mcp/local_suite.py",
   "src/verdict_mcp/local_summary.py",
@@ -397,6 +398,7 @@
   "tests/test_local_delta.py",
   "tests/test_local_gate.py",
   "tests/test_local_languages.py",
+  "tests/test_local_refuted.py",
   "tests/test_mcp_cli.py",
   "tests/test_mcp_tools.py",
   "tests/test_mutate.py",
