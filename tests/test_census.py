@@ -429,3 +429,57 @@ def test_a_manifest_missing_name_and_version_still_resolves_to_its_path(repo):
     out = dependencies_census(repo, [("web.ts", 1, 'require("thing")')])
     assert out["resolved"]["thing"]["version"] == "unknown"
     assert out["resolved"]["thing"]["distribution"] == "thing"
+
+
+def node_package(repo, name, version):
+    package = repo / "node_modules" / name
+    package.mkdir(parents=True)
+    (package / "package.json").write_text(
+        json.dumps({"name": name, "version": version}), encoding="utf-8")
+
+
+def test_the_runtime_and_the_projects_own_aliases_are_not_dependencies(repo):
+    """Node's own modules are to JavaScript what the stdlib is to Python, and `@/`, `~/` and
+    `#` are a bundler's names for the project's own files. None is a package a lockfile pins,
+    and reported unresolved, each one capped every finding about it at hypothesis."""
+    node_package(repo, "lodash", "4.17.21")
+    out = dependencies_census(repo, [
+        ("app.ts", 1, "import fs from 'fs'"),
+        ("app.ts", 2, "import { readFile } from 'fs/promises'"),
+        ("app.ts", 3, "import { join } from 'node:path'"),
+        ("app.ts", 4, "const cp = require('child_process')"),
+        ("app.ts", 5, "import { test } from 'bun:test'"),
+        ("app.ts", 6, "import { cn } from '@/lib/utils'"),
+        ("app.ts", 7, "import x from '~/composables/x'"),
+        ("app.ts", 8, "import y from '#internal/y'"),
+        ("app.ts", 9, "import _ from 'lodash'"),
+        ("app.ts", 10, "import pad from 'left-pad'")])
+    assert sorted(out["resolved"]) == ["lodash"]
+    assert out["unresolved"] == {"left-pad": ["app.ts:10"]}
+
+
+def test_a_component_is_read_for_its_imports_and_another_language_is_not(repo):
+    """The census reads JavaScript wherever it imports a package — a `.vue` or `.svelte`
+    script block too — and nowhere else: a Ruby `require('json')` is no npm package."""
+    out = dependencies_census(repo, [
+        ("Card.vue", 3, "import { ref } from 'vue'"),
+        ("Card.svelte", 2, "import { onMount } from 'svelte'"),
+        ("lib/x.rb", 1, "require('json')"),
+        ("Main.cs", 1, "using System.Text.Json;")])
+    assert sorted(out["unresolved"]) == ["svelte", "vue"]
+
+
+def test_a_scoped_dependency_is_declared_as_itself(repo):
+    """`@scope/thing` was compared by its scope alone, which no package.json declares, so every
+    scoped import read as undeclared; and a JavaScript import named like a Python stdlib module
+    (`queue`) was waved through as stdlib."""
+    (repo / "package.json").write_text(
+        json.dumps({"dependencies": {"@scope/thing": "^2.0.0"}}), encoding="utf-8")
+    out = imports_census(repo, [
+        ("web.ts", 1, 'import t from "@scope/thing"'),
+        ("web.ts", 2, 'import u from "@scope/other"'),
+        ("web.ts", 3, "import fs from 'node:fs'"),
+        ("web.ts", 4, "import { cn } from '@/lib/utils'"),
+        ("web.ts", 5, "import fs2 from 'fs'"),
+        ("web.ts", 6, "import q from 'queue'")])
+    assert out["undeclared"] == {"@scope/other": ["web.ts:2"], "queue": ["web.ts:6"]}

@@ -68,7 +68,26 @@ _TREE_CAP = 300  # a baseline census is a sample, and says so, not a crawl
 _PY_IMPORT = re.compile(
     r"^[ \t]{0,8}(?:from|import)[ \t]+([A-Za-z_][A-Za-z0-9_]*)"
     r"(?=[ \t]*(?:$|[.,;]|\bimport\b|\bas\b|#))")
-_JS_IMPORT = re.compile(r"""(?:from\s+|require\(\s*)['"]([^'"./][^'"/]*)""")
+
+# What a JavaScript import can name that is no package at all, so neither census counts it as
+# a dependency. The runtime's own modules: `fs`, `fs/promises`, and every `node:` or `bun:`
+# name, since an npm name never holds a colon. And the project's own files under a bundler's
+# alias (`@/lib/utils`, `~/composables`, `#internal`), which never fit npm's rule for a name.
+# Python has `sys.stdlib_module_names`; this is Node's `builtinModules`, less the internals.
+NODE_BUILTINS = frozenset((
+    "assert", "async_hooks", "buffer", "child_process", "cluster", "console", "constants",
+    "crypto", "dgram", "diagnostics_channel", "dns", "domain", "events", "fs", "http", "http2",
+    "https", "inspector", "module", "net", "os", "path", "perf_hooks", "process", "punycode",
+    "querystring", "readline", "repl", "stream", "string_decoder", "sys", "timers", "tls",
+    "trace_events", "tty", "url", "util", "v8", "vm", "wasi", "worker_threads", "zlib"))
+_NPM_NAME = re.compile(r"^(?:@[a-z0-9][\w.~-]*/)?[a-z0-9][\w.~-]*$", re.I)
+
+
+def _js_package(spec: str) -> bool:
+    """True when a JavaScript import names a package, something a lockfile can pin."""
+    if ":" in spec or not _NPM_NAME.match(spec):
+        return False
+    return spec.split("/", 1)[0] not in NODE_BUILTINS
 
 # The famous import-name / package-name mismatches. Anything not listed is
 # compared by normalized name, and the output carries the caveat — this map is
@@ -263,16 +282,22 @@ def imports_census(repo: Path, lines) -> dict:
     hits: dict[str, list[str]] = {}
     for path, lineno, text in lines:
         suffix = Path(path).suffix
+        # JavaScript is read for the whole specifier: `@scope/thing` is declared as itself, and
+        # its scope alone (`@scope`) is declared by nobody, so every scoped import came out
+        # undeclared. Python's stdlib names a Python import only.
         pattern = _PY_IMPORT if suffix == ".py" else (
-            _JS_IMPORT if suffix in _JS_SUFFIXES else None)
+            _JS_PACKAGE if suffix in _JS_SUFFIXES else None)
         if pattern is None:
             continue
-        for m in pattern.finditer(text) if pattern is _JS_IMPORT else (
+        for m in pattern.finditer(text) if pattern is _JS_PACKAGE else (
                 [m] if (m := pattern.match(text)) else []):
             root = m.group(1)
+            if pattern is _JS_PACKAGE and not _js_package(root):
+                continue
             key = root.lower().replace("-", "_")
             resolved = _normalize(_ALIASES.get(root, key))
-            if key in stdlib or key in local or resolved in declared or key in declared:
+            if (pattern is _PY_IMPORT and key in stdlib) or key in local \
+                    or resolved in declared or key in declared:
                 continue
             hits.setdefault(root, []).append(f"{path}:{lineno}")
     return {
@@ -327,10 +352,9 @@ def provenance_census(repo: Path, sha_range: str | None) -> dict:
     }
 
 
-# A package specifier as the dependency census needs it, which is not the same
-# question `_JS_IMPORT` asks: that one wants the root to compare against declared
-# names, this one wants the thing you can actually open on disk, scope included
-# (`@scope/name` lives at `node_modules/@scope/name`, not `node_modules/@scope`).
+# A package specifier, scope included: `@scope/name` is declared as itself and lives at
+# `node_modules/@scope/name`, not `node_modules/@scope`. Both censuses read it, and
+# `_js_package` says whether what it caught is a package at all.
 _JS_PACKAGE = re.compile(
     r"""(?:from\s+|require\(\s*)['"](@[^'"/]+/[^'"/]+|[^'"./][^'"/]*)""")
 
@@ -431,6 +455,11 @@ def _node_installed(repo: Path, spec: str) -> dict | None:
             "path": package.relative_to(repo).as_posix()}
 
 
+# Where a JavaScript import can sit: the scripts themselves, and the components whose script
+# blocks import packages. Not every source suffix: a Ruby `require('json')` is no npm package.
+_JS_IMPORT_HOSTS = {*_JS_SUFFIXES, ".vue", ".svelte", ".astro"}
+
+
 def _iter_import_specs(lines):
     for path, lineno, text in lines:
         suffix = Path(path).suffix
@@ -438,9 +467,10 @@ def _iter_import_specs(lines):
             m = _PY_IMPORT.match(text)
             if m:
                 yield m.group(1), path, lineno, suffix
-        elif suffix in _SOURCE_SUFFIXES:
+        elif suffix in _JS_IMPORT_HOSTS:
             for m in _JS_PACKAGE.finditer(text):
-                yield m.group(1), path, lineno, suffix
+                if _js_package(m.group(1)):
+                    yield m.group(1), path, lineno, suffix
 
 
 def dependencies_census(repo: Path, lines) -> dict:

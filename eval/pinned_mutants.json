@@ -3505,5 +3505,41 @@
   "path": "src/verdict_mcp/small.py",
   "old": "    facts[\"set_aside\"] = set_aside\n",
   "new": "    facts[\"set_aside\"] = []\n"
+ },
+ {
+  "label": "census js 1: a Node built-in (`fs`, `child_process`) counts as a dependency",
+  "path": "src/verdict_mcp/census.py",
+  "old": "    return spec.split(\"/\", 1)[0] not in NODE_BUILTINS\n",
+  "new": "    return True\n"
+ },
+ {
+  "label": "census js 2: a runtime scheme (`node:path`) or a bundler alias (`@/lib`) counts as a package",
+  "path": "src/verdict_mcp/census.py",
+  "old": "    if \":\" in spec or not _NPM_NAME.match(spec):\n        return False\n",
+  "new": ""
+ },
+ {
+  "label": "census js 3 (call site): the dependency census reports every specifier, built-ins and aliases too",
+  "path": "src/verdict_mcp/census.py",
+  "old": "                if _js_package(m.group(1)):\n                    yield m.group(1), path, lineno, suffix\n",
+  "new": "                yield m.group(1), path, lineno, suffix\n"
+ },
+ {
+  "label": "census js 4: the dependency census reads a Ruby `require('json')` as an npm package",
+  "path": "src/verdict_mcp/census.py",
+  "old": "        elif suffix in _JS_IMPORT_HOSTS:\n",
+  "new": "        elif suffix in _SOURCE_SUFFIXES:\n"
+ },
+ {
+  "label": "census js 5: the imports census reports `node:fs` and `@/lib` as undeclared dependencies",
+  "path": "src/verdict_mcp/census.py",
+  "old": "            if pattern is _JS_PACKAGE and not _js_package(root):\n                continue\n",
+  "new": ""
+ },
+ {
+  "label": "census js 6: a JavaScript import named like a Python stdlib module is waved through",
+  "path": "src/verdict_mcp/census.py",
+  "old": "            if (pattern is _PY_IMPORT and key in stdlib) or key in local \\\n",
+  "new": "            if key in stdlib or key in local \\\n"
  }
 ]
