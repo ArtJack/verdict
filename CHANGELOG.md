@@ -72,6 +72,11 @@ validator couldn't inspect". The limit is most likely 256 KiB.
   `skipif()` or `skipif(reason="…")`. The comment beside a bare marker is its reason, so a
   dated note counts as an expiry. One test runs pytest on the fixture, so the expected
   outcomes are pytest's own.
+- **A marker inside a string literal is a fixture's text, not a skip.** The scan reads a test
+  file as text, and a test of a skip scanner keeps markers in triple-quoted strings. The first
+  release gate for this version filed the new skip-marker test's own fixture three times, so
+  the scan now asks Python's tokenizer which lines a multi-line string covers, f-strings
+  included. A file the tokenizer cannot read hides nothing: its markers are read as written.
 - **The local tier sets aside claims a fact of the run already answers (#194).** Three deep
   local runs on a .NET and React product made 200 claims. Of the 89 checked by reading, 66
   were false or described the design, and two kinds were the commonest:
@@ -107,14 +112,15 @@ validator couldn't inspect". The limit is most likely 256 KiB.
 - **The record.** Run 19 was the 0.94.0 release gate (#193). Run 20 refreshed the record
   before the self-gate's 240-hour limit (#197). Both were local, `pass with risks`, and used
   zero Claude tokens.
-- **Pinned mutants:** 52 new since 0.94.0, each killed by the whole suite after a green
+- **Pinned mutants:** 56 new since 0.94.0, each killed by the whole suite after a green
   control:
   - refuted 1–11 (#194);
   - the Bash shell and the repro shape, 4 (#196);
   - skip close 1–11 and skip marker 1–6 (#198);
+  - skip strings 1–4;
   - census js 1–6 and census alias 1–14 (#180).
 
-  5 were re-anchored on code that moved. The badge is 623/623.
+  5 were re-anchored on code that moved. The badge is 627/627.
 
 ## 0.94.0 — 2026-11-20 · "the project's code runs in a box, and the local tier reads every language"
 

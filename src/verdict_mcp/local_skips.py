@@ -6,8 +6,10 @@ is byte-identical to what it was there, and small.py imports back what its calle
 """
 from __future__ import annotations
 
+import io
 import re
 import subprocess
+import tokenize
 import sys
 from datetime import date
 from pathlib import Path
@@ -64,6 +66,7 @@ def skips_without_expiry(repo: Path, files: list, read: set | None = None) -> li
                     out.append({"path": rel, "line": mark["line"], "reason": mark["reason"],
                                 "kind": mark["kind"]})
             continue
+        quoted = None
         for m in SKIP_MARKER.finditer(text):
             args = m.group("args") or ""
             if m.group("marker") == "skipif" and not (
@@ -73,6 +76,13 @@ def skips_without_expiry(repo: Path, files: list, read: set | None = None) -> li
                 # every version guard came back as a finding until this line existed.
                 continue
             line = text[:m.start()].count("\n") + 1
+            if quoted is None:
+                quoted = inside_strings(text)
+            if line in quoted:
+                # A marker inside a string literal is a fixture's text, not a skip. A test of
+                # this very scan writes them by the dozen: the 0.95.0 release gate filed its
+                # own new fixture three times before this line existed.
+                continue
             if m.group("call") and _under_a_condition(text, line):
                 # `if not shutil.which("tar"): pytest.skip(...)` is the same guard written
                 # as a call. The trace of 2026-10-15 counted seven of them on Verdict's own
@@ -83,6 +93,27 @@ def skips_without_expiry(repo: Path, files: list, read: set | None = None) -> li
             if not has_expiry(reason):
                 out.append({"path": rel, "line": line, "reason": reason.strip()[:200]})
     return out
+
+
+def inside_strings(text: str) -> set:
+    """The lines a multi-line string literal covers after its first, where a marker is a
+    fixture's text and not a decorator. A file the tokenizer cannot read hides nothing: its
+    markers are all read as written."""
+    inside: set = set()
+    opened: list = []  # 3.12+ splits an f-string (and 3.14 a t-string) into several tokens
+    starts = {getattr(tokenize, n) for n in ("FSTRING_START", "TSTRING_START") if hasattr(tokenize, n)}
+    ends = {getattr(tokenize, n) for n in ("FSTRING_END", "TSTRING_END") if hasattr(tokenize, n)}
+    try:
+        for tok in tokenize.generate_tokens(io.StringIO(text).readline):
+            if tok.type in starts:
+                opened.append(tok.start[0])
+            elif tok.type in ends and opened:
+                inside.update(range(opened.pop() + 1, tok.end[0] + 1))
+            elif tok.type == tokenize.STRING:
+                inside.update(range(tok.start[0] + 1, tok.end[0] + 1))
+    except (tokenize.TokenError, SyntaxError):
+        return set()
+    return inside
 
 
 _CONDITION = re.compile(r"^\s*(?:if|elif|else|except|for|while)\b")
