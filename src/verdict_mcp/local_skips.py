@@ -24,25 +24,37 @@ except ImportError:  # executed as a bare script
 
 SKIP_MARKER = re.compile(
     r"^[ \t]*(?:@(?:pytest\.mark|unittest)\.(?P<marker>skip|skipif)|(?P<call>pytest\.skip))"
-    r"\(\s*(?P<args>[^)]*)", re.M)
+    # A decorator may stand bare (`@pytest.mark.skip`, `@unittest.skip`): a skip with no
+    # reason at all, which the parenthesis this pattern once required never saw. A bare
+    # `pytest.skip` is no call, so it never matches.
+    r"(?:\(\s*(?P<args>[^)]*)|(?(call)(?!)|[ \t]*(?P<note>#[^\n]*)?$))", re.M)
 
 
 # A condition that is not a constant makes the skip a guard, not a graveyard.
 _ALWAYS = re.compile(r"^\s*(?:True|1)\s*(?:,|$)")
+# A skipif with no condition at all, bare or with only a reason, is no guard: pytest skips
+# a skipif mark that has no condition unconditionally.
+_NO_CONDITION = re.compile(r"^\s*(?:reason\s*=|$)")
 
 
 _DATE = re.compile(r"\b(20\d\d)-(\d\d)-(\d\d)\b")
 
 
-def skips_without_expiry(repo: Path, files: list) -> list:
+def skips_without_expiry(repo: Path, files: list, read: set | None = None) -> list:
     """Every skip marker whose reason names no expiry — a quarantine with no end is a
-    test that has been deleted without anyone deciding to delete it."""
+    test that has been deleted without anyone deciding to delete it.
+
+    `read`, when given, collects every file this pass actually read: a file it could not
+    open found nothing, and that is not the same as a file with nothing in it
+    (`local_skip_close.py` closes a finding only over a file that was read)."""
     out = []
     for rel in files:
         try:
             text = (repo / rel).read_text(encoding="utf-8", errors="replace")
         except OSError:
             continue
+        if read is not None:
+            read.add(rel)
         lang = testmarks.suite_language(rel)
         if lang is not None:
             # Every other test framework: `it.skip`, `xit`, `@Disabled`, `t.Skip`, `#[ignore]`,
@@ -54,7 +66,8 @@ def skips_without_expiry(repo: Path, files: list) -> list:
             continue
         for m in SKIP_MARKER.finditer(text):
             args = m.group("args") or ""
-            if m.group("marker") == "skipif" and not _ALWAYS.match(args):
+            if m.group("marker") == "skipif" and not (
+                    _ALWAYS.match(args) or _NO_CONDITION.match(args)):
                 # `skipif(sys.version_info < (3, 9))` is a guard: it runs wherever it can,
                 # and it has no expiry because it needs none. Measured on boltons, where
                 # every version guard came back as a finding until this line existed.
@@ -65,8 +78,10 @@ def skips_without_expiry(repo: Path, files: list) -> list:
                 # as a call. The trace of 2026-10-15 counted seven of them on Verdict's own
                 # suite, filed as abandoned tests every run.
                 continue
-            if not has_expiry(args):
-                out.append({"path": rel, "line": line, "reason": args.strip()[:200]})
+            # A bare decorator's only reason is the comment beside it, if any.
+            reason = args if m.group("args") is not None else (m.group("note") or "")
+            if not has_expiry(reason):
+                out.append({"path": rel, "line": line, "reason": reason.strip()[:200]})
     return out
 
 
@@ -167,6 +182,11 @@ def group_skips(skips: list) -> list:
             for (path, reason, kind), lines in grouped.items()]
 
 
+# The line every finding this scan files carries — `skip_finding` here and `focus_finding` in
+# local_suite.py — and the line `local_skip_close.py` knows the scan's findings by.
+SCAN_EVIDENCE = "found by a regular expression over the test files, not by a model"
+
+
 def skip_finding(skip: dict, ident: str) -> dict:
     lines = skip.get("lines") or [skip["line"]]
     return {
@@ -177,7 +197,7 @@ def skip_finding(skip: dict, ident: str) -> dict:
         "evidence": [f"{skip['path']}:{line} — skip marker with reason "
                      f"{skip['reason'][:200]!r}; no date or expiry in the reason"
                      for line in lines]
-                    + ["found by a regular expression over the test files, not by a model"],
+                    + [SCAN_EVIDENCE],
         "root_cause": {"mechanism": "A skip with no expiry is a deleted test that nobody "
                                     "decided to delete: it never runs again and no one is "
                                     "told.",
