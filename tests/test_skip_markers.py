@@ -126,3 +126,31 @@ def test_pytest_itself_skips_what_the_fixture_says(tmp_path):
     assert skipped == _names("test_skipped_") | _names("test_dated_"), done.stdout
     assert {name for name, result in outcome.items() if result == "PASSED"} \
         == _names("test_runs_"), done.stdout
+
+
+def test_a_marker_inside_a_string_literal_is_a_fixture_not_a_skip(tmp_path):
+    """The scan reads text, and a test of a skip scanner keeps markers in strings. The 0.95.0
+    release gate filed this file's own FIXTURE three times before the scan learnt this."""
+    text = ('import pytest\n\n'
+            'PLAIN = """\n@pytest.mark.skip\ndef test_a():\n    pass\n"""\n\n'
+            "FORMATTED = f'''\n@pytest.mark.skip(reason=\"{1}\")\ndef test_b():\n    pass\n'''\n\n\n"
+            '@pytest.mark.skip\n'
+            'def test_skipped_real():\n'
+            '    pass\n')
+    assert set(_filed(tmp_path, text)) == {"test_skipped_real"}
+
+
+def test_a_file_the_tokenizer_cannot_read_has_every_marker_read(tmp_path):
+    text = ('import pytest\n\n\n'
+            '@pytest.mark.skip\n'
+            'def test_skipped_real():\n'
+            '    pass\n\n'
+            'BROKEN = """never closed\n')
+    assert set(_filed(tmp_path, text)) == {"test_skipped_real"}, \
+        "an unreadable file hides nothing: its markers are read as written"
+
+
+def test_this_file_files_nothing_from_its_own_fixtures():
+    """Every marker in this file sits in a string. Scanned the way the gate scans it, it files
+    nothing."""
+    assert skips_without_expiry(REPO, ["tests/test_skip_markers.py"]) == []

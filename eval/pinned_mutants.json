@@ -3751,5 +3751,29 @@
   "path": "src/verdict_mcp/census.py",
   "old": "                if _js_package(m.group(1)) and not aliases.own(m.group(1), path):\n",
   "new": "                if _js_package(m.group(1)):\n"
+ },
+ {
+  "label": "skip strings 1: a marker inside a string literal is filed as a skip",
+  "path": "src/verdict_mcp/local_skips.py",
+  "old": "            if line in quoted:\n",
+  "new": "            if False:\n"
+ },
+ {
+  "label": "skip strings 2: a multi-line f-string's marker is filed (3.12+ tokenizes it in parts)",
+  "path": "src/verdict_mcp/local_skips.py",
+  "old": "                inside.update(range(opened.pop() + 1, tok.end[0] + 1))\n",
+  "new": "                opened.pop()\n"
+ },
+ {
+  "label": "skip strings 3: a file the tokenizer cannot read hides every marker",
+  "path": "src/verdict_mcp/local_skips.py",
+  "old": "    except (tokenize.TokenError, SyntaxError):\n        return set()\n",
+  "new": "    except (tokenize.TokenError, SyntaxError):\n        return set(range(len(text.splitlines()) + 2))\n"
+ },
+ {
+  "label": "skip strings 4: a plain triple-quoted string covers no lines",
+  "path": "src/verdict_mcp/local_skips.py",
+  "old": "                inside.update(range(tok.start[0] + 1, tok.end[0] + 1))\n",
+  "new": "                pass\n"
  }
 ]
