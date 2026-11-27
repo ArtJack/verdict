@@ -94,9 +94,11 @@ try:
                                probe_root as probe_root, run_probe as run_probe,
                                safe_probe as safe_probe, safe_replacement as safe_replacement,
                                scratch_copy as scratch_copy, source_root as source_root)
-    from .local_skips import (group_skips, skip_finding, skip_scan_files, skips_without_expiry,
+    from .local_skips import (group_skips, skip_finding, skip_scan_files,
+                              skips_without_expiry as skips_without_expiry,
                               collected_test_files as collected_test_files,
                               has_expiry as has_expiry)
+    from .local_skip_close import SkipScan, close_by_scan, closed_text
     from .local_suite import (GATE_DEFAULT, QUARANTINE_DAYS, brittle_findings, classify,
                               failure_finding, failures_of, flaky_finding, focus_finding,
                               rerun_failures, unstable, deterministic_kind as deterministic_kind,
@@ -117,7 +119,8 @@ try:
                             touches_findings, _RUNNER_PYTHON as _RUNNER_PYTHON,
                             _gate_tokens as _gate_tokens)
     from .local_summary import (leads_text, not_tested_lines, print_summary, read_env_file,
-                                resolve_range, written_verdict)
+                                resolve_range, set_aside_text, written_verdict)
+    from .local_refuted import Refuter
 except ImportError:  # executed as a bare script
     from local_model import (DEFAULT_NUM_CTX, DEFAULT_TIMEOUT_S, Model, gateway_alive,
                              extract_json as extract_json)
@@ -136,9 +139,11 @@ except ImportError:  # executed as a bare script
                               probe_root as probe_root, run_probe as run_probe,
                               safe_probe as safe_probe, safe_replacement as safe_replacement,
                               scratch_copy as scratch_copy, source_root as source_root)
-    from local_skips import (group_skips, skip_finding, skip_scan_files, skips_without_expiry,
+    from local_skips import (group_skips, skip_finding, skip_scan_files,
+                             skips_without_expiry as skips_without_expiry,
                              collected_test_files as collected_test_files,
                              has_expiry as has_expiry)
+    from local_skip_close import SkipScan, close_by_scan, closed_text
     from local_suite import (GATE_DEFAULT, QUARANTINE_DAYS, brittle_findings, classify,
                              failure_finding, failures_of, flaky_finding, focus_finding,
                              rerun_failures, unstable, deterministic_kind as deterministic_kind,
@@ -158,7 +163,8 @@ except ImportError:  # executed as a bare script
                            probes_off, read_json, read_reference, touches_findings,
                            _RUNNER_PYTHON as _RUNNER_PYTHON, _gate_tokens as _gate_tokens)
     from local_summary import (leads_text, not_tested_lines, print_summary, read_env_file,
-                               resolve_range, written_verdict)
+                               resolve_range, set_aside_text, written_verdict)
+    from local_refuted import Refuter
 try:  # split out of this file by the structure pass; still importable here
     from .local_browser import browser_not_tested, browser_pass, browser_prose, browser_resolved
 except ImportError:  # executed as a bare script
@@ -385,7 +391,8 @@ def run(repo: Path, qa_root: Path, model: Model, limit: int, gate: str | None,
             mint(failure_finding(claim, "@"), findings_dir, filed)
 
     # 2. Skips with no expiry — a regular expression, no model call at all.
-    for skip in group_skips(skips_without_expiry(repo, skip_scan_files(repo, qa_root))):
+    skip_scan = SkipScan(repo, qa_root)
+    for skip in group_skips(skip_scan.skips):
         mint((focus_finding if skip.get("kind") == "focus" else skip_finding)(skip, "@"),
              findings_dir, filed)
 
@@ -397,16 +404,20 @@ def run(repo: Path, qa_root: Path, model: Model, limit: int, gate: str | None,
     already_open: list = []
     leads: list | None = [] if previous else None      # a project with a record to protect
     probe_ledger: list = []                            # every counterfactual, refusals too
+    set_aside: list = []                               # claims a fact of this run answers
     asked_functions: set = set()
     examined, proven, disproven = file_findings(model, repo, targets, mint, findings_dir,
                                                 filed, python, prove, budget,
                                                 prior_index=PriorIndex(previous),
                                                 already_open=already_open, leads=leads,
                                                 probes=probe_ledger, gaps=gap_functions(facts),
-                                                asked=asked_functions, focus=focus_names(facts))
+                                                asked=asked_functions, focus=focus_names(facts),
+                                                refute=Refuter(repo, facts.get("gates")).check,
+                                                set_aside=set_aside)
     # Beside `last_run`, not inside its `local` block: that block is copied into a
     # `usage.jsonl` row every run, and the ledger is a record, not a bill.
     facts["probes"] = probe_ledger
+    facts["set_aside"] = set_aside
     suite_files = ([p for p in python_in(changed) if is_test_file(p)] if ranged
                    else skip_scan_files(repo, qa_root)[:limit])
     examined += brittle_findings(model, repo, suite_files, mint, findings_dir, filed, budget,
@@ -426,6 +437,11 @@ def run(repo: Path, qa_root: Path, model: Model, limit: int, gate: str | None,
                                      still_open_ids)
     by_id = {str(f.get("id")): f for f in (previous or {}).get("findings") or []
              if isinstance(f, dict) and f.get("id")}
+    # What the skip scan filed, the skip scan settles: withdrawn or resolved on what it read
+    # this run, never on silence (local_skip_close.py).
+    closed = close_by_scan(previous, skip_scan, facts, repo, qa_root, on_record, still_open_ids,
+                           to_refile, lambda entry, into: mint(entry, findings_dir, into,
+                                                               keep_id=True))
     for fid in released_ids(previous, released):
         # A released quarantine changes what its FLAKY finding says about itself,
         # so the finding is re-filed with the measurement rather than carried by
@@ -457,7 +473,7 @@ def run(repo: Path, qa_root: Path, model: Model, limit: int, gate: str | None,
             still_open_ids.append(fid)
 
     missing = carry_invariant(prior_open, resolved_ids, still_open_ids,
-                              {str(f.get("id")) for f in filed})
+                              {str(f.get("id")) for f in filed + closed})
     if missing:
         print(f"verdict-local: refusing to finalize — {len(missing)} prior open finding(s) "
               f"would go unmentioned ({', '.join(missing[:5])}), and the merge reads silence "
@@ -568,7 +584,8 @@ def run(repo: Path, qa_root: Path, model: Model, limit: int, gate: str | None,
                       "stays `blocked`, until something with judgment looks at it."
                       + (" " + CARRIED_BLOCKED[0].upper() + CARRIED_BLOCKED[1:] + "."
                          if carried_blocked else "")
-                      + site_notes + leads_text(leads)),
+                      + site_notes + closed_text(closed) + leads_text(leads)
+                      + set_aside_text(set_aside)),
         },
         "isolation_check": {"result": "pass",
                             "method": ("measured before the gates: no plaintext .env file at "
@@ -611,7 +628,7 @@ def run(repo: Path, qa_root: Path, model: Model, limit: int, gate: str | None,
               f"withdrawn before filing", file=sys.stderr)
     print_summary(model, files, examined, filed, refiled, resolved_ids, still_open_ids,
                   written_verdict(qa_root, verdict) if code == 0 else verdict, owed, budget,
-                  engine_verdict=verdict)
+                  engine_verdict=verdict, set_aside=set_aside)
     return code
 
 

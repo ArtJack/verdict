@@ -343,6 +343,41 @@ tests' last lines. The census reads the coverage JSON with contexts; on a very l
 render can exceed the harness's 300 s and the census reports itself unavailable. Survivors lead `read_first`. A lead for
 where to read, never a finding: an equivalent mutant survives too.
 
+## The version actually installed — `facts.json` → `code_census.dependencies` (0.94.0)
+
+A finding about a library's behaviour is worth exactly as much as the version it was checked
+against, and a model's recollection is of neither this project nor this pin. So the census
+resolves, for every third-party import in the range, what this checkout would actually load:
+`{environments, resolved, unresolved, reading}`. `environments` lists the site-packages
+directories found under a `.venv`/`venv` inside the repo, plus `node_modules` where it exists —
+deduplicated by inode, because a case-insensitive filesystem answers to both `lib` and `Lib` and
+would otherwise report two environments a reader can only open one of. Each `resolved` entry is
+`{distribution, version, path, cited_at}`: the distribution that owns the import root (from the
+`dist-info`'s `top_level.txt`, which is what maps `yaml` to PyYAML), the version pip recorded, a
+repo-relative path to open, and where the range imports it. `unresolved` is the same import with
+no artifact behind it — a dependency declared but not installed, a hallucinated one, or simply a
+checkout with no environment — and it caps a finding about that contract at `hypothesis` under
+§9 rather than licensing a guess. Nothing here imports anything: resolution is filesystem reads
+only, since importing a dependency would execute the code under test, which §0 forbids. Node
+packages resolve lazily by specifier (scope included, `..` refused); a crawl of `node_modules`
+would cost more than every other census together.
+
+Some JavaScript imports name no package at all, so neither this census nor the imports census
+counts them (0.95.0):
+- Node's own modules (`fs`, `node:path`, `bun:test`) and a bundler's aliases (`@/…`, `~/…`,
+  `#…`).
+- The names a project's `tsconfig.json` or `jsconfig.json` gives its own files: its `paths`
+  patterns, and what sits under its `baseUrl`. They are read from the config nearest each
+  importing file, as tsc reads them: comments and trailing commas allowed, relative `extends`
+  followed, and a `paths` of the config's own replacing the one it extends.
+
+A config that cannot be read is named in `alias_configs_unreadable`, and its names stay
+`unresolved`: an alias nobody could read is unknown, not the project's own.
+
+Like the other censuses it is a lead, not a
+finding — it tells judgment which file to open, and §9 requires that it be opened before a
+claim about third-party behaviour is filed.
+
 ## A finding replayed on a fresh checkout — `<qa-root>/replays.jsonl`
 
 `verdict-replay <key> [ID …]` takes every open finding with a `repro` block, Major+ first (0.93.0; or the
@@ -371,7 +406,9 @@ Rows written by the harness carry `source: facts` (the previous record's open fi
 
 `result` is `reproduced` (every expectation met), `not reproduced` (one was not — the finding
 does not hold on a fresh checkout at this HEAD, or its `expect` describes the author's tree) or
-`could not run` (the command never started: exit 126/127 or `cmd.exe`'s "is not recognized", a timeout, a `cwd` outside the
+`could not run` (the command never started: exit 126/127 or `cmd.exe`'s "is not recognized", a
+program that could not be found or executed — in the box, sandbox-exec's own exit 71 and its
+`execvp() … failed` line, never read as the command's exit — a timeout, a `cwd` outside the
 checkout; or it never reached the defect: a claimed reproduction that ended in a traceback
 while `expect` names no stderr text — an exit code alone cannot tell a crash from the defect —
 and a traceback ending in `ImportError`/`ModuleNotFoundError`, which on a fresh tree is a
@@ -385,7 +422,10 @@ comes first on `PYTHONPATH`, and a `sitecustomize` the command inherits disarms,
 site-packages and before the command, an editable install of the original checkout — a `.pth`
 line naming it, or a meta-path finder carrying its build directory (meson-python) — keeping
 everything under the interpreter's own prefix, where the dependencies live. `{repo}` and
-`{qa_root}` in the command are the fresh tree and the QA root. Exit codes: 0 every replayed
+`{qa_root}` in the command are the fresh tree and the QA root, and `{tmp}` is an empty
+directory of the repro's own, made beside the fresh tree and removed with it: what a repro
+needs a folder for, without `d=$(mktemp -d) && …`, which is a shell the harness does not run
+unattended. Exit codes: 0 every replayed
 finding reproduced · 1 one did not · 2 nothing could be replayed. `verdict-gate` reads the latest row per open finding: a mark on the row (`replay ✓
 reproduced`, `✗ NOT reproduced`, `? could not run`), a `replay:` line with the tally and the
 proven Major+ findings never replayed, and `replays` in the JSON output. Why it exists: the pass
@@ -949,6 +989,16 @@ Claude session. The state says so rather than leaving a reader to infer it:
 | `last_run.model` | `state.json` | `local:<name>` — `verdict-local` exports `VERDICT_MODEL` before `collect()`, so the model that signed the verdict is measured here exactly as it is for an agent run |
 | `last_run.local` | `state.json` | that engine's own counters: `model`, `calls`, `tokens`, `input_tokens`, `output_tokens`, `answered`, `unanswered`, `retries`, `errors` (transport failures, counted apart from a reply the parser refused), `functions_read`, `functions_skipped`, `seconds`. Not the gateway: `last_run.model` names the judge, and the gateway's host goes to the bill alone (below). Through 0.90.10 a `host` key sat here, which in team mode committed the gateway's network address with the code; `verdict-finalize` now takes it out of a `facts.json` that still carries one |
 | `facts.needs_claude` | `facts.json` | the measured reasons a real model run is still owed — `unexercised_changed_lines: N`, `touches_open_finding: [ids]`, `unprovable_high_severity: [ids]`, `drift_unsettled: [ids]`, `non_python_diff` (the name predates reading other languages: the range holds no source the engine reads in any language, only configuration, data, styles, documentation, tests or generated files), `questions_parked: N`, `diff_over_limit`. Each entry is something the harness counted, and each one also becomes a `next_run_focus` line, which does reach the state |
+| `facts.set_aside` | `facts.json` | the claims a fact of this run already answers, set aside before they are filed (`local_refuted.py`): `path`, `line`, `function`, `title`, `severity`, `rule` and `why`. `rule` is `compiled` (a compile error in code that a gate compiled and passed this run) or `declared-non-null` (a null dereference of a C# member that the project declares non-null with nullable reference types on). `why` names the gate, or cites the declaration as `path:line`. A set-aside claim is neither filed nor a lead; the report lists them under **Set aside** |
+
+The null rule answers only what a declaration settles. It leaves a claim alone when its title
+speaks of a nullable value flowing in, when the value comes from outside the code (deserialized
+JSON, a request body, `null!`, `default(...)`, reflection), when the claim is about a method's
+result, and when the member belongs to a type that a request binds or that such a type holds. It
+also leaves a claim alone when the member has no initializer or is initialized to `null!`, and
+when any declaration of the name is nullable or in a shape the index does not read, such as a
+field, an expression-bodied property or a multi-line one. When the function or its file declares
+the receiver's type (`Ticket ticket`), only that type's declaration counts.
 
 The report gains one **Judge** line beside the Harness line: the engine, the model, the calls
 and tokens, the questions that went unanswered, and `no Claude tokens spent` — no host, even
@@ -959,6 +1009,29 @@ nothing is only credible beside the number of calls it took to cost nothing. Tha
 also carries `host`, the gateway's hostname: never the base URL, which can hold userinfo, a
 path or a query, and absent when the URL names no host. The bill is the paying machine's own
 telemetry; the state and the report are what a team commits.
+
+### What the skip scan filed, the skip scan settles
+
+A finding the skip scan files (`local_skips.py`, `local_suite.focus_finding`: every one carries
+the evidence line `found by a regular expression over the test files, not by a model`) has no
+test that fails at the previous commit and passes at HEAD, which is the only measurement that
+closes a finding on this engine. So the scan settles its own findings (`local_skip_close.py`),
+on what this run measured about every line a finding cites, where `evidence_drift` says that
+line is now:
+
+| Outcome | When |
+|---|---|
+| carried | the scan filed a skip at a cited line, or under the same identity — or anything below is not measured |
+| `withdrawn` (`delta: WITHDRAWN`, outcome `refuted`) | the scan read every cited file, filed nothing at the cited lines, and every cited line is unchanged or moved by an edit elsewhere: the same text no longer reads as a skip with no expiry, so the rule that filed it was wrong |
+| `withdrawn`, outside the suite | `facts.test_ids.status` is `measured`, no gate failed, the suite collects nothing under the cited file's top-level directory, and every cited line is a decorator. A `pytest.skip()` call never qualifies: a module-level one keeps its file out of collection, so its absence from the ledger is not the suite's shape |
+| `resolved` (outcome `unknown`) | the scan read every cited file and filed nothing, and a cited line changed; or every cited file is gone from the checkout |
+
+The settled finding is written under its own id with one evidence line added, which starts
+`withdrawn by the skip scan <date>` or `resolved by the skip scan <date>` and says what was
+measured; the report's notes name the ids. An id leaves the carried list only once that file
+is written, so a closure the validator refuses is carried as before, and `carry_invariant`
+counts the settled ids like any other finding filed this run. A withdrawal is never
+`verdict-accept`'s to make: acceptance scores a finding `confirmed`, and these were not.
 
 ## Findings as files — `<qa-root>/findings/<ID>.json`
 

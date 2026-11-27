@@ -59,6 +59,7 @@ process it starts. A profile can only tighten it. Under a `required` floor a pro
 # 3.9 on a stock Mac), where `str | None` would raise at definition time (VERDICT-F-55).
 from __future__ import annotations
 
+import errno
 import locale
 import os
 import re
@@ -77,6 +78,7 @@ FLOOR_ENV = "VERDICT_SANDBOX"
 # endpoint agent must not pass for a box).
 OUTER_ENV = "VERDICT_OUTER_BOX"
 SANDBOX_EXEC = "/usr/bin/sandbox-exec"       # never from PATH
+EX_OSERR = 71                                 # sandbox-exec's exit when it could not exec
 ENGINE = "sandbox-exec"
 _SHARED_NPM = "~/.npm"                        # npm's cache, unless the profile opens it
 # What target code may see of the caller's environment. Everything else — every token, key,
@@ -483,6 +485,31 @@ def _refused(cmd, reason: str, text: bool) -> subprocess.CompletedProcess:
     return proc
 
 
+def exec_failure(proc, program) -> OSError | None:
+    """The OSError `subprocess` raises when `program` cannot be started, if `proc` is
+    sandbox-exec saying it could not start it; else None.
+
+    sandbox-exec execs the program itself. When that fails (a `python` that is not on PATH, a
+    relative `.venv/bin/python` the fresh tree lacks) it exits 71, EX_OSERR, with one line:
+    `sandbox-exec: execvp() of '<program>' failed: <reason>`. Read as the program's own exit, a
+    repro that never started was "not reproduced", and finalize refused its finding as an
+    unearned `proven` (2026-11-20, a Mac with `python3` on PATH and no `python`). Outside the
+    box the same run raises FileNotFoundError, which every caller reads as could-not-start. A
+    program may exit 71 itself, so only that line, naming this program, alone, counts."""
+    if proc.returncode != EX_OSERR:
+        return None
+    err = proc.stderr
+    if isinstance(err, bytes):
+        err = err.decode("utf-8", "replace")
+    line = str(err or "").strip()
+    head = f"sandbox-exec: execvp() of '{program}' failed: "
+    if "\n" in line or not line.startswith(head):
+        return None
+    reason = line[len(head):]
+    code = next((n for n in errno.errorcode if os.strerror(n) == reason), 0)
+    return OSError(code, reason, str(program)) if code else OSError(f"{program}: {reason}")
+
+
 def run(cmd, *, cwd, shell: bool = False, writable=(), guarded=None, extra_env: dict | None = None,
         network: bool = False, loopback: bool = True, read_back=(), timeout=None,
         policy: Policy | None = None, base_env: dict | None = None, force_box: bool = False,
@@ -505,7 +532,8 @@ def run(cmd, *, cwd, shell: bool = False, writable=(), guarded=None, extra_env: 
 
     The result carries `.sandbox`, a word on what ran: `sandbox-exec`, `outer`, `env-only`,
     `off` or `refused`. A refusal is exit 126 with the reason on stderr, which the harness
-    reads as could-not-start.
+    reads as could-not-start. An argv whose program cannot be started raises the OSError
+    `subprocess` raises, in the box as outside it (`exec_failure`).
     """
     pol = policy or _POLICY
     text = kwargs.pop("text", True)
@@ -549,9 +577,15 @@ def run(cmd, *, cwd, shell: bool = False, writable=(), guarded=None, extra_env: 
         back = [p for p in (pol.qa_root, *read_back) if p]
         sbpl = profile(where, network=network, loopback=loopback, read_back=back,
                        guarded=checkouts, no_write=[pol.qa_root] if pol.qa_root else [])
-        argv = ([SANDBOX_EXEC, "-p", sbpl, "/bin/sh", "-c", cmd] if shell
-                else [SANDBOX_EXEC, "-p", sbpl, *([cmd] if isinstance(cmd, str) else cmd)])
-        proc = _call(argv, cwd=cwd, env=env, shell=False, timeout=timeout, text=text, **kwargs)
+        target = (["/bin/sh", "-c", cmd] if shell
+                  else [cmd] if isinstance(cmd, str) else list(cmd))
+        proc = _call([SANDBOX_EXEC, "-p", sbpl, *target], cwd=cwd, env=env, shell=False,
+                     timeout=timeout, text=text, **kwargs)
+        # Not for a shell: `/bin/sh` always starts and says 127 for a missing command itself,
+        # and a gate that printed sandbox-exec's line must not raise where nothing catches it.
+        failed = None if shell else exec_failure(proc, target[0])
+        if failed:
+            raise failed
         proc.args = cmd
         proc.sandbox = ENGINE
         return proc
