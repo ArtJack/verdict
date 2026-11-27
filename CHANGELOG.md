@@ -9,6 +9,113 @@ They moved there on 2026-10-03, when this file outgrew what the Claude directory
 will read: at 250 KB it was read, at 267 KB it held 0.90.3 for "Files or downloads the
 validator couldn't inspect". The limit is most likely 256 KiB.
 
+## 0.95.0 — 2026-11-27 · "the installed artifact is the contract, and what a scan filed, a scan settles"
+
+- **Third-party truth is read, never recalled (§9, #180).** The contract had rules for the
+  project's own idiom and for absent tools, and none for the tester's memory of a library
+  API. So a finding could rest on a recollection of a framework's behaviour, from a training
+  set that does not know which version this project pinned. Such a finding now cites the
+  installed artifact at file:line (`site-packages/<pkg>`, `node_modules/<pkg>`, the version
+  the lockfile pins). Where the artifact cannot be read, the finding is a `hypothesis` and
+  names the contract it assumes.
+- **`code_census.dependencies` makes that rule checkable (#180).** For every third-party
+  import in the range it gives the distribution, the version installed and the path to open:
+  - Python from `*.dist-info` and `top_level.txt`, so `import yaml` is PyYAML;
+  - Node lazily, from `node_modules/<spec>/package.json`, scope included and `..` refused.
+
+  Nothing is imported. `unresolved` is the honest answer where there is no environment to
+  read, and it caps a finding about that contract at `hypothesis`.
+- **What is not a package is not counted, in either census (#180).** Each of these read as a
+  dependency until this release:
+  - **Node's own modules** (`fs`, `node:path`, `bun:test`);
+  - **a bundler's aliases** (`@/lib/utils`, `~/x`, `#internal`);
+  - **the names a `tsconfig.json` or `jsconfig.json` gives the project's own files**: its
+    `paths` patterns and what sits under its `baseUrl`. They are read from the config
+    nearest each importing file, as tsc reads them: comments and trailing commas allowed,
+    relative `extends` followed, and a config's own `paths` replacing the one it extends. A
+    config that cannot be read is named in `alias_configs_unreadable`, and its names stay
+    unresolved.
+
+  Also in the imports census:
+  - a scoped dependency is compared whole (`@scope/thing`), where before every scoped
+    dependency read as undeclared;
+  - Python's stdlib names a Python import only, so a JavaScript `queue` is no longer taken
+    for stdlib.
+
+  A bundler's own aliases in code (Vite's `resolve.alias`, webpack's) are not read.
+- **The defects every gate passes (§4.6, `docs/silent-failures.md`, #180).** The catalogue
+  has 14 entries in 7 sections, and one membership test: an entry compiles, lints clean,
+  passes the suite and fails in production. Each entry names why it stays green, a check, a
+  probe and an evidence bar. The probe makes it a finding; the shape alone is a lead. Three
+  entries cite this repository's own record (F-43, F-55, F-79). The pull request shipped
+  entry 13 inside itself: a `skipif(os.geteuid() == 0)` that fails the module's collection on
+  Windows, where `os.geteuid` does not exist. A test now holds that line for `tests/` and
+  `src/`.
+- **The local tier settles what its skip scan filed (#198).** A scan's finding has no test
+  that flips from failing to passing, and that flip was the only thing that closed a finding
+  on the local tier. So Verdict's own record carried F-80 to F-88 through runs 17 to 20,
+  although #154 had corrected the scan that filed them. Each prior finding is now judged on
+  what this run measured at the lines it cites:
+  - **Found again:** carried, as before.
+  - **Withdrawn (refuted):** every cited file was read, nothing is filed there, and every
+    cited line is unchanged or moved.
+  - **Withdrawn, outside the suite:** the test-id ledger was measured this run, no gate
+    failed, the suite collects nothing under the file's top-level directory, and every cited
+    line is a decorator.
+  - **Resolved (outcome unknown):** a cited line changed, or every cited file is gone.
+
+  Anything less leaves the finding where it was. Replayed on Verdict's record, the rule
+  withdraws exactly F-80 to F-88 and leaves F-74 open.
+- **The skip scan sees a bare marker (#198).** A bare `@pytest.mark.skip` or `@unittest.skip`
+  was never filed, because the pattern required a parenthesis. A `skipif` with no condition
+  was read as a guard, though pytest skips it unconditionally: a bare `@pytest.mark.skipif`,
+  `skipif()` or `skipif(reason="…")`. The comment beside a bare marker is its reason, so a
+  dated note counts as an expiry. One test runs pytest on the fixture, so the expected
+  outcomes are pytest's own.
+- **The local tier sets aside claims a fact of the run already answers (#194).** Three deep
+  local runs on a .NET and React product made 200 claims. Of the 89 checked by reading, 66
+  were false or described the design, and two kinds were the commonest:
+  - a compile error in code that a passing gate compiled (`dotnet build`, `tsc`, `go build`,
+    `cargo`, Gradle and Maven, `swift build`, `dart analyze`);
+  - a C# null dereference of a member the project declares non-null under
+    `<Nullable>enable</Nullable>`.
+
+  A set-aside claim is not filed and is not a lead. It is written to `facts.json` → `set_aside`
+  with the gate or the declaration that answers it, listed in the report and counted in the
+  summary. Measured over the three runs: 19 of 200 claims set aside, every one false on
+  reading, and none of the 4 real claims among them.
+- **A program the box cannot start is said the way subprocess says it (#195).** When
+  `sandbox-exec` could not exec the program (a `python` that is not on PATH, a relative
+  `.venv/bin/python` a fresh tree never has), it exited 71. The replay read that as the
+  repro's own exit, "not reproduced". `verdict-finalize` then refused a proven Major,
+  `verdict-facts` stamped `last_verified_at` on a measurement that never ran, and backfill
+  dropped a draft. That line now becomes the `OSError` subprocess raises outside the box, and
+  the replay says "could not run".
+- **`{tmp}` for a repro that needs a folder (#196).** An empty directory of the repro's own,
+  beside `{repo}` and `{qa_root}`, inside the sandbox's writable area and removed with the
+  checkout. The finding hook now says, as the finding is written, when an open finding's
+  repro will not replay unattended, instead of the replay record saying so after the run.
+- **The tester's Bash runs bash, not the login zsh (#196).** zsh reads a word that starts with
+  `=` as a command lookup, so `cat a; echo =====; cat b` stopped at the separator. Measured: 51
+  of 3,660 Bash calls in 287 headless runs were cut short that way. `verdict-run` sets
+  `CLAUDE_CODE_SHELL` to bash and prints which. An operator's own setting is kept.
+- **Two prompt changes ship without their paid eval.** §9 and §4.6 (#180) and the `{tmp}`
+  sentence (#196) change `agents/verdict.md`. This repository's rule is that every prompt
+  change is measured against a control with `eval/run_eval.py` before it ships. These two
+  were released on the maintainer's decision of 2026-11-27, with no eval run, so what they
+  do to recall and honesty is not measured.
+- **The record.** Run 19 was the 0.94.0 release gate (#193). Run 20 refreshed the record
+  before the self-gate's 240-hour limit (#197). Both were local, `pass with risks`, and used
+  zero Claude tokens.
+- **Pinned mutants:** 52 new since 0.94.0, each killed by the whole suite after a green
+  control:
+  - refuted 1–11 (#194);
+  - the Bash shell and the repro shape, 4 (#196);
+  - skip close 1–11 and skip marker 1–6 (#198);
+  - census js 1–6 and census alias 1–14 (#180).
+
+  5 were re-anchored on code that moved. The badge is 623/623.
+
 ## 0.94.0 — 2026-11-20 · "the project's code runs in a box, and the local tier reads every language"
 
 - **Every command the harness runs from the project runs in a box (`sandbox.py`).** That
