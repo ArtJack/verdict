@@ -2362,9 +2362,9 @@
  },
  {
   "label": "0.90.10 skip scan 3: the night's scan ignores the ledger of collected tests",
-  "path": "src/verdict_mcp/small.py",
-  "old": "    for skip in group_skips(skips_without_expiry(repo, skip_scan_files(repo, qa_root))):",
-  "new": "    for skip in group_skips(skips_without_expiry(repo, test_files(repo))):"
+  "path": "src/verdict_mcp/local_skip_close.py",
+  "old": "        self.skips = skips_without_expiry(repo, skip_scan_files(repo, qa_root), read=self.read)\n",
+  "new": "        self.skips = skips_without_expiry(repo, skip_scan_files(repo, qa_root / \"no-ledger\"), read=self.read)\n"
  },
  {
   "label": "0.90.10 bash vars 1: an assignment made earlier in the command is not read",
@@ -3505,5 +3505,71 @@
   "path": "src/verdict_mcp/small.py",
   "old": "    facts[\"set_aside\"] = set_aside\n",
   "new": "    facts[\"set_aside\"] = []\n"
+ },
+ {
+  "label": "skip close 1 (call site): what the skip scan filed is never settled by it",
+  "path": "src/verdict_mcp/small.py",
+  "old": "    closed = close_by_scan(previous, skip_scan, facts, repo, qa_root, on_record, still_open_ids,\n                           to_refile, lambda entry, into: mint(entry, findings_dir, into,\n                                                               keep_id=True))\n",
+  "new": "    closed = []\n"
+ },
+ {
+  "label": "skip close 2: a skip the scan files again at the cited line is settled anyway",
+  "path": "src/verdict_mcp/local_skip_close.py",
+  "old": "        if any(site in hits for site in sites) or any(n in hits for n in now if n):\n            continue  # found again, where the line is or where it was\n",
+  "new": ""
+ },
+ {
+  "label": "skip close 3: a cited line that changed is withdrawn as the rule's error, not resolved",
+  "path": "src/verdict_mcp/local_skip_close.py",
+  "old": "            if all(now):\n                out.append((f, \"withdrawn\",\n",
+  "new": "            if True:\n                out.append((f, \"withdrawn\",\n"
+ },
+ {
+  "label": "skip close 4: outside the suite on a ledger this run did not measure",
+  "path": "src/verdict_mcp/local_skip_close.py",
+  "old": "    if ids.get(\"status\") != \"measured\" or gate_failed(facts):\n",
+  "new": "    if gate_failed(facts):\n"
+ },
+ {
+  "label": "skip close 5: outside the suite with a red gate, which may be a collection that broke",
+  "path": "src/verdict_mcp/local_skip_close.py",
+  "old": "    if ids.get(\"status\") != \"measured\" or gate_failed(facts):\n",
+  "new": "    if ids.get(\"status\") != \"measured\":\n"
+ },
+ {
+  "label": "skip close 6: a module-level skip call, which hides its file from collection, is outside the suite",
+  "path": "src/verdict_mcp/local_skip_close.py",
+  "old": "        if not 1 <= line <= len(lines) or not _DECORATOR.match(lines[line - 1]):\n",
+  "new": "        if not 1 <= line <= len(lines):\n"
+ },
+ {
+  "label": "skip close 7: a file in a directory the suite collects from is outside the suite",
+  "path": "src/verdict_mcp/local_skip_close.py",
+  "old": "        if len(parts) < 2 or parts[0] in roots or path in collected:\n",
+  "new": "        if len(parts) < 2 or path in collected:\n"
+ },
+ {
+  "label": "skip close 8: a file the scan could not open is counted as read",
+  "path": "src/verdict_mcp/local_skips.py",
+  "old": "        try:\n            text = (repo / rel).read_text(encoding=\"utf-8\", errors=\"replace\")\n        except OSError:\n            continue\n        if read is not None:\n            read.add(rel)\n",
+  "new": "        if read is not None:\n            read.add(rel)\n        try:\n            text = (repo / rel).read_text(encoding=\"utf-8\", errors=\"replace\")\n        except OSError:\n            continue\n"
+ },
+ {
+  "label": "skip close 9: a closure the validator refused still takes the id off the carried list",
+  "path": "src/verdict_mcp/local_skip_close.py",
+  "old": "        if len(closed) > before:\n",
+  "new": "        if True:\n"
+ },
+ {
+  "label": "skip close 10: a skip whose file is gone stays re-filed forever",
+  "path": "src/verdict_mcp/local_skip_close.py",
+  "old": "        elif not any((repo / path).exists() for path in paths):\n",
+  "new": "        elif False:\n"
+ },
+ {
+  "label": "skip close 11: a JUnit file pytest's ledger never lists is outside the suite",
+  "path": "src/verdict_mcp/local_skip_close.py",
+  "old": "        if not path.endswith(\".py\"):\n            return False  # the ledger is pytest's collection: it says nothing of a Jest or JUnit file\n",
+  "new": ""
  }
 ]

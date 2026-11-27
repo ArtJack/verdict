@@ -972,6 +972,29 @@ also carries `host`, the gateway's hostname: never the base URL, which can hold 
 path or a query, and absent when the URL names no host. The bill is the paying machine's own
 telemetry; the state and the report are what a team commits.
 
+### What the skip scan filed, the skip scan settles
+
+A finding the skip scan files (`local_skips.py`, `local_suite.focus_finding`: every one carries
+the evidence line `found by a regular expression over the test files, not by a model`) has no
+test that fails at the previous commit and passes at HEAD, which is the only measurement that
+closes a finding on this engine. So the scan settles its own findings (`local_skip_close.py`),
+on what this run measured about every line a finding cites, where `evidence_drift` says that
+line is now:
+
+| Outcome | When |
+|---|---|
+| carried | the scan filed a skip at a cited line, or under the same identity — or anything below is not measured |
+| `withdrawn` (`delta: WITHDRAWN`, outcome `refuted`) | the scan read every cited file, filed nothing at the cited lines, and every cited line is unchanged or moved by an edit elsewhere: the same text no longer reads as a skip with no expiry, so the rule that filed it was wrong |
+| `withdrawn`, outside the suite | `facts.test_ids.status` is `measured`, no gate failed, the suite collects nothing under the cited file's top-level directory, and every cited line is a decorator. A `pytest.skip()` call never qualifies: a module-level one keeps its file out of collection, so its absence from the ledger is not the suite's shape |
+| `resolved` (outcome `unknown`) | the scan read every cited file and filed nothing, and a cited line changed; or every cited file is gone from the checkout |
+
+The settled finding is written under its own id with one evidence line added, which starts
+`withdrawn by the skip scan <date>` or `resolved by the skip scan <date>` and says what was
+measured; the report's notes name the ids. An id leaves the carried list only once that file
+is written, so a closure the validator refuses is carried as before, and `carry_invariant`
+counts the settled ids like any other finding filed this run. A withdrawal is never
+`verdict-accept`'s to make: acceptance scores a finding `confirmed`, and these were not.
+
 ## Findings as files — `<qa-root>/findings/<ID>.json`
 
 The judgment was one JSON written from memory at the end of the run: boltons paused
