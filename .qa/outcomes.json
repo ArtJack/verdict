@@ -1,16 +1,17 @@
 {
   "chain": {
-    "last_link": "bcf83e1bf3e56f08434305f1e4c60ce2038bdc08b8dffef726031cb76e58eb78",
+    "last_link": "883ad1cd20e48c8c8e8ea2aeaf100b7237436e59cdfbb75412e3b5cb8dc9332e",
     "since_run": 8
   },
   "findings": {
     "01176523": {
       "confidence": "proven",
+      "decided_on": "2026-11-27",
       "first_seen": "2026-10-15",
       "hash": "01176523",
       "id": "VERDICT-F-88",
-      "outcome": "unknown",
-      "outcome_reason": "still open; nothing has settled it",
+      "outcome": "refuted",
+      "outcome_reason": "withdrawn by the tester as never real",
       "severity": "Minor"
     },
     "02d33fe8": {
@@ -67,11 +68,12 @@
     },
     "0ead4dd8": {
       "confidence": "proven",
+      "decided_on": "2026-11-27",
       "first_seen": "2026-10-15",
       "hash": "0ead4dd8",
       "id": "VERDICT-F-83",
-      "outcome": "unknown",
-      "outcome_reason": "still open; nothing has settled it",
+      "outcome": "refuted",
+      "outcome_reason": "withdrawn by the tester as never real",
       "severity": "Minor"
     },
     "1009c259": {
@@ -364,11 +366,12 @@
     },
     "76642dcd": {
       "confidence": "proven",
+      "decided_on": "2026-11-27",
       "first_seen": "2026-10-15",
       "hash": "76642dcd",
       "id": "VERDICT-F-87",
-      "outcome": "unknown",
-      "outcome_reason": "still open; nothing has settled it",
+      "outcome": "refuted",
+      "outcome_reason": "withdrawn by the tester as never real",
       "severity": "Minor"
     },
     "794fbc73": {
@@ -506,11 +509,12 @@
     },
     "960c0897": {
       "confidence": "proven",
+      "decided_on": "2026-11-27",
       "first_seen": "2026-10-15",
       "hash": "960c0897",
       "id": "VERDICT-F-86",
-      "outcome": "unknown",
-      "outcome_reason": "still open; nothing has settled it",
+      "outcome": "refuted",
+      "outcome_reason": "withdrawn by the tester as never real",
       "severity": "Minor"
     },
     "9dbe59d5": {
@@ -606,11 +610,12 @@
     },
     "b0bafd7b": {
       "confidence": "proven",
+      "decided_on": "2026-11-27",
       "first_seen": "2026-10-15",
       "hash": "b0bafd7b",
       "id": "VERDICT-F-81",
-      "outcome": "unknown",
-      "outcome_reason": "still open; nothing has settled it",
+      "outcome": "refuted",
+      "outcome_reason": "withdrawn by the tester as never real",
       "severity": "Minor"
     },
     "b6a94334": {
@@ -729,11 +734,12 @@
     },
     "cbfe1481": {
       "confidence": "proven",
+      "decided_on": "2026-11-27",
       "first_seen": "2026-10-15",
       "hash": "cbfe1481",
       "id": "VERDICT-F-84",
-      "outcome": "unknown",
-      "outcome_reason": "still open; nothing has settled it",
+      "outcome": "refuted",
+      "outcome_reason": "withdrawn by the tester as never real",
       "severity": "Minor"
     },
     "cfca172e": {
@@ -747,11 +753,12 @@
     },
     "d08cec10": {
       "confidence": "proven",
+      "decided_on": "2026-11-27",
       "first_seen": "2026-10-15",
       "hash": "d08cec10",
       "id": "VERDICT-F-85",
-      "outcome": "unknown",
-      "outcome_reason": "still open; nothing has settled it",
+      "outcome": "refuted",
+      "outcome_reason": "withdrawn by the tester as never real",
       "severity": "Minor"
     },
     "d0f59be9": {
@@ -788,11 +795,12 @@
     },
     "d73f1257": {
       "confidence": "proven",
+      "decided_on": "2026-11-27",
       "first_seen": "2026-10-15",
       "hash": "d73f1257",
       "id": "VERDICT-F-80",
-      "outcome": "unknown",
-      "outcome_reason": "still open; nothing has settled it",
+      "outcome": "refuted",
+      "outcome_reason": "withdrawn by the tester as never real",
       "severity": "Minor"
     },
     "d9a52f70": {
@@ -922,11 +930,12 @@
     },
     "f99ce8b7": {
       "confidence": "proven",
+      "decided_on": "2026-11-27",
       "first_seen": "2026-10-15",
       "hash": "f99ce8b7",
       "id": "VERDICT-F-82",
-      "outcome": "unknown",
-      "outcome_reason": "still open; nothing has settled it",
+      "outcome": "refuted",
+      "outcome_reason": "withdrawn by the tester as never real",
       "severity": "Minor"
     },
     "fe1f07b3": {

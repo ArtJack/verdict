@@ -2,37 +2,37 @@
   "project": "verdict",
   "schema_version": 1,
   "run_type": "delta",
-  "run_number": 20,
+  "run_number": 21,
   "last_run": {
-    "timestamp_utc": "2026-11-27T06:56:24Z",
-    "git_sha": "88f54dc0b128f08251c246b4dc6d0a8ae244bb73",
-    "git_branch": "qa/run-20",
-    "sha_range": "79c603b..88f54dc",
-    "diff_stat": "22 files changed, 7867 insertions(+), 431 deletions(-)",
+    "timestamp_utc": "2026-11-27T18:01:47Z",
+    "git_sha": "d163e8cf57bebefeca3158c4faca75e22ec0e207",
+    "git_branch": "qa/run-21",
+    "sha_range": "88f54dc..d163e8c",
+    "diff_stat": "39 files changed, 3599 insertions(+), 5804 deletions(-)",
     "harness": {
-      "version": "0.94.0",
-      "path": "/Users/artjack/.claude/verdict-ops/verdict-pinned/src/verdict_mcp/harness.py",
-      "prompt_sha256": "1bd07f7fdc6a2892d8fbdfbbdb8d43bec2df719189d757164e94b1288e9e5943"
+      "version": "0.95.0",
+      "path": "/Users/artjack/Projects/verdict/.claude/worktrees/qa-run-21/src/verdict_mcp/harness.py",
+      "prompt_sha256": "619dd69832f49678d663191dac5806d1073a56d8a6ae8332351523ca28994b07"
     },
     "model": "local:chat-120b",
     "engine": "verdict-local",
     "local": {
       "model": "chat-120b",
-      "calls": 54,
-      "tokens": 80717,
-      "input_tokens": 44605,
-      "output_tokens": 36112,
-      "answered": 41,
-      "unanswered": 2,
-      "retries": 13,
+      "calls": 49,
+      "tokens": 78812,
+      "input_tokens": 41026,
+      "output_tokens": 37786,
+      "answered": 28,
+      "unanswered": 5,
+      "retries": 21,
       "errors": 0,
       "num_ctx": 8192,
       "functions_read": 24,
-      "functions_skipped": 125,
-      "seconds": 206.2
+      "functions_skipped": 141,
+      "seconds": 159.0
     },
-    "report": "reports/2026-11-27-local-delta.md",
-    "chain": "bcf83e1bf3e56f08434305f1e4c60ce2038bdc08b8dffef726031cb76e58eb78"
+    "report": "reports/2026-11-27-local-delta-run21.md",
+    "chain": "883ad1cd20e48c8c8e8ea2aeaf100b7237436e59cdfbb75412e3b5cb8dc9332e"
   },
   "isolation_check": {
     "result": "pass",
@@ -43,10 +43,10 @@
       "command": "uv run --group dev python -m pytest tests/",
       "exit_code": 0,
       "result": "pass",
-      "duration_s": 355.04,
-      "summary": "3563 passed, 23 skipped in 350.23s (0:05:50)",
+      "duration_s": 409.75,
+      "summary": "3643 passed, 23 skipped in 403.64s (0:06:43)",
       "counts": {
-        "passed": 3563,
+        "passed": 3643,
         "skipped": 23
       },
       "counts_dialect": "pytest"
@@ -55,7 +55,7 @@
       "command": "python3 eval/fixture_freshness.py",
       "exit_code": 0,
       "result": "pass",
-      "duration_s": 0.09,
+      "duration_s": 0.1,
       "summary": "fixture_freshness: OK \u2014 pricer-delta.diff still describes the fixture pair (78 lines)",
       "counts_unparsed": "no recognised runner summary \u2014 the count-drop gate and the id set-diff cannot fire for this gate"
     }
@@ -70,21 +70,22 @@
       "severity": "Minor",
       "priority": "P2",
       "failure_classification": "BRITTLE_TEST",
-      "confidence": "proven",
-      "evidence": [
-        "eval/fixtures/pricer/test_pricer.py:18 \u2014 skip marker with reason 'reason=\"temporarily disabled 2026-05-02 - flaky?\"'; no date or expiry in the reason",
-        "found by a regular expression over the test files, not by a model"
-      ],
       "root_cause": {
         "mechanism": "A skip with no expiry is a deleted test that nobody decided to delete: it never runs again and no one is told.",
         "origin": "not investigated in local mode"
       },
-      "status": "open",
-      "re_reported": "still_open",
+      "status": "withdrawn",
+      "delta": "WITHDRAWN",
+      "evidence": [
+        "eval/fixtures/pricer/test_pricer.py:18 \u2014 skip marker with reason 'reason=\"temporarily disabled 2026-05-02 - flaky?\"'; no date or expiry in the reason",
+        "found by a regular expression over the test files, not by a model",
+        "withdrawn by the skip scan 2026-11-27: the suite collects nothing under the top-level directory of eval/fixtures/pricer/test_pricer.py (this run's test-id ledger, every gate green), and each cited line is a decorator, which pytest collects and then skips \u2014 a skip outside the suite removes no coverage it has"
+      ],
+      "filed_at": "2026-11-27T18:21:17Z",
       "hash": "d73f1257",
       "first_seen": "2026-10-15",
       "age_days": 43,
-      "delta": "STILL_OPEN",
+      "confidence": "proven",
       "anchors": [
         {
           "ref": "eval/fixtures/pricer/test_pricer.py:18",
@@ -94,9 +95,9 @@
           "line_sha": "af0fe486b6063a88"
         }
       ],
-      "anchored_at_run": 16,
-      "outcome": "unknown",
-      "outcome_reason": "still open; nothing has settled it"
+      "anchored_at_run": 21,
+      "outcome": "refuted",
+      "outcome_reason": "withdrawn by the tester as never real"
     },
     {
       "id": "VERDICT-F-81",
@@ -104,21 +105,22 @@
       "severity": "Minor",
       "priority": "P2",
       "failure_classification": "BRITTLE_TEST",
-      "confidence": "proven",
-      "evidence": [
-        "eval/fixtures/pricer_rev_b/test_pricer.py:17 \u2014 skip marker with reason 'reason=\"temporarily disabled 2026-05-02 - flaky?\"'; no date or expiry in the reason",
-        "found by a regular expression over the test files, not by a model"
-      ],
       "root_cause": {
         "mechanism": "A skip with no expiry is a deleted test that nobody decided to delete: it never runs again and no one is told.",
         "origin": "not investigated in local mode"
       },
-      "status": "open",
-      "re_reported": "still_open",
+      "status": "withdrawn",
+      "delta": "WITHDRAWN",
+      "evidence": [
+        "eval/fixtures/pricer_rev_b/test_pricer.py:17 \u2014 skip marker with reason 'reason=\"temporarily disabled 2026-05-02 - flaky?\"'; no date or expiry in the reason",
+        "found by a regular expression over the test files, not by a model",
+        "withdrawn by the skip scan 2026-11-27: the suite collects nothing under the top-level directory of eval/fixtures/pricer_rev_b/test_pricer.py (this run's test-id ledger, every gate green), and each cited line is a decorator, which pytest collects and then skips \u2014 a skip outside the suite removes no coverage it has"
+      ],
+      "filed_at": "2026-11-27T18:21:17Z",
       "hash": "b0bafd7b",
       "first_seen": "2026-10-15",
       "age_days": 43,
-      "delta": "STILL_OPEN",
+      "confidence": "proven",
       "anchors": [
         {
           "ref": "eval/fixtures/pricer_rev_b/test_pricer.py:17",
@@ -128,9 +130,9 @@
           "line_sha": "af0fe486b6063a88"
         }
       ],
-      "anchored_at_run": 16,
-      "outcome": "unknown",
-      "outcome_reason": "still open; nothing has settled it"
+      "anchored_at_run": 21,
+      "outcome": "refuted",
+      "outcome_reason": "withdrawn by the tester as never real"
     },
     {
       "id": "VERDICT-F-82",
@@ -138,37 +140,34 @@
       "severity": "Minor",
       "priority": "P2",
       "failure_classification": "BRITTLE_TEST",
-      "confidence": "proven",
-      "evidence": [
-        "tests/test_directory_policy.py:68 \u2014 skip marker with reason '\"not a git checkout: the directory reads the repository, so this needs one\"'; no date or expiry in the reason",
-        "found by a regular expression over the test files, not by a model"
-      ],
       "root_cause": {
         "mechanism": "A skip with no expiry is a deleted test that nobody decided to delete: it never runs again and no one is told.",
         "origin": "not investigated in local mode"
       },
-      "status": "open",
-      "re_reported": "still_open",
+      "status": "withdrawn",
+      "delta": "WITHDRAWN",
+      "evidence": [
+        "tests/test_directory_policy.py:68 \u2014 skip marker with reason '\"not a git checkout: the directory reads the repository, so this needs one\"'; no date or expiry in the reason",
+        "found by a regular expression over the test files, not by a model",
+        "withdrawn by the skip scan 2026-11-27: it read tests/test_directory_policy.py again and files nothing at the cited lines, which are as they were \u2014 the same text no longer reads as a skip with no expiry, so the rule that filed this was wrong"
+      ],
+      "filed_at": "2026-11-27T18:21:17Z",
       "hash": "f99ce8b7",
       "first_seen": "2026-10-15",
       "age_days": 43,
-      "delta": "STILL_OPEN",
+      "confidence": "proven",
       "anchors": [
         {
           "ref": "tests/test_directory_policy.py:68",
           "path": "tests/test_directory_policy.py",
           "line": 68,
-          "blob": "fb6287bfcc51",
-          "line_sha": "311bfd51af1b2f79"
+          "blob": "d8012a80991f",
+          "line_sha": "8a39d5243415291e"
         }
       ],
-      "anchored_at_run": 16,
-      "exercised_by_tests": [
-        "test_directory_policy.test_no_shipped_file_carries_a_key_shaped_value",
-        "test_directory_policy.test_no_shipped_file_is_too_large_for_the_directory_to_read"
-      ],
-      "outcome": "unknown",
-      "outcome_reason": "still open; nothing has settled it"
+      "anchored_at_run": 21,
+      "outcome": "refuted",
+      "outcome_reason": "withdrawn by the tester as never real"
     },
     {
       "id": "VERDICT-F-83",
@@ -176,41 +175,42 @@
       "severity": "Minor",
       "priority": "P2",
       "failure_classification": "BRITTLE_TEST",
-      "confidence": "proven",
-      "evidence": [
-        "tests/test_hooks.py:195 \u2014 skip marker with reason '\"symlinks unavailable on this platform\"'; no date or expiry in the reason",
-        "tests/test_hooks.py:219 \u2014 skip marker with reason '\"symlinks unavailable on this platform\"'; no date or expiry in the reason",
-        "found by a regular expression over the test files, not by a model"
-      ],
       "root_cause": {
         "mechanism": "A skip with no expiry is a deleted test that nobody decided to delete: it never runs again and no one is told.",
         "origin": "not investigated in local mode"
       },
-      "status": "open",
-      "re_reported": "still_open",
+      "status": "withdrawn",
+      "delta": "WITHDRAWN",
+      "evidence": [
+        "tests/test_hooks.py:195 \u2014 skip marker with reason '\"symlinks unavailable on this platform\"'; no date or expiry in the reason",
+        "tests/test_hooks.py:219 \u2014 skip marker with reason '\"symlinks unavailable on this platform\"'; no date or expiry in the reason",
+        "found by a regular expression over the test files, not by a model",
+        "withdrawn by the skip scan 2026-11-27: it read tests/test_hooks.py again and files nothing at the cited lines, which are as they were \u2014 the same text no longer reads as a skip with no expiry, so the rule that filed this was wrong"
+      ],
+      "filed_at": "2026-11-27T18:21:17Z",
       "hash": "0ead4dd8",
       "first_seen": "2026-10-15",
       "age_days": 43,
-      "delta": "STILL_OPEN",
+      "confidence": "proven",
       "anchors": [
         {
           "ref": "tests/test_hooks.py:195",
           "path": "tests/test_hooks.py",
           "line": 195,
-          "blob": "9a613940d77d",
+          "blob": "476a05ba8250",
           "line_sha": "78ab51d2e3c4c230"
         },
         {
           "ref": "tests/test_hooks.py:219",
           "path": "tests/test_hooks.py",
           "line": 219,
-          "blob": "9a613940d77d",
+          "blob": "476a05ba8250",
           "line_sha": "78ab51d2e3c4c230"
         }
       ],
-      "anchored_at_run": 16,
-      "outcome": "unknown",
-      "outcome_reason": "still open; nothing has settled it"
+      "anchored_at_run": 21,
+      "outcome": "refuted",
+      "outcome_reason": "withdrawn by the tester as never real"
     },
     {
       "id": "VERDICT-F-84",
@@ -218,33 +218,34 @@
       "severity": "Minor",
       "priority": "P2",
       "failure_classification": "BRITTLE_TEST",
-      "confidence": "proven",
-      "evidence": [
-        "tests/test_hooks.py:1246 \u2014 skip marker with reason '\"no GNU tar here (macOS ships bsdtar'; no date or expiry in the reason",
-        "found by a regular expression over the test files, not by a model"
-      ],
       "root_cause": {
         "mechanism": "A skip with no expiry is a deleted test that nobody decided to delete: it never runs again and no one is told.",
         "origin": "not investigated in local mode"
       },
-      "status": "open",
-      "re_reported": "still_open",
+      "status": "withdrawn",
+      "delta": "WITHDRAWN",
+      "evidence": [
+        "tests/test_hooks.py:1246 \u2014 skip marker with reason '\"no GNU tar here (macOS ships bsdtar'; no date or expiry in the reason",
+        "found by a regular expression over the test files, not by a model",
+        "withdrawn by the skip scan 2026-11-27: it read tests/test_hooks.py again and files nothing at the cited lines, which are as they were \u2014 the same text no longer reads as a skip with no expiry, so the rule that filed this was wrong"
+      ],
+      "filed_at": "2026-11-27T18:21:17Z",
       "hash": "cbfe1481",
       "first_seen": "2026-10-15",
       "age_days": 43,
-      "delta": "STILL_OPEN",
+      "confidence": "proven",
       "anchors": [
         {
           "ref": "tests/test_hooks.py:1246",
           "path": "tests/test_hooks.py",
           "line": 1246,
-          "blob": "9a613940d77d",
-          "line_sha": "94614db8cb8558f4"
+          "blob": "476a05ba8250",
+          "line_sha": "ade837b95a600d97"
         }
       ],
-      "anchored_at_run": 16,
-      "outcome": "unknown",
-      "outcome_reason": "still open; nothing has settled it"
+      "anchored_at_run": 21,
+      "outcome": "refuted",
+      "outcome_reason": "withdrawn by the tester as never real"
     },
     {
       "id": "VERDICT-F-85",
@@ -252,33 +253,34 @@
       "severity": "Minor",
       "priority": "P2",
       "failure_classification": "BRITTLE_TEST",
-      "confidence": "proven",
-      "evidence": [
-        "tests/test_hooks.py:1306 \u2014 skip marker with reason '\"no GNU tar here (macOS ships bsdtar, which has no --remove-files'; no date or expiry in the reason",
-        "found by a regular expression over the test files, not by a model"
-      ],
       "root_cause": {
         "mechanism": "A skip with no expiry is a deleted test that nobody decided to delete: it never runs again and no one is told.",
         "origin": "not investigated in local mode"
       },
-      "status": "open",
-      "re_reported": "still_open",
+      "status": "withdrawn",
+      "delta": "WITHDRAWN",
+      "evidence": [
+        "tests/test_hooks.py:1306 \u2014 skip marker with reason '\"no GNU tar here (macOS ships bsdtar, which has no --remove-files'; no date or expiry in the reason",
+        "found by a regular expression over the test files, not by a model",
+        "withdrawn by the skip scan 2026-11-27: it read tests/test_hooks.py again and files nothing at the cited lines, which are as they were \u2014 the same text no longer reads as a skip with no expiry, so the rule that filed this was wrong"
+      ],
+      "filed_at": "2026-11-27T18:21:17Z",
       "hash": "d08cec10",
       "first_seen": "2026-10-15",
       "age_days": 43,
-      "delta": "STILL_OPEN",
+      "confidence": "proven",
       "anchors": [
         {
           "ref": "tests/test_hooks.py:1306",
           "path": "tests/test_hooks.py",
           "line": 1306,
-          "blob": "9a613940d77d",
-          "line_sha": "6fa1af746b6a704f"
+          "blob": "476a05ba8250",
+          "line_sha": "dc43674273c266e2"
         }
       ],
-      "anchored_at_run": 16,
-      "outcome": "unknown",
-      "outcome_reason": "still open; nothing has settled it"
+      "anchored_at_run": 21,
+      "outcome": "refuted",
+      "outcome_reason": "withdrawn by the tester as never real"
     },
     {
       "id": "VERDICT-F-86",
@@ -286,21 +288,22 @@
       "severity": "Minor",
       "priority": "P2",
       "failure_classification": "BRITTLE_TEST",
-      "confidence": "proven",
-      "evidence": [
-        "tests/test_hooks_0903.py:1083 \u2014 skip marker with reason '\"needs a POSIX bash to measure against\"'; no date or expiry in the reason",
-        "found by a regular expression over the test files, not by a model"
-      ],
       "root_cause": {
         "mechanism": "A skip with no expiry is a deleted test that nobody decided to delete: it never runs again and no one is told.",
         "origin": "not investigated in local mode"
       },
-      "status": "open",
-      "re_reported": "still_open",
+      "status": "withdrawn",
+      "delta": "WITHDRAWN",
+      "evidence": [
+        "tests/test_hooks_0903.py:1083 \u2014 skip marker with reason '\"needs a POSIX bash to measure against\"'; no date or expiry in the reason",
+        "found by a regular expression over the test files, not by a model",
+        "withdrawn by the skip scan 2026-11-27: it read tests/test_hooks_0903.py again and files nothing at the cited lines, which are as they were \u2014 the same text no longer reads as a skip with no expiry, so the rule that filed this was wrong"
+      ],
+      "filed_at": "2026-11-27T18:21:17Z",
       "hash": "960c0897",
       "first_seen": "2026-10-15",
       "age_days": 43,
-      "delta": "STILL_OPEN",
+      "confidence": "proven",
       "anchors": [
         {
           "ref": "tests/test_hooks_0903.py:1083",
@@ -310,9 +313,9 @@
           "line_sha": "c422b5ed01879f8f"
         }
       ],
-      "anchored_at_run": 16,
-      "outcome": "unknown",
-      "outcome_reason": "still open; nothing has settled it"
+      "anchored_at_run": 21,
+      "outcome": "refuted",
+      "outcome_reason": "withdrawn by the tester as never real"
     },
     {
       "id": "VERDICT-F-87",
@@ -320,21 +323,22 @@
       "severity": "Minor",
       "priority": "P2",
       "failure_classification": "BRITTLE_TEST",
-      "confidence": "proven",
-      "evidence": [
-        "tests/test_hooks_0903.py:1086 \u2014 skip marker with reason 'f\"no {tool} here\"'; no date or expiry in the reason",
-        "found by a regular expression over the test files, not by a model"
-      ],
       "root_cause": {
         "mechanism": "A skip with no expiry is a deleted test that nobody decided to delete: it never runs again and no one is told.",
         "origin": "not investigated in local mode"
       },
-      "status": "open",
-      "re_reported": "still_open",
+      "status": "withdrawn",
+      "delta": "WITHDRAWN",
+      "evidence": [
+        "tests/test_hooks_0903.py:1086 \u2014 skip marker with reason 'f\"no {tool} here\"'; no date or expiry in the reason",
+        "found by a regular expression over the test files, not by a model",
+        "withdrawn by the skip scan 2026-11-27: it read tests/test_hooks_0903.py again and files nothing at the cited lines, which are as they were \u2014 the same text no longer reads as a skip with no expiry, so the rule that filed this was wrong"
+      ],
+      "filed_at": "2026-11-27T18:21:17Z",
       "hash": "76642dcd",
       "first_seen": "2026-10-15",
       "age_days": 43,
-      "delta": "STILL_OPEN",
+      "confidence": "proven",
       "anchors": [
         {
           "ref": "tests/test_hooks_0903.py:1086",
@@ -344,9 +348,9 @@
           "line_sha": "66f46245358750ca"
         }
       ],
-      "anchored_at_run": 16,
-      "outcome": "unknown",
-      "outcome_reason": "still open; nothing has settled it"
+      "anchored_at_run": 21,
+      "outcome": "refuted",
+      "outcome_reason": "withdrawn by the tester as never real"
     },
     {
       "id": "VERDICT-F-88",
@@ -354,21 +358,22 @@
       "severity": "Minor",
       "priority": "P2",
       "failure_classification": "BRITTLE_TEST",
-      "confidence": "proven",
-      "evidence": [
-        "tests/test_mcp_tools.py:324 \u2014 skip marker with reason '\"symlinks unavailable on this platform\"'; no date or expiry in the reason",
-        "found by a regular expression over the test files, not by a model"
-      ],
       "root_cause": {
         "mechanism": "A skip with no expiry is a deleted test that nobody decided to delete: it never runs again and no one is told.",
         "origin": "not investigated in local mode"
       },
-      "status": "open",
-      "re_reported": "still_open",
+      "status": "withdrawn",
+      "delta": "WITHDRAWN",
+      "evidence": [
+        "tests/test_mcp_tools.py:324 \u2014 skip marker with reason '\"symlinks unavailable on this platform\"'; no date or expiry in the reason",
+        "found by a regular expression over the test files, not by a model",
+        "withdrawn by the skip scan 2026-11-27: it read tests/test_mcp_tools.py again and files nothing at the cited lines, which are as they were \u2014 the same text no longer reads as a skip with no expiry, so the rule that filed this was wrong"
+      ],
+      "filed_at": "2026-11-27T18:21:17Z",
       "hash": "01176523",
       "first_seen": "2026-10-15",
       "age_days": 43,
-      "delta": "STILL_OPEN",
+      "confidence": "proven",
       "anchors": [
         {
           "ref": "tests/test_mcp_tools.py:324",
@@ -378,9 +383,9 @@
           "line_sha": "78ab51d2e3c4c230"
         }
       ],
-      "anchored_at_run": 16,
-      "outcome": "unknown",
-      "outcome_reason": "still open; nothing has settled it"
+      "anchored_at_run": 21,
+      "outcome": "refuted",
+      "outcome_reason": "withdrawn by the tester as never real"
     },
     {
       "id": "VERDICT-F-74",
@@ -461,16 +466,16 @@
   "verdict": "pass with risks",
   "release_blockers": [],
   "not_tested": [
-    "no agent ran: 43 bounded question(s) went to chat-120b \u2014 no exploratory charter, no archaeology, no adversarial reading of the suite",
+    "no agent ran: 33 bounded question(s) went to chat-120b \u2014 no exploratory charter, no archaeology, no adversarial reading of the suite",
     "the commit history: no origin was traced, and no `git log -S` was run",
-    "10 of 10 prior open finding(s) were carried unread, and 0 re-filed because the code they cite changed and no model looked at the change",
+    "1 of 10 prior open finding(s) were carried unread, and 0 re-filed because the code they cite changed and no model looked at the change",
     "6 file(s) and 24 function(s) were read; nothing else in the repository was",
     "claims the counterfactual could not reach \u2014 a probe that would not run leaves its finding a hypothesis, and an unproven severity is held at Minor for a reading and at Major for a failing test the model classified",
     "nothing outside the checkout was read \u2014 no database, no MCP tools, no production numbers \u2014 so a standing blocker that quotes one was NOT re-read",
-    "2 question(s) the model did not answer",
-    "125 candidate function(s) were never asked about: the cap of 24 function(s) was reached",
-    "changed in the range and read by no question here, because none of it is program source: 6 configuration or data file(s), 5 document(s), 1 other file(s)",
-    "12 reading(s) this engine could not prove were listed as leads in the report, not filed \u2014 a lead is a question for a run that can judge it, not a finding"
+    "5 question(s) the model did not answer",
+    "141 candidate function(s) were never asked about: the cap of 24 function(s) was reached",
+    "changed in the range and read by no question here, because none of it is program source: 9 configuration or data file(s), 10 document(s), 2 other file(s)",
+    "4 reading(s) this engine could not prove were listed as leads in the report, not filed \u2014 a lead is a question for a run that can judge it, not a finding"
   ],
   "verified_intact": [
     "The full suite is green at HEAD: `uv run --group dev python -m pytest tests/` -> 1172 passed in 138.99s (facts.json gates.suite, exit 0). Test count rose 888->1172 (+284; id set-diff +293/-9, the 9 removals are renamed/renumbered parametrizations, not feature loss).",
@@ -481,6 +486,11 @@
   ],
   "next_run_focus": [
     "needs a model run \u2014 diff_over_limit: the range is larger than the caps this engine runs under; part of it was never read",
+    "needs a model run \u2014 unexercised_changed_lines: 185",
+    "lead, unproven: src/verdict_mcp/census_aliases.py:90 `_inside` \u2014 _inside treats repository root as inside, violating strict containment",
+    "lead, unproven: src/verdict_mcp/census_aliases.py:127 `_under` \u2014 _under incorrectly treats the repository root as a valid subpath",
+    "lead, unproven: src/verdict_mcp/census_aliases.py:172 `_options` \u2014 `paths` option incorrectly converted to list of keys, dropping pattern mappings",
+    "lead, unproven: src/verdict_mcp/local_skip_close.py:195 `close_by_scan` \u2014 eligible set mixes int and string IDs causing missed closures",
     "needs a model run \u2014 unexercised_changed_lines: 66",
     "lead, unproven: src/verdict_mcp/sandbox.py:540 `run` \u2014 run() always forces capture_output=True, ignoring caller's capture_output setting",
     "lead, unproven: src/verdict_mcp/small.py:327 `mint` \u2014 Validator uses wrong directory path, mismatching write target",
@@ -494,23 +504,18 @@
     "lead, unproven: src/verdict_mcp/accept.py:210 `main` \u2014 Missing validation of --reason when using --revoke allows empty revocation reason",
     "lead, unproven: src/verdict_mcp/backfill.py:113 `_tree` \u2014 Silent failure of _tree returns empty list, hiding git errors",
     "needs a model run \u2014 unexercised_changed_lines: 7",
-    "lead, unproven: tests/test_ci_surfaces.py:34 `test_ci_runs_the_hook_tests_on_the_interpreter_a_stock_mac_starts_them_with` \u2014 test_ci_runs_the_hook_tests_on_the_interpreter_a_stock_mac_starts_them_with may assert something incidental: It asserts ",
-    "lead, unproven: tests/test_ci_surfaces.py:42 `test_the_eval_job_cannot_report_green_without_a_key` \u2014 test_the_eval_job_cannot_report_green_without_a_key may assert something incidental: It asserts exact substrings ('shell",
-    "lead, unproven: tests/test_ci_surfaces.py:90 `test_no_workflow_grants_write_at_the_top` \u2014 test_no_workflow_grants_write_at_the_top may assert something incidental: The test relies on a strict regex that assumes",
-    "lead, unproven: tests/test_ci_surfaces.py:111 `test_nothing_that_can_publish_runs_off_a_tag` \u2014 test_nothing_that_can_publish_runs_off_a_tag may assert something incidental: asserts the exact string \"if: startsWith(g",
-    "lead, unproven: tests/test_ci_surfaces.py:124 `test_each_major_held_back_is_ignored_from_that_major_up` \u2014 test_each_major_held_back_is_ignored_from_that_major_up may assert something incidental: relies on exact string formatti",
-    "needs a model run \u2014 unexercised_changed_lines: 1332"
+    "lead, unproven: tests/test_ci_surfaces.py:34 `test_ci_runs_the_hook_tests_on_the_interpreter_a_stock_mac_starts_them_with` \u2014 test_ci_runs_the_hook_tests_on_the_interpreter_a_stock_mac_starts_them_with may assert something incidental: It asserts "
   ],
   "flaky_quarantine": [],
   "hygiene": {
     "status": "measured",
     "scope": {
-      "files": 410,
+      "files": 418,
       "capped": false,
       "file_cap": 5000,
       "failed": 0
     },
-    "measured_at_run": 20,
+    "measured_at_run": 21,
     "summary": {
       "open": 3,
       "new": 0,
@@ -726,7 +731,7 @@
   },
   "reading_map": {
     "status": "measured",
-    "modules": 137,
+    "modules": 140,
     "functions_never_entered": [
       {
         "path": "src/verdict_mcp/browser.py",
@@ -1029,7 +1034,7 @@
         "missed": 8
       }
     ],
-    "overall_percent": 85,
+    "overall_percent": 86,
     "lowest": [
       {
         "path": "eval/backfill/faithful.py",
@@ -1329,83 +1334,130 @@
         "last_cited_run": 15
       }
     },
-    "duration_s": 493.87,
+    "duration_s": 589.88,
     "suite_exit_code": 0
   },
   "coverage": {
     "status": "measured",
     "tool": "coverage.py dynamic contexts",
     "command": "uv run --group dev python -m coverage run -m pytest tests/ -q -o addopts=",
-    "sha_range": "79c603b..88f54dc",
+    "sha_range": "88f54dc..d163e8c",
     "suite_exit_code": 0,
-    "duration_s": 493.87,
-    "changed_files": 10,
-    "changed_lines": 467,
-    "changed_lines_executed": 401,
-    "changed_lines_executed_in_subprocess": 61,
+    "duration_s": 589.88,
+    "changed_files": 18,
+    "changed_lines": 1120,
+    "changed_lines_executed": 935,
+    "changed_lines_executed_in_subprocess": 81,
     "subprocess_coverage": "measured",
     "by_kind": {
       "production": {
-        "changed_lines": 246,
-        "changed_lines_executed": 231,
+        "changed_lines": 536,
+        "changed_lines_executed": 504,
         "percent": 94
       },
       "tests": {
-        "changed_lines": 221,
-        "changed_lines_executed": 170,
-        "percent": 77
+        "changed_lines": 584,
+        "changed_lines_executed": 431,
+        "percent": 74
       }
     },
-    "percent": 86,
+    "percent": 83,
     "per_file": {
-      "src/verdict_mcp/local_findings.py": {
-        "changed": 13,
-        "measured": 6,
-        "executed": 6,
-        "unexercised_ranges": [],
+      "src/verdict_mcp/census.py": {
+        "changed": 225,
+        "measured": 126,
+        "executed": 123,
+        "executed_in_subprocess": 14,
+        "unexercised_ranges": [
+          [
+            385,
+            386
+          ],
+          [
+            446,
+            446
+          ]
+        ],
         "tests": [
-          "test_local_braces.test_a_csharp_change_in_a_delta_becomes_a_lead_with_its_reason",
-          "test_local_braces.test_no_counterfactual_is_tried_on_csharp_and_the_reason_is_kept",
-          "test_local_delta.test_a_claim_about_an_open_findings_function_is_not_filed_twice",
-          "test_local_delta.test_a_resolved_finding_that_comes_back_is_regressed_not_new",
-          "test_local_delta.test_an_unproven_reading_never_reopens_a_resolved_finding",
-          "test_local_delta.test_in_a_delta_an_unproven_reading_is_a_lead_not_a_finding",
-          "test_local_delta.test_two_findings_with_one_identity_in_one_run_are_one_finding",
-          "test_local_languages.test_a_go_range_becomes_a_lead_held_below_pass",
-          "test_local_refuted.test_a_set_aside_claim_is_kept_in_the_run_and_never_filed",
-          "test_small_probes.test_a_gate_with_no_python_disables_proving_and_says_so"
+          "test_anchors.test_a_baseline_measures_no_drift_and_finalize_says_when_it_could_not_anchor",
+          "test_anchors.test_a_previous_state_without_anchors_reads_unavailable_not_unchanged",
+          "test_anchors.test_a_reference_that_names_nothing_is_recorded_as_such_and_costs_nothing",
+          "test_anchors.test_anchors_are_carried_while_the_evidence_is_the_text_they_were_taken_from",
+          "test_anchors.test_drift_travels_into_the_state_and_the_report",
+          "test_anchors.test_facts_name_the_next_finding_id",
+          "test_anchors.test_finalize_anchors_every_cited_line",
+          "test_anchors.test_fixed_at_is_the_date_of_the_measured_fix_never_of_a_claim",
+          "test_anchors.test_introduced_at_is_the_date_of_the_commit_the_origin_names",
+          "test_anchors.test_last_verified_at_is_stamped_only_by_a_measurement"
         ],
         "unexercised_functions": []
       },
-      "src/verdict_mcp/local_refuted.py": {
-        "changed": 351,
-        "measured": 203,
-        "executed": 194,
-        "executed_in_subprocess": 59,
+      "src/verdict_mcp/census_aliases.py": {
+        "changed": 175,
+        "measured": 124,
+        "executed": 118,
+        "executed_in_subprocess": 18,
         "unexercised_ranges": [
           [
-            41,
+            36,
+            36
+          ],
+          [
+            83,
+            83
+          ],
+          [
+            91,
+            92
+          ],
+          [
+            128,
+            128
+          ],
+          [
+            151,
+            151
+          ]
+        ],
+        "tests": [
+          "test_anchors.test_a_baseline_measures_no_drift_and_finalize_says_when_it_could_not_anchor",
+          "test_anchors.test_a_previous_state_without_anchors_reads_unavailable_not_unchanged",
+          "test_anchors.test_a_reference_that_names_nothing_is_recorded_as_such_and_costs_nothing",
+          "test_anchors.test_anchors_are_carried_while_the_evidence_is_the_text_they_were_taken_from",
+          "test_anchors.test_drift_travels_into_the_state_and_the_report",
+          "test_anchors.test_facts_name_the_next_finding_id",
+          "test_anchors.test_finalize_anchors_every_cited_line",
+          "test_anchors.test_fixed_at_is_the_date_of_the_measured_fix_never_of_a_claim",
+          "test_anchors.test_introduced_at_is_the_date_of_the_commit_the_origin_names",
+          "test_anchors.test_last_verified_at_is_stamped_only_by_a_measurement"
+        ],
+        "unexercised_functions": []
+      },
+      "src/verdict_mcp/local_skip_close.py": {
+        "changed": 219,
+        "measured": 122,
+        "executed": 113,
+        "executed_in_subprocess": 28,
+        "unexercised_ranges": [
+          [
+            39,
             42
           ],
           [
-            171,
-            171
+            107,
+            107
           ],
           [
-            173,
-            173
+            118,
+            119
           ],
           [
-            207,
-            208
+            132,
+            132
           ],
           [
-            241,
-            241
-          ],
-          [
-            345,
-            346
+            201,
+            201
           ]
         ],
         "tests": [
@@ -1422,11 +1474,11 @@
         ],
         "unexercised_functions": []
       },
-      "src/verdict_mcp/local_summary.py": {
-        "changed": 19,
-        "measured": 10,
-        "executed": 10,
-        "executed_in_subprocess": 1,
+      "src/verdict_mcp/local_skips.py": {
+        "changed": 58,
+        "measured": 32,
+        "executed": 32,
+        "executed_in_subprocess": 6,
         "unexercised_ranges": [],
         "tests": [
           "test_browser.test_verdict_local_mints_carries_and_resolves_what_the_browser_measured",
@@ -1443,9 +1495,10 @@
         "unexercised_functions": []
       },
       "src/verdict_mcp/replay.py": {
-        "changed": 3,
-        "measured": 3,
-        "executed": 3,
+        "changed": 5,
+        "measured": 4,
+        "executed": 4,
+        "executed_in_subprocess": 1,
         "unexercised_ranges": [],
         "tests": [
           "test_backfill.test_a_draft_that_crashes_on_a_wrong_argument_gets_one_repair",
@@ -1461,22 +1514,30 @@
         ],
         "unexercised_functions": []
       },
-      "src/verdict_mcp/sandbox.py": {
-        "changed": 38,
-        "measured": 20,
-        "executed": 15,
+      "src/verdict_mcp/repro_shape.py": {
+        "changed": 144,
+        "measured": 96,
+        "executed": 85,
         "unexercised_ranges": [
           [
-            580,
-            580
+            35,
+            37
           ],
           [
-            582,
-            582
+            45,
+            47
           ],
           [
-            586,
-            588
+            57,
+            58
+          ],
+          [
+            71,
+            72
+          ],
+          [
+            84,
+            84
           ]
         ],
         "tests": [
@@ -1493,15 +1554,63 @@
         ],
         "unexercised_functions": []
       },
-      "src/verdict_mcp/small.py": {
-        "changed": 11,
-        "measured": 4,
-        "executed": 3,
-        "executed_in_subprocess": 1,
+      "src/verdict_mcp/runner.py": {
+        "changed": 3,
+        "measured": 1,
+        "executed": 1,
+        "unexercised_ranges": [],
+        "tests": [
+          "test_escalate.test_a_capped_normal_run_is_told_its_cap_and_an_uncapped_one_nothing",
+          "test_escalate.test_a_lite_run_is_a_capped_normal_run_told_its_budget_and_billed",
+          "test_escalate.test_a_run_stopped_at_its_dollar_cap_is_not_retried",
+          "test_escalate.test_a_session_ending_without_state_is_still_retried_once",
+          "test_escalate.test_an_escalation_run_hands_the_tester_the_packet_and_a_cap",
+          "test_escalate.test_an_operator_names_the_tool_calls_the_packet_asks_for",
+          "test_escalate.test_an_operators_cap_after_the_double_dash_is_the_one_the_packet_names",
+          "test_escalate.test_calls_and_an_operators_cap_shape_the_budget_line",
+          "test_escalate.test_no_tester_is_started_when_the_breadth_pass_fails",
+          "test_escalate.test_no_tester_is_started_when_the_gateway_is_down"
+        ],
+        "unexercised_functions": []
+      },
+      "src/verdict_mcp/runner_env.py": {
+        "changed": 38,
+        "measured": 15,
+        "executed": 14,
+        "executed_in_subprocess": 3,
         "unexercised_ranges": [
           [
-            121,
-            121
+            170,
+            170
+          ]
+        ],
+        "tests": [
+          "test_escalate.test_a_capped_normal_run_is_told_its_cap_and_an_uncapped_one_nothing",
+          "test_escalate.test_a_lite_run_is_a_capped_normal_run_told_its_budget_and_billed",
+          "test_escalate.test_a_run_stopped_at_its_dollar_cap_is_not_retried",
+          "test_escalate.test_a_session_ending_without_state_is_still_retried_once",
+          "test_escalate.test_an_escalation_run_hands_the_tester_the_packet_and_a_cap",
+          "test_escalate.test_an_operator_names_the_tool_calls_the_packet_asks_for",
+          "test_escalate.test_an_operators_cap_after_the_double_dash_is_the_one_the_packet_names",
+          "test_escalate.test_calls_and_an_operators_cap_shape_the_budget_line",
+          "test_escalate.test_no_tester_is_started_when_the_breadth_pass_fails",
+          "test_escalate.test_no_tester_is_started_when_the_gateway_is_down"
+        ],
+        "unexercised_functions": []
+      },
+      "src/verdict_mcp/small.py": {
+        "changed": 16,
+        "measured": 7,
+        "executed": 5,
+        "executed_in_subprocess": 2,
+        "unexercised_ranges": [
+          [
+            97,
+            97
+          ],
+          [
+            101,
+            101
           ]
         ],
         "tests": [
@@ -1518,217 +1627,625 @@
         ],
         "unexercised_functions": []
       },
-      "tests/test_backfill.py": {
-        "changed": 25,
-        "measured": 16,
-        "executed": 12,
-        "unexercised_ranges": [
-          [
-            11,
-            11
-          ],
-          [
-            19,
-            19
-          ],
-          [
-            195,
-            196
-          ]
-        ],
-        "tests": [
-          "test_backfill.test_a_model_written_repro_that_cannot_start_could_not_run"
-        ],
+      "src/verdict_mcp/validate.py": {
+        "changed": 16,
+        "measured": 9,
+        "executed": 9,
+        "executed_in_subprocess": 9,
+        "unexercised_ranges": [],
+        "tests": [],
         "unexercised_functions": []
       },
-      "tests/test_local_refuted.py": {
-        "changed": 304,
-        "measured": 152,
-        "executed": 121,
+      "tests/test_census.py": {
+        "changed": 228,
+        "measured": 134,
+        "executed": 109,
         "unexercised_ranges": [
           [
-            9,
-            12
+            264,
+            264
           ],
           [
-            14,
-            17
+            270,
+            270
           ],
           [
-            19,
-            19
+            285,
+            285
           ],
           [
-            21,
-            22
+            294,
+            294
           ],
           [
-            24,
-            24
+            300,
+            300
           ],
           [
-            47,
-            47
+            307,
+            307
           ],
           [
-            50,
-            50
+            314,
+            314
           ],
           [
-            62,
-            62
+            322,
+            322
           ],
           [
-            68,
-            68
+            333,
+            333
           ],
           [
-            78,
-            78
+            338,
+            338
           ],
           [
-            84,
-            84
+            345,
+            345
           ],
           [
-            95,
-            95
+            351,
+            351
           ],
           [
-            108,
-            108
+            362,
+            362
           ],
           [
-            123,
-            123
-          ],
-          [
-            144,
-            144
-          ],
-          [
-            201,
-            201
-          ],
-          [
-            218,
-            218
-          ],
-          [
-            227,
-            227
-          ],
-          [
-            230,
-            230
-          ],
-          [
-            248,
-            248
-          ],
-          [
-            271,
-            271
-          ],
-          [
-            273,
-            273
-          ],
-          [
-            277,
-            277
-          ],
-          [
-            299,
-            299
-          ]
-        ],
-        "tests": [
-          "test_local_refuted.test_a_compile_claim_is_set_aside_only_when_a_gate_that_compiles_passed",
-          "test_local_refuted.test_a_declaration_in_a_shape_the_index_cannot_read_keeps_the_claim",
-          "test_local_refuted.test_a_gate_compiles_the_folder_or_the_project_it_names",
-          "test_local_refuted.test_a_member_a_request_binds_is_never_taken_as_non_null",
-          "test_local_refuted.test_a_name_declared_nullable_anywhere_keeps_the_claim_unless_the_receiver_is_typed",
-          "test_local_refuted.test_a_null_claim_on_a_member_declared_non_null_is_set_aside_with_its_declaration",
-          "test_local_refuted.test_a_set_aside_claim_is_kept_in_the_run_and_never_filed",
-          "test_local_refuted.test_claims_a_declaration_does_not_answer_are_left_alone",
-          "test_local_refuted.test_null_claims_in_other_languages_are_not_touched",
-          "test_local_refuted.test_only_a_non_null_type_with_a_value_counts_as_declared_non_null"
-        ],
-        "unexercised_functions": []
-      },
-      "tests/test_replay.py": {
-        "changed": 53,
-        "measured": 32,
-        "executed": 28,
-        "unexercised_ranges": [
-          [
-            377,
-            377
+            372,
+            372
           ],
           [
             379,
             379
           ],
           [
-            676,
-            676
+            389,
+            389
           ],
           [
-            680,
-            680
+            393,
+            393
+          ],
+          [
+            403,
+            403
+          ],
+          [
+            409,
+            409
+          ],
+          [
+            417,
+            417
+          ],
+          [
+            425,
+            425
+          ],
+          [
+            434,
+            434
+          ],
+          [
+            441,
+            441
+          ],
+          [
+            461,
+            461
+          ],
+          [
+            472,
+            472
           ]
         ],
         "tests": [
-          "test_replay.test_a_proven_finding_whose_repro_cannot_start_is_neither_refused_nor_verified",
-          "test_replay.test_an_unattended_repro_whose_python_is_not_on_path_could_not_run"
+          "test_census.test_a_component_is_read_for_its_imports_and_another_language_is_not",
+          "test_census.test_a_dist_info_with_no_version_in_its_name_is_skipped",
+          "test_census.test_a_manifest_missing_name_and_version_still_resolves_to_its_path",
+          "test_census.test_a_manifest_that_is_not_an_object_is_unresolved",
+          "test_census.test_a_node_package_resolves_through_its_manifest_scope_included",
+          "test_census.test_a_node_package_without_a_manifest_is_unresolved",
+          "test_census.test_a_resolved_dependency_carries_its_installed_version_and_path",
+          "test_census.test_a_scoped_dependency_is_declared_as_itself",
+          "test_census.test_a_specifier_cannot_walk_out_of_node_modules",
+          "test_census.test_an_import_with_nothing_installed_is_unresolved_not_invented"
         ],
         "unexercised_functions": []
       },
-      "tests/test_sandbox.py": {
-        "changed": 53,
-        "measured": 21,
-        "executed": 9,
+      "tests/test_census_aliases.py": {
+        "changed": 119,
+        "measured": 47,
+        "executed": 29,
         "unexercised_ranges": [
           [
-            434,
-            435
+            10,
+            12
           ],
           [
-            438,
-            439
+            14,
+            14
           ],
           [
-            442,
-            442
+            16,
+            19
           ],
           [
-            444,
-            445
+            22,
+            22
           ],
           [
-            448,
-            450
+            30,
+            30
           ],
           [
-            464,
-            464
+            44,
+            44
           ],
           [
-            476,
-            476
+            53,
+            53
+          ],
+          [
+            66,
+            66
+          ],
+          [
+            77,
+            77
+          ],
+          [
+            95,
+            95
+          ],
+          [
+            103,
+            103
+          ],
+          [
+            109,
+            109
+          ],
+          [
+            118,
+            118
           ]
         ],
         "tests": [
-          "test_sandbox.test_a_program_that_cannot_start_raises_in_the_box_as_outside_it",
-          "test_sandbox.test_only_sandbox_execs_own_line_about_this_program_is_a_failure_to_start"
+          "test_census_aliases.test_a_base_url_import_is_the_projects_own_file",
+          "test_census_aliases.test_a_config_that_cannot_be_read_is_said_and_its_names_stay_unresolved",
+          "test_census_aliases.test_a_paths_alias_is_the_projects_own_file_in_both_censuses",
+          "test_census_aliases.test_a_pattern_names_the_roots_tsc_would_send_to_the_project",
+          "test_census_aliases.test_comment_and_comma_marks_inside_a_string_are_text",
+          "test_census_aliases.test_the_nearest_config_rules_and_its_own_paths_replace_what_it_extends"
         ],
-        "unexercised_functions": [
-          "test_sandbox_exec_says_it_could_not_start_a_program_in_one_line_and_exits_71"
-        ]
+        "unexercised_functions": []
+      },
+      "tests/test_ci_surfaces.py": {
+        "changed": 63,
+        "measured": 24,
+        "executed": 17,
+        "unexercised_ranges": [
+          [
+            11,
+            11
+          ],
+          [
+            20,
+            20
+          ],
+          [
+            134,
+            134
+          ],
+          [
+            141,
+            141
+          ],
+          [
+            154,
+            154
+          ],
+          [
+            166,
+            166
+          ],
+          [
+            186,
+            186
+          ]
+        ],
+        "tests": [
+          "test_ci_surfaces.test_nothing_the_suite_evaluates_at_import_is_absent_on_windows"
+        ],
+        "unexercised_functions": []
+      },
+      "tests/test_local_skip_close.py": {
+        "changed": 306,
+        "measured": 180,
+        "executed": 140,
+        "unexercised_ranges": [
+          [
+            12,
+            14
+          ],
+          [
+            16,
+            24
+          ],
+          [
+            27,
+            27
+          ],
+          [
+            32,
+            32
+          ],
+          [
+            36,
+            36
+          ],
+          [
+            38,
+            39
+          ],
+          [
+            42,
+            42
+          ],
+          [
+            47,
+            47
+          ],
+          [
+            75,
+            75
+          ],
+          [
+            80,
+            80
+          ],
+          [
+            84,
+            84
+          ],
+          [
+            89,
+            89
+          ],
+          [
+            95,
+            95
+          ],
+          [
+            115,
+            115
+          ],
+          [
+            127,
+            127
+          ],
+          [
+            142,
+            142
+          ],
+          [
+            152,
+            152
+          ],
+          [
+            164,
+            164
+          ],
+          [
+            175,
+            175
+          ],
+          [
+            189,
+            189
+          ],
+          [
+            197,
+            197
+          ],
+          [
+            202,
+            202
+          ],
+          [
+            209,
+            209
+          ],
+          [
+            223,
+            223
+          ],
+          [
+            249,
+            249
+          ],
+          [
+            269,
+            269
+          ],
+          [
+            276,
+            276
+          ],
+          [
+            295,
+            295
+          ],
+          [
+            305,
+            305
+          ]
+        ],
+        "tests": [
+          "test_local_skip_close.test_a_cited_file_that_is_gone_is_resolved",
+          "test_local_skip_close.test_a_cited_line_that_changed_and_is_not_filed_again_is_resolved_not_withdrawn",
+          "test_local_skip_close.test_a_closed_finding_passes_the_finding_validator",
+          "test_local_skip_close.test_a_closure_the_validator_refuses_leaves_the_id_where_it_was",
+          "test_local_skip_close.test_a_directory_the_suite_collects_from_is_never_outside_it",
+          "test_local_skip_close.test_a_file_the_scan_could_not_open_is_not_a_file_it_read",
+          "test_local_skip_close.test_a_finding_the_scan_did_not_file_is_never_its_to_settle",
+          "test_local_skip_close.test_a_line_moved_by_an_edit_elsewhere_and_found_there_again_stays_open",
+          "test_local_skip_close.test_a_skip_still_filed_stays_open",
+          "test_local_skip_close.test_a_withdrawal_stays_withdrawn_on_the_next_night"
+        ],
+        "unexercised_functions": []
+      },
+      "tests/test_replay.py": {
+        "changed": 26,
+        "measured": 14,
+        "executed": 12,
+        "unexercised_ranges": [
+          [
+            830,
+            830
+          ],
+          [
+            835,
+            835
+          ]
+        ],
+        "tests": [
+          "test_replay.test_tmp_is_an_empty_folder_of_each_repros_own_that_goes_with_the_checkout"
+        ],
+        "unexercised_functions": []
+      },
+      "tests/test_repro_shape_note.py": {
+        "changed": 121,
+        "measured": 75,
+        "executed": 48,
+        "unexercised_ranges": [
+          [
+            10,
+            14
+          ],
+          [
+            16,
+            16
+          ],
+          [
+            18,
+            22
+          ],
+          [
+            24,
+            26
+          ],
+          [
+            29,
+            29
+          ],
+          [
+            38,
+            38
+          ],
+          [
+            47,
+            47
+          ],
+          [
+            58,
+            58
+          ],
+          [
+            62,
+            62
+          ],
+          [
+            72,
+            72
+          ],
+          [
+            80,
+            80
+          ],
+          [
+            87,
+            87
+          ],
+          [
+            93,
+            94
+          ],
+          [
+            103,
+            103
+          ],
+          [
+            109,
+            109
+          ],
+          [
+            119,
+            119
+          ]
+        ],
+        "tests": [
+          "test_repro_shape_note.test_a_closed_finding_is_not_advised",
+          "test_repro_shape_note.test_a_program_that_is_not_python_is_named",
+          "test_repro_shape_note.test_a_repro_in_shell_glue_is_flagged_as_it_is_written",
+          "test_repro_shape_note.test_a_repro_the_harness_will_run_gets_no_note",
+          "test_repro_shape_note.test_a_violation_carries_the_note_too",
+          "test_repro_shape_note.test_no_repro_no_note",
+          "test_repro_shape_note.test_the_note_reaches_the_tester_under_the_system_python",
+          "test_repro_shape_note.test_with_no_checkout_known_a_scripts_place_is_not_judged"
+        ],
+        "unexercised_functions": []
+      },
+      "tests/test_session_env.py": {
+        "changed": 87,
+        "measured": 60,
+        "executed": 44,
+        "unexercised_ranges": [
+          [
+            12,
+            12
+          ],
+          [
+            16,
+            16
+          ],
+          [
+            179,
+            179
+          ],
+          [
+            182,
+            182
+          ],
+          [
+            191,
+            192
+          ],
+          [
+            200,
+            201
+          ],
+          [
+            209,
+            210
+          ],
+          [
+            218,
+            219
+          ],
+          [
+            225,
+            226
+          ],
+          [
+            233,
+            234
+          ]
+        ],
+        "tests": [
+          "test_session_env.test_a_bash_found_off_path_is_used",
+          "test_session_env.test_a_bash_login_needs_nothing",
+          "test_session_env.test_a_zsh_login_gets_bash_for_the_tester",
+          "test_session_env.test_no_bash_leaves_the_login_shell_and_says_so",
+          "test_session_env.test_the_operators_shell_choice_is_kept",
+          "test_session_env.test_the_runner_hands_the_child_bash"
+        ],
+        "unexercised_functions": []
+      },
+      "tests/test_skip_markers.py": {
+        "changed": 156,
+        "measured": 50,
+        "executed": 32,
+        "unexercised_ranges": [
+          [
+            16,
+            20
+          ],
+          [
+            22,
+            24
+          ],
+          [
+            26,
+            26
+          ],
+          [
+            71,
+            71
+          ],
+          [
+            75,
+            75
+          ],
+          [
+            88,
+            88
+          ],
+          [
+            93,
+            93
+          ],
+          [
+            101,
+            101
+          ],
+          [
+            114,
+            114
+          ],
+          [
+            131,
+            131
+          ],
+          [
+            143,
+            143
+          ],
+          [
+            153,
+            153
+          ]
+        ],
+        "tests": [
+          "test_skip_markers.test_a_bare_marker_has_no_reason_but_the_comment_beside_it",
+          "test_skip_markers.test_a_file_the_tokenizer_cannot_read_has_every_marker_read",
+          "test_skip_markers.test_a_marker_inside_a_string_literal_is_a_fixture_not_a_skip",
+          "test_skip_markers.test_bare_unittest_skip_and_a_bare_name_are_told_apart",
+          "test_skip_markers.test_pytest_itself_skips_what_the_fixture_says",
+          "test_skip_markers.test_the_scan_files_every_skip_with_no_expiry_and_nothing_else",
+          "test_skip_markers.test_this_file_files_nothing_from_its_own_fixtures"
+        ],
+        "unexercised_functions": []
       }
     },
     "tests_touching_diff": [
+      "test_anchors.test_a_baseline_measures_no_drift_and_finalize_says_when_it_could_not_anchor",
+      "test_anchors.test_a_previous_state_without_anchors_reads_unavailable_not_unchanged",
+      "test_anchors.test_a_reference_that_names_nothing_is_recorded_as_such_and_costs_nothing",
+      "test_anchors.test_anchors_are_carried_while_the_evidence_is_the_text_they_were_taken_from",
+      "test_anchors.test_drift_travels_into_the_state_and_the_report",
+      "test_anchors.test_facts_name_the_next_finding_id",
+      "test_anchors.test_finalize_anchors_every_cited_line",
+      "test_anchors.test_fixed_at_is_the_date_of_the_measured_fix_never_of_a_claim",
+      "test_anchors.test_introduced_at_is_the_date_of_the_commit_the_origin_names",
+      "test_anchors.test_last_verified_at_is_stamped_only_by_a_measurement",
+      "test_anchors.test_the_class_sites_and_the_verified_intact_items_are_anchored_too",
+      "test_anchors.test_the_code_under_an_accepted_risk_is_measured_in_its_own_bucket",
+      "test_anchors.test_the_next_facts_say_where_the_cited_code_went",
+      "test_anchors.test_the_report_dates_the_measurement_and_its_result",
+      "test_anchors.test_the_report_prints_both_clocks_and_the_ledger_keeps_them",
+      "test_artifact_check.test_a_clean_finalize_has_nothing_to_report",
+      "test_artifact_check.test_a_history_row_that_does_not_carry_the_signed_link_is_named",
+      "test_artifact_check.test_a_missing_history_row_is_named",
+      "test_artifact_check.test_a_report_that_went_missing_is_named",
+      "test_artifact_check.test_an_index_row_dated_from_the_wrong_clock_is_named",
+      "test_artifact_check.test_an_index_row_naming_another_project_is_named",
+      "test_artifact_check.test_finalize_actually_runs_the_check_it_documents",
+      "test_artifact_check.test_the_cli_says_it_out_loud_and_still_records_the_run",
       "test_backfill.test_a_draft_that_crashes_on_a_wrong_argument_gets_one_repair",
       "test_backfill.test_a_draft_that_dies_on_an_import_gets_one_repair",
       "test_backfill.test_a_draft_that_never_touches_the_cited_code_is_refused_and_redrafted",
@@ -1742,70 +2259,45 @@
       "test_backfill.test_a_repro_that_reproduces_at_head_says_still_broken",
       "test_backfill.test_a_repro_that_reproduces_only_at_the_anchored_commit_says_looks_fixed",
       "test_backfill.test_attempts_stop_at_the_limit",
+      "test_backfill.test_finalize_attaches_a_still_broken_repro_to_its_old_finding",
       "test_backfill.test_the_command_drafts_runs_and_writes_one_row_per_finding",
       "test_backfill.test_the_draft_is_shown_how_the_projects_own_tests_set_up",
       "test_browser.test_verdict_local_mints_carries_and_resolves_what_the_browser_measured",
-      "test_escalate.test_the_local_tier_writes_its_leads_as_data",
-      "test_gate.test_drift_note_says_only_what_is_actionable",
-      "test_hygiene_facts.test_the_local_tier_writes_the_same_split_before_it_finalizes",
-      "test_hygiene_lifecycle.test_the_local_tier_finalizes_a_night_the_scan_files_a_critical_on",
-      "test_hygiene_state.test_a_local_night_names_no_hygiene_id_and_says_the_verdict_written",
-      "test_local_braces.test_a_csharp_change_in_a_delta_becomes_a_lead_with_its_reason",
-      "test_local_braces.test_no_counterfactual_is_tried_on_csharp_and_the_reason_is_kept",
-      "test_local_braces.test_the_run_reads_csharp_through_the_command_line_seam",
-      "test_local_delta.test_a_carried_blocked_verdict_says_why_it_was_carried",
-      "test_local_delta.test_a_claim_about_an_open_findings_function_is_not_filed_twice",
-      "test_local_delta.test_a_drifted_finding_is_refiled_and_never_left_silent",
-      "test_local_delta.test_a_failing_test_this_engine_filed_is_not_classified_again",
-      "test_local_delta.test_a_first_run_in_an_empty_root_is_a_baseline_with_nothing_carried",
-      "test_local_delta.test_a_project_whose_ids_carry_no_prefix_files_and_finalizes",
-      "test_local_delta.test_a_range_with_nothing_in_it_reads_nothing",
-      "test_local_delta.test_a_resolved_finding_that_comes_back_is_regressed_not_new",
-      "test_local_delta.test_a_resolved_identity_that_comes_back_is_regressed_under_its_own_id",
-      "test_local_delta.test_a_run_that_got_no_answers_writes_no_state",
-      "test_local_delta.test_a_state_on_disk_is_carried_even_when_the_delta_flag_was_forgotten",
-      "test_local_delta.test_an_unproven_reading_never_reopens_a_resolved_finding",
-      "test_local_delta.test_facts_for_another_commit_are_measured_again",
-      "test_local_delta.test_in_a_delta_a_models_opinion_that_a_green_test_is_brittle_is_a_lead",
-      "test_local_delta.test_in_a_delta_an_unproven_reading_is_a_lead_not_a_finding",
-      "test_local_delta.test_silence_never_resolves_a_finding_in_a_local_delta",
-      "test_local_delta.test_the_engine_and_its_counters_land_in_last_run_and_in_the_report",
-      "test_local_delta.test_the_engine_keeps_the_sweep_attempts_measurement_and_its_test_delta",
-      "test_local_delta.test_the_gateway_reaches_the_bill_and_nothing_a_team_commits",
-      "test_local_delta.test_the_night_with_an_inherited_conflict_finalizes_and_asks_once",
-      "test_local_delta.test_the_not_tested_list_is_counted_not_described",
-      "test_local_delta.test_the_previous_quarantine_and_verified_intact_survive_a_local_delta",
-      "test_local_delta.test_the_report_says_what_this_run_did_not_what_an_old_one_did",
-      "test_local_delta.test_the_second_night_carries_what_the_first_filed_and_is_not_refused",
-      "test_local_delta.test_the_skip_scan_reads_only_what_the_suite_collects",
-      "test_local_delta.test_two_findings_with_one_identity_in_one_run_are_one_finding"
+      "test_census.test_a_component_is_read_for_its_imports_and_another_language_is_not",
+      "test_census.test_a_dist_info_with_no_version_in_its_name_is_skipped",
+      "test_census.test_a_lone_carriage_return_stays_inside_its_line_in_the_tree_and_in_the_diff",
+      "test_census.test_a_manifest_missing_name_and_version_still_resolves_to_its_path",
+      "test_census.test_a_manifest_that_is_not_an_object_is_unresolved",
+      "test_census.test_a_node_package_resolves_through_its_manifest_scope_included",
+      "test_census.test_a_node_package_without_a_manifest_is_unresolved",
+      "test_census.test_a_resolved_dependency_carries_its_installed_version_and_path",
+      "test_census.test_a_scoped_dependency_is_declared_as_itself",
+      "test_census.test_a_specifier_cannot_walk_out_of_node_modules"
     ],
-    "unexercised_functions": [
-      "tests/test_sandbox.py:test_sandbox_exec_says_it_could_not_start_a_program_in_one_line_and_exits_71"
-    ]
+    "unexercised_functions": []
   },
   "tests": {
-    "passed": 3563,
+    "passed": 3643,
     "skipped": 23,
-    "duration_s": 355.04,
-    "collected": 3586
+    "duration_s": 409.75,
+    "collected": 3666
   },
   "calibration": {
     "min_sample": 30,
     "findings_tracked": 87,
-    "decided_outcomes": 60,
-    "undecided_outcomes": 27,
+    "decided_outcomes": 69,
+    "undecided_outcomes": 18,
     "by_confidence": {
       "proven": {
         "confirmed": 54,
         "confirmed_measured": 0,
         "confirmed_claimed": 36,
         "confirmed_accepted": 0,
-        "refuted": 0,
-        "unknown": 26,
-        "decided": 54,
-        "precision": 1.0,
-        "reading": "54 of 54 held up (0 measured, 36 on the tester's word)"
+        "refuted": 9,
+        "unknown": 17,
+        "decided": 63,
+        "precision": 0.857,
+        "reading": "54 of 63 held up (0 measured, 36 on the tester's word)"
       },
       "probable": {
         "confirmed": 3,
@@ -1841,45 +2333,63 @@
   },
   "test_ids": {
     "status": "measured",
-    "count": 3586,
-    "added_count": 32,
+    "count": 3666,
+    "added_count": 80,
     "removed_count": 0,
     "added": [
-      "tests/test_backfill.py::test_a_model_written_repro_that_cannot_start_could_not_run[sandbox-exec]",
-      "tests/test_backfill.py::test_a_model_written_repro_that_cannot_start_could_not_run[stand-in]",
-      "tests/test_interpreter_floor.py::test_new_style_unions_are_lazy[local_refuted.py]",
-      "tests/test_interpreter_floor.py::test_no_syntax_the_floor_cannot_parse[local_refuted.py]",
-      "tests/test_local_refuted.py::test_a_compile_claim_is_set_aside_only_when_a_gate_that_compiles_passed",
-      "tests/test_local_refuted.py::test_a_declaration_in_a_shape_the_index_cannot_read_keeps_the_claim",
-      "tests/test_local_refuted.py::test_a_gate_compiles_the_folder_or_the_project_it_names",
-      "tests/test_local_refuted.py::test_a_member_a_request_binds_is_never_taken_as_non_null",
-      "tests/test_local_refuted.py::test_a_name_declared_nullable_anywhere_keeps_the_claim_unless_the_receiver_is_typed",
-      "tests/test_local_refuted.py::test_a_null_claim_on_a_member_declared_non_null_is_set_aside_with_its_declaration",
-      "tests/test_local_refuted.py::test_a_set_aside_claim_is_kept_in_the_run_and_never_filed",
-      "tests/test_local_refuted.py::test_claims_a_declaration_does_not_answer_are_left_alone",
-      "tests/test_local_refuted.py::test_null_claims_in_other_languages_are_not_touched",
-      "tests/test_local_refuted.py::test_only_a_non_null_type_with_a_value_counts_as_declared_non_null",
-      "tests/test_local_refuted.py::test_the_null_rule_needs_the_projects_own_nullable_setting",
-      "tests/test_local_refuted.py::test_the_reports_list_of_set_aside_claims_is_capped_and_says_so",
-      "tests/test_local_refuted.py::test_what_the_claim_says_is_null_is_its_subject",
-      "tests/test_replay.py::test_a_proven_finding_whose_repro_cannot_start_is_neither_refused_nor_verified",
-      "tests/test_replay.py::test_an_unattended_repro_whose_python_is_not_on_path_could_not_run",
-      "tests/test_sandbox.py::test_a_program_that_cannot_start_raises_in_the_box_as_outside_it[missing/bin/python-auto]",
-      "tests/test_sandbox.py::test_a_program_that_cannot_start_raises_in_the_box_as_outside_it[missing/bin/python-off]",
-      "tests/test_sandbox.py::test_a_program_that_cannot_start_raises_in_the_box_as_outside_it[verdict-no-such-program-auto]",
-      "tests/test_sandbox.py::test_a_program_that_cannot_start_raises_in_the_box_as_outside_it[verdict-no-such-program-off]",
-      "tests/test_sandbox.py::test_only_sandbox_execs_own_line_about_this_program_is_a_failure_to_start[after-output]",
-      "tests/test_sandbox.py::test_only_sandbox_execs_own_line_about_this_program_is_a_failure_to_start[denied]",
-      "tests/test_sandbox.py::test_only_sandbox_execs_own_line_about_this_program_is_a_failure_to_start[exit-1]",
-      "tests/test_sandbox.py::test_only_sandbox_execs_own_line_about_this_program_is_a_failure_to_start[not-found-bytes]",
-      "tests/test_sandbox.py::test_only_sandbox_execs_own_line_about_this_program_is_a_failure_to_start[not-found]",
-      "tests/test_sandbox.py::test_only_sandbox_execs_own_line_about_this_program_is_a_failure_to_start[other-program]",
-      "tests/test_sandbox.py::test_only_sandbox_execs_own_line_about_this_program_is_a_failure_to_start[own-71]",
-      "tests/test_sandbox.py::test_only_sandbox_execs_own_line_about_this_program_is_a_failure_to_start[unknown-reason]",
-      "tests/test_sandbox.py::test_sandbox_exec_says_it_could_not_start_a_program_in_one_line_and_exits_71"
+      "tests/test_agent_contract.py::test_every_plugin_root_reference_resolves[/docs/silent-failures.md]",
+      "tests/test_census.py::test_a_component_is_read_for_its_imports_and_another_language_is_not",
+      "tests/test_census.py::test_a_dist_info_with_no_version_in_its_name_is_skipped",
+      "tests/test_census.py::test_a_manifest_missing_name_and_version_still_resolves_to_its_path",
+      "tests/test_census.py::test_a_manifest_that_is_not_an_object_is_unresolved",
+      "tests/test_census.py::test_a_node_package_resolves_through_its_manifest_scope_included",
+      "tests/test_census.py::test_a_node_package_without_a_manifest_is_unresolved",
+      "tests/test_census.py::test_a_resolved_dependency_carries_its_installed_version_and_path",
+      "tests/test_census.py::test_a_scoped_dependency_is_declared_as_itself",
+      "tests/test_census.py::test_a_specifier_cannot_walk_out_of_node_modules",
+      "tests/test_census.py::test_an_import_with_nothing_installed_is_unresolved_not_invented",
+      "tests/test_census.py::test_an_unparseable_manifest_is_unresolved_not_a_crash",
+      "tests/test_census.py::test_an_unreadable_top_level_falls_back_to_the_distribution_name",
+      "tests/test_census.py::test_one_environment_is_reported_once_whatever_the_filesystem_case",
+      "tests/test_census.py::test_stdlib_and_local_modules_are_not_dependencies",
+      "tests/test_census.py::test_the_census_block_carries_dependencies",
+      "tests/test_census.py::test_the_dist_info_scan_is_capped",
+      "tests/test_census.py::test_the_first_distribution_to_claim_an_import_root_keeps_it",
+      "tests/test_census.py::test_the_path_it_reports_is_one_a_reader_can_actually_open",
+      "tests/test_census.py::test_the_runtime_and_the_projects_own_aliases_are_not_dependencies",
+      "tests/test_census.py::test_top_level_maps_an_import_root_to_the_distribution_that_owns_it",
+      "tests/test_census.py::test_with_no_environment_it_says_so_rather_than_guessing",
+      "tests/test_census_aliases.py::test_a_base_url_import_is_the_projects_own_file",
+      "tests/test_census_aliases.py::test_a_config_that_cannot_be_read_is_said_and_its_names_stay_unresolved",
+      "tests/test_census_aliases.py::test_a_paths_alias_is_the_projects_own_file_in_both_censuses",
+      "tests/test_census_aliases.py::test_a_pattern_names_the_roots_tsc_would_send_to_the_project[*-react-False]",
+      "tests/test_census_aliases.py::test_a_pattern_names_the_roots_tsc_would_send_to_the_project[@components/*-@comp/Button-False]",
+      "tests/test_census_aliases.py::test_a_pattern_names_the_roots_tsc_would_send_to_the_project[@components/*-@components/Button-True]",
+      "tests/test_census_aliases.py::test_a_pattern_names_the_roots_tsc_would_send_to_the_project[@lib-@lib-True]",
+      "tests/test_census_aliases.py::test_a_pattern_names_the_roots_tsc_would_send_to_the_project[lib-lib2-False]",
+      "tests/test_census_aliases.py::test_a_pattern_names_the_roots_tsc_would_send_to_the_project[ut*-utils-True]",
+      "tests/test_census_aliases.py::test_a_pattern_names_the_roots_tsc_would_send_to_the_project[utils/*-utils-True]",
+      "tests/test_census_aliases.py::test_comment_and_comma_marks_inside_a_string_are_text",
+      "tests/test_census_aliases.py::test_the_nearest_config_rules_and_its_own_paths_replace_what_it_extends",
+      "tests/test_ci_surfaces.py::test_nothing_the_suite_evaluates_at_import_is_absent_on_windows",
+      "tests/test_interpreter_floor.py::test_new_style_unions_are_lazy[census_aliases.py]",
+      "tests/test_interpreter_floor.py::test_new_style_unions_are_lazy[local_skip_close.py]",
+      "tests/test_interpreter_floor.py::test_new_style_unions_are_lazy[repro_shape.py]",
+      "tests/test_interpreter_floor.py::test_no_syntax_the_floor_cannot_parse[census_aliases.py]",
+      "tests/test_interpreter_floor.py::test_no_syntax_the_floor_cannot_parse[local_skip_close.py]",
+      "tests/test_interpreter_floor.py::test_no_syntax_the_floor_cannot_parse[repro_shape.py]",
+      "tests/test_local_skip_close.py::test_a_cited_file_that_is_gone_is_resolved",
+      "tests/test_local_skip_close.py::test_a_cited_line_that_changed_and_is_not_filed_again_is_resolved_not_withdrawn",
+      "tests/test_local_skip_close.py::test_a_closed_finding_passes_the_finding_validator",
+      "tests/test_local_skip_close.py::test_a_closure_the_validator_refuses_leaves_the_id_where_it_was",
+      "tests/test_local_skip_close.py::test_a_directory_the_suite_collects_from_is_never_outside_it",
+      "tests/test_local_skip_close.py::test_a_file_the_scan_could_not_open_is_not_a_file_it_read",
+      "tests/test_local_skip_close.py::test_a_finding_the_scan_did_not_file_is_never_its_to_settle",
+      "tests/test_local_skip_close.py::test_a_line_moved_by_an_edit_elsewhere_and_found_there_again_stays_open",
+      "tests/test_local_skip_close.py::test_a_skip_still_filed_stays_open"
     ],
     "removed": [],
-    "truncated": false,
+    "truncated": true,
     "source": "id set-diff, not summary arithmetic"
   },
   "questions": {

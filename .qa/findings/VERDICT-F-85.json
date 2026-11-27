@@ -1,0 +1,19 @@
+{
+ "id": "VERDICT-F-85",
+ "title": "A test is skipped with no expiry: \"no GNU tar here (macOS ships bsdtar, which has no --remove-files",
+ "severity": "Minor",
+ "priority": "P2",
+ "failure_classification": "BRITTLE_TEST",
+ "root_cause": {
+  "mechanism": "A skip with no expiry is a deleted test that nobody decided to delete: it never runs again and no one is told.",
+  "origin": "not investigated in local mode"
+ },
+ "status": "withdrawn",
+ "delta": "WITHDRAWN",
+ "evidence": [
+  "tests/test_hooks.py:1306 \u2014 skip marker with reason '\"no GNU tar here (macOS ships bsdtar, which has no --remove-files'; no date or expiry in the reason",
+  "found by a regular expression over the test files, not by a model",
+  "withdrawn by the skip scan 2026-11-27: it read tests/test_hooks.py again and files nothing at the cited lines, which are as they were \u2014 the same text no longer reads as a skip with no expiry, so the rule that filed this was wrong"
+ ],
+ "narrative": "The skip scan that filed this read the same lines again and no longer files them. The finding was a false positive of the rule as it then stood, and it stays on the record as one."
+}

@@ -3,100 +3,36 @@
  "model": "chat-120b",
  "leads": [
   {
-   "path": "src/verdict_mcp/sandbox.py",
-   "line": 540,
-   "function": "run",
-   "title": "run() always forces capture_output=True, ignoring caller's capture_output setting",
-   "severity": "Major",
-   "why": "probe failed on the original: FileNotFoundError: [Errno 2] No such file or directory: 'python'"
+   "path": "src/verdict_mcp/census_aliases.py",
+   "line": 90,
+   "function": "_inside",
+   "title": "_inside treats repository root as inside, violating strict containment",
+   "severity": "Minor",
+   "why": "probe_unsafe: argument 1 is not a literal (m.Path('.'))"
   },
   {
-   "path": "src/verdict_mcp/small.py",
-   "line": 327,
-   "function": "mint",
-   "title": "Validator uses wrong directory path, mismatching write target",
+   "path": "src/verdict_mcp/census_aliases.py",
+   "line": 127,
+   "function": "_under",
+   "title": "_under incorrectly treats the repository root as a valid subpath",
    "severity": "Major",
    "why": "the model did not answer with JSON"
   },
   {
-   "path": "tests/test_local_refuted.py",
-   "line": 58,
-   "function": "checkout",
-   "title": "checkout fails on empty file set due to missing --allow-empty flag",
-   "severity": "Blocker",
-   "why": "probe_unsafe: argument 1 is not a literal (m.Path('/tmp/checkout_empty'))"
-  },
-  {
-   "path": "tests/test_local_refuted.py",
-   "line": 62,
-   "function": "claim",
-   "title": "Hard\u2011coded line number always 19 misleads callers",
-   "severity": "Minor",
-   "why": "fix_unsafe: introduces `inspect`, a name the function never uses"
-  },
-  {
-   "path": "tests/test_local_refuted.py",
-   "line": 68,
-   "function": "test_a_null_claim_on_a_member_declared_non_null_is_set_aside_with_its_declaration",
-   "title": "Refuter reports the declaration line instead of the claim line, misleading the location of the issue",
-   "severity": "Minor",
-   "why": "the line to flip (112) is outside test_a_null_claim_on_a_member_declared_non_null_is_set_aside_with_its_declaration"
-  },
-  {
-   "path": "tests/test_local_refuted.py",
-   "line": 78,
-   "function": "test_the_null_rule_needs_the_projects_own_nullable_setting",
-   "title": "Missing <Nullable> setting treated as enabled, causing false null reference warnings",
+   "path": "src/verdict_mcp/census_aliases.py",
+   "line": 172,
+   "function": "_options",
+   "title": "`paths` option incorrectly converted to list of keys, dropping pattern mappings",
    "severity": "Major",
-   "why": "the line to flip (143) is outside test_the_null_rule_needs_the_projects_own_nullable_setting"
+   "why": "the model did not answer with JSON"
   },
   {
-   "path": "tests/test_local_refuted.py",
-   "line": 88,
-   "function": "test_only_a_non_null_type_with_a_value_counts_as_declared_non_null",
-   "title": "Refuter returns empty dict instead of None for non\u2011null declarations",
-   "severity": "Blocker",
-   "why": "the proof budget was spent"
-  },
-  {
-   "path": "tests/test_local_refuted.py",
-   "line": 117,
-   "function": "test_a_name_declared_nullable_anywhere_keeps_the_claim_unless_the_receiver_is_typed",
-   "title": "Off\u2011by\u2011one line number reported for Ticket.AssignedTo declaration",
-   "severity": "Minor",
-   "why": "the proof budget was spent"
-  },
-  {
-   "path": "tests/test_local_refuted.py",
-   "line": 201,
-   "function": "test_claims_a_declaration_does_not_answer_are_left_alone",
-   "title": "Refuter misclassifies any claim with the word \"null\" as a null\u2011claim, causing false refutation failures",
-   "severity": "Blocker",
-   "why": "the proof budget was spent"
-  },
-  {
-   "path": "tests/test_local_refuted.py",
-   "line": 222,
-   "function": "test_null_claims_in_other_languages_are_not_touched",
-   "title": "Refuter.check returns empty list instead of None for non\u2011C# languages",
-   "severity": "Minor",
-   "why": "the proof budget was spent"
-  },
-  {
-   "path": "tests/test_local_refuted.py",
-   "line": 259,
-   "function": "test_a_gate_compiles_the_folder_or_the_project_it_names",
-   "title": "compiling_gate fails to match Windows-style backslash paths",
+   "path": "src/verdict_mcp/local_skip_close.py",
+   "line": 195,
+   "function": "close_by_scan",
+   "title": "eligible set mixes int and string IDs causing missed closures",
    "severity": "Major",
-   "why": "the proof budget was spent"
-  },
-  {
-   "path": "tests/test_local_refuted.py",
-   "line": 299,
-   "function": "test_the_reports_list_of_set_aside_claims_is_capped_and_says_so",
-   "title": "set_aside_text caps list at 24 items instead of 25, yielding wrong line count and truncation message",
-   "severity": "Minor",
-   "why": "the proof budget was spent"
+   "why": "the model did not answer with JSON"
   }
  ]
 }
