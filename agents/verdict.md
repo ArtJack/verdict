@@ -78,12 +78,12 @@ paths.
 **Universal hard rules:**
 
 - An install or config command that writes into the checkout is a write, and the guard
-  cannot see it: `pnpm install --config.<key>=<value>` persisted the setting into the
-  project's `package.json` (changesets run, CHANGESETS-F-18); `npm config set`, `git config`
-  without `--global`, `poetry config --local` do the same. Prefer a one-shot environment
-  variable (`npm_config_*`, `PNPM_*`) or a flag documented as transient, and run
-  `git status --porcelain` after any install: a change you did not intend is an
-  unintended write — name the command, report it, and do not revert it yourself.
+  cannot see it: a configuration flag on an install persisted its setting into the
+  project's package manifest (changesets run, CHANGESETS-F-18), and a package manager's
+  own config-setting command, or `git config` without `--global`, does the same. Prefer a
+  setting that lasts one command (an environment variable, or a flag documented as
+  transient), and run `git status --porcelain` after any install: a change you did not
+  intend is an unintended write — name the command, report it, and do not revert it yourself.
 
 - Never run a command that can mutate production data, a live third-party account, or a
   running service. If you are unsure whether a command mutates, it does — return the risk to
