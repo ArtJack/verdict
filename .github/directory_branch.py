@@ -41,12 +41,36 @@ BRANCH = "directory"
 # What a plugin never runs or reads: the suite (the secret scan's tests carry the
 # shapes it detects), the eval harness and its seeded fixtures, Verdict's own QA
 # record, CI, this repository's own Claude settings, and the changelog archive.
-EXCLUDED = ("tests/", "eval/", ".qa/", ".github/", ".claude/", "docs/changelog/")
+EXCLUDED = ("tests/", "eval/", ".qa/", ".github/", ".claude/", "docs/changelog/",
+            # Since 2026-10-30 the directory takes these only from a Verified
+            # organization, and the plugin reads none of them: contributor rules, the
+            # package build, a maintainer's script, the README's animation.
+            "AGENTS.md", "pyproject.toml", "scripts/", "docs/demo.svg",
+            # What runs Verdict outside Claude Code: the nightly's guide (it names the
+            # gateway's key variables: one of 0.95.0's credential findings), the GitHub
+            # Action, the MCP registry's manifest and PyPI's front page.
+            "docs/nightly.md", "action.yml", "server.json", "README-pypi.md")
+
+# Modules no hook, agent, command or skill reaches: `verdict-run` and its local tier,
+# the browser check, and what only they import. They ship through PyPI.
+# `runner_env.py`, which hands the gateway's key to a headless run, was another of
+# 0.95.0's credential findings. tests/test_directory_contents.py walks the imports
+# from everything the plugin runs or names and fails if one of these is reached.
+NOT_RUN = {"backfill", "braces", "check", "ends", "reach", "readers", "regions", "small",
+           "testmarks"}
+NOT_RUN_FAMILIES = ("browser", "local_", "runner")
+
+
+def _not_run(path: str) -> bool:
+    folder, _, name = path.rpartition("/")
+    if folder != "src/verdict_mcp" or not name.endswith(".py"):
+        return False
+    return name[:-3] in NOT_RUN or name.startswith(NOT_RUN_FAMILIES)
 
 
 def shipped(path: str) -> bool:
     """Whether a tracked path (posix, from the repository root) goes to the directory."""
-    return not path.startswith(EXCLUDED)
+    return not path.startswith(EXCLUDED) and not _not_run(path)
 
 
 def _git(repo, *args: str, env: dict | None = None, data: bytes | None = None) -> bytes:
@@ -109,7 +133,9 @@ def build(repo, ref: str, *, label: str | None = None, branch: str = BRANCH,
     manifest = json.loads(_git(repo, "show", f"{commit}:.claude-plugin/plugin.json"))
     message = (f"directory: {manifest['name']} {manifest['version']} from {label or ref} · {commit[:7]}\n\n"
                f"The plugin as the Claude directory reads it: the tree of {commit}\n"
-               f"without {', '.join(EXCLUDED)}. Written by .github/directory_branch.py.\n")
+               f"without {', '.join(EXCLUDED)},\n"
+               f"and without the modules no hook, agent, command or skill runs.\n"
+               f"Written by .github/directory_branch.py.\n")
     new = _text(repo, "commit-tree", tree, *(["-p", parent] if parent else []), "-m", message)
     if remote:
         _git(repo, "push", "--quiet", remote, f"{new}:refs/heads/{branch}")
