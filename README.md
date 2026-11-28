@@ -3,7 +3,7 @@
 [CI](https://github.com/ArtJack/verdict/actions/workflows/ci.yml) ·
 [verdict on itself](.qa/reports/INDEX.md) ·
 [eval: 8/8 seeded defects](eval/README.md#published-results) ·
-[pinned rules: 627/627 killed](eval/README.md#suite-fault-detection-power--mutation-testing-on-ourselves) ·
+[pinned rules: 631/631 killed](eval/README.md#suite-fault-detection-power--mutation-testing-on-ourselves) ·
 [PyPI: verdict-qa-mcp](https://pypi.org/project/verdict-qa-mcp/) ·
 [OpenSSF Best Practices: passing](https://www.bestpractices.dev/projects/16149) ·
 [MIT license](LICENSE)
@@ -729,8 +729,8 @@ because it silently switches off the rest of its suite. A range with nothing it 
 configuration, styles, documentation or tests) reads nothing and says so rather than reporting a
 clean pass. Wire it into a
 night with `verdict-run --on-drift local`, which can never reach the `claude` CLI at all.
-**The full agent through a gateway** (`verdict-run --env-file`, `ANTHROPIC_BASE_URL` → LiteLLM →
-your model server, [docs/nightly.md](docs/nightly.md)) needs a model with the window for a
+**The full agent through a gateway** (`verdict-run` pointed at a LiteLLM gateway in front of
+your model server, set up in [docs/nightly.md](docs/nightly.md)) needs a model with the window for a
 twelve-thousand-token contract on top of the CLI's own prompt; an 8B model served at 4k is not
 one. Which model may sign a verdict is the eval's decision, never a default's: Sonnet tied Opus
 on the honesty fixture and was at parity on root cause at n=3, with one run that wrote no state

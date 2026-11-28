@@ -3775,5 +3775,29 @@
   "path": "src/verdict_mcp/local_skips.py",
   "old": "                inside.update(range(tok.start[0] + 1, tok.end[0] + 1))\n",
   "new": "                pass\n"
+ },
+ {
+  "label": "directory trim 1: the modules the plugin never runs ship anyway",
+  "path": ".github/directory_branch.py",
+  "old": "    return not path.startswith(EXCLUDED) and not _not_run(path)\n",
+  "new": "    return not path.startswith(EXCLUDED)\n"
+ },
+ {
+  "label": "directory trim 2: a module the plugin runs is left off the branch",
+  "path": ".github/directory_branch.py",
+  "old": "NOT_RUN = {\"backfill\", \"braces\", \"check\", \"ends\", \"reach\", \"readers\", \"regions\", \"small\",\n",
+  "new": "NOT_RUN = {\"backfill\", \"braces\", \"check\", \"ends\", \"reach\", \"readers\", \"regions\", \"small\", \"state\",\n"
+ },
+ {
+  "label": "directory trim 3: the files only a Verified organization may ship go to the directory",
+  "path": ".github/directory_branch.py",
+  "old": "            \"AGENTS.md\", \"pyproject.toml\", \"scripts/\", \"docs/demo.svg\",\n",
+  "new": "            \"scripts/\",\n"
+ },
+ {
+  "label": "directory trim 4: the nightly's guide, which names the gateway's key variables, ships",
+  "path": ".github/directory_branch.py",
+  "old": "            \"docs/nightly.md\", \"action.yml\", \"server.json\", \"README-pypi.md\")\n",
+  "new": "            \"action.yml\", \"server.json\", \"README-pypi.md\")\n"
  }
 ]
