@@ -135,3 +135,30 @@ def test_no_shipped_file_is_too_large_for_the_directory_to_read():
                   and p.stat().st_size > SIZE_LINE), reverse=True)
     assert big == [], (f"over {SIZE_LINE // 1024} KiB, close to the size the directory stops "
                        f"reading at — split the file: {big}")
+
+
+# 0.95.0's review refused the agent for "May change which code a package manager installs
+# or runs": its hard rule against persisting an install's settings spelled out the very
+# commands it forbids. The rule says it in words now; this keeps every shipped prompt so.
+PACKAGE_CONFIG = re.compile(r"\b(?:npm|pnpm|yarn|bun|pip|poetry|uv|cargo|gem)\s+config\b|--config\."
+                            r"|\bnpm_config_|\bPNPM_[A-Z]|\bPIP_INDEX|\bUV_INDEX|\.npmrc\b")
+
+
+def test_no_prompt_spells_a_package_manager_config_command():
+    prompts = [*sorted((REPO / "agents").glob("*.md")), *sorted((REPO / "commands").glob("*.md")),
+               *sorted((REPO / "skills").glob("*/SKILL.md"))]
+    assert len(prompts) >= 10, "the prompt folders moved, so this test would pass on anything"
+    hits = [f"{p.relative_to(REPO).as_posix()}:{n}: {line.strip()}" for p in prompts
+            for n, line in enumerate(p.read_text(encoding="utf-8").splitlines(), 1)
+            if PACKAGE_CONFIG.search(line)]
+    assert hits == [], "the directory refuses a version whose prompts spell these:\n  " + "\n  ".join(hits)
+
+
+def test_the_config_check_sees_what_the_review_refused():
+    """The control: each line of the wording 0.95.0 shipped is caught, and `git config` is not."""
+    refused = ("cannot see it: `pnpm install --config.<key>=<value>` persisted the setting into the",
+               "project's `package.json` (changesets run, CHANGESETS-F-18); `npm config set`, `git config`",
+               "without `--global`, `poetry config --local` do the same. Prefer a one-shot environment",
+               "variable (`npm_config_*`, `PNPM_*`) or a flag documented as transient, and run")
+    assert [bool(PACKAGE_CONFIG.search(line)) for line in refused] == [True] * 4
+    assert not PACKAGE_CONFIG.search("own config-setting command, or `git config` without `--global`")
